@@ -59,7 +59,7 @@
 	padding: 4px;
 	display: inline-block;
 	position: relative;
-	background: #e6e6e6;
+	background: #e0e0e0;
 	border-radius: 5px;
 	box-shadow: inset rgba(0, 0, 0, .1) 0 2px 0;
 	font-size: 0; /* kills the whitespace gap between the inline-block anchors */
@@ -71,6 +71,7 @@
 /* The selected segment, as a single element that slides rather than two that
    swap colour. Everything else on this site moves when it changes — pages fly in
    from the right, deleted ones fall away — so the toggle should too.
+   White, so it reads as a card lifted off the recessed grey track.
    Two equal segments means the travel is a plain 100% translate, no measuring. */
 #viewTabsPill {
 	width: 116px;
@@ -79,7 +80,7 @@
 	top: 4px;
 	left: 4px;
 	bottom: 4px;
-	background: #4a7df4;
+	background: #fff;
 	border-radius: 3px;
 	box-shadow: rgba(0, 0, 0, .12) 0 3px 0 -1px;
 }
@@ -113,15 +114,16 @@
 }
 
 #viewTabs a:hover {
-	color: #222;
+	color: #444;
 	text-decoration: none;
 }
 
-/* Matches the real .button treatment exactly: white on blue, hard dark shadow up. */
+/* Blue on white, which is exactly what the flipbook cards do with their titles —
+   so the selected segment borrows a treatment already in the design rather than
+   introducing one. No text-shadow: that only existed to sell white-on-blue. */
 #viewTabs a.active,
 #viewTabs a.active:hover {
-	color: #fff;
-	text-shadow: #0c46cc 0 -1px 0;
+	color: #4a7df4;
 }
 
 /* Nudges down on press, like every other button here. */
