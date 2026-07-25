@@ -1,0 +1,30 @@
+@mixin create_icons($is_retina: false) {
+	#play[class*=tool],
+	#circleplay[class*=tool] {
+		@include icon("pause", $is_retina);
+	}
+	
+	#transform {
+		.layer {
+			&:nth-child(1) { @include icon("transform", $is_retina); }
+			&:nth-child(2) { @include icon("transform-translate", $is_retina); }
+			&:nth-child(3) { @include icon("transform-rotate", $is_retina); }
+			&:nth-child(4) { @include icon("transform-nudge", $is_retina); }
+		}
+		
+		// active tools
+		&[class*=tool] {
+			&[class*=tool-0] .layer {
+				&:nth-child(2) { @include icon("transform-translate-a", $is_retina); }
+				&:nth-child(3) { @include icon("transform-rotate-a", $is_retina); }
+			}
+			
+			&[class*=tool-1] .layer:nth-child(4) { @include icon("transform-nudge-a", $is_retina); }
+		}
+	}
+}
+
+@include create_icons();
+@include retina() {
+	@include create_icons(true);
+}

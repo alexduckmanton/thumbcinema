@@ -1,0 +1,245 @@
+label, input, textarea {
+	display: inline-block;
+	font-size: 1.4em;
+}
+
+input, textarea {
+	padding: 5px;
+	border: $black solid 1px;
+	border-radius: 3px;
+	background: $lighterGray;
+	resize: none;
+	color: $darkGray;
+	font-family: Arial, Helvetica, sans-serif;
+	font-weight: normal;
+	
+	&[type=submit] {
+		box-shadow: none;
+	}
+	
+	&:focus {
+		outline: none;
+		background: $white;
+	}
+	
+	@include placeholder() {
+		color: #bbb;
+	}
+}
+
+label {
+	padding: 0 0 .2em .2em;
+	font-family: 'ArvoRegular', Arial, Helvetica, sans-serif;
+}
+
+button, .button, .button:visited {
+	@include colour($blue);
+	
+	padding: 5px 20px 5px 20px;
+	display: inline-block;
+	border-radius: 3px;
+	font-size: 1.6em;
+	line-height: 1em;
+	color: #fff;
+	text-decoration: none;
+	text-shadow: darken($blue, 20%) 0 -1px 0;
+	border: none;
+	position: relative;
+	font-family: 'ArvoRegular', Arial, Helvetica, sans-serif;
+	
+	&:hover {
+		top: -1px;
+		text-decoration: none;
+	}
+	
+	&:active {
+		top: 0;
+	}
+	
+	&.blank {
+		padding: 0;
+		margin-left: 1em;
+		font-size: 1.4em;
+		border: none;
+		background: none;
+		color: #fff;
+		
+		&:active {
+			box-shadow: none;
+		}
+	}
+	
+	&.loading {
+		.copy {
+			opacity: 0;
+		}
+		
+		.spinner {
+			border-color: #fff;
+			top: .5em;
+			left: 47%;
+		}
+	}
+	
+	&.grey {
+		@include colour(#bbb);
+		text-shadow: #999 0 -1px 0;
+	}
+	
+	&.red {
+		@include colour($red);
+	}
+	
+}
+
+
+#form, .form {
+	display: block;
+	
+	padding: 4em;
+	position: relative;
+	z-index: 17;
+	color: #fff;
+	
+	fieldset {
+		margin: 0;
+		padding: 0 0 2em 0;
+		border: none;
+		position: relative;
+		
+		legend {
+			font-size: 2.5em;
+		}
+		
+		legend, label, button {
+			text-shadow: darken($blue, 10%) 0 -1px 0;
+		}
+				
+		ol {
+			margin: 0;
+			padding: 0;
+			list-style: none;
+			
+			li {
+				padding-top: 2em;
+				
+				input, textarea {
+					width: 548px;
+					border-color: darken($blue, 10%);
+					background: lighten($blue, 33%);
+					color: darken($blue, 40%);
+					
+					&:focus {
+						border-color: darken($blue, 20%);
+						background: lighten($blue, 50%);
+					}
+
+					@include placeholder() {
+						color: desaturate(lighten($blue, 10%), 50%);
+					}
+				}
+				
+				label {
+					&.errorMsg {
+						display: none;
+					}
+					
+					.optional {
+						opacity: .666;
+					}
+				}
+				
+				&.error {
+					label {
+						color: darken($red, 45%);
+						text-shadow: lighten($blue, 10%) 0 1px 0;
+						display: none;
+						
+						&.errorMsg {
+							display: inline-block;
+						}
+					}
+					
+					input, textarea {
+						@include errorTextbox;
+					}
+				}
+			}
+		}
+		
+		.button, button {
+			&[type=submit]:not(.blank) {
+				@include colour($green);
+				
+				color: darken($green, 60%);
+				text-shadow: none;
+				
+				&.loading .spinner {
+					border-color: darken($green, 70%);
+				}
+			}
+		}
+	}
+	
+	&.grey {
+		legend, label {
+			color: #444;
+			text-shadow: #fff 0 1px 0;
+		}
+		
+		fieldset ol li {
+			input, textarea {
+				border-color: #ccc;
+				background: #fafafa;
+				color: #444;
+				
+				
+				&:focus {
+					border-color: #888;
+					background: #fff;
+				}
+
+				@include placeholder() {
+					color: #ccc;
+				}
+			}
+				
+			&.error {
+				label {
+					color: darken($red, 10%);
+					text-shadow: #fff 0 1px 0;
+				}
+				
+				input, textarea {
+					@include errorTextbox;
+				}
+			}
+			
+			button[type=submit] {
+				@include colour($blue);
+				
+				&.loading .spinner {
+					border-color: #fff;
+				}
+			}
+			
+			button.cancel, .button.cancel {
+				color: #444;
+				text-shadow: #fff 0 1px 0;
+			}
+		}
+	}
+	
+	fieldset ol li input[type=file] {
+		padding: 0;
+		background: none;
+		border: none;
+		box-shadow: none;
+	}
+}
+
+
+
+
+
+

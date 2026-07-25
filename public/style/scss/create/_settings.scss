@@ -1,0 +1,112 @@
+.settings {
+	$settings_width: 16em;
+	$settings_padding: 1em;
+	$settings_available_width: $settings_width - $settings_padding*2;
+	
+	// hide by default
+	display: none;
+	
+	padding: 1em;
+	position: absolute;
+	top: 11em;
+	left: -6em;
+	background: $white;
+	width: $settings_width;
+	z-index: 1;
+	
+	@include box_sizing(border-box);
+	@include page_shadow($size: 3px);
+	@include user-select(none);
+	
+	&:before {
+		$arrow_width: 1.5em;
+		
+		content: "";
+		position: absolute;
+		top: $arrow_width * -2;
+		left: $settings_width / 2 - $arrow_width;
+		width: 0;
+		height: 0;
+		border: $arrow_width solid transparent;
+		border-bottom-color: #fff;
+		border-bottom-width: $arrow_width;
+	}
+	
+	.slider {
+		$button_width: 2em;
+		
+		@include legacy-pie-clearfix();
+		
+		.smaller, .bigger {
+			border-radius: 100%;
+			background: #888;
+		}
+		
+		.smaller {
+			width: $button_width/3;
+			height: $button_width/3;
+			border: $button_width/3 solid $white;
+			float: left;
+		}
+		
+		.bigger {
+			width: $button_width;
+			height: $button_width;
+			float: right;
+		}
+		
+		.value_container {
+			$value_container_margin: 1em;
+			
+			margin: 0 $value_container_margin;
+			float: left;
+			width: $settings_available_width - $button_width*2 - $value_container_margin*2;
+			height: $button_width;
+			position: relative;
+			cursor: pointer;
+			
+			@include box_sizing(border-box);
+			
+			&:after {
+				$slider_height: .1em;
+				
+				content: "";
+				position: absolute;
+				left: 0;
+				top: $button_width/2 - $slider_height;
+				width: 100%;
+				background: #ccc;
+				height: $slider_height;
+			}
+			
+			.value {
+				position: absolute;
+				top: 0;
+				left: 50%;
+				height: 100%;
+				width: $value_container_margin;
+				background: #888;
+			}
+		}
+	}
+}
+
+// show when parent tool is active
+a[class*=tool] ~ .settings {
+	display: block;
+	
+	@include animation(showFormElement, .2s, linear, 0, 1, normal);
+	
+	a, div {
+		@include animation(showFormElement, .3s, linear, 0, 1, normal);
+		
+		&:nth-child(1) { @include timing(.35s); }
+		&:nth-child(2) { @include timing(.2s); }
+		&:nth-child(3) { @include timing(.25s); }
+		&:nth-child(4) { @include timing(.3s); }
+	}
+}
+
+
+
+

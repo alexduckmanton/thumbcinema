@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+	<title>thumbcinema</title>
+	<meta name="description" content="Create awesome flipbook animations">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1">
+
+	<meta property="og:site_name" content="thumbcinema"/>
+
+	<link rel="stylesheet" type="text/css" href="/style/style.css">
+	<link rel="stylesheet" type="text/css" href="/style/revival.css">
+	<link rel="shortcut icon" href="/favicon.ico">
+	<link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png">
+
+	<script type="text/javascript" src="/script/lib/modernizr.custom.01537.js"></script>
+	<script type="text/javascript" src="/script/general/browser-check.js"></script>
+</head>
+
+<body>
+
+<div id="header"><div id="headerContainer">
+	<ul id="nav" class="active">
+		<li><a href="/"><img src="/images/thumbcinema_logo.png" width="319" height="103" alt="thumbcinema" id="logo" /></a></li>
+		<li><a href="/create">create</a></li>
+	</ul>
+
+	<ul id="messages"></ul>
+</div><div id="messagesBG"></div></div>
+
+<div id="content" class="loading">
+	<div id="pageContainer" class="loading hidden"></div>
+
+	<div class="center">
+		<div id="book">
+			<div id="loadingFlipbook" class="loading"><h2 class="loading"><span class="spinner"></span></h2></div>
+		</div>
+
+		<div id="tray">
+			<ul class="left" id="metadata">
+				<li><span id="views">&nbsp;</span> views</li>
+				<li id="adminControls"></li>
+			</ul>
+			<ul class="right"></ul>
+		</div>
+
+		<div id="info">
+			<div class="heading">
+				<h2 id="flipbookTitle"></h2>
+				<h3 id="flipbookByline"></h3>
+			</div>
+			<p id="flipbookDescription"></p>
+		</div>
+
+		<div id="flipbookMissing" style="display: none;">
+			<h1>This flipbook has wandered off.</h1>
+			<p>I can't find it anywhere. <a href="/">Try the gallery</a>?</p>
+		</div>
+	</div>
+</div>
+
+<div id="svg"></div>
+
+<script type="text/javascript">
+	var isCreate = false,
+		templateURL = "/",
+		rootURL = "/",
+		is_logged_in = true;
+	var _gaq = { push: function(){} };
+</script>
+
+<!-- libraries -->
+<script type="text/javascript" src="/script/lib/jquery-1.9.1.min.js"></script>
+<script type="text/javascript" src="/script/lib/plugins/jquery.do-a-flip.js"></script>
+<script type="text/javascript" src="/script/lib/underscore-min.js"></script>
+<script type="text/javascript" src="/script/lib/backbone-min.js"></script>
+<script type="text/javascript" src="/script/lib/paper.js"></script>
+<script type="text/javascript" src="/script/lib/svg.min.js"></script>
+
+<!-- flipbook -->
+<script type="text/javascript" src="/script/Flipbook.js"></script>
+<script type="text/javascript" src="/script/flip/social.js"></script>
+<script type="text/javascript" src="/script/flip/data.js"></script>
+<script type="text/javascript" src="/script/flip/recover.js"></script>
+<script type="text/javascript" src="/script/flip/saveButtons.js"></script>
+<script type="text/javascript" src="/script/flip/saveForms.js"></script>
+<script type="text/javascript" src="/script/flip/printer.js"></script>
+<script type="text/javascript" src="/script/flip/canvas.js"></script>
+<script type="text/javascript" src="/script/flip/book.js"></script>
+<script type="text/javascript" src="/script/flip/page.js"></script>
+<script type="text/javascript" src="/script/flip/pages.Collection.js"></script>
+<script type="text/javascript" src="/script/flip/tool.js"></script>
+<script type="text/javascript" src="/script/flip/toolSettingsContainer.js"></script>
+<script type="text/javascript" src="/script/flip/toolSettingsSlider.js"></script>
+<script type="text/javascript" src="/script/flip/pencil.js"></script>
+<script type="text/javascript" src="/script/flip/transform.js"></script>
+<script type="text/javascript" src="/script/flip/eraser.js"></script>
+<script type="text/javascript" src="/script/flip/translate.js"></script>
+<script type="text/javascript" src="/script/flip/scale.js"></script>
+<script type="text/javascript" src="/script/flip/rotate.js"></script>
+<script type="text/javascript" src="/script/flip/stretch.js"></script>
+<script type="text/javascript" src="/script/flip/push.js"></script>
+<script type="text/javascript" src="/script/flip/blank.js"></script>
+<script type="text/javascript" src="/script/flip/duplicate.js"></script>
+<script type="text/javascript" src="/script/flip/delete_page.js"></script>
+<script type="text/javascript" src="/script/flip/play.js"></script>
+<script type="text/javascript" src="/script/flip/circleplay.js"></script>
+
+<!-- general -->
+<script type="text/javascript" src="/script/general/header.js"></script>
+
+<script type="text/javascript" src="/script/general/admin.js"></script>
+
+<!-- boot -->
+<script type="text/javascript" src="/script/general/device.js"></script>
+<script type="text/javascript" src="/script/general/boot-playback.js"></script>
+
+</body>
+</html>

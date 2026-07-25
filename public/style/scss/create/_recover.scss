@@ -1,0 +1,47 @@
+#recover_container {
+	$recover_red: darken($red, 2.5%);
+	
+	background: rgba($recover_red, .95);
+	
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 9999;
+	width: 100%;
+	height: 100%;
+	
+	.center {
+		margin-top: 12.5em;
+		
+		h1, p, a, img {
+			@include animation(showFormElement, .3s, linear, 0, 1, normal);
+			
+			&:nth-child(1) { @include timing(.3s); }
+			&:nth-child(2) { @include timing(.2s); }
+			&:nth-child(3) { @include timing(.3s); }
+			&:nth-child(4) { @include timing(.4s); }
+		}
+		
+		img {
+			margin: 0 2.5em 2.5em 0;
+			float: left;
+		}
+		
+		h1 {
+			font-size: 4em;
+			color: darken($recover_red, 50%);
+		}
+		
+		p {
+			color: darken($recover_red, 40%);
+		
+			a {
+				color: lighten($recover_red, 30%);
+			}
+		}
+		
+		.button {
+			margin-top: .5em;
+		}
+	}
+}

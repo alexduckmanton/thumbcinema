@@ -1,0 +1,100 @@
+#settings-form, #account-delete-form {
+	padding: 1em 0 0 0;
+	
+	legend a {
+		@include sansSerif();
+		font-size: .6em;
+		margin-left: .5em;
+	}
+	
+	input {
+		width: 628px;
+		
+		&[type=password] {
+			margin-bottom: .5em;
+		}
+		
+		&[type=file] {
+			position: fixed;
+			left: -99999px;
+		}
+	}
+	
+	label[for=pic_upload] {
+		width: 100%;
+	}
+	
+	button[type=submit] {
+		@extend .button;
+	}
+}
+
+#account-delete-form {
+	p, blockquote, label {
+		@include sansSerif();
+	}
+	
+	p, blockquote {
+		margin: 0 0 1em 0;
+		color: #444;
+		font-size: 1.4em;
+		line-height: 1.4em;
+		
+		&:last-child {
+			margin-bottom: 0;
+		}
+	}
+	
+	blockquote {
+		padding: 0 2em;
+		display: inline-block;
+		font-style: italic;
+		position: relative;
+		
+		&:before, &:after {
+			position: absolute;
+			top: .15em;
+			font-size: 5em;
+			color: #aaa;
+			font-family: georgia, sans-serif;
+		}
+		
+		&:before {
+			content: "\201C";
+			left: -.1em;
+		}
+		
+		&:after {
+			content: "\201D";
+			right: -0;
+		}
+	}
+	
+	input {
+		width: auto;
+	}
+	
+	label {
+		line-height: 0;
+		vertical-align: middle;
+	}
+	
+	button {
+		@include colour($red);
+		
+		&[disabled] {
+			display: none;
+			
+			&+a {
+				display: none;
+			}
+		}
+	}
+}
+
+
+
+
+
+
+

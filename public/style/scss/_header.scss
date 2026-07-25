@@ -1,0 +1,546 @@
+@include keyframes(showHeader) {
+	0% {
+		@include transform(translate3d(0,-80px,0));
+	}
+
+	30% {
+		@include transform(translate3d(0,5px,0));
+	}
+
+	60% {
+		@include transform(translate3d(0,-2px,0));
+	}
+
+	100% {
+		@include transform(translate3d(0,0px,0));
+	}
+}
+
+@include keyframes(showActiveLink) {
+	0% {
+		@include transform(translate3d(0,-80px,0));
+	}
+
+	30% {
+		@include transform(translate3d(0,1px,0));
+	}
+
+	60% {
+		@include transform(translate3d(0,-1px,0));
+	}
+
+	100% {
+		@include transform(translate3d(0,0px,0));
+	}
+}
+
+@include keyframes(hideHeader) {
+	0% {
+		@include transform(translate3d(0,0px,0));
+	}
+
+	5% {
+		@include transform(translate3d(0,-2px,0));
+	}
+
+	50%, 100% {
+		@include transform(translate3d(0,45px,0));
+	}
+}
+
+@include keyframes(delayNavHide) {
+	0%, 100% {
+		height: 40px;
+		// overflow: visible;
+	}
+}
+
+@include keyframes(delayHide) {
+	0%, 100% {
+		padding: 5px 80px;
+		height: 29px;
+		// overflow: visible;
+	}
+}
+
+@include keyframes(delayMessagesHide) {
+	0%, 100% {
+		padding-top: 12px;
+		height: 28px;
+		// overflow: visible;
+	}
+}
+
+#header {
+	width: 100%;
+	height: 40px;
+	background: url(../images/bg_header.jpg) #333 top left repeat;
+	background-size: 150px 150px;
+	position: relative;
+	z-index: 100;
+
+	#messagesBG {
+		width: 100%;
+		height: 40px;
+		@include transition(background);
+
+		&.info		{ background: $blue; }
+		&.success	{ background: $green; }
+		&.error		{ background: $red; }
+	}
+
+	#headerContainer {
+		margin: 0 auto;
+		width: 100%;
+		max-width: 800px;
+		position: relative;
+	}
+
+	a:active {
+		position: relative;
+		top: 1px;
+	}
+
+	ul {
+		padding: 0;
+		margin: 0 auto;
+		text-align: left;
+		list-style: none;
+		overflow: hidden;
+		position: absolute;
+
+
+		li {
+			margin: 0;
+			display: inline-block;
+			font-weight: normal;
+			font-size: 1.6em;
+		}
+
+		&.active {
+			overflow: inherit;
+
+			li {
+				@include animation(showHeader, .5s, linear, 0, 1, normal);
+
+				&:nth-child(even)	{ @include timing(.5s); }
+				&:nth-child(odd)	{ @include timing(.6s); }
+				&:nth-child(3n+3)	{ @include timing(.4s); }
+				&:nth-child(4n+4)	{ @include timing(.7s); }
+
+				&.active {
+					z-index: 1;
+				}
+			}
+
+			&#nav li.active {
+				@include animation(showActiveLink, .6s, linear, 0, 1, normal);
+			}
+		}
+
+		&.inactive {
+			height: 0;
+			overflow: hidden !important;
+
+			&#nav 		{ @include animation(delayNavHide, .4s, linear, 0, 1, normal); }
+			&#messages 	{ @include animation(delayMessagesHide, .4s, linear, 0, 1, normal); }
+			&#loginForm { @include animation(delayHide, .4s, linear, 0, 1, normal); }
+
+			&#loginForm li {
+				position: relative;
+				z-index: 2;
+			}
+
+			li {
+				@include animation(hideHeader, .6s, linear, 0, 1, normal);
+
+				&:nth-child(even)	{ @include timing(.6s); }
+				&:nth-child(odd)	{ @include timing(.4s); }
+				&:nth-child(3n+3)	{ @include timing(.7s); }
+				&:nth-child(4n+4)	{ @include timing(.6s); }
+			}
+		}
+
+		&#loginForm, &#messages {
+			height: 0;
+		}
+
+		&#messages {
+			width: 100%;
+			text-align: center;
+
+			&.active {
+				padding-top: 12px;
+			}
+
+			li {
+				a {
+					border-bottom: #fff 1px dotted;
+
+					&:hover {
+						border-bottom-style: solid;
+						text-decoration: none;
+					}
+				}
+
+				&.info {
+					color: lighten($blue, 27.5%);
+					text-shadow: darken($blue, 10%) 0 -1px 0;
+					a { color: $white; }
+				}
+				&.success {
+					color: darken($green, 50%);
+					text-shadow: lighten($green, 20%) 0 1px 0;
+					a {
+						color: darken($green, 70%);
+						border-color: darken($green, 50%);
+					}
+				}
+				&.error {
+					color: lighten($red, 30%);
+					text-shadow: darken($red, 20%) 0 -1px 0;
+					a { color: $white; }
+				}
+			}
+		}
+
+		&#loginForm {
+
+			&.active {
+				padding: 5px 80px;
+				height: 30px;
+			}
+
+			li {
+				font-size: 1em;
+
+				input[type=text], input[type=password] {
+					width: 205px;
+				}
+
+				input[type=text], input[type=password], button {
+					margin-right: 3px;
+				}
+
+				&.forgetmenot {
+					label {
+						@include sansSerif();
+
+						color: $lightGray;
+						font-size: 1.2em;
+
+						input {
+							margin-right: 2px;
+							width: 12px;
+							vertical-align: middle;
+						}
+					}
+				}
+
+				&#cancel {
+					position: absolute;
+					left: 55px;
+					top: 9px;
+
+					a {
+						width: 20px;
+						height: 20px;
+						background: rgba(255,255,255,0.5);
+						border-radius: 999px;
+						display: block;
+						color: $black;
+						@include sansSerif();
+						font-size: 1.5em;
+						line-height: 1.15em;
+						text-align: center;
+						font-weight: bolder;
+
+						&:hover {
+							background: rgba(255,255,255,0.75);
+							text-decoration: none;
+						}
+					}
+				}
+			}
+		}
+
+		&#nav {
+			padding: 0 40px;
+			overflow: visible;
+
+			li {
+
+				&:after {
+					content: ".";
+					color: #666;
+					font-size: 1.5em;
+					line-height: 0;
+					position: relative;
+					top: -11px;
+					text-shadow: none;
+				}
+
+				&#account {
+
+					a {
+						padding-right: 0;
+
+						&:first-child {
+							overflow: hidden;
+							white-space: nowrap;
+							text-overflow: ellipsis;
+							max-width: 170px;
+							vertical-align: bottom;
+						}
+
+						&:last-child {
+							padding: 0;
+						}
+					}
+				}
+
+				&:last-child:after {
+					display: none;
+				}
+
+				&.active {
+					position: relative;
+
+					&:before {
+						content: "";
+						display: block;
+						width: 10px;
+						height: 10px;
+						box-shadow: #fff 1px 1px 0;
+						position: absolute;
+						top: 15px;
+						left: 44%;
+						z-index: 1;
+						@include transform(rotate(45deg));
+						background: url(../images/bg_header.jpg) #333 top left repeat;
+					}
+				}
+
+				&:first-child {
+					position: relative;
+
+					a {
+						padding: 0 .25em 0 0;
+						overflow: hidden;
+						display: inline-block;
+						height: 40px;
+						top: 0;
+
+						&:active {
+							top: 0;
+						}
+
+						img {
+							position: relative;
+							top: -9px;
+						}
+					}
+
+					&:after {
+						display: none;
+					}
+
+					a:after {
+						content: "";
+						display: block;
+						position: absolute;
+						top: 42px;
+						left: 0;
+						width: 100%;
+						height: 100px;
+						background: #f00;
+						box-shadow: rgba(0,0,0,0.15) 0 -5px 5px;
+					}
+
+					&.active {
+						&:before {
+							top: 34px;
+							left: 164px;
+							background: $blue;
+							box-shadow: #fff 1px 1px 0, inset rgba(0,0,0,0.15) -4px -4px 10px;
+						}
+					}
+				}
+
+				&:only-child.active, &:only-child {
+					width: 720px;
+					text-align: center;
+
+					&:before {
+						left: 50.2%;
+					}
+				}
+
+				a {
+					padding: 0 1em;
+					color: #ccc;
+					text-decoration: none;
+					font-weight: normal;
+					position: relative;
+					top: -9px;
+					line-height: 2em;
+					display: inline-block;
+
+					&:hover {
+						color: #4a7df4;
+					}
+
+					&:active {
+						top: -8px;
+					}
+				}
+			}
+		}
+	}
+
+
+	#signup {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		z-index: 999999;
+		display: none;
+
+		&.show {
+			display: block;
+			@include animation(showSignup, .2s, linear, 0, 1, normal);
+
+			li, legend {
+				@include animation(showFormElement, .3s, linear, 0, 1, normal);
+
+				&:nth-child(1) { @include timing(.3s); }
+				&:nth-child(2) { @include timing(.2s); }
+				&:nth-child(3) { @include timing(.3s); }
+				&:nth-child(4) { @include timing(.4s); }
+			}
+		}
+
+		#form {
+			margin: 0 auto;
+			width: 348px;
+			background: $blue;
+			position: relative;
+			top: 60px;
+			border-radius: 2px;
+			box-shadow: inset lighten($blue, 10%) 0 1px 0;
+
+			fieldset ol li {
+				input, textarea {
+					width: 340px;
+				}
+			}
+
+			fieldset:last-child {
+				padding-bottom: 0;
+			}
+		}
+
+		#signupBG {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0,0,0,0.8);
+		}
+
+	}
+
+}
+
+@include keyframes(showSignup) {
+	0% {
+		opacity: 0;
+	}
+
+	100% {
+		opacity: 1;
+	}
+}
+
+@include keyframes(showFormElement) {
+	0% {
+		opacity: 0;
+		@include transform(translate3d(0,-60px,0));
+	}
+
+	30% {
+		opacity: 1;
+		@include transform(translate3d(0,5px,0));
+	}
+
+	60% {
+		@include transform(translate3d(0,-2px,0));
+	}
+
+	100% {
+		@include transform(translate3d(0,0px,0));
+	}
+}
+
+@include keyframes(hideFormElement) {
+	0% {
+		opacity: 1;
+		@include transform(translate3d(0,0px,0));
+	}
+
+	30% {
+		opacity: 1;
+		@include transform(translate3d(0,5px,0));
+	}
+
+	100% {
+		opacity: 0;
+		@include transform(translate3d(0,-40px,0));
+	}
+}
+
+
+@media screen and (max-width: $mobileWidth) {
+	#header {
+		min-width: inherit;
+		#headerContainer {
+			width: 100%;
+
+			ul {
+				padding: 0;
+				text-align: center;
+				position: static;
+
+				li {
+					&:first-child a {
+						padding: 0;
+						position: relative;
+						left: -20px;
+					}
+
+					&:not(:first-child) {
+						display: none;
+					}
+
+					&.active {
+						&:only-child {
+							width: inherit;
+							text-align: inherit;
+						}
+
+						&:before {
+							display: none;
+						}
+					}
+
+					&:only-child.active, &:only-child {
+						width: auto;
+					}
+				}
+			}
+		}
+	}
+}

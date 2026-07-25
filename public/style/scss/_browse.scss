@@ -1,0 +1,378 @@
+@mixin small_thumbnail {
+	margin: 0 0 20px 20px;
+	float: left;
+	position: relative;
+	width: 200px;
+	height: 110px;
+	font-size: 1.6em;
+	line-height: 1.2em;
+	
+	.title {
+		padding: 10px 5%;
+	}
+}
+
+@mixin hide_title() {			
+	.title {
+		padding: 10px 5%;
+		background: rgba(#fff, 0);
+		color: rgba($blue,0);
+		@include transition($duration: .1s);
+		@include transitionProperty(color, background);
+	}
+}
+
+@mixin custom_thumbnail($width: 420px, $height: 240px, $font-size: 3em) {
+	width: $width;
+	height: $height;
+	font-size: $font-size;
+			
+	.title {
+		padding: 15px 20px;
+	}
+}
+
+@mixin medium_thumbnail($margin-top: 0, $margin-right: 0, $margin-bottom: 20px, $margin-left: 0) {
+	margin: $margin-top $margin-right $margin-bottom $margin-left;
+	@include custom_thumbnail();
+}
+
+@mixin medium_square_thumbnail($margin-top: 0, $margin-right: 0, $margin-bottom: 20px, $margin-left: 0) {
+	margin: $margin-top $margin-right $margin-bottom $margin-left;
+	@include custom_thumbnail($width: 324px);
+}
+
+@mixin large_thumbnail($margin-top: 0, $margin-right: 0, $margin-bottom: 20px, $margin-left: 0) {
+	margin: $margin-top $margin-right $margin-bottom $margin-left;
+	@include custom_thumbnail($width: 544px, $height: 370px);
+}
+
+#postContainer {
+	margin: 0 auto;
+	width: 100%;
+	@include legacy-pie-clearfix();
+	
+	.post {
+		margin: 0 auto 5% auto;
+		padding: 0;
+		width: 90%;
+		height: 200px;
+		display: block;
+		float: none;
+		font-size: 16px;
+		position: relative;
+		background-size: cover;
+		background-position: center center;
+		background-repeat: no-repeat;
+		background-color: #fff;
+		@include page_shadow(2px);
+		@include transition($duration: .1s);
+		@include transitionProperty(width);
+		
+		.title {
+			padding: 10px 5%;
+			display: block;
+			position: absolute;
+			bottom: 0;
+			width: 100%;
+			color: $blue;
+			background: rgba(#fff, .95);
+			@include box-sizing(border-box);
+		}
+		
+		.icons {
+			padding: .5em;
+			position: absolute;
+			top: 0;
+			right: 0;
+			cursor: default;
+			display: none;
+			
+			span[class*=icon] {
+				margin-left: .5em;
+				float: left;
+				cursor: pointer;
+			}
+		}
+		
+		&:hover {
+			text-decoration: none;
+			
+			.title {
+				color: $blue;
+				background: rgba(#fff, .95);
+			}
+			
+			.icons {
+				display: block;
+			}
+		}
+		
+		&.category-draft {
+			box-shadow: none;
+			border: 2px dotted $lightGray;
+			border-style: dashed;
+			background-color: transparent;
+			@include box-sizing(border-box);
+			
+			.title {
+				display: none;
+			}
+		}
+		
+		.confirm {
+			display: none;
+		}
+		
+		&.confirm_delete {
+			background-color: rgba(0,0,0,0.75);
+			border-color: $black;
+			cursor: default;
+			@include transition($duration: .3s);
+			@include transitionProperty(border, background);
+			
+			.icons, .title {
+				display: none;
+			}
+			
+			.confirm {
+				display: block;
+				text-align: center;
+				width: 100%;
+				position: absolute;
+				top: 37%;
+				z-index: 10;
+				
+				span {
+					cursor: pointer;
+				}
+				
+				.button {
+					margin-right: .5em;
+					font-size: 1em;
+					@include animation(showFormElement, .4s, linear, 0, 1, normal);
+				}
+				
+				.cancel {
+					font-size: .667em;
+					color: #fff;
+					display: inline-block;
+					@include animation(showFormElement, .45s, linear, 0, 1, normal);
+					
+					&:hover {
+						position: relative;
+						top: -1px;
+					}
+					
+					&:active {
+						top: 0;
+					}
+				}
+			}
+			
+			&:nth-child(6n+1) .confirm {
+				top: 40%;
+				
+				.button {
+					font-size: .667em;
+				}
+				
+				.cancel {
+					font-size: .5em;
+				}
+			}
+		}
+		
+		&.deleted {
+			z-index: 20;
+			@include animation(delete_flipbook, .8s, ease-in-out, 0, 1, normal);
+		}
+	}
+}
+
+@include keyframes(delete_flipbook) {
+	0% {
+		@include transform( translate3d(0,0,0) rotate(0deg) );
+	}
+	
+	25% {
+		@include transform( translate3d(0,-10px,0) rotate(-3deg) );
+	}
+	
+	100% {
+		@include transform( translate3d(0,1000px,0) rotate(-170deg) );
+	}
+}
+
+#pagination {
+	padding: 0;
+	margin: 0 auto 2em auto;
+	width: 90%;
+	list-style: none;
+	@include legacy-pie-clearfix();
+	
+	li {
+		padding: 0;
+		margin: 0;
+		
+		&#next {
+			float: right;
+		}
+		
+		&#prev {
+			float: left;
+			
+			a {
+				@extend .grey;
+			}
+		}
+		
+		a {
+			text-decoration: none;
+			@extend .button;
+		}
+	}
+}
+
+@media screen and (min-width: $mobileWidth) and (max-width: 1000px) {
+	@mixin alt_small_thumbnail() {
+		@include small_thumbnail();
+		width: 229px;
+		height: 130px;
+	}
+	@mixin alt_medium_thumbnail() {
+		@include medium_thumbnail();
+		width: 478px;
+		height: 280px;
+	}
+	
+	#postContainer {
+		width: 727px;
+	
+		.post {
+			@include alt_small_thumbnail();
+			@include hide_title();
+			
+			&:nth-child(6n + 1) {
+				@include alt_medium_thumbnail();
+			}
+			
+			&:nth-child(6n + 4) {
+				margin: 0 0 20px 0;
+			}
+			
+			&:nth-child(12n + 7) {
+				margin: 0 0 20px 0;
+				float: right;
+				
+				&:last-child {
+					float: left;
+				}
+			}
+			
+			&:nth-child(12n + 8),
+			&:nth-child(12n + 9) {
+				margin: 0 20px 20px 0;
+			}
+		}
+	}
+	
+	#pagination {
+		width: 727px;
+	}
+}
+
+@media screen and (min-width: 1000px) and (max-width: $largeWidth) {
+	#postContainer {
+		width: 984px;
+		
+		.post {
+			@include small_thumbnail();
+			@include hide_title();
+			
+			// first block
+			&:nth-child(11n + 1) {
+				@include large_thumbnail();
+			}
+			&:nth-child(11n + 4) {
+				@include medium_thumbnail($margin-left: 20px);
+			}
+			&:nth-child(11n + 5) {
+				@include medium_square_thumbnail();
+			}
+			
+			// second block, opposite
+			&:nth-child(22n + 12),
+			&:nth-child(22n + 16) {
+				float: right;
+			}
+			&:nth-child(22n + 13),
+			&:nth-child(22n + 14),
+			&:nth-child(22n + 15),
+			&:nth-child(22n + 17),
+			&:nth-child(22n + 18),
+			&:nth-child(22n + 19),
+			&:nth-child(22n + 20),
+			&:nth-child(22n + 21),
+			&:nth-child(22n + 22), {
+				margin: 0 20px 20px 0;
+			}
+			
+			// last row
+			&:nth-child(22n + 28) {
+				@include medium_thumbnail($margin-left: 20px);
+			}
+		}
+	}
+	
+	#pagination {
+		width: 984px;
+	}
+}
+
+@media screen and (min-width: $largeWidth) {
+	#postContainer {
+		width: 1400px;
+		
+		.post {
+			@include small_thumbnail();
+			@include hide_title();
+			
+			// first block
+			&:nth-child(10n + 1) {
+				@include large_thumbnail();
+				width: 520px;
+			}
+			&:nth-child(10n + 6) {
+				@include medium_thumbnail($margin-left: 20px);
+			}
+			
+			// second block, opposite
+			&:nth-child(20n + 11),
+			&:nth-child(20n + 16) {
+				float: right;
+			}
+			&:nth-child(20n + 12),
+			&:nth-child(20n + 13),
+			&:nth-child(20n + 14),
+			&:nth-child(20n + 15),
+			&:nth-child(20n + 16),
+			&:nth-child(20n + 17),
+			&:nth-child(20n + 18),
+			&:nth-child(20n + 19),
+			&:nth-child(20n + 20) {
+				margin: 0 20px 20px 0;
+			}
+		}
+	}
+	
+	#pagination {
+		width: 1400px;
+	}
+}
+
+
+
+
+
+

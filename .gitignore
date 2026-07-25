@@ -1,0 +1,29 @@
+# The 2012-2015 WordPress originals. Reference + archive seed data only.
+# Never edited, never committed. See docs/archive.md.
+_original/
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel
+
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Scratch
+tmp/

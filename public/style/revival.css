@@ -1,0 +1,165 @@
+/*
+ * Revival overrides.
+ *
+ * style/style.css is the original 2013 compiled stylesheet and stays untouched.
+ * Everything the 2025 rebuild needs to change lives here, so the diff against the
+ * original is always visible in one place.
+ */
+
+/* No accounts means no drafts: a draft you can't come back to isn't a draft.
+   data.js derives the draft button from `logged_in`, which we now always pass as
+   true, so it gets hidden here rather than by editing the original view. */
+#save #draft {
+	display: none;
+}
+
+/* single.php rendered the author avatar and a like/report row. Neither exists
+   now, so the byline collapses when it has nothing in it. */
+#info .heading h3:empty {
+	display: none;
+}
+
+/* The archive has no descriptions — the WordPress post bodies went down with the
+   database — so don't leave a gap where one would have been. */
+#flipbookDescription:empty {
+	display: none;
+}
+
+/* Playback pages for a flipbook that no longer exists. */
+#flipbookMissing {
+	padding: 4em 0;
+	text-align: center;
+}
+
+/* Gallery empty / error states reuse .center, which is fixed-width; give them air. */
+#galleryEmpty,
+#galleryError {
+	padding: 3em 0;
+	text-align: center;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Featured / All segmented control
+ *
+ * The 2013 homepage only ever showed one list (category 6), so there was nothing
+ * like this to inherit. Built from the existing palette — Arvo, #4a7df4, 3px radii
+ * — so it reads as part of the original rather than bolted on.
+ * ------------------------------------------------------------------------- */
+
+#viewTabs {
+	padding: 0;
+	margin: 0 auto 2em auto;
+	width: 90%;
+	list-style: none;
+	text-align: center;
+	font-size: 0; /* kills the whitespace gap between the two inline-block items */
+}
+
+#viewTabs li {
+	padding: 0;
+	margin: 0;
+	display: inline-block;
+}
+
+#viewTabs a {
+	padding: 6px 22px;
+	display: block;
+	font-family: 'ArvoRegular', Arial, Helvetica, sans-serif;
+	font-size: 15px;
+	line-height: 1.4em;
+	color: #666;
+	text-decoration: none;
+	background: #fff;
+	border: 1px solid #ccc;
+	position: relative;
+}
+
+#viewTabs li:first-child a {
+	border-radius: 3px 0 0 3px;
+}
+
+#viewTabs li:last-child a {
+	border-radius: 0 3px 3px 0;
+	border-left: none;
+}
+
+#viewTabs a:hover {
+	color: #4a7df4;
+	text-decoration: none;
+}
+
+#viewTabs a.active {
+	color: #fff;
+	background: #4a7df4;
+	border-color: #4a7df4;
+	text-shadow: #1c4fc4 0 -1px 0;
+}
+
+/* Sits directly under the yellow banner, which has its own bottom border. */
+.cta + #viewTabs {
+	margin-top: 2em;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Infinite scroll footer
+ * ------------------------------------------------------------------------- */
+
+#galleryFoot {
+	margin: 0 auto 3em auto;
+	width: 90%;
+	min-height: 3em;
+	text-align: center;
+	clear: both;
+}
+
+#galleryFoot .spinner {
+	display: none;
+	position: relative;
+	margin: 1em auto;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Admin toggles
+ *
+ * Only ever rendered when an admin token is present. On gallery cards these sit
+ * inside .icons, which _browse.scss already absolutely positions top-right and
+ * reveals on hover, so the layout comes for free.
+ * ------------------------------------------------------------------------- */
+
+.tc-admin {
+	display: inline-block;
+}
+
+.tc-admin-toggle {
+	margin-left: .5em;
+	display: inline-block;
+	vertical-align: middle;
+	cursor: pointer;
+	opacity: .55;
+	transition: opacity .1s linear;
+}
+
+.tc-admin-toggle:hover {
+	opacity: 1;
+}
+
+.tc-admin-toggle.busy {
+	opacity: .25;
+	cursor: default;
+}
+
+/* In the flipbook page's metadata row the icons sit alongside the view count, so
+   they need to meet the text baseline and not crowd each other. */
+#adminControls .tc-admin-toggle {
+	margin-left: .75em;
+	vertical-align: -6px;
+}
+
+/* On a card, give the icons something to sit on — thumbnails are white-on-white. */
+#postContainer .post .icons {
+	background: rgba(255, 255, 255, .9);
+	border-radius: 0 0 0 3px;
+}

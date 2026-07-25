@@ -1,0 +1,31 @@
+#like_container {
+	color: $gray;
+	
+	#like {
+		padding-left: .25em;
+	}
+	
+	&:hover, &.liked {
+		color: $blue;
+		text-decoration: none;
+	}
+}
+
+#likes {
+	padding-left: .25em;
+}
+
+@mixin like_icons($is_retina: false) {
+	#like_container {
+		&:hover, &.liked {
+			[class*=icon] {
+				@include icon("heart-blue", $is_retina);
+			}
+		}
+	}
+}
+
+@include like_icons();
+@include retina() {
+	@include like_icons(true);
+}

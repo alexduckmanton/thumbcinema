@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+	<title>thumbcinema</title>
+	<meta name="description" content="Create awesome flipbook animations">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1">
+
+	<meta property="og:title" content="thumbcinema"/>
+	<meta property="og:image" content="/images/thumbcinema_logo@2x.png"/>
+	<meta property="og:site_name" content="thumbcinema"/>
+	<meta property="og:description" content="Create awesome flipbook animations"/>
+
+	<link rel="stylesheet" type="text/css" href="/style/style.css">
+	<link rel="stylesheet" type="text/css" href="/style/revival.css">
+	<link rel="shortcut icon" href="/favicon.ico">
+	<link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png">
+
+	<script type="text/javascript" src="/script/lib/modernizr.custom.01537.js"></script>
+	<script type="text/javascript" src="/script/general/browser-check.js"></script>
+</head>
+
+<body>
+
+<div id="header"><div id="headerContainer">
+	<ul id="nav" class="active">
+		<li class="active"><a href="/"><img src="/images/thumbcinema_logo.png" width="319" height="103" alt="thumbcinema" id="logo" /></a></li>
+		<li><a href="/create">create</a></li>
+	</ul>
+
+	<ul id="messages"></ul>
+</div><div id="messagesBG"></div></div>
+
+<div id="content">
+
+	<div class="cta">
+		<div class="center">
+			<h1>Create flipbooks and be merry</h1>
+			<img src="/images/cta_pencil.gif" width="193" height="212" alt="Cool tools" />
+			<a href="/create" class="button">Create a flipbook</a>
+		</div>
+	</div>
+
+	<ul id="viewTabs">
+		<li><a href="/" data-view="featured" class="active">Featured</a></li>
+		<li><a href="/?view=all" data-view="all">All</a></li>
+	</ul>
+
+	<div id="postContainer"></div>
+
+	<div id="galleryFoot">
+		<span class="spinner" id="galleryLoading"></span>
+		<a href="javascript:void(0)" id="loadMore" class="button" style="display: none;">Load more</a>
+	</div>
+
+	<div id="galleryEmpty" class="center" style="display: none;">
+		<h1>Nothing here yet.</h1>
+		<p>Be the first &mdash; <a href="/create">draw something</a>.</p>
+	</div>
+
+	<div id="galleryError" class="center" style="display: none;">
+		<h1>I definitely meant for this to happen.</h1>
+		<p>The gallery didn't load. <a href="javascript:location.reload()">Try again</a>? Please don't be angry. I'm so sorry, oh dear.</p>
+	</div>
+</div>
+
+<div class="center" id="contact">
+	<a href="https://alexduckmanton.com/article/thumbcinema" target="_blank" rel="noopener">about</a>
+</div>
+
+<script type="text/javascript">
+	var isCreate = false,
+		templateURL = "/",
+		rootURL = "/",
+		is_logged_in = true;
+	var _gaq = { push: function(){} };
+</script>
+
+<script type="text/javascript" src="/script/lib/jquery-1.9.1.min.js"></script>
+<script type="text/javascript" src="/script/lib/underscore-min.js"></script>
+<script type="text/javascript" src="/script/lib/backbone-min.js"></script>
+<script type="text/javascript" src="/script/general/header.js"></script>
+<script type="text/javascript" src="/script/general/admin.js"></script>
+<script type="text/javascript" src="/script/general/gallery.js"></script>
+
+</body>
+</html>
