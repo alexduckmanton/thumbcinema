@@ -28,6 +28,7 @@ $(document).ready(function() {
 	var $loadMore = $('#loadMore');
 
 	setActiveTab(view);
+	enablePillAnimation();
 	loadNextPage();
 
 	// --- tabs ---------------------------------------------------------------
@@ -62,6 +63,15 @@ $(document).ready(function() {
 		$('#viewTabs a').each(function() {
 			$(this).toggleClass('active', $(this).data('view') === active);
 		});
+
+		// Drives the sliding pill. Two segments, so it's just "is it the far one".
+		$('#viewTabs').toggleClass('on-all', active === 'all');
+	}
+
+	// Landing on /?view=all should show the pill already on the right, not slide it
+	// there. Transitions are switched on a frame after the initial position is set.
+	function enablePillAnimation() {
+		window.setTimeout(function() { $('#viewTabs').addClass('ready'); }, 0);
 	}
 
 	// --- loading ------------------------------------------------------------

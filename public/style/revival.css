@@ -47,59 +47,91 @@
  * — so it reads as part of the original rather than bolted on.
  * ------------------------------------------------------------------------- */
 
-#viewTabs {
-	padding: 0;
+#viewTabsWrap {
 	margin: 0 auto 2em auto;
 	width: 90%;
-	list-style: none;
 	text-align: center;
-	font-size: 0; /* kills the whitespace gap between the two inline-block items */
 }
 
-#viewTabs li {
-	padding: 0;
-	margin: 0;
+/* The track. Recessed, so the selected segment reads as sitting on top of it —
+   the same trick .button uses for its pressed state (inset shadow, no blur). */
+#viewTabs {
+	padding: 4px;
 	display: inline-block;
+	position: relative;
+	background: #e6e6e6;
+	border-radius: 5px;
+	box-shadow: inset rgba(0, 0, 0, .1) 0 2px 0;
+	font-size: 0; /* kills the whitespace gap between the inline-block anchors */
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	user-select: none;
+}
+
+/* The selected segment, as a single element that slides rather than two that
+   swap colour. Everything else on this site moves when it changes — pages fly in
+   from the right, deleted ones fall away — so the toggle should too.
+   Two equal segments means the travel is a plain 100% translate, no measuring. */
+#viewTabsPill {
+	width: 116px;
+	display: block;
+	position: absolute;
+	top: 4px;
+	left: 4px;
+	bottom: 4px;
+	background: #4a7df4;
+	border-radius: 3px;
+	box-shadow: rgba(0, 0, 0, .12) 0 3px 0 -1px;
+}
+
+#viewTabs.ready #viewTabsPill {
+	/* Slight overshoot, so it lands with a bit of weight. Only enabled once the
+	   initial position is set, otherwise it slides in from the left on load. */
+	-webkit-transition: -webkit-transform .22s cubic-bezier(.34, 1.36, .64, 1);
+	transition: transform .22s cubic-bezier(.34, 1.36, .64, 1);
+}
+
+#viewTabs.on-all #viewTabsPill {
+	-webkit-transform: translateX(116px);
+	transform: translateX(116px);
 }
 
 #viewTabs a {
-	padding: 6px 22px;
-	display: block;
+	width: 116px;
+	padding: 7px 0;
+	display: inline-block;
+	position: relative;
+	z-index: 1; /* above the pill */
 	font-family: 'ArvoRegular', Arial, Helvetica, sans-serif;
 	font-size: 15px;
 	line-height: 1.4em;
 	color: #666;
+	text-align: center;
 	text-decoration: none;
-	background: #fff;
-	border: 1px solid #ccc;
-	position: relative;
-}
-
-#viewTabs li:first-child a {
-	border-radius: 3px 0 0 3px;
-}
-
-#viewTabs li:last-child a {
-	border-radius: 0 3px 3px 0;
-	border-left: none;
+	-webkit-transition: color .15s linear;
+	transition: color .15s linear;
 }
 
 #viewTabs a:hover {
-	color: #4a7df4;
+	color: #222;
 	text-decoration: none;
 }
 
-#viewTabs a.active {
+/* Matches the real .button treatment exactly: white on blue, hard dark shadow up. */
+#viewTabs a.active,
+#viewTabs a.active:hover {
 	color: #fff;
-	background: #4a7df4;
-	border-color: #4a7df4;
-	text-shadow: #1c4fc4 0 -1px 0;
+	text-shadow: #0c46cc 0 -1px 0;
 }
 
-/* Sits directly under the yellow banner, which has its own bottom border. */
-.cta + #viewTabs {
-	margin-top: 2em;
+/* Nudges down on press, like every other button here. */
+#viewTabs a:active {
+	top: 1px;
 }
+
+/* No mobile sizing needed: the whole control is 240px, which fits inside 90% of
+   even a 320px screen. Fixed segment widths are also what keep the pill's travel
+   a plain translate rather than something JS has to measure. */
 
 
 /* ---------------------------------------------------------------------------
