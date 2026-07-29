@@ -16,7 +16,6 @@
 	}).done(function(flip) {
 		document.title = flip.title || 'thumbcinema';
 		$('#flipbookTitle').text(flip.title || '');
-		$('#flipbookByline').text(flip.byline || '');
 		$('#flipbookDescription').text(flip.description || '');
 		$('#views').text(flip.views);
 

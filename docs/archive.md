@@ -92,8 +92,9 @@ rows get:
 - `id` — `a{post_id}`
 - `title` — `Flipbook #{post_id}`, since the real one is unrecoverable
 - `created_at` — the first of the month it was filed under
-- `source` — `archive`, which is what makes the playback page show "from the archive"
-  instead of a byline
+- `source` — `archive`, which is what tells the import and the admin tools an imported
+  row apart from a new save. The playback page used to render it as a "from the
+  archive" byline; it doesn't any more, and shows only the title
 - `legacy_id` — the original WordPress post ID, so a row can always be traced back to
   its file
 - `legacy_user_id` — the WordPress author ID, which is the evidence base for `featured`

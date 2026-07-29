@@ -13,10 +13,18 @@
 	display: none;
 }
 
-/* single.php rendered the author avatar and a like/report row. Neither exists
-   now, so the byline collapses when it has nothing in it. */
-#info .heading h3:empty {
-	display: none;
+/* single.php rendered the author avatar, a byline and a like/report row, none of
+   which exist now — there are no accounts and the archive's authors went down
+   with the database. The markup for them is gone, but _heading.scss still holds
+   the space the avatar used to sit in: a 50px floor on the block and a 60px
+   indent on the text beside it. Empty, that reads as a missing profile picture,
+   so take the gutter back and let the title sit flush with the flipbook. */
+#info .heading {
+	min-height: 0;
+}
+
+#info .heading h2 {
+	padding-left: 0;
 }
 
 /* The archive has no descriptions — the WordPress post bodies went down with the
