@@ -5,7 +5,35 @@ play it back. Originally built 2012–2015 on WordPress; the server was switched
 years later. This repo is the 2025 revival: **the original front end, unchanged, on
 a new back end.**
 
-Live at `thumbcinema.alexduckmanton.com`.
+Live at `thumbcinema-time-capsule.vercel.app`.
+
+---
+
+## You are on the frozen branch
+
+**`time-capsule` is the archived version of the revival. Ongoing work happens on
+`main`.**
+
+This branch is the 2025 revival as it first shipped, kept running so the original
+front end stays visible in its original setting. Small bug fixes are welcome. New
+features, redesigns and dependency bumps are not — those belong on `main`, which is
+free to modernise the UI.
+
+It deploys to its own Vercel project (`thumbcinema-time-capsule`) but shares `main`'s
+Neon database. That has three consequences worth reading before you touch anything:
+
+- **Never run `npm run db:migrate` from this branch.** The `db/schema.sql` here is a
+  frozen copy and will fall behind the live table. Re-applying it is idempotent so it
+  destroys nothing, but it misrepresents what production actually has.
+- **Never change the schema from this branch at all.** Migrations are `main`'s job and
+  are additive-only, specifically so this branch's older query code keeps working. A
+  schema change made here would break the other deployment, not this one.
+- **Flipbooks and moderation are shared.** A flipbook saved here appears on `main`'s
+  deployment and vice versa, and hiding one hides it in both — `featured` and `nsfw`
+  are columns, not per-deployment state.
+
+If something here is broken badly enough to need a schema change, fix it on `main`
+first, additively, and only then reflect it here if it's needed at all.
 
 ---
 
