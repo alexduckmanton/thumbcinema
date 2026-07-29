@@ -1,0 +1,18 @@
+# Vercel does not read .gitignore, so the big local-only directories have to be
+# listed again here or `vercel deploy` tries to upload them. _original/ alone is
+# 600+ MB of archive seed data that only the import script ever reads.
+_original/
+node_modules/
+
+# Not reachable from api/index.js — the function only needs api/ and lib/.
+docs/
+scripts/
+db/
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+tmp/
