@@ -26,21 +26,54 @@ Vercel for hosting, Neon for Postgres. Both free at this scale.
 
 ```bash
 npx vercel link
+```
+
+**If you created the Neon database through Vercel's Storage tab, `DATABASE_URL` is
+already set** — the integration writes it, plus a dozen `POSTGRES_*` and `PG*`
+aliases the app doesn't use, to all three environments. `vercel env add DATABASE_URL`
+will then fail with *"another environment variable with the same name exists"*, and
+that's the correct outcome: there is nothing to add. Check with `vercel env ls`, and
+confirm the value is the **pooled** host with `vercel env pull`.
+
+Only add it by hand if you made the Neon project directly at neon.tech:
+
+```bash
 npx vercel env add DATABASE_URL production
 npx vercel env add DATABASE_URL preview
+```
 
-# Admin token — generate one first, and keep a copy
+The admin token is never set by the integration, so it always needs adding:
+
+```bash
+# Generate one first, and keep a copy
 node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 npx vercel env add ADMIN_TOKEN production
+```
 
+Then deploy:
+
+```bash
 npx vercel --prod
 ```
+
+**Environment variables are baked into a deployment when it is built.** Adding or
+changing one does nothing until you redeploy — `vercel redeploy <url>` rebuilds the
+existing commit with the current values. Symptom of forgetting: every API route 500s
+with `DATABASE_URL is not set` while `vercel env ls` clearly shows it set.
 
 There is no build step. Vercel serves `public/` at the web root and turns `api/index.js`
 into a function; `vercel.json` supplies the rewrites, `cleanUrls` and cache headers.
 
 Nothing else needs configuring — no framework preset, no build command, no output
 directory.
+
+### Keep the function near the database
+
+Every API request makes at least one query, so the function and the Neon project
+should be in the same region. Vercel defaults new projects to `iad1` (Washington);
+if Neon is somewhere else, the gallery pays a round trip per query — an
+`iad1` function against a Sydney database serves the listing in ~450 ms rather than
+~50 ms. Set it in **Settings → Functions → Function Region**.
 
 ## 3. Admin mode
 
