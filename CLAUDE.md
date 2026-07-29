@@ -145,7 +145,49 @@ calls `JSON.parse()` on the response itself, so jQuery must not parse it first.
 
 See `docs/data-formats.md` for the details.
 
+## Two deployments, one database
+
+The site runs twice, from two branches of this repo, against **one** Neon database:
+
+| Branch | Vercel project | URL |
+|---|---|---|
+| `main` | `thumbcinema` | `thumbcinema.vercel.app` |
+| `time-capsule` | `thumbcinema-time-capsule` | `thumbcinema-time-capsule.vercel.app` |
+
+`time-capsule` is the revival as it first shipped and is meant to stay that way — the
+museum piece of the museum piece. `main` is where the UI is allowed to move on. Both
+serve their own copy of `api/index.js`, and the front end only ever calls same-origin
+relative paths, so neither deployment knows the other exists.
+
+Sharing the database is the whole point: a flipbook saved in either version appears in
+both, and moderating it in one moderates it in both, because `featured` and `nsfw` are
+columns rather than anything per-deployment.
+
+What that costs is schema freedom:
+
+- **Migrations must be additive, and only `main` may make them.** `time-capsule` runs
+  older query code against the same table. `ADD COLUMN IF NOT EXISTS` and new indexes
+  are fine; renaming, dropping or retyping a column the old code reads is not.
+- **Every new column needs a `DEFAULT`.** `createFlipbook()` on `time-capsule` won't
+  mention it, so a `NOT NULL` column without one breaks saving on the old version the
+  moment the migration lands — and it breaks the deployment you aren't looking at.
+- **Never run `npm run db:migrate` from `time-capsule`.** Its `db/schema.sql` is a
+  frozen copy and will drift. Re-applying it is idempotent so it destroys nothing, but
+  it is at best a no-op and at worst misleading about what production actually has.
+
+If a change genuinely can't be made additively, add a view or a second table rather
+than a second database.
+
+Both projects need `DATABASE_URL` and `ADMIN_TOKEN`, set to the same values, and both
+carry an **Ignored Build Step** so neither builds the other's branch. Only
+`thumbcinema` has the Neon integration's `POSTGRES_*`/`PG*` aliases; nothing reads
+them, since `lib/db.js` uses `DATABASE_URL` alone.
+
 ## Things that will bite you
+
+- **A schema change can break the deployment you aren't looking at.** See "Two
+  deployments, one database" above — `time-capsule` runs 2025-revival query code
+  against the same live table that `main` migrates.
 
 - **Playback must not hand `data.js` its artwork URL at construction time.**
   `data.js` starts its fetch inside the constructor but sets up the pencil that
