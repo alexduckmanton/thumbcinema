@@ -4,6 +4,8 @@
   "cleanUrls": true,
   "trailingSlash": false,
 
+  "regions": ["syd1"],
+
   "rewrites": [
     { "source": "/saveflipbook", "destination": "/api?__path=/saveflipbook" },
     { "source": "/api/:path*", "destination": "/api?__path=/api/:path*" },

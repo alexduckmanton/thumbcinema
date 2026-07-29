@@ -71,9 +71,20 @@ directory.
 
 Every API request makes at least one query, so the function and the Neon project
 should be in the same region. Vercel defaults new projects to `iad1` (Washington);
-if Neon is somewhere else, the gallery pays a round trip per query — an
-`iad1` function against a Sydney database serves the listing in ~450 ms rather than
-~50 ms. Set it in **Settings → Functions → Function Region**.
+if Neon is somewhere else, the gallery pays a Pacific round trip per query — an
+`iad1` function against a Sydney database served the listing in ~450 ms.
+
+This is why `vercel.json` pins the region:
+
+```json
+"regions": ["syd1"]
+```
+
+Keep it matched to wherever the Neon project is. Counter-intuitively it should
+track the *database*, not the visitors: static pages and artwork are served from
+Vercel's CDN edge regardless, so the only thing the function's location changes is
+how far it is from Postgres. A single region is fine on the free tier; listing more
+than one needs a paid plan.
 
 ## 3. Admin mode
 
