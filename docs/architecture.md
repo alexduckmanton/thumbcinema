@@ -101,7 +101,7 @@ served with `Cache-Control: immutable` and the CDN absorbs repeat traffic.
 | Old | New |
 |---|---|
 | `header.php` + `sidebar.php` + `footer.php` | duplicated into each `public/*.html` |
-| `index.php` (WP loop, `cat=6`, prev/next links) | `public/index.html` + `script/general/gallery.js` — Featured/All tabs, infinite scroll |
+| `index.php` (WP loop, `cat=6`, prev/next links) | `public/index.html` + `script/general/gallery.js` — featured list, infinite scroll |
 | `single.php` (inlined post data) | `public/flipbook.html` + `script/general/boot-playback.js` |
 | `create.php` (inlined `window.onload`) | `public/create.html` + `script/general/boot-create.js` |
 | `Mobile_Detect.php` (`$GLOBALS['isMobile']`) | `script/general/device.js` |

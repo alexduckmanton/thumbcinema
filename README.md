@@ -33,8 +33,8 @@ backup turned out to be a zero-byte file, so the artwork made it and the titles,
 authors and view counts did not. The home page's Featured list was reconstructed from
 what's left — see [`docs/archive.md`](docs/archive.md).
 
-The gallery has a **Featured / All** toggle and an infinite scroll. Featured is what
-the 2013 home page showed; new saves start off it and are promoted by hand from admin
+The gallery shows the **featured** list and an infinite scroll. Featured is what the
+2013 home page showed; new saves start off it and are promoted by hand from admin
 mode, which is a single token rather than a login.
 
 ## Quick start

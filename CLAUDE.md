@@ -129,11 +129,13 @@ Routes:
 
 ## Featured, NSFW and admin mode
 
-The home page has a **Featured / All** toggle. Featured is the default and is what
-the 2013 home page showed; All is everything else that isn't NSFW.
+The home page shows **featured flipbooks only**, which is what the 2013 home page
+showed. `main` has a Featured / All toggle; this branch doesn't, so `view=all` is
+still a valid API parameter here but nothing on the site asks for it.
 
-- **New saves default to `featured = false`** and are promoted by hand.
-- **NSFW hides a flipbook from both tabs** but leaves it working on its own URL,
+- **New saves default to `featured = false`** and are promoted by hand — so a save
+  made here doesn't appear on this home page until it's promoted.
+- **NSFW hides a flipbook from the gallery** but leaves it working on its own URL,
   exactly as the original's reporting did. It's also the moderation lever — admin
   mode can set it on anything, which matters because saves are public immediately.
 - **Archive rows' `featured` is reconstructed, not recovered.** See `docs/archive.md`;
@@ -150,8 +152,9 @@ Two things to keep in mind:
 - **If `ADMIN_TOKEN` is unset or under 16 characters the admin API 404s entirely.**
   It fails closed, so a deploy that forgets it is safe rather than open.
 - **The token also affects reads.** `isAdmin()` on the listing route is what makes
-  NSFW rows visible in the All tab for you only — otherwise anything you moderated
-  would be impossible to find and un-moderate.
+  NSFW rows visible in the All tab for you only. There's no All tab on this branch,
+  so un-moderating something is done from `main`'s deployment — the two share a
+  database, so it takes effect here too.
 
 ## Data
 
