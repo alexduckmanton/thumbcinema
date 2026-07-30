@@ -98,19 +98,19 @@
    re-deriving against Pecita. */
 .home #wordmark,
 .home #wordmark:visited {
-	font-size: 44px;
+	font-size: 56px;
 	line-height: 1.1;
 	font-family: 'Sacramento', 'Arvo', serif;
 	letter-spacing: .086em;
 	margin-right: -.086em; /* letter-spacing lands after the last letter too */
-	color: #4a7df4;
+	color: #222;
 	text-decoration: none;
 	white-space: nowrap;
 	justify-self: start;
 }
 
 .home #wordmark:hover {
-	color: #3568e8;
+	color: #555;
 	text-decoration: none;
 }
 
@@ -123,14 +123,24 @@
 	white-space: nowrap;
 }
 
-/* The original button sells itself with a text-shadow and a darker rim, which is
-   more furniture than a single flat action needs here. */
+/* The original button sells itself with a text-shadow, a darker rim and a 3px
+   radius, which is more furniture and less confidence than a single flat action
+   wants. 48px tall and 16px round, matching the toggle beside it. */
 .home #createLink.button {
-	padding: 9px 18px;
+	padding: 0 24px;
+	height: 48px;
+	display: -webkit-inline-box;
+	display: -webkit-inline-flex;
+	display: inline-flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
 	border: none;
-	font-size: 15px;
-	line-height: 1.2;
+	border-radius: 16px;
+	font-size: 16px;
+	line-height: 1;
 	text-shadow: none;
+	box-sizing: border-box;
 	box-shadow: rgba(74, 125, 244, .3) 0 2px 6px;
 }
 
@@ -216,7 +226,7 @@
 	display: inline-block;
 	position: relative;
 	background: #e0e0e0;
-	border-radius: 5px;
+	border-radius: 16px;
 	box-shadow: inset rgba(0, 0, 0, .1) 0 2px 0;
 	font-size: 0; /* kills the whitespace gap between the inline-block anchors */
 	-webkit-user-select: none;
@@ -230,14 +240,14 @@
    White, so it reads as a card lifted off the recessed grey track.
    Two equal segments means the travel is a plain 100% translate, no measuring. */
 #viewTabsPill {
-	width: 104px;
+	width: 116px;
 	display: block;
 	position: absolute;
 	top: 4px;
 	left: 4px;
 	bottom: 4px;
 	background: #fff;
-	border-radius: 3px;
+	border-radius: 12px;
 	box-shadow: rgba(0, 0, 0, .12) 0 3px 0 -1px;
 }
 
@@ -249,19 +259,20 @@
 }
 
 #viewTabs.on-all #viewTabsPill {
-	-webkit-transform: translateX(104px);
-	transform: translateX(104px);
+	-webkit-transform: translateX(116px);
+	transform: translateX(116px);
 }
 
 #viewTabs a {
-	width: 104px;
-	padding: 6px 0;
+	width: 116px;
+	padding: 0;
+	height: 40px; /* + the track's 4px either side = 48, same as the button */
 	display: inline-block;
 	position: relative;
 	z-index: 1; /* above the pill */
 	font-family: 'ArvoRegular', Arial, Helvetica, sans-serif;
-	font-size: 15px;
-	line-height: 1.4em;
+	font-size: 16px;
+	line-height: 40px;
 	color: #666;
 	text-align: center;
 	text-decoration: none;
@@ -334,7 +345,9 @@
 
 	-webkit-box-sizing: border-box;
 	box-sizing: border-box;
-	border-radius: 4px;
+	/* A little tighter than the 16px on the chrome: the same arc on something this
+	   much bigger reads as a bubble rather than a softened corner. */
+	border-radius: 12px;
 	overflow: hidden;
 	background-color: #fff;
 	background-size: cover;
@@ -395,6 +408,25 @@
 }
 
 
+/* The manual retry after a failed fetch, and the only other button on the page. */
+.home #loadMore.button {
+	padding: 0 24px;
+	height: 48px;
+	display: -webkit-inline-box;
+	display: -webkit-inline-flex;
+	display: inline-flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	border: none;
+	border-radius: 16px;
+	font-size: 16px;
+	line-height: 1;
+	text-shadow: none;
+	box-sizing: border-box;
+}
+
+
 /* ---------------------------------------------------------------------------
  * The footer
  * ------------------------------------------------------------------------- */
@@ -425,8 +457,11 @@
 		grid-template-columns: auto auto;
 	}
 
+	/* Fluid rather than another breakpoint: the wordmark is the widest thing in
+	   the row and 320px is genuinely tight once the button is 48px tall. */
 	.home #wordmark {
-		font-size: 34px;
+		font-size: 30px;
+		font-size: clamp(30px, 9vw, 44px);
 	}
 
 	.home #viewTabs {
@@ -442,7 +477,6 @@
 	   so the fixed-width version's plain translate still holds. */
 	.home #viewTabs a {
 		width: 50%;
-		padding: 8px 0;
 	}
 
 	.home #viewTabsPill {
@@ -456,8 +490,7 @@
 	}
 
 	.home #createLink.button {
-		padding: 8px 14px;
-		font-size: 14px;
+		padding: 0 18px;
 	}
 
 	#postContainer {
