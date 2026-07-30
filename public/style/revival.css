@@ -87,11 +87,16 @@
 	box-sizing: border-box;
 }
 
+/* The tracking isn't decoration: measuring the 2013 logo against Sacramento set
+   solid puts it at .086em — Photoshop tracking 86 — and without it the live text
+   is visibly tighter than the bitmap it replaces. */
 .home #wordmark,
 .home #wordmark:visited {
 	font-size: 44px;
 	line-height: 1.1;
 	font-family: 'Sacramento', 'Arvo', serif;
+	letter-spacing: .086em;
+	margin-right: -.086em; /* letter-spacing lands after the last letter too */
 	color: #4a7df4;
 	text-decoration: none;
 	white-space: nowrap;
@@ -415,7 +420,7 @@
 	}
 
 	.home #wordmark {
-		font-size: 36px;
+		font-size: 34px;
 	}
 
 	.home #viewTabs {
