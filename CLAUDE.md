@@ -36,10 +36,11 @@ against 2013 stays visible in one place.
 |---|---|
 | `public/script/Flipbook.js`, `public/script/flip/**`, `public/script/lib/**` | **original**, unchanged |
 | `public/script/general/{header,like,report,profile,errors}.js` | **original**, unchanged |
-| `public/style/style.css`, `public/style/scss/**`, `public/style/type/**` | **original**, unchanged |
+| `public/style/style.css`, `public/style/scss/**`, `public/style/type/Arvo-*` | **original**, unchanged |
 | `public/images/**`, favicons | **original**, unchanged |
 | `public/*.html` | new — hand-converted from the PHP templates |
 | `public/style/revival.css` | new — the only CSS that overrides 2013 |
+| `public/style/type/sacramento-*` | new — the logo's typeface, for the home page wordmark |
 | `public/script/general/{browser-check,device,gallery,boot-create,boot-playback}.js` | new — replaces what PHP used to inline |
 | `api/`, `lib/`, `scripts/`, `db/` | new — the back end |
 
@@ -98,6 +99,31 @@ Routes:
 | `GET /api/flipbooks/:id/data` | The artwork |
 | `GET /api/flipbooks/:id/thumbnail` | PNG |
 | `PATCH /api/admin/flipbooks/:id` | Admin only. Sets `featured` and/or `nsfw` |
+
+## The home page
+
+The one page whose design has moved on from 2013. `/create` and `/f/:id` still wear
+the original dark tiled header; the home page doesn't, because it was mostly a
+25em yellow banner and a float mosaic and the flipbooks were what was left over.
+
+- **The wordmark is live text, not the logo PNG.** It's set in Sacramento
+  (Astigmatic, 2012) — the typeface the 2013 logo was drawn in, which Google Fonts
+  carries. Vendored into `style/type/` next to Arvo rather than loaded from a CDN,
+  so the page still has no third-party requests.
+- **The grid is one uniform 16:9 tile, `auto-fill`ed.** The mosaic's large/medium
+  tiles came off three fixed container widths, which left a ragged edge at every
+  size in between. Every flipbook is the same 640x360 canvas, so they all get the
+  same card now.
+- **`revival.css` turns the mosaic off by matching `:nth-child(n)`**, which ties
+  the original's `:nth-child` specificity and wins on source order. That's why
+  there isn't an `!important` in there.
+- **Everything new is scoped to `body.home`.** `#header`, `#headerContainer`,
+  `#messages` and `#messagesBG` are all shared with the other pages, so an unscoped
+  rule would restyle the create page's header from under it.
+- **`#messagesBG` has to be `pointer-events: none`.** It's stretched over the whole
+  header now instead of being a 40px bar of its own, and it's transparent until
+  header.js gives it a type class — so without that it silently swallows every click
+  on the wordmark, the toggle and the create button.
 
 ## Featured, NSFW and admin mode
 

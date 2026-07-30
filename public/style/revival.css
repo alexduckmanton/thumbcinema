@@ -40,18 +40,163 @@
 
 
 /* ---------------------------------------------------------------------------
+ * The home page header
+ *
+ * 2013 had a dark tiled bar, the logo as a 319x103 bitmap, and a yellow banner
+ * below it the height of a small billboard. The flipbooks are the point, so all
+ * of that is gone and what's left is the wordmark, the create button and the
+ * Featured/All toggle on one line.
+ *
+ * The header element itself is kept, along with #messages and #messagesBG:
+ * header.js still drives them and admin.js reports failed writes through them.
+ * Only the chrome changes.
+ *
+ * Home page only. /create and /f/:id keep the original header — the whole tool
+ * hangs off it, and there is nothing to simplify on a page that is one canvas.
+ * ------------------------------------------------------------------------- */
+
+/* The wordmark was Sacramento (Astigmatic, 2012) stroked white over the blue
+   diamonds. Google Fonts carries it, so it can be set live rather than shipped
+   as a PNG — and vendored next to Arvo rather than fetched from a CDN, so the
+   page still has no third-party dependencies. */
+@font-face {
+	font-family: 'Sacramento';
+	src: url('type/sacramento-latin-400-normal.woff2') format('woff2'),
+	     url('type/sacramento-latin-400-normal.woff') format('woff');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
+.home #header {
+	height: auto;
+	background: none;
+}
+
+/* wordmark | toggle | button, as a grid rather than a flex row: the two 1fr
+   columns either side of the toggle are what centre it on the page instead of
+   centring it in whatever space the wordmark and the button leave over. */
+.home #header #headerContainer {
+	padding: 24px 24px 22px 24px;
+	max-width: 1440px;
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	grid-gap: 14px 16px;
+	gap: 14px 16px;
+	align-items: center;
+	box-sizing: border-box;
+}
+
+.home #wordmark,
+.home #wordmark:visited {
+	font-size: 44px;
+	line-height: 1.1;
+	font-family: 'Sacramento', 'Arvo', serif;
+	color: #4a7df4;
+	text-decoration: none;
+	white-space: nowrap;
+	justify-self: start;
+}
+
+.home #wordmark:hover {
+	color: #3568e8;
+	text-decoration: none;
+}
+
+.home #viewTabs {
+	justify-self: center;
+}
+
+.home #createLink {
+	justify-self: end;
+	white-space: nowrap;
+}
+
+/* The original button sells itself with a text-shadow and a darker rim, which is
+   more furniture than a single flat action needs here. */
+.home #createLink.button {
+	padding: 9px 18px;
+	border: none;
+	font-size: 15px;
+	line-height: 1.2;
+	text-shadow: none;
+	box-shadow: rgba(74, 125, 244, .3) 0 2px 6px;
+}
+
+.home #createLink.button:hover {
+	background: #5c8bf6;
+}
+
+.home #createLink.button:active {
+	top: 1px;
+	background: #4272e2;
+	box-shadow: rgba(74, 125, 244, .2) 0 1px 3px;
+}
+
+/* Messages
+ *
+ * The original hid these by collapsing the ul to nothing and animating the words
+ * out of it. That worked because the bar was a fixed 40px; this header isn't, so
+ * they're laid over the whole of it instead and switched on the .active class
+ * header.js already toggles. The word-by-word drop-in still comes from
+ * #header ul.active li. */
+.home #header #messages {
+	display: none;
+}
+
+.home #header #messages.active {
+	padding: 0 24px;
+	width: 100%;
+	height: 100%;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	top: 0;
+	left: 0;
+	box-sizing: border-box;
+	z-index: 2;
+}
+
+.home #header #messages li {
+	font-size: 15px;
+}
+
+/* Covers the header rather than sitting under a 40px bar of its own. It's
+   transparent until header.js gives it a type class, so for the 99.9% of the time
+   there's no message it has to let clicks through to the header underneath —
+   otherwise it silently eats every one of them. */
+.home #header #messagesBG {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 1;
+	pointer-events: none;
+}
+
+/* And take them back while a message is up, so the header can't be operated
+   through it. Anything without :has() just keeps the safe behaviour above. */
+.home #header:has(#messages.active) #messagesBG {
+	pointer-events: auto;
+}
+
+
+/* ---------------------------------------------------------------------------
  * Featured / All segmented control
  *
  * The 2013 homepage only ever showed one list (category 6), so there was nothing
  * like this to inherit. Built from the existing palette — Arvo, #4a7df4, 3px radii
  * — so it reads as part of the original rather than bolted on.
  * ------------------------------------------------------------------------- */
-
-#viewTabsWrap {
-	margin: 0 auto 2em auto;
-	width: 90%;
-	text-align: center;
-}
 
 /* The track. Recessed, so the selected segment reads as sitting on top of it —
    the same trick .button uses for its pressed state (inset shadow, no blur). */
@@ -74,7 +219,7 @@
    White, so it reads as a card lifted off the recessed grey track.
    Two equal segments means the travel is a plain 100% translate, no measuring. */
 #viewTabsPill {
-	width: 116px;
+	width: 104px;
 	display: block;
 	position: absolute;
 	top: 4px;
@@ -93,13 +238,13 @@
 }
 
 #viewTabs.on-all #viewTabsPill {
-	-webkit-transform: translateX(116px);
-	transform: translateX(116px);
+	-webkit-transform: translateX(104px);
+	transform: translateX(104px);
 }
 
 #viewTabs a {
-	width: 116px;
-	padding: 7px 0;
+	width: 104px;
+	padding: 6px 0;
 	display: inline-block;
 	position: relative;
 	z-index: 1; /* above the pill */
@@ -131,9 +276,185 @@
 	top: 1px;
 }
 
-/* No mobile sizing needed: the whole control is 240px, which fits inside 90% of
-   even a 320px screen. Fixed segment widths are also what keep the pill's travel
-   a plain translate rather than something JS has to measure. */
+/* Fixed segment widths are what keep the pill's travel a plain translate rather
+   than something JS has to measure. The narrow layout further down gives that up
+   and goes full width, where the same trick still works because both segments are
+   half the track. */
+
+
+/* ---------------------------------------------------------------------------
+ * The flipbook grid
+ *
+ * 2013 laid the thumbnails out as a float mosaic: three fixed container widths,
+ * and a run of nth-child rules promoting particular cards to large, medium and
+ * medium-square tiles. It was the most interesting thing on the page, which was
+ * the point when the page was mostly a yellow banner.
+ *
+ * With the banner gone the flipbooks are the page, and every one of them is the
+ * same 640x360 canvas, so they get the same tile. It also fixes what the mosaic
+ * couldn't: between the fixed widths — a 900px window, a tablet in landscape —
+ * the old grid left a ragged margin down one side. auto-fill just picks a column
+ * count and the cards take up the slack.
+ *
+ * The mosaic's rules are keyed on :nth-child, so they out-specify a plain
+ * `#postContainer .post`. Matching them with :nth-child(n) and landing later in
+ * the cascade turns them off without a single !important.
+ * ------------------------------------------------------------------------- */
+
+#postContainer {
+	margin: 0 auto;
+	padding: 0 24px;
+	max-width: 1440px;
+	width: 100%;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	grid-gap: 22px;
+	gap: 22px;
+	box-sizing: border-box;
+}
+
+#postContainer .post:nth-child(n) {
+	margin: 0;
+	padding: 0;
+	width: auto;
+	height: auto;
+	float: none;
+	font-size: 14px;
+
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+	border-radius: 4px;
+	overflow: hidden;
+	background-color: #fff;
+	background-size: cover;
+
+	/* A drawing is black on white on a white card, so the tile needs an edge of
+	   its own. The hairline does that job; the soft shadow lifts it off the grey. */
+	box-shadow: rgba(0, 0, 0, .07) 0 0 0 1px, rgba(0, 0, 0, .06) 0 2px 6px;
+	-webkit-transition: box-shadow .12s ease-out, -webkit-transform .12s ease-out;
+	transition: box-shadow .12s ease-out, transform .12s ease-out;
+}
+
+/* Every flipbook is drawn on the same 640x360 canvas, so the card is that shape
+   and the thumbnail fills it without cropping. aspect-ratio does that; the
+   padding-bottom trick is the fallback for anything that doesn't have it, which is
+   why the height comes from a ::before rather than the card itself. */
+#postContainer .post:nth-child(n):before {
+	content: "";
+	width: 0;
+	padding-bottom: 56.25%;
+	display: block;
+}
+
+@supports (aspect-ratio: 16 / 9) {
+	#postContainer .post:nth-child(n) {
+		aspect-ratio: 16 / 9;
+	}
+
+	#postContainer .post:nth-child(n):before {
+		display: none;
+	}
+}
+
+#postContainer .post:nth-child(n):hover {
+	box-shadow: rgba(0, 0, 0, .07) 0 0 0 1px, rgba(0, 0, 0, .12) 0 6px 16px;
+	-webkit-transform: translateY(-2px);
+	transform: translateY(-2px);
+}
+
+/* The mosaic hid titles until hover on every size but mobile, because on a tile
+   200px wide there was no room for one. There is now, and a flipbook with a name
+   is easier to come back to than one you have to hover to identify. */
+#postContainer .post:nth-child(n) .title {
+	padding: 9px 12px;
+	font-size: 14px;
+	line-height: 1.3;
+	color: #4a7df4;
+	background: rgba(255, 255, 255, .94);
+	box-shadow: rgba(0, 0, 0, .06) 0 -1px 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* gallery.js appends the title span whether or not there's a title, and most of
+   the 2012 archive has none. Don't leave an empty white bar across the card. */
+#postContainer .post .title:empty {
+	display: none;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * The footer
+ * ------------------------------------------------------------------------- */
+
+/* The one link down there inherits the 10px root size, which was fine under a loud
+   page and is unreadably small under a quiet one. */
+.home #contact a {
+	font-size: 13px;
+	color: #8b8b8b;
+}
+
+.home #contact a:hover {
+	color: #4a7df4;
+	text-decoration: none;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Narrow layouts
+ *
+ * One row of header stops fitting somewhere around 700px, so below that the
+ * toggle drops to its own full-width row under the wordmark and the button.
+ * ------------------------------------------------------------------------- */
+
+@media screen and (max-width: 700px) {
+	.home #header #headerContainer {
+		padding: 18px 16px 16px 16px;
+		grid-template-columns: auto auto;
+	}
+
+	.home #wordmark {
+		font-size: 36px;
+	}
+
+	.home #viewTabs {
+		grid-row: 2;
+		grid-column: 1 / -1;
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+	}
+
+	/* Two halves of a fluid track. The pill is one half less the 4px inset, and
+	   translating it by its own width is exactly the distance to the far segment,
+	   so the fixed-width version's plain translate still holds. */
+	.home #viewTabs a {
+		width: 50%;
+		padding: 8px 0;
+	}
+
+	.home #viewTabsPill {
+		width: 50%;
+		width: calc(50% - 4px);
+	}
+
+	.home #viewTabs.on-all #viewTabsPill {
+		-webkit-transform: translateX(100%);
+		transform: translateX(100%);
+	}
+
+	.home #createLink.button {
+		padding: 8px 14px;
+		font-size: 14px;
+	}
+
+	#postContainer {
+		padding: 0 16px;
+		grid-gap: 16px;
+		gap: 16px;
+	}
+}
 
 
 /* ---------------------------------------------------------------------------
@@ -196,4 +517,13 @@
 #postContainer .post .icons {
 	background: rgba(255, 255, 255, .9);
 	border-radius: 0 0 0 3px;
+}
+
+/* _browse.scss reveals them on :hover, which on a phone means never — and on a
+   phone the first tap would just open the flipbook. Admin mode is one person's
+   own tool, so when there's no hover to wait for, show them. */
+@media (hover: none) {
+	#postContainer .post .icons {
+		display: block;
+	}
 }

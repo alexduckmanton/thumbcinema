@@ -22,34 +22,27 @@
 	<script type="text/javascript" src="/script/general/browser-check.js"></script>
 </head>
 
-<body>
+<body class="home">
 
+<!-- The 2013 header was a dark tiled bar with the logo as a bitmap. This one is the
+     same wordmark set live in Sacramento, the typeface that logo was drawn in.
+     #messages and #messagesBG stay: header.js still drives them, and admin.js
+     reports failed writes through them. -->
 <div id="header"><div id="headerContainer">
-	<ul id="nav" class="active">
-		<li class="active"><a href="/"><img src="/images/thumbcinema_logo.png" width="319" height="103" alt="thumbcinema" id="logo" /></a></li>
-		<li><a href="/create">create</a></li>
-	</ul>
+	<a href="/" id="wordmark">thumbcinema</a>
+
+	<div id="viewTabs">
+		<span id="viewTabsPill"></span>
+		<a href="/" data-view="featured" class="active">Featured</a>
+		<a href="/?view=all" data-view="all">All</a>
+	</div>
+
+	<a href="/create" class="button" id="createLink">New flipbook</a>
 
 	<ul id="messages"></ul>
 </div><div id="messagesBG"></div></div>
 
 <div id="content">
-
-	<div class="cta">
-		<div class="center">
-			<h1>Create flipbooks and be merry</h1>
-			<img src="/images/cta_pencil.gif" width="193" height="212" alt="Cool tools" />
-			<a href="/create" class="button">Create a flipbook</a>
-		</div>
-	</div>
-
-	<div id="viewTabsWrap">
-		<div id="viewTabs">
-			<span id="viewTabsPill"></span>
-			<a href="/" data-view="featured" class="active">Featured</a>
-			<a href="/?view=all" data-view="all">All</a>
-		</div>
-	</div>
 
 	<div id="postContainer"></div>
 
