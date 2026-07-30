@@ -24,20 +24,23 @@
 
 <body class="home">
 
-<!-- The 2013 header was a dark tiled bar with the logo as a bitmap. This one is the
-     same wordmark set live in Pecita, the typeface that logo was drawn in.
+<!-- The site header. This same block is on /create and /f/:id too — see "The site
+     header" in revival.css for why it's copied rather than templated, and for the
+     rule about what may go in .headerActions.
      #messages and #messagesBG stay: header.js still drives them, and admin.js
      reports failed writes through them. -->
-<div id="header"><div id="headerContainer">
-	<a href="/" id="wordmark">thumbcinema</a>
+<div id="header" class="siteHeader"><div id="headerContainer">
+	<a href="/" id="wordmark" class="wordmark">thumbcinema</a>
 
-	<div id="viewTabs">
-		<span id="viewTabsPill"></span>
-		<a href="/" data-view="featured" class="active">Featured</a>
-		<a href="/?view=all" data-view="all">All</a>
+	<div class="headerActions">
+		<div id="viewTabs">
+			<span id="viewTabsPill"></span>
+			<a href="/" data-view="featured" class="active">Featured</a>
+			<a href="/?view=all" data-view="all">All</a>
+		</div>
+
+		<a href="/create" class="button" id="createLink">New</a>
 	</div>
-
-	<a href="/create" class="button" id="createLink">New flipbook</a>
 
 	<ul id="messages"></ul>
 </div><div id="messagesBG"></div></div>

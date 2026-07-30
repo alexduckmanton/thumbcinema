@@ -7,14 +7,89 @@
  */
 
 /* ---------------------------------------------------------------------------
+ * Type
+ *
+ * 2013 ran two faces: Arvo, a slab serif, on html/body and every heading and
+ * button; and Arial/Helvetica on paragraphs, labels and inputs. So body copy and
+ * the heading above it were set in different families, and a button and its own
+ * label disagreed. It reads as two designs sharing a page.
+ *
+ * One face now — Inter, for all of it. The wordmark is the only exception, and
+ * it's an exception on purpose: it's a logo, not text.
+ *
+ * Arvo is left in style.css and simply stops being referenced. An @font-face
+ * nothing renders with is never downloaded, so it costs nothing to leave the
+ * original stylesheet untouched — which is the point of this file.
+ *
+ * One 48 KB request covers every weight: Google serves Inter as a variable font,
+ * so asking for 400 and 700 returns the same file twice. Hence the 100–900 range
+ * below rather than two @font-face blocks. See type/Inter-ABOUT.txt.
+ * ------------------------------------------------------------------------- */
+
+@font-face {
+	font-family: 'Inter';
+	src: url('type/inter-latin-variable.woff2') format('woff2-variations'),
+	     url('type/inter-latin-variable.woff2') format('woff2');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+html,
+body {
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+/* Everything the original pins to a face of its own follows the body instead.
+   Form controls need naming explicitly — they don't inherit type by default —
+   and the rest are here because the 2013 rules that set them are at least as
+   specific as anything simpler would be. */
+button,
+input,
+select,
+textarea,
+p,
+label,
+.button,
+.button:visited,
+#pagination li a,
+#info p {
+	font-family: inherit;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * No text shadows, anywhere
+ *
+ * 2013 put a 1px shadow under nearly every piece of type — buttons, form legends,
+ * labels, the loading heading, the flipbook description, the header messages. It's
+ * what made white-on-blue and pale-on-dark readable on the screens of the day. The
+ * chrome isn't dark or saturated any more, so each one is now a slight blur on
+ * type that was perfectly legible without it.
+ *
+ * **This is the only `!important` in this file.** The 2013 shadows are spread
+ * across some fifteen compiled selector lists, several of them ID-qualified and a
+ * few over a hundred characters long. Mirroring all of them here to win on
+ * specificity would be a wall of copied selectors that silently stops matching the
+ * moment any of them changes — and it would still only be as complete as the grep
+ * that found them. "No text shadows anywhere" is a blanket statement, so it's
+ * written as a blanket rule.
+ * ------------------------------------------------------------------------- */
+
+* {
+	text-shadow: none !important;
+}
+
+
+/* ---------------------------------------------------------------------------
  * Buttons, everywhere
  *
  * The 2013 radius is 3px, which at the sizes these are set now reads as a square
  * corner that didn't quite commit. 16px is the whole site's rounding.
  *
- * This is the one rule in here that isn't scoped to the home page — the create
- * page and the flipbook page use the same .button, and a button that's rounder on
- * one page than another is worse than either radius on its own.
+ * Site-wide, like the type above it — the create page and the flipbook page use
+ * the same .button, and a button that's rounder on one page than another is worse
+ * than either radius on its own.
  *
  * `#pagination li a` is in the list because _input.scss @extend'ed .button into
  * it, so it inherits the 3px from the same compiled rule. The other selectors in
@@ -66,19 +141,38 @@ button,
 
 
 /* ---------------------------------------------------------------------------
- * The home page header
+ * The site header
  *
- * 2013 had a dark tiled bar, the logo as a 319x103 bitmap, and a yellow banner
- * below it the height of a small billboard. The flipbooks are the point, so all
- * of that is gone and what's left is the wordmark, the create button and the
- * Featured/All toggle on one line.
+ * 2013 had a dark tiled bar, the logo as a 319x103 bitmap, and — on the home page
+ * — a yellow banner below it the height of a small billboard. What's left is the
+ * wordmark on the left and whatever that page can do on the right.
+ *
+ * It's on all three pages now, which is why it's `.siteHeader` rather than the
+ * `.home` scoping this started with. #header, #headerContainer, #messages and
+ * #messagesBG are all shared with the original stylesheet, so the class is what
+ * keeps these rules off anything that hasn't opted in.
+ *
+ * The selectors are written `#header.siteHeader` rather than `.siteHeader` alone
+ * because the 2013 rules are keyed on IDs — `#header` sets the dark bar and the
+ * 40px height, and `#header ul#messages.active` is (2,1,1). A bare class loses to
+ * every one of them. Qualifying with the ID it's already on costs nothing and puts
+ * these rules back where `.home #header` used to sit.
+ *
+ * **The markup is copied into each of the three HTML files rather than templated.**
+ * There is no build step and no server-rendered layout — the pages are static —
+ * so the alternatives were duplicating nine lines of markup or rendering the
+ * header from JS, and a JS-rendered header flashes an empty bar on every page
+ * load. The component is real, it's just this stylesheet rather than a partial:
+ * the markup is identical everywhere and only the contents of .headerActions
+ * change. Change one, change all three.
  *
  * The header element itself is kept, along with #messages and #messagesBG:
  * header.js still drives them and admin.js reports failed writes through them.
- * Only the chrome changes.
  *
- * Home page only. /create and /f/:id keep the original header — the whole tool
- * hangs off it, and there is nothing to simplify on a page that is one canvas.
+ * `ul#nav` is gone from all three pages. header.js still refers to `#nav` in its
+ * login and message handlers, but every one of those is a jQuery call on an empty
+ * set, which is a no-op — the home page has been running that way since the
+ * markup was first converted.
  * ------------------------------------------------------------------------- */
 
 /* The wordmark's typeface: Pecita, by Philippe Cochy, which is what the 2013 logo
@@ -94,10 +188,10 @@ button,
  * letters — and `calt` is also most of the font: 383 KB as WOFF2 for the whole
  * face, 68 KB for lowercase alone, 18 KB for the glyphs "thumbcinema" needs. One
  * word is all this face is ever asked to set, so it carries one word. Anything
- * else given this family will silently fall through to Arvo.
+ * else given this family will silently fall through to the body face.
  *
- * Vendored next to Arvo rather than fetched from a CDN, so the page still has no
- * third-party requests. */
+ * Vendored rather than fetched from a CDN, so the page still has no third-party
+ * requests. */
 @font-face {
 	font-family: 'TC Wordmark';
 	src: url('type/tc-wordmark.woff2') format('woff2'),
@@ -107,23 +201,53 @@ button,
 	font-display: swap;
 }
 
-.home #header {
+#header.siteHeader {
 	height: auto;
 	background: none;
 }
 
-/* wordmark | toggle | button, as a grid rather than a flex row: the two 1fr
-   columns either side of the toggle are what centre it on the page instead of
-   centring it in whatever space the wordmark and the button leave over. */
-.home #header #headerContainer {
+/* Wordmark hard left, everything the page can do hard right, and the row wraps
+   when they stop fitting. The wrap is the safety net rather than the layout: the
+   media query further down is what actually shapes the narrow version, but if the
+   two disagree — a longer button label, a bigger wordmark — the row folds instead
+   of overflowing the window. */
+#header.siteHeader #headerContainer {
 	padding: 24px 24px 22px 24px;
 	max-width: 1440px;
-	display: grid;
-	grid-template-columns: 1fr auto 1fr;
+	margin: 0 auto;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
 	grid-gap: 14px 16px;
 	gap: 14px 16px;
-	align-items: center;
 	box-sizing: border-box;
+}
+
+/* /create and /f/:id are one 800px column of content, so the wordmark lines up
+   with the canvas rather than with the far edge of the window. 800 + the 24px of
+   padding either side. */
+body:not(.home) #header.siteHeader #headerContainer {
+	max-width: 848px;
+}
+
+/* The right-hand group. `margin-left: auto` rather than justify-content on the
+   container, so it still sits hard right on /create where it's empty or on
+   /f/:id where it holds a single button. */
+.headerActions {
+	margin-left: auto;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	grid-gap: 12px;
+	gap: 12px;
 }
 
 /* No letter-spacing. The stand-in needed .086em to reach the logo's width, but
@@ -133,42 +257,40 @@ button,
  *
  * Black, not the blue the rest of the page uses. The wordmark is the one thing
    here that isn't a control, and it doesn't need to look like one. */
-.home #wordmark,
-.home #wordmark:visited {
+.wordmark,
+.wordmark:visited {
 	font-size: 54px;
 	line-height: 1;
-	font-family: 'TC Wordmark', 'Arvo', serif;
+	font-family: 'TC Wordmark', cursive;
 	color: #000;
 	text-decoration: none;
 	white-space: nowrap;
-	justify-self: start;
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
 	-webkit-transition: color .12s linear;
 	transition: color .12s linear;
 }
 
-.home #wordmark:hover {
+.wordmark:hover {
 	color: #555;
 	text-decoration: none;
 }
 
-.home #viewTabs {
-	justify-self: center;
-}
-
-.home #createLink {
-	justify-self: end;
+#header.siteHeader #createLink {
 	white-space: nowrap;
 }
 
-/* The original button sells itself with a text-shadow and a darker rim, which is
-   more furniture than a single flat action needs here.
+/* The original button sells itself with a darker rim and a coloured glow, which is
+   more furniture than a single flat action needs. Flat blue, no shadow: the button
+   is already the only saturated thing in the header and doesn't need help being
+   found. (Its text-shadow goes with all the others, further up.)
  *
  * 48px tall, matching the toggle beside it — set as a height and a centred flex
  * line rather than as vertical padding, so the two controls agree on a number
  * instead of arriving at the same total by different arithmetic. */
-.home #createLink.button {
+#header.siteHeader #createLink.button {
 	height: 48px;
-	padding: 0 24px;
+	padding: 0 22px;
 	display: -webkit-inline-box;
 	display: -webkit-inline-flex;
 	display: inline-flex;
@@ -178,19 +300,18 @@ button,
 	border: none;
 	font-size: 16px;
 	line-height: 1;
-	text-shadow: none;
+	box-shadow: none;
 	box-sizing: border-box;
-	box-shadow: rgba(74, 125, 244, .3) 0 2px 6px;
 }
 
-.home #createLink.button:hover {
+#header.siteHeader #createLink.button:hover {
 	background: #5c8bf6;
 }
 
-.home #createLink.button:active {
+#header.siteHeader #createLink.button:active {
 	top: 1px;
 	background: #4272e2;
-	box-shadow: rgba(74, 125, 244, .2) 0 1px 3px;
+	box-shadow: none;
 }
 
 /* Messages
@@ -200,11 +321,11 @@ button,
  * they're laid over the whole of it instead and switched on the .active class
  * header.js already toggles. The word-by-word drop-in still comes from
  * #header ul.active li. */
-.home #header #messages {
+#header.siteHeader #messages {
 	display: none;
 }
 
-.home #header #messages.active {
+#header.siteHeader #messages.active {
 	padding: 0 24px;
 	width: 100%;
 	height: 100%;
@@ -225,7 +346,7 @@ button,
 	z-index: 2;
 }
 
-.home #header #messages li {
+#header.siteHeader #messages li {
 	font-size: 15px;
 }
 
@@ -233,7 +354,7 @@ button,
    transparent until header.js gives it a type class, so for the 99.9% of the time
    there's no message it has to let clicks through to the header underneath —
    otherwise it silently eats every one of them. */
-.home #header #messagesBG {
+#header.siteHeader #messagesBG {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -245,7 +366,7 @@ button,
 
 /* And take them back while a message is up, so the header can't be operated
    through it. Anything without :has() just keeps the safe behaviour above. */
-.home #header:has(#messages.active) #messagesBG {
+#header.siteHeader:has(#messages.active) #messagesBG {
 	pointer-events: auto;
 }
 
@@ -262,8 +383,10 @@ button,
  * odd one out.
  * ------------------------------------------------------------------------- */
 
-/* The track. Recessed, so the selected segment reads as sitting on top of it —
-   the same trick .button uses for its pressed state (inset shadow, no blur).
+/* The track. Flat: no inset shadow, just a plain grey field. The recess was there
+   to make the selected segment read as lifted off it, but the pill is white on
+   grey and already reads as forward on its own — the shadow was doing a job that
+   the colour had already done.
  *
  * 48px tall to match the create button: 40px of segment inside a 4px inset. */
 #viewTabs {
@@ -271,9 +394,9 @@ button,
 	height: 48px;
 	display: inline-block;
 	position: relative;
-	background: #e0e0e0;
+	background: #e8e8e8;
 	border-radius: 16px;
-	box-shadow: inset rgba(0, 0, 0, .1) 0 2px 0;
+	box-shadow: none;
 	font-size: 0; /* kills the whitespace gap between the inline-block anchors */
 	box-sizing: border-box;
 	-webkit-user-select: none;
@@ -284,7 +407,8 @@ button,
 /* The selected segment, as a single element that slides rather than two that
    swap colour. Everything else on this site moves when it changes — pages fly in
    from the right, deleted ones fall away — so the toggle should too.
-   White, so it reads as a card lifted off the recessed grey track.
+   White on grey, which is the whole of the selected state now that the track is
+   flat — no shadow under it either.
    Two equal segments means the travel is a plain 100% translate, no measuring. */
 #viewTabsPill {
 	width: 116px;
@@ -297,7 +421,7 @@ button,
 	/* 4px inside a 16px corner. Concentric with the track rather than equal to
 	   it, which is what stops the gap either side of the curve looking pinched. */
 	border-radius: 12px;
-	box-shadow: rgba(0, 0, 0, .12) 0 3px 0 -1px;
+	box-shadow: none;
 }
 
 #viewTabs.ready #viewTabsPill {
@@ -321,7 +445,7 @@ button,
 	display: inline-block;
 	position: relative;
 	z-index: 1; /* above the pill */
-	font-family: 'ArvoRegular', Arial, Helvetica, sans-serif;
+	font-family: inherit;
 	font-size: 16px;
 	line-height: 40px;
 	color: #666;
@@ -374,13 +498,19 @@ button,
  * the cascade turns them off without a single !important.
  * ------------------------------------------------------------------------- */
 
+/* 320px minimum column. These are drawings, not thumbnails of drawings — at 220px
+   a stick figure on a 640x360 canvas was a smudge, and the grid was showing five
+   or six across a laptop. At 320 it's three, and you can actually see them. */
 #postContainer {
 	margin: 0 auto;
 	padding: 0 24px;
 	max-width: 1440px;
 	width: 100%;
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	/* min(320px, 100%) rather than a bare 320px: a grid track won't shrink below
+	   its minimum, so on a 320px phone a hard 320 would push the column wider than
+	   the screen and the whole page would scroll sideways. */
+	grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
 	grid-gap: 22px;
 	gap: 22px;
 	box-sizing: border-box;
@@ -405,9 +535,11 @@ button,
 	background-color: #fff;
 	background-size: cover;
 
-	/* A drawing is black on white on a white card, so the tile needs an edge of
-	   its own. The hairline does that job; the soft shadow lifts it off the grey. */
-	box-shadow: rgba(0, 0, 0, .07) 0 0 0 1px, rgba(0, 0, 0, .06) 0 2px 6px;
+	/* Shadow only. There was a hairline ring under this to give the white card an
+	   edge against the grey page, but a border and a shadow both drawing the same
+	   edge is one of them too many — the shadow alone is enough to sit the card
+	   forward, and it's quieter. Deeper and softer than it was to compensate. */
+	box-shadow: rgba(0, 0, 0, .1) 0 2px 8px;
 	-webkit-transition: box-shadow .12s ease-out, -webkit-transform .12s ease-out;
 	transition: box-shadow .12s ease-out, transform .12s ease-out;
 }
@@ -434,30 +566,30 @@ button,
 }
 
 #postContainer .post:nth-child(n):hover {
-	box-shadow: rgba(0, 0, 0, .07) 0 0 0 1px, rgba(0, 0, 0, .12) 0 6px 16px;
+	box-shadow: rgba(0, 0, 0, .16) 0 6px 18px;
 	-webkit-transform: translateY(-2px);
 	transform: translateY(-2px);
 }
 
-/* The mosaic hid titles until hover on every size but mobile, because on a tile
-   200px wide there was no room for one. There is now, and a flipbook with a name
-   is easier to come back to than one you have to hover to identify. */
+/* No titles on the grid. The drawing is the thing you recognise a flipbook by —
+   and most of the 2012 archive has no title anyway, so the bar was either a name
+   or a stripe of empty white depending on the row.
+ *
+ * Clipped rather than `display: none`, because the card is an <a> whose only text
+ * is this span: hiding it outright would leave every link in the grid with no
+ * accessible name at all. This keeps it for screen readers and takes it off the
+ * screen. */
 #postContainer .post:nth-child(n) .title {
-	padding: 9px 12px;
-	font-size: 14px;
-	line-height: 1.3;
-	color: #4a7df4;
-	background: rgba(255, 255, 255, .94);
-	box-shadow: rgba(0, 0, 0, .06) 0 -1px 0;
-	white-space: nowrap;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	border: 0;
 	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* gallery.js appends the title span whether or not there's a title, and most of
-   the 2012 archive has none. Don't leave an empty white bar across the card. */
-#postContainer .post .title:empty {
-	display: none;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
 }
 
 
@@ -475,7 +607,6 @@ button,
 	border-radius: 16px;
 	font-size: 16px;
 	line-height: 1;
-	text-shadow: none;
 	box-sizing: border-box;
 }
 
@@ -504,32 +635,37 @@ button,
  * widths and collapsing them into one gets the header wrong in the band between.
  * ------------------------------------------------------------------------- */
 
-/* The header stops being one row here, and the number is derived rather than
- * chosen. `1fr auto 1fr` centres the toggle on the page by giving the columns
- * either side of it the same width, so a single row needs
+/* The toggle and the button stay together, and drop to a row of their own rather
+ * than being split up — they're one group, and the group is what wraps.
  *
- *     2 x max(wordmark, button) + toggle + 2 x gap + 2 x padding
- *     2 x 345 + 240 + 2 x 16 + 2 x 24  =  1010px
+ * The number: a single row needs wordmark + toggle + button + 2 gaps + padding,
+ * which is 345 + 240 + 79 + 28 + 48 = 740px. Shortening the button's label to
+ * "New" is most of why that fits so much earlier than it used to — the header was
+ * previously centring the toggle on the page, which cost twice the wordmark's
+ * width and didn't fit until 1010px.
  *
- * — the wordmark is more than twice the button's width, so it's what sets this.
- * Grid's 1fr is really minmax(auto, 1fr) and won't shrink a column below its
- * content, so under 1010px the toggle quietly slides off centre, and under about
- * 805px the row overflows the window outright. 1020 leaves a little slack for the
- * fallback face being wider than Pecita during the font swap.
- *
- * Below it: wordmark and button share the top row, toggle gets its own full-width
- * one underneath. */
-@media screen and (max-width: 1020px) {
-	.home #header #headerContainer {
-		grid-template-columns: auto auto;
+ * Unlike that version this number isn't load-bearing: #headerContainer wraps, so
+ * getting it wrong costs a slightly early or late fold rather than a header
+ * hanging off the side of the window. */
+@media screen and (max-width: 760px) {
+	/* The whole group takes the second row, and the toggle takes whatever the
+	   button doesn't — but only where there's a toggle to make room for. On
+	   /f/:id .headerActions is one button, which has no trouble sharing the
+	   wordmark's row and looks stranded on its own.
+	   Browsers without :has() keep the inline version, which is the harmless one. */
+	.headerActions:has(#viewTabs) {
+		width: 100%;
+		-webkit-box-flex: 0;
+		-webkit-flex: 0 0 100%;
+		flex: 0 0 100%;
 	}
 
-	.home #viewTabs {
-		grid-row: 2;
-		grid-column: 1 / -1;
+	.headerActions #viewTabs {
+		-webkit-box-flex: 1;
+		-webkit-flex: 1 1 auto;
+		flex: 1 1 auto;
 		display: block;
-		width: 100%;
-		box-sizing: border-box;
+		min-width: 0;
 	}
 
 	/* Two halves of a fluid track. The pill is one half less the 4px inset, and
@@ -537,35 +673,31 @@ button,
 	   so the fixed-width version's plain translate still holds.
 	   The 48px height carries over from the base rules unchanged — it's a touch
 	   target here, which is the one place it matters most. */
-	.home #viewTabs a {
+	#viewTabs a {
 		width: 50%;
 	}
 
-	.home #viewTabsPill {
+	#viewTabsPill {
 		width: 50%;
 		width: calc(50% - 4px);
 	}
 
-	.home #viewTabs.on-all #viewTabsPill {
+	#viewTabs.on-all #viewTabsPill {
 		-webkit-transform: translateX(100%);
 		transform: translateX(100%);
 	}
-}
 
-/* Actually-small screens. The layout above already holds here; this is only about
- * the wordmark and the margins being sized for a phone rather than a window. */
-@media screen and (max-width: 700px) {
-	.home #header #headerContainer {
+	#header.siteHeader #headerContainer {
 		padding: 18px 16px 16px 16px;
 	}
 
-	.home #wordmark {
+	.wordmark {
 		font-size: 40px;
 	}
 
 	/* Narrower, not shorter or smaller — the height and the type stay matched to
-	   the toggle beneath it. */
-	.home #createLink.button {
+	   the toggle beside it. */
+	#header.siteHeader #createLink.button {
 		padding: 0 18px;
 	}
 
@@ -576,26 +708,25 @@ button,
 	}
 }
 
-/* Phones. The wordmark and the create button share this row, and the wordmark is
- * a single unbreakable word roughly 6.4x as wide as its font-size — so on a 320px
- * screen a fixed size either overflows or has to be picked small enough for the
- * narrowest phone and then looks timid on every other one. Sizing it off the
- * viewport lets it take whatever room the button leaves and no more. The plain
- * font-size above it is the fallback for anything without min(). */
+/* Phones. The wordmark is a single unbreakable word roughly 6.4x as wide as its
+ * font-size, so a fixed size either overflows a 320px screen or has to be picked
+ * for the narrowest phone and then looks timid on every other one. Sizing it off
+ * the viewport lets it take the room that's there. The plain font-size above it
+ * is the fallback for anything without min(). */
 @media screen and (max-width: 460px) {
-	.home #header #headerContainer {
+	#header.siteHeader #headerContainer {
 		padding: 16px 14px 14px 14px;
 		grid-gap: 12px 10px;
 		gap: 12px 10px;
 	}
 
-	.home #wordmark {
-		font-size: 26px;
-		font-size: min(32px, 7.6vw);
+	.wordmark {
+		font-size: 34px;
+		font-size: min(40px, 10vw);
 	}
 
-	.home #createLink.button {
-		padding: 0 14px;
+	#header.siteHeader #createLink.button {
+		padding: 0 16px;
 	}
 
 	#postContainer {

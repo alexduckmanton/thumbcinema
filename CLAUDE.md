@@ -40,7 +40,8 @@ against 2013 stays visible in one place.
 | `public/images/**`, favicons | **original**, unchanged |
 | `public/*.html` | new — hand-converted from the PHP templates |
 | `public/style/revival.css` | new — the only CSS that overrides 2013 |
-| `public/style/type/tc-wordmark.*` | new — the home page wordmark, subset from Pecita (OFL). See `TC-Wordmark-ABOUT.txt` |
+| `public/style/type/tc-wordmark.*` | new — the wordmark, subset from Pecita (OFL). See `TC-Wordmark-ABOUT.txt` |
+| `public/style/type/inter-latin-variable.woff2` | new — the site's only text face. See `Inter-ABOUT.txt` |
 | `public/script/general/{browser-check,device,gallery,boot-create,boot-playback}.js` | new — replaces what PHP used to inline |
 | `api/`, `lib/`, `scripts/`, `db/` | new — the back end |
 
@@ -100,15 +101,62 @@ Routes:
 | `GET /api/flipbooks/:id/thumbnail` | PNG |
 | `PATCH /api/admin/flipbooks/:id` | Admin only. Sets `featured` and/or `nsfw` |
 
-## The home page
+## The design, post-2013
 
-The one page whose design has moved on from 2013. `/create` and `/f/:id` still wear
-the original dark tiled header; the home page doesn't, because it was mostly a
-25em yellow banner and a float mosaic and the flipbooks were what was left over.
+The chrome has moved on from 2013; the drawing tool hasn't, and won't. Everything
+here lives in `revival.css`.
 
+### Type
+
+- **One face: Inter, everywhere.** 2013 ran two — Arvo, a slab serif, on
+  `html`/`body` and every heading and button, and Arial/Helvetica on paragraphs,
+  labels and inputs — so body copy and the heading above it disagreed, and so did a
+  button and its own label.
+- **Arvo is still in `style.css` and is simply never referenced.** An `@font-face`
+  nothing renders with is never downloaded — `document.fonts` reports it
+  `unloaded` — so the original stylesheet stays untouched at no cost. Don't
+  "clean it up".
+- **Inter is one file for every weight.** Google serves it as a variable font, so
+  requesting 400 and 700 returns the same 48 KB latin subset twice. That's why
+  `@font-face` declares `font-weight: 100 900` rather than two blocks. See
+  `type/Inter-ABOUT.txt`.
+
+- **No text shadows anywhere, and that rule is the file's only `!important`.** 2013
+  put a 1px shadow under nearly every piece of type to hold it up against dark and
+  saturated chrome that no longer exists. The shadows live in some fifteen compiled
+  selector lists, several ID-qualified, so mirroring them all to win on specificity
+  would be a wall of copied selectors that drifts silently. A blanket statement is
+  written as a blanket rule.
+
+### The site header
+
+- **It's the same component on all three pages**, `.siteHeader`: wordmark left,
+  whatever that page can do right, in `.headerActions`. Home gets the Featured/All
+  toggle and the New button, `/f/:id` gets New, `/create` gets nothing — you're
+  already on it.
+- **The markup is copied into all three HTML files, not templated.** There's no
+  build step and no server-rendered layout, so the choice was duplicating nine
+  lines or rendering the header from JS, and a JS header flashes an empty bar on
+  every load. **Change one, change all three.**
+- **`sadbrowser.html` deliberately keeps the 2013 header and the logo bitmap.**
+  It's the page `browser-check.js` sends you to when your browser is too old to
+  run the tool, so it's the one page that can't assume webfonts, flexbox or
+  `:has()`. It is not a fourth copy that got missed.
+- **The selectors are written `#header.siteHeader`, not `.siteHeader`.** The 2013
+  rules are keyed on IDs — `#header` sets the dark bar and the 40px height, and
+  `#header ul#messages.active` is (2,1,1) — so a bare class loses to every one of
+  them. This was a real bug once: the class-only version left the dark bar in place
+  and the header overlapping the page.
+- **`ul#nav` is gone from all three pages.** `header.js` still refers to `#nav` in
+  its login and message handlers, but each is a jQuery call on an empty set, which
+  is a no-op. The home page had been running that way since the conversion.
+- **The one-row breakpoint isn't load-bearing any more.** `#headerContainer`
+  wraps, so getting the number wrong costs an early or late fold rather than a
+  header hanging off the side of the window. It used to be a derived number that
+  had to be exactly right, and it was wrong — see the note in the CSS.
 - **The wordmark is live text, not the logo PNG**, set in **Pecita** (Philippe
-  Cochy) — the typeface the 2013 logo was drawn in. It's vendored next to Arvo, so
-  the page still makes no third-party requests.
+  Cochy) — the typeface the 2013 logo was drawn in. Vendored, so the page still
+  makes no third-party requests.
 - **The wordmark font is called `TC Wordmark`, and it contains one word.** Two
   things to know before touching it, both in `type/TC-Wordmark-ABOUT.txt` along
   with the command that rebuilds it:
@@ -117,7 +165,7 @@ the original dark tiled header; the home page doesn't, because it was mostly a
     logo rather than as eleven separate letters — but `calt` is also nearly all of
     the font's weight: 383 KB as WOFF2 for the whole face, 68 KB for lowercase
     alone, 18 KB for the glyphs this one word needs. Anything else set in this
-    family falls through to Arvo, silently. **If the wordmark's text ever changes,
+    family falls through to Inter, silently. **If the wordmark's text ever changes,
     the font has to be rebuilt.**
   - It's named `TC Wordmark` rather than `Pecita` because a subset is a Modified
     Version under the OFL and "Pecita" is a Reserved Font Name. The original
@@ -125,27 +173,30 @@ the original dark tiled header; the home page doesn't, because it was mostly a
 - **Don't put `letter-spacing` on the wordmark.** Pecita is a joining script;
   spacing it apart pulls the letters off each other's entry and exit strokes and
   it stops being one line of handwriting.
-- **The header's one-row breakpoint is derived, not chosen.** `1fr auto 1fr`
-  centres the toggle on the *page* by giving the columns either side of it equal
-  width, so a single row needs `2 x max(wordmark, button) + toggle + gaps +
-  padding` — currently 1010px, and the wordmark is what sets it. Grid's `1fr`
-  won't shrink a column below its content, so under that the toggle slides off
-  centre and eventually the row overflows the window. **Resize the wordmark and
-  this number moves with it.**
-- **The grid is one uniform 16:9 tile, `auto-fill`ed.** The mosaic's large/medium
-  tiles came off three fixed container widths, which left a ragged edge at every
-  size in between. Every flipbook is the same 640x360 canvas, so they all get the
-  same card now.
-- **`revival.css` turns the mosaic off by matching `:nth-child(n)`**, which ties
-  the original's `:nth-child` specificity and wins on source order. That's why
-  there isn't an `!important` in there.
-- **Everything new is scoped to `body.home`.** `#header`, `#headerContainer`,
-  `#messages` and `#messagesBG` are all shared with the other pages, so an unscoped
-  rule would restyle the create page's header from under it.
 - **`#messagesBG` has to be `pointer-events: none`.** It's stretched over the whole
   header now instead of being a 40px bar of its own, and it's transparent until
   header.js gives it a type class — so without that it silently swallows every click
   on the wordmark, the toggle and the create button.
+
+### The home page grid
+
+The 2013 home page was mostly a 25em yellow banner and a float mosaic, with the
+flipbooks as what was left over. Now they're the page.
+
+- **One uniform 16:9 tile, `auto-fill`ed, 320px minimum.** The mosaic's
+  large/medium tiles came off three fixed container widths, which left a ragged
+  edge at every size in between. Every flipbook is the same 640x360 canvas, so
+  they all get the same card. 320 rather than something smaller because these are
+  drawings, not thumbnails of drawings — below that a stick figure is a smudge.
+- **The minimum is `min(320px, 100%)`, not a bare `320px`.** A grid track won't
+  shrink below its minimum, so a hard 320 pushes the column wider than a 320px
+  phone and the whole page scrolls sideways.
+- **`revival.css` turns the mosaic off by matching `:nth-child(n)`**, which ties
+  the original's `:nth-child` specificity and wins on source order. That's why
+  there isn't an `!important` in there.
+- **Card titles are clipped, not `display: none`.** The card is an `<a>` whose only
+  text is that span, so hiding it outright leaves every link in the grid with no
+  accessible name. `gallery.js` still renders it.
 
 ## Featured, NSFW and admin mode
 

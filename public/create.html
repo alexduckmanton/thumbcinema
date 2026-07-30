@@ -24,11 +24,12 @@
 
 <body>
 
-<div id="header"><div id="headerContainer">
-	<ul id="nav" class="active">
-		<li><a href="/"><img src="/images/thumbcinema_logo.png" width="319" height="103" alt="thumbcinema" id="logo" /></a></li>
-		<li class="active"><a href="/create">create</a></li>
-	</ul>
+<!-- The site header, the same block as on / and /f/:id. Nothing in .headerActions:
+     the only action this header would offer is "new flipbook", and you are on it.
+     #messages and #messagesBG stay: header.js still drives them, and the save flow
+     reports through them. -->
+<div id="header" class="siteHeader"><div id="headerContainer">
+	<a href="/" id="wordmark" class="wordmark">thumbcinema</a>
 
 	<ul id="messages"></ul>
 </div><div id="messagesBG"></div></div>

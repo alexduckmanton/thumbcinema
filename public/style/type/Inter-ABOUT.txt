@@ -1,0 +1,22 @@
+Inter — provenance and licence
+==============================
+
+`inter-latin-variable.woff2` is:
+
+    Inter, version 4.001 (git 66647c0bb)
+    Rasmus Andersson — https://rsms.me/inter/
+    SIL Open Font License, Version 1.1 — https://openfontlicense.org
+
+It is the **latin subset** of the variable font, as served by Google Fonts, taken
+unmodified from:
+
+    https://fonts.googleapis.com/css2?family=Inter:wght@400;700
+
+One file covers every weight from 100 to 900 — Google serves the same variable
+font for each weight you ask for, so requesting 400 and 700 fetches one 48 KB
+file, not two. That is why the @font-face in revival.css declares
+`font-weight: 100 900` rather than a single value.
+
+Unmodified, so it keeps its name. Vendored here rather than loaded from Google's
+CDN, so the site keeps having no third-party requests — which is the same reason
+Arvo and the wordmark are vendored.

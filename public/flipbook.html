@@ -21,11 +21,16 @@
 
 <body>
 
-<div id="header"><div id="headerContainer">
-	<ul id="nav" class="active">
-		<li><a href="/"><img src="/images/thumbcinema_logo.png" width="319" height="103" alt="thumbcinema" id="logo" /></a></li>
-		<li><a href="/create">create</a></li>
-	</ul>
+<!-- The site header, the same block as on / and /create. The old "create" nav link
+     becomes the same New button the home page uses.
+     #messages and #messagesBG stay: header.js still drives them, and admin.js
+     reports failed writes through them. -->
+<div id="header" class="siteHeader"><div id="headerContainer">
+	<a href="/" id="wordmark" class="wordmark">thumbcinema</a>
+
+	<div class="headerActions">
+		<a href="/create" class="button" id="createLink">New</a>
+	</div>
 
 	<ul id="messages"></ul>
 </div><div id="messagesBG"></div></div>
