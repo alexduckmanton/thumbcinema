@@ -40,7 +40,7 @@ against 2013 stays visible in one place.
 | `public/images/**`, favicons | **original**, unchanged |
 | `public/*.html` | new — hand-converted from the PHP templates |
 | `public/style/revival.css` | new — the only CSS that overrides 2013 |
-| `public/style/type/sacramento-*` | new — stand-in for the home page wordmark; the logo's own face is Pecita |
+| `public/style/type/tc-wordmark.*` | new — the home page wordmark, subset from Pecita (OFL). See `TC-Wordmark-ABOUT.txt` |
 | `public/script/general/{browser-check,device,gallery,boot-create,boot-playback}.js` | new — replaces what PHP used to inline |
 | `api/`, `lib/`, `scripts/`, `db/` | new — the back end |
 
@@ -106,15 +106,32 @@ The one page whose design has moved on from 2013. `/create` and `/f/:id` still w
 the original dark tiled header; the home page doesn't, because it was mostly a
 25em yellow banner and a float mosaic and the flipbooks were what was left over.
 
-- **The wordmark is live text, not the logo PNG.** The 2013 logo was drawn in
-  **Pecita** (Philippe Cochy). Pecita isn't on Google Fonts and isn't on npm, so
-  it isn't vendored here yet: the wordmark is currently set in Sacramento
-  (Astigmatic, 2012) as a **stand-in**, which is close but not the real thing.
-  To finish the job, drop `pecita.woff2`/`pecita.woff` into `style/type/` and
-  point the `@font-face` in `revival.css` at them — then re-check the wordmark's
-  size and `letter-spacing`, which were fitted to Sacramento's proportions and
-  won't carry over. Whatever lands, vendor it rather than loading it from a CDN,
-  so the page keeps having no third-party requests.
+- **The wordmark is live text, not the logo PNG**, set in **Pecita** (Philippe
+  Cochy) — the typeface the 2013 logo was drawn in. It's vendored next to Arvo, so
+  the page still makes no third-party requests.
+- **The wordmark font is called `TC Wordmark`, and it contains one word.** Two
+  things to know before touching it, both in `type/TC-Wordmark-ABOUT.txt` along
+  with the command that rebuilds it:
+  - It's **a subset of the string "thumbcinema"**. Pecita joins its letters with
+    contextual alternates, and that joining is what makes the wordmark read as the
+    logo rather than as eleven separate letters — but `calt` is also nearly all of
+    the font's weight: 383 KB as WOFF2 for the whole face, 68 KB for lowercase
+    alone, 18 KB for the glyphs this one word needs. Anything else set in this
+    family falls through to Arvo, silently. **If the wordmark's text ever changes,
+    the font has to be rebuilt.**
+  - It's named `TC Wordmark` rather than `Pecita` because a subset is a Modified
+    Version under the OFL and "Pecita" is a Reserved Font Name. The original
+    copyright and licence notices are intact inside the file.
+- **Don't put `letter-spacing` on the wordmark.** Pecita is a joining script;
+  spacing it apart pulls the letters off each other's entry and exit strokes and
+  it stops being one line of handwriting.
+- **The header's one-row breakpoint is derived, not chosen.** `1fr auto 1fr`
+  centres the toggle on the *page* by giving the columns either side of it equal
+  width, so a single row needs `2 x max(wordmark, button) + toggle + gaps +
+  padding` — currently 1010px, and the wordmark is what sets it. Grid's `1fr`
+  won't shrink a column below its content, so under that the toggle slides off
+  centre and eventually the row overflows the window. **Resize the wordmark and
+  this number moves with it.**
 - **The grid is one uniform 16:9 tile, `auto-fill`ed.** The mosaic's large/medium
   tiles came off three fixed container widths, which left a ragged edge at every
   size in between. Every flipbook is the same 640x360 canvas, so they all get the

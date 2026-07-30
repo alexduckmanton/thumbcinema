@@ -6,6 +6,32 @@
  * original is always visible in one place.
  */
 
+/* ---------------------------------------------------------------------------
+ * Buttons, everywhere
+ *
+ * The 2013 radius is 3px, which at the sizes these are set now reads as a square
+ * corner that didn't quite commit. 16px is the whole site's rounding.
+ *
+ * This is the one rule in here that isn't scoped to the home page — the create
+ * page and the flipbook page use the same .button, and a button that's rounder on
+ * one page than another is worse than either radius on its own.
+ *
+ * `#pagination li a` is in the list because _input.scss @extend'ed .button into
+ * it, so it inherits the 3px from the same compiled rule. The other selectors in
+ * that rule — the settings form, the account delete form, the member heading —
+ * were BuddyPress and no longer render, so they're left out.
+ * ------------------------------------------------------------------------- */
+
+button,
+.button,
+.button:visited,
+#pagination li a {
+	border-radius: 16px;
+}
+
+/* Inputs keep their own, tighter, radius: a text field is a different shape of
+   thing from a button and shouldn't borrow a button's corner. */
+
 /* No accounts means no drafts: a draft you can't come back to isn't a draft.
    data.js derives the draft button from `logged_in`, which we now always pass as
    true, so it gets hidden here rather than by editing the original view. */
@@ -55,19 +81,27 @@
  * hangs off it, and there is nothing to simplify on a page that is one canvas.
  * ------------------------------------------------------------------------- */
 
-/* The 2013 logo was drawn in Pecita (Philippe Cochy), stroked white over the blue
-   diamonds. Pecita isn't on Google Fonts and isn't on npm, so what's loaded here
-   is Sacramento (Astigmatic, 2012) standing in for it — the closest handwriting
-   face I could actually get hold of, and near enough to read as the same mark,
-   but not it. Swap the two files below for Pecita's webfonts when they're to hand
-   and re-check the size and letter-spacing underneath.
-
-   Either way it's vendored next to Arvo rather than fetched from a CDN, so the
-   page still has no third-party dependencies. */
+/* The wordmark's typeface: Pecita, by Philippe Cochy, which is what the 2013 logo
+   was drawn in — stroked white over the blue diamonds.
+ *
+ * It's called 'TC Wordmark' rather than 'Pecita' because these files are a subset,
+ * and a subset is a Modified Version under the OFL, where "Pecita" is a Reserved
+ * Font Name. See type/TC-Wordmark-ABOUT.txt for the provenance, the licence, and
+ * the exact command that rebuilds it.
+ *
+ * It's a subset of one word. Pecita joins its letters with contextual alternates,
+ * which is what makes the wordmark read as the logo rather than as eleven separate
+ * letters — and `calt` is also most of the font: 383 KB as WOFF2 for the whole
+ * face, 68 KB for lowercase alone, 18 KB for the glyphs "thumbcinema" needs. One
+ * word is all this face is ever asked to set, so it carries one word. Anything
+ * else given this family will silently fall through to Arvo.
+ *
+ * Vendored next to Arvo rather than fetched from a CDN, so the page still has no
+ * third-party requests. */
 @font-face {
-	font-family: 'Sacramento';
-	src: url('type/sacramento-latin-400-normal.woff2') format('woff2'),
-	     url('type/sacramento-latin-400-normal.woff') format('woff');
+	font-family: 'TC Wordmark';
+	src: url('type/tc-wordmark.woff2') format('woff2'),
+	     url('type/tc-wordmark.woff') format('woff');
 	font-weight: normal;
 	font-style: normal;
 	font-display: swap;
@@ -92,25 +126,28 @@
 	box-sizing: border-box;
 }
 
-/* Sacramento set solid is tighter than the logo it's standing in for; .086em is
-   what it takes to spread it across the original's width at the original's
-   x-height. That number belongs to the stand-in, not to the logo — it'll need
-   re-deriving against Pecita. */
+/* No letter-spacing. The stand-in needed .086em to reach the logo's width, but
+   Pecita is a joining script: spacing it apart pulls the letters off each other's
+   entry and exit strokes and the word stops being one line of handwriting. Its
+   own fitting is the fitting.
+ *
+ * Black, not the blue the rest of the page uses. The wordmark is the one thing
+   here that isn't a control, and it doesn't need to look like one. */
 .home #wordmark,
 .home #wordmark:visited {
-	font-size: 44px;
-	line-height: 1.1;
-	font-family: 'Sacramento', 'Arvo', serif;
-	letter-spacing: .086em;
-	margin-right: -.086em; /* letter-spacing lands after the last letter too */
-	color: #4a7df4;
+	font-size: 54px;
+	line-height: 1;
+	font-family: 'TC Wordmark', 'Arvo', serif;
+	color: #000;
 	text-decoration: none;
 	white-space: nowrap;
 	justify-self: start;
+	-webkit-transition: color .12s linear;
+	transition: color .12s linear;
 }
 
 .home #wordmark:hover {
-	color: #3568e8;
+	color: #555;
 	text-decoration: none;
 }
 
@@ -124,13 +161,25 @@
 }
 
 /* The original button sells itself with a text-shadow and a darker rim, which is
-   more furniture than a single flat action needs here. */
+   more furniture than a single flat action needs here.
+ *
+ * 48px tall, matching the toggle beside it — set as a height and a centred flex
+ * line rather than as vertical padding, so the two controls agree on a number
+ * instead of arriving at the same total by different arithmetic. */
 .home #createLink.button {
-	padding: 9px 18px;
+	height: 48px;
+	padding: 0 24px;
+	display: -webkit-inline-box;
+	display: -webkit-inline-flex;
+	display: inline-flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
 	border: none;
-	font-size: 15px;
-	line-height: 1.2;
+	font-size: 16px;
+	line-height: 1;
 	text-shadow: none;
+	box-sizing: border-box;
 	box-shadow: rgba(74, 125, 244, .3) 0 2px 6px;
 }
 
@@ -205,20 +254,28 @@
  * Featured / All segmented control
  *
  * The 2013 homepage only ever showed one list (category 6), so there was nothing
- * like this to inherit. Built from the existing palette — Arvo, #4a7df4, 3px radii
- * — so it reads as part of the original rather than bolted on.
+ * like this to inherit. Built from the existing palette — Arvo, #4a7df4 — so it
+ * reads as part of the original rather than bolted on.
+ *
+ * It and the create button are deliberately the same height and the same type
+ * size: they sit next to each other and there's no reason for one to be the
+ * odd one out.
  * ------------------------------------------------------------------------- */
 
 /* The track. Recessed, so the selected segment reads as sitting on top of it —
-   the same trick .button uses for its pressed state (inset shadow, no blur). */
+   the same trick .button uses for its pressed state (inset shadow, no blur).
+ *
+ * 48px tall to match the create button: 40px of segment inside a 4px inset. */
 #viewTabs {
 	padding: 4px;
+	height: 48px;
 	display: inline-block;
 	position: relative;
 	background: #e0e0e0;
-	border-radius: 5px;
+	border-radius: 16px;
 	box-shadow: inset rgba(0, 0, 0, .1) 0 2px 0;
 	font-size: 0; /* kills the whitespace gap between the inline-block anchors */
+	box-sizing: border-box;
 	-webkit-user-select: none;
 	-moz-user-select: none;
 	user-select: none;
@@ -230,14 +287,16 @@
    White, so it reads as a card lifted off the recessed grey track.
    Two equal segments means the travel is a plain 100% translate, no measuring. */
 #viewTabsPill {
-	width: 104px;
+	width: 116px;
 	display: block;
 	position: absolute;
 	top: 4px;
 	left: 4px;
 	bottom: 4px;
 	background: #fff;
-	border-radius: 3px;
+	/* 4px inside a 16px corner. Concentric with the track rather than equal to
+	   it, which is what stops the gap either side of the curve looking pinched. */
+	border-radius: 12px;
 	box-shadow: rgba(0, 0, 0, .12) 0 3px 0 -1px;
 }
 
@@ -249,19 +308,22 @@
 }
 
 #viewTabs.on-all #viewTabsPill {
-	-webkit-transform: translateX(104px);
-	transform: translateX(104px);
+	-webkit-transform: translateX(116px);
+	transform: translateX(116px);
 }
 
+/* 40px of line-height rather than type plus padding, so the segment's height is
+   the number it says it is and the label is centred in it for free. */
 #viewTabs a {
-	width: 104px;
-	padding: 6px 0;
+	width: 116px;
+	padding: 0;
+	height: 40px;
 	display: inline-block;
 	position: relative;
 	z-index: 1; /* above the pill */
 	font-family: 'ArvoRegular', Arial, Helvetica, sans-serif;
-	font-size: 15px;
-	line-height: 1.4em;
+	font-size: 16px;
+	line-height: 40px;
 	color: #666;
 	text-align: center;
 	text-decoration: none;
@@ -334,7 +396,11 @@
 
 	-webkit-box-sizing: border-box;
 	box-sizing: border-box;
-	border-radius: 4px;
+	/* Softer than the 4px it was, so the cards belong to the same set of corners
+	   as the controls above them. Not the full 16px: a card is a much bigger
+	   shape than a button, and a radius that reads as generous at 48px tall reads
+	   as a blob at 200px wide. */
+	border-radius: 12px;
 	overflow: hidden;
 	background-color: #fff;
 	background-size: cover;
@@ -415,18 +481,28 @@
 /* ---------------------------------------------------------------------------
  * Narrow layouts
  *
- * One row of header stops fitting somewhere around 700px, so below that the
- * toggle drops to its own full-width row under the wordmark and the button.
+ * Two breakpoints, because two different things stop fitting at two different
+ * widths and collapsing them into one gets the header wrong in the band between.
  * ------------------------------------------------------------------------- */
 
-@media screen and (max-width: 700px) {
+/* The header stops being one row here, and the number is derived rather than
+ * chosen. `1fr auto 1fr` centres the toggle on the page by giving the columns
+ * either side of it the same width, so a single row needs
+ *
+ *     2 x max(wordmark, button) + toggle + 2 x gap + 2 x padding
+ *     2 x 345 + 240 + 2 x 16 + 2 x 24  =  1010px
+ *
+ * — the wordmark is more than twice the button's width, so it's what sets this.
+ * Grid's 1fr is really minmax(auto, 1fr) and won't shrink a column below its
+ * content, so under 1010px the toggle quietly slides off centre, and under about
+ * 805px the row overflows the window outright. 1020 leaves a little slack for the
+ * fallback face being wider than Pecita during the font swap.
+ *
+ * Below it: wordmark and button share the top row, toggle gets its own full-width
+ * one underneath. */
+@media screen and (max-width: 1020px) {
 	.home #header #headerContainer {
-		padding: 18px 16px 16px 16px;
 		grid-template-columns: auto auto;
-	}
-
-	.home #wordmark {
-		font-size: 34px;
 	}
 
 	.home #viewTabs {
@@ -439,10 +515,11 @@
 
 	/* Two halves of a fluid track. The pill is one half less the 4px inset, and
 	   translating it by its own width is exactly the distance to the far segment,
-	   so the fixed-width version's plain translate still holds. */
+	   so the fixed-width version's plain translate still holds.
+	   The 48px height carries over from the base rules unchanged — it's a touch
+	   target here, which is the one place it matters most. */
 	.home #viewTabs a {
 		width: 50%;
-		padding: 8px 0;
 	}
 
 	.home #viewTabsPill {
@@ -454,16 +531,56 @@
 		-webkit-transform: translateX(100%);
 		transform: translateX(100%);
 	}
+}
 
+/* Actually-small screens. The layout above already holds here; this is only about
+ * the wordmark and the margins being sized for a phone rather than a window. */
+@media screen and (max-width: 700px) {
+	.home #header #headerContainer {
+		padding: 18px 16px 16px 16px;
+	}
+
+	.home #wordmark {
+		font-size: 40px;
+	}
+
+	/* Narrower, not shorter or smaller — the height and the type stay matched to
+	   the toggle beneath it. */
 	.home #createLink.button {
-		padding: 8px 14px;
-		font-size: 14px;
+		padding: 0 18px;
 	}
 
 	#postContainer {
 		padding: 0 16px;
 		grid-gap: 16px;
 		gap: 16px;
+	}
+}
+
+/* Phones. The wordmark and the create button share this row, and the wordmark is
+ * a single unbreakable word roughly 6.4x as wide as its font-size — so on a 320px
+ * screen a fixed size either overflows or has to be picked small enough for the
+ * narrowest phone and then looks timid on every other one. Sizing it off the
+ * viewport lets it take whatever room the button leaves and no more. The plain
+ * font-size above it is the fallback for anything without min(). */
+@media screen and (max-width: 460px) {
+	.home #header #headerContainer {
+		padding: 16px 14px 14px 14px;
+		grid-gap: 12px 10px;
+		gap: 12px 10px;
+	}
+
+	.home #wordmark {
+		font-size: 26px;
+		font-size: min(32px, 7.6vw);
+	}
+
+	.home #createLink.button {
+		padding: 0 14px;
+	}
+
+	#postContainer {
+		padding: 0 14px;
 	}
 }
 
