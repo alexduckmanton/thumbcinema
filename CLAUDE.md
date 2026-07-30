@@ -128,6 +128,13 @@ here lives in `revival.css`.
   would be a wall of copied selectors that drifts silently. A blanket statement is
   written as a blanket rule.
 
+- **Don't use `rem` in `revival.css`.** `style.css` sets the root to 10px — the
+  2013 `font-size: 62.5%` trick — and every em in the original is sized against
+  that, so `4rem` would silently mean 40px rather than the 64px anyone writing it
+  today intends. Changing the root to fix it would resize the whole original
+  stylesheet. Design values specified in rem are converted at 16px and written in
+  px, with the rem noted in a comment.
+
 ### The site header
 
 - **It's the same component on all three pages**, `.siteHeader`: wordmark left,
@@ -142,6 +149,11 @@ here lives in `revival.css`.
   It's the page `browser-check.js` sends you to when your browser is too old to
   run the tool, so it's the one page that can't assume webfonts, flexbox or
   `:has()`. It is not a fourth copy that got missed.
+- **On `/create` and `/f/:id` the header's width tracks `.center`.** style.css
+  sizes that column at 640px, dropping to 90% below 730px, and the wordmark is
+  meant to start exactly where the canvas does — so the header container is
+  640 + its padding either side, and switches to a 5% padding below 730px to match
+  the percentage. Change the header's padding and this has to move with it.
 - **The selectors are written `#header.siteHeader`, not `.siteHeader`.** The 2013
   rules are keyed on IDs — `#header` sets the dark bar and the 40px height, and
   `#header ul#messages.active` is (2,1,1) — so a bare class loses to every one of

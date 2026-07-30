@@ -210,9 +210,19 @@ button,
    when they stop fitting. The wrap is the safety net rather than the layout: the
    media query further down is what actually shapes the narrow version, but if the
    two disagree — a longer button label, a bigger wordmark — the row folds instead
-   of overflowing the window. */
+   of overflowing the window.
+ *
+ * **The sizes in this section are specified in rem at 16px to the rem, and written
+ * here in px.** This stylesheet can't use rem for them: style.css sets the root to
+ * 10px (the 2013 `font-size: 62.5%` trick) and every em in the original is sized
+ * against that, so `4rem` here would silently mean 40px, not 64. Changing the root
+ * to fix that would resize the entire original stylesheet. The conversions:
+ * padding 4rem/3rem = 64px/48px, wordmark 7rem = 112px, radius 1rem = 16px.
+ *
+ * No bottom padding — the gap under the header belongs to the content below it,
+ * which sets its own top margin. */
 #header.siteHeader #headerContainer {
-	padding: 24px 24px 22px 24px;
+	padding: 64px 48px 0 48px;
 	max-width: 1440px;
 	margin: 0 auto;
 	display: -webkit-box;
@@ -228,11 +238,21 @@ button,
 	box-sizing: border-box;
 }
 
-/* /create and /f/:id are one 800px column of content, so the wordmark lines up
-   with the canvas rather than with the far edge of the window. 800 + the 24px of
-   padding either side. */
+/* /create and /f/:id are one column of content — `.center`, which style.css sizes
+   at 640px and drops to 90% below 730px — so the wordmark lines up with the canvas
+   rather than with the far edge of the window. 640 plus the padding either side,
+   and it has to track that padding at each breakpoint below. */
 body:not(.home) #header.siteHeader #headerContainer {
-	max-width: 848px;
+	max-width: 736px;
+}
+
+/* Under 730 the canvas stops being a fixed width and becomes 90% of the window,
+   so matching it means matching the percentage rather than a number. */
+@media screen and (max-width: 730px) {
+	body:not(.home) #header.siteHeader #headerContainer {
+		padding-left: 5%;
+		padding-right: 5%;
+	}
 }
 
 /* The right-hand group. `margin-left: auto` rather than justify-content on the
@@ -259,10 +279,10 @@ body:not(.home) #header.siteHeader #headerContainer {
    here that isn't a control, and it doesn't need to look like one. */
 .wordmark,
 .wordmark:visited {
-	font-size: 54px;
+	font-size: 112px; /* 7rem */
 	line-height: 1;
 	font-family: 'TC Wordmark', cursive;
-	color: #000;
+	color: #444;
 	text-decoration: none;
 	white-space: nowrap;
 	-webkit-flex: 0 0 auto;
@@ -272,7 +292,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 }
 
 .wordmark:hover {
-	color: #555;
+	color: #111;
 	text-decoration: none;
 }
 
@@ -289,7 +309,7 @@ body:not(.home) #header.siteHeader #headerContainer {
  * line rather than as vertical padding, so the two controls agree on a number
  * instead of arriving at the same total by different arithmetic. */
 #header.siteHeader #createLink.button {
-	height: 48px;
+	height: 44px;
 	padding: 0 22px;
 	display: -webkit-inline-box;
 	display: -webkit-inline-flex;
@@ -299,8 +319,9 @@ body:not(.home) #header.siteHeader #headerContainer {
 	align-items: center;
 	border: none;
 	font-size: 16px;
+	font-weight: 500;
 	line-height: 1;
-	box-shadow: none;
+	box-shadow: rgba(0, 0, 0, .07) 0 1px 4px;
 	box-sizing: border-box;
 }
 
@@ -311,7 +332,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 #header.siteHeader #createLink.button:active {
 	top: 1px;
 	background: #4272e2;
-	box-shadow: none;
+	box-shadow: rgba(0, 0, 0, .07) 0 1px 3px;
 }
 
 /* Messages
@@ -385,13 +406,12 @@ body:not(.home) #header.siteHeader #headerContainer {
 
 /* The track. Flat: no inset shadow, just a plain grey field. The recess was there
    to make the selected segment read as lifted off it, but the pill is white on
-   grey and already reads as forward on its own — the shadow was doing a job that
-   the colour had already done.
+   grey and carries a shadow of its own — the inset was doing a job twice over.
  *
- * 48px tall to match the create button: 40px of segment inside a 4px inset. */
+ * 44px tall to match the create button: 36px of segment inside a 4px inset. */
 #viewTabs {
 	padding: 4px;
-	height: 48px;
+	height: 44px;
 	display: inline-block;
 	position: relative;
 	background: #e8e8e8;
@@ -407,11 +427,11 @@ body:not(.home) #header.siteHeader #headerContainer {
 /* The selected segment, as a single element that slides rather than two that
    swap colour. Everything else on this site moves when it changes — pages fly in
    from the right, deleted ones fall away — so the toggle should too.
-   White on grey, which is the whole of the selected state now that the track is
-   flat — no shadow under it either.
+   White on grey, lifted by the same shadow the flipbook cards use — a size down
+   and fainter, because it's a 96px chip rather than a 400px card.
    Two equal segments means the travel is a plain 100% translate, no measuring. */
 #viewTabsPill {
-	width: 116px;
+	width: 96px;
 	display: block;
 	position: absolute;
 	top: 4px;
@@ -421,7 +441,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 	/* 4px inside a 16px corner. Concentric with the track rather than equal to
 	   it, which is what stops the gap either side of the curve looking pinched. */
 	border-radius: 12px;
-	box-shadow: none;
+	box-shadow: rgba(0, 0, 0, .07) 0 1px 4px;
 }
 
 #viewTabs.ready #viewTabsPill {
@@ -432,22 +452,23 @@ body:not(.home) #header.siteHeader #headerContainer {
 }
 
 #viewTabs.on-all #viewTabsPill {
-	-webkit-transform: translateX(116px);
-	transform: translateX(116px);
+	-webkit-transform: translateX(96px);
+	transform: translateX(96px);
 }
 
-/* 40px of line-height rather than type plus padding, so the segment's height is
+/* 36px of line-height rather than type plus padding, so the segment's height is
    the number it says it is and the label is centred in it for free. */
 #viewTabs a {
-	width: 116px;
+	width: 96px;
 	padding: 0;
-	height: 40px;
+	height: 36px;
 	display: inline-block;
 	position: relative;
 	z-index: 1; /* above the pill */
 	font-family: inherit;
 	font-size: 16px;
-	line-height: 40px;
+	font-weight: 500;
+	line-height: 36px;
 	color: #666;
 	text-align: center;
 	text-decoration: none;
@@ -501,9 +522,13 @@ body:not(.home) #header.siteHeader #headerContainer {
 /* 320px minimum column. These are drawings, not thumbnails of drawings — at 220px
    a stick figure on a 640x360 canvas was a smudge, and the grid was showing five
    or six across a laptop. At 320 it's three, and you can actually see them. */
+/* The header has no bottom padding, so the space under it is this margin. Keeping
+   it here rather than on the header means the gap belongs to whichever page's
+   content sets it — the grid wants more air under a 112px wordmark than the
+   create page's canvas does. */
 #postContainer {
-	margin: 0 auto;
-	padding: 0 24px;
+	margin: 40px auto 0 auto;
+	padding: 0 48px;
 	max-width: 1440px;
 	width: 100%;
 	display: grid;
@@ -593,10 +618,11 @@ body:not(.home) #header.siteHeader #headerContainer {
 }
 
 
-/* The manual retry after a failed fetch, and the only other button on the page. */
+/* The manual retry after a failed fetch, and the only other button on the page.
+   Same 44px and weight as the one in the header. */
 .home #loadMore.button {
 	padding: 0 24px;
-	height: 48px;
+	height: 44px;
 	display: -webkit-inline-box;
 	display: -webkit-inline-flex;
 	display: inline-flex;
@@ -606,7 +632,9 @@ body:not(.home) #header.siteHeader #headerContainer {
 	border: none;
 	border-radius: 16px;
 	font-size: 16px;
+	font-weight: 500;
 	line-height: 1;
+	box-shadow: rgba(0, 0, 0, .07) 0 1px 4px;
 	box-sizing: border-box;
 }
 
@@ -639,15 +667,15 @@ body:not(.home) #header.siteHeader #headerContainer {
  * than being split up — they're one group, and the group is what wraps.
  *
  * The number: a single row needs wordmark + toggle + button + 2 gaps + padding,
- * which is 345 + 240 + 79 + 28 + 48 = 740px. Shortening the button's label to
- * "New" is most of why that fits so much earlier than it used to — the header was
- * previously centring the toggle on the page, which cost twice the wordmark's
- * width and didn't fit until 1010px.
+ * which at desktop sizes is 716 + 200 + 78 + 28 + 96 = 1118px. The wordmark at
+ * 112px is almost two thirds of that on its own — it's what sets this, and it
+ * moves the moment the wordmark is resized.
  *
- * Unlike that version this number isn't load-bearing: #headerContainer wraps, so
- * getting it wrong costs a slightly early or late fold rather than a header
- * hanging off the side of the window. */
-@media screen and (max-width: 760px) {
+ * The number isn't load-bearing though: #headerContainer wraps, so getting it
+ * wrong costs a slightly early or late fold rather than a header hanging off the
+ * side of the window.
+ * ------------------------------------------------------------------------- */
+@media screen and (max-width: 1140px) {
 	/* The whole group takes the second row, and the toggle takes whatever the
 	   button doesn't — but only where there's a toggle to make room for. On
 	   /f/:id .headerActions is one button, which has no trouble sharing the
@@ -671,7 +699,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 	/* Two halves of a fluid track. The pill is one half less the 4px inset, and
 	   translating it by its own width is exactly the distance to the far segment,
 	   so the fixed-width version's plain translate still holds.
-	   The 48px height carries over from the base rules unchanged — it's a touch
+	   The 44px height carries over from the base rules unchanged — it's a touch
 	   target here, which is the one place it matters most. */
 	#viewTabs a {
 		width: 50%;
@@ -687,22 +715,43 @@ body:not(.home) #header.siteHeader #headerContainer {
 		transform: translateX(100%);
 	}
 
+	/* Everything steps down together: the wordmark, the padding around it, and the
+	   grid's gutters, which stay equal to the header's so the cards line up under
+	   the wordmark rather than near it. */
 	#header.siteHeader #headerContainer {
-		padding: 18px 16px 16px 16px;
+		padding: 48px 32px 0 32px;
+	}
+
+	body:not(.home) #header.siteHeader #headerContainer {
+		max-width: 704px; /* 640 of canvas + the padding either side */
 	}
 
 	.wordmark {
-		font-size: 40px;
+		font-size: 88px;
 	}
 
-	/* Narrower, not shorter or smaller — the height and the type stay matched to
+	#postContainer {
+		padding: 0 32px;
+	}
+}
+
+@media screen and (max-width: 700px) {
+	#header.siteHeader #headerContainer {
+		padding: 36px 20px 0 20px;
+	}
+
+	.wordmark {
+		font-size: 56px;
+	}
+
+	/* Narrower, not shorter or lighter — the height and the type stay matched to
 	   the toggle beside it. */
 	#header.siteHeader #createLink.button {
 		padding: 0 18px;
 	}
 
 	#postContainer {
-		padding: 0 16px;
+		padding: 0 20px;
 		grid-gap: 16px;
 		gap: 16px;
 	}
@@ -715,14 +764,14 @@ body:not(.home) #header.siteHeader #headerContainer {
  * is the fallback for anything without min(). */
 @media screen and (max-width: 460px) {
 	#header.siteHeader #headerContainer {
-		padding: 16px 14px 14px 14px;
+		padding: 28px 16px 0 16px;
 		grid-gap: 12px 10px;
 		gap: 12px 10px;
 	}
 
 	.wordmark {
-		font-size: 34px;
-		font-size: min(40px, 10vw);
+		font-size: 40px;
+		font-size: min(48px, 12vw);
 	}
 
 	#header.siteHeader #createLink.button {
@@ -730,7 +779,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 	}
 
 	#postContainer {
-		padding: 0 14px;
+		padding: 0 16px;
 	}
 }
 
