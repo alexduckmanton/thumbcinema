@@ -40,7 +40,7 @@ against 2013 stays visible in one place.
 | `public/images/**`, favicons | **original**, unchanged |
 | `public/*.html` | new — hand-converted from the PHP templates |
 | `public/style/revival.css` | new — the only CSS that overrides 2013 |
-| `public/style/type/sacramento-*` | new — the logo's typeface, for the home page wordmark |
+| `public/style/type/sacramento-*` | new — stand-in for the home page wordmark; the logo's own face is Pecita |
 | `public/script/general/{browser-check,device,gallery,boot-create,boot-playback}.js` | new — replaces what PHP used to inline |
 | `api/`, `lib/`, `scripts/`, `db/` | new — the back end |
 
@@ -106,10 +106,15 @@ The one page whose design has moved on from 2013. `/create` and `/f/:id` still w
 the original dark tiled header; the home page doesn't, because it was mostly a
 25em yellow banner and a float mosaic and the flipbooks were what was left over.
 
-- **The wordmark is live text, not the logo PNG.** It's set in Sacramento
-  (Astigmatic, 2012) — the typeface the 2013 logo was drawn in, which Google Fonts
-  carries. Vendored into `style/type/` next to Arvo rather than loaded from a CDN,
-  so the page still has no third-party requests.
+- **The wordmark is live text, not the logo PNG.** The 2013 logo was drawn in
+  **Pecita** (Philippe Cochy). Pecita isn't on Google Fonts and isn't on npm, so
+  it isn't vendored here yet: the wordmark is currently set in Sacramento
+  (Astigmatic, 2012) as a **stand-in**, which is close but not the real thing.
+  To finish the job, drop `pecita.woff2`/`pecita.woff` into `style/type/` and
+  point the `@font-face` in `revival.css` at them — then re-check the wordmark's
+  size and `letter-spacing`, which were fitted to Sacramento's proportions and
+  won't carry over. Whatever lands, vendor it rather than loading it from a CDN,
+  so the page keeps having no third-party requests.
 - **The grid is one uniform 16:9 tile, `auto-fill`ed.** The mosaic's large/medium
   tiles came off three fixed container widths, which left a ragged edge at every
   size in between. Every flipbook is the same 640x360 canvas, so they all get the

@@ -55,9 +55,14 @@
  * hangs off it, and there is nothing to simplify on a page that is one canvas.
  * ------------------------------------------------------------------------- */
 
-/* The wordmark was Sacramento (Astigmatic, 2012) stroked white over the blue
-   diamonds. Google Fonts carries it, so it can be set live rather than shipped
-   as a PNG — and vendored next to Arvo rather than fetched from a CDN, so the
+/* The 2013 logo was drawn in Pecita (Philippe Cochy), stroked white over the blue
+   diamonds. Pecita isn't on Google Fonts and isn't on npm, so what's loaded here
+   is Sacramento (Astigmatic, 2012) standing in for it — the closest handwriting
+   face I could actually get hold of, and near enough to read as the same mark,
+   but not it. Swap the two files below for Pecita's webfonts when they're to hand
+   and re-check the size and letter-spacing underneath.
+
+   Either way it's vendored next to Arvo rather than fetched from a CDN, so the
    page still has no third-party dependencies. */
 @font-face {
 	font-family: 'Sacramento';
@@ -87,9 +92,10 @@
 	box-sizing: border-box;
 }
 
-/* The tracking isn't decoration: measuring the 2013 logo against Sacramento set
-   solid puts it at .086em — Photoshop tracking 86 — and without it the live text
-   is visibly tighter than the bitmap it replaces. */
+/* Sacramento set solid is tighter than the logo it's standing in for; .086em is
+   what it takes to spread it across the original's width at the original's
+   x-height. That number belongs to the stand-in, not to the logo — it'll need
+   re-deriving against Pecita. */
 .home #wordmark,
 .home #wordmark:visited {
 	font-size: 44px;
