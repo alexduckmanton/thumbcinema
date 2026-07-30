@@ -461,6 +461,25 @@ button,
 }
 
 
+/* The manual retry after a failed fetch, and the only other button on the page. */
+.home #loadMore.button {
+	padding: 0 24px;
+	height: 48px;
+	display: -webkit-inline-box;
+	display: -webkit-inline-flex;
+	display: inline-flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	border: none;
+	border-radius: 16px;
+	font-size: 16px;
+	line-height: 1;
+	text-shadow: none;
+	box-sizing: border-box;
+}
+
+
 /* ---------------------------------------------------------------------------
  * The footer
  * ------------------------------------------------------------------------- */
