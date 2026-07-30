@@ -128,12 +128,20 @@ here lives in `revival.css`.
   would be a wall of copied selectors that drifts silently. A blanket statement is
   written as a blanket rule.
 
-- **Don't use `rem` in `revival.css`.** `style.css` sets the root to 10px — the
-  2013 `font-size: 62.5%` trick — and every em in the original is sized against
-  that, so `4rem` would silently mean 40px rather than the 64px anyone writing it
-  today intends. Changing the root to fix it would resize the whole original
-  stylesheet. Design values specified in rem are converted at 16px and written in
-  px, with the rem noted in a comment.
+- **1rem is 10px here, not 16px, and that's the unit the design is in.** `style.css`
+  sets the root to 10px — the 2013 `font-size: 62.5%` trick — and every em in the
+  original is sized against it. `revival.css` uses rem to match: the header's
+  `4rem 3rem` padding is 40/30, the wordmark's `7rem` is 70px, a `1rem` corner is
+  10px. **Don't "correct" these to a 16px scale**, and don't change the root to
+  make rem mean 16 — that would resize the entire original stylesheet.
+- **The fonts are preloaded from each page's `<head>`, and the wordmark is
+  `font-display: block`.** `swap` painted the fallback first and switched when
+  Pecita landed, which on a logo is the least acceptable place on the site for a
+  visible change of typeface. `block` holds it invisible briefly and paints once.
+  That's only safe because the preload gets the 18 KB file requested before the
+  stylesheet is even parsed — **if the preload goes, this must go back to `swap`**,
+  or the wordmark can be invisible for up to 3 seconds. Inter stays on `swap`: it's
+  body copy, where a beat of invisible text everywhere is the worse failure.
 
 ### The site header
 

@@ -24,6 +24,10 @@
  * One 48 KB request covers every weight: Google serves Inter as a variable font,
  * so asking for 400 and 700 returns the same file twice. Hence the 100–900 range
  * below rather than two @font-face blocks. See type/Inter-ABOUT.txt.
+ *
+ * `swap` rather than the wordmark's `block`: this is body copy, and a beat of
+ * invisible text everywhere is a worse failure than a beat of the fallback. It's
+ * preloaded from the <head> alongside the wordmark, so in practice it's neither.
  * ------------------------------------------------------------------------- */
 
 @font-face {
@@ -85,7 +89,8 @@ label,
  * Buttons, everywhere
  *
  * The 2013 radius is 3px, which at the sizes these are set now reads as a square
- * corner that didn't quite commit. 16px is the whole site's rounding.
+ * corner that didn't quite commit. 1rem — 10px here, see the note in the header
+ * section — is the whole site's rounding.
  *
  * Site-wide, like the type above it — the create page and the flipbook page use
  * the same .button, and a button that's rounder on one page than another is worse
@@ -101,7 +106,7 @@ button,
 .button,
 .button:visited,
 #pagination li a {
-	border-radius: 16px;
+	border-radius: 1rem; /* 10px */
 }
 
 /* Inputs keep their own, tighter, radius: a text field is a different shape of
@@ -192,13 +197,24 @@ button,
  *
  * Vendored rather than fetched from a CDN, so the page still has no third-party
  * requests. */
+/* `block`, not `swap`. swap paints the fallback immediately and switches when the
+   font lands, which on the wordmark means the logo visibly changes typeface a beat
+   after the page appears — the one place on the site where that's least
+   acceptable, because it's a logo and the fallback is nothing like it. block holds
+   the text invisible for a short period (~3s) and paints once, so the wordmark
+   either isn't there yet or is right.
+ *
+ * That trade is only safe because the file is 18 KB, same-origin and preloaded
+ * from the <head> of all three pages, so the invisible period is a few
+ * milliseconds rather than anything anyone sees. If the preload is ever removed,
+ * this should go back to swap. */
 @font-face {
 	font-family: 'TC Wordmark';
 	src: url('type/tc-wordmark.woff2') format('woff2'),
 	     url('type/tc-wordmark.woff') format('woff');
 	font-weight: normal;
 	font-style: normal;
-	font-display: swap;
+	font-display: block;
 }
 
 #header.siteHeader {
@@ -212,17 +228,16 @@ button,
    two disagree — a longer button label, a bigger wordmark — the row folds instead
    of overflowing the window.
  *
- * **The sizes in this section are specified in rem at 16px to the rem, and written
- * here in px.** This stylesheet can't use rem for them: style.css sets the root to
- * 10px (the 2013 `font-size: 62.5%` trick) and every em in the original is sized
- * against that, so `4rem` here would silently mean 40px, not 64. Changing the root
- * to fix that would resize the entire original stylesheet. The conversions:
- * padding 4rem/3rem = 64px/48px, wordmark 7rem = 112px, radius 1rem = 16px.
+ * **rem here is this project's rem, not the browser's.** style.css sets the root to
+ * 10px — the 2013 `font-size: 62.5%` trick — so 1rem is 10px throughout, and the
+ * sizes below are written in rem and resolve against that: 4rem/3rem of padding is
+ * 40px/30px, the wordmark's 7rem is 70px, a 1rem corner is 10px. Anything given in
+ * rem elsewhere in this file means the same thing. Don't "correct" these to 16.
  *
  * No bottom padding — the gap under the header belongs to the content below it,
  * which sets its own top margin. */
 #header.siteHeader #headerContainer {
-	padding: 64px 48px 0 48px;
+	padding: 4rem 3rem 0 3rem;
 	max-width: 1440px;
 	margin: 0 auto;
 	display: -webkit-box;
@@ -243,13 +258,16 @@ button,
    rather than with the far edge of the window. 640 plus the padding either side,
    and it has to track that padding at each breakpoint below. */
 body:not(.home) #header.siteHeader #headerContainer {
-	max-width: 736px;
+	max-width: 700px; /* 640 of canvas + 3rem of padding either side */
 }
 
 /* Under 730 the canvas stops being a fixed width and becomes 90% of the window,
    so matching it means matching the percentage rather than a number. */
 @media screen and (max-width: 730px) {
 	body:not(.home) #header.siteHeader #headerContainer {
+		/* max-width has to go too: .center's 90% is 90% of the window, so the
+		   header has to be the full window for 5% of it to land in the same place. */
+		max-width: none;
 		padding-left: 5%;
 		padding-right: 5%;
 	}
@@ -279,7 +297,7 @@ body:not(.home) #header.siteHeader #headerContainer {
    here that isn't a control, and it doesn't need to look like one. */
 .wordmark,
 .wordmark:visited {
-	font-size: 112px; /* 7rem */
+	font-size: 7rem; /* 70px — see the note on rem above */
 	line-height: 1;
 	font-family: 'TC Wordmark', cursive;
 	color: #444;
@@ -415,7 +433,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 	display: inline-block;
 	position: relative;
 	background: #e8e8e8;
-	border-radius: 16px;
+	border-radius: 1rem; /* 10px */
 	box-shadow: none;
 	font-size: 0; /* kills the whitespace gap between the inline-block anchors */
 	box-sizing: border-box;
@@ -440,7 +458,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 	background: #fff;
 	/* 4px inside a 16px corner. Concentric with the track rather than equal to
 	   it, which is what stops the gap either side of the curve looking pinched. */
-	border-radius: 12px;
+	border-radius: .6rem; /* 6px: the track's 1rem less its 4px inset */
 	box-shadow: rgba(0, 0, 0, .07) 0 1px 4px;
 }
 
@@ -481,12 +499,13 @@ body:not(.home) #header.siteHeader #headerContainer {
 	text-decoration: none;
 }
 
-/* Blue on white, which is exactly what the flipbook cards do with their titles —
-   so the selected segment borrows a treatment already in the design rather than
-   introducing one. No text-shadow: that only existed to sell white-on-blue. */
+/* Black on white. Blue is the create button's, and having the selected segment
+   wear it too made the header look like it had two primary actions in it — the
+   pill and its white chip are already carrying the selected state, so the label
+   just needs to be the most legible thing in the control. */
 #viewTabs a.active,
 #viewTabs a.active:hover {
-	color: #4a7df4;
+	color: #000;
 }
 
 /* Nudges down on press, like every other button here. */
@@ -527,8 +546,8 @@ body:not(.home) #header.siteHeader #headerContainer {
    content sets it — the grid wants more air under a 112px wordmark than the
    create page's canvas does. */
 #postContainer {
-	margin: 40px auto 0 auto;
-	padding: 0 48px;
+	margin: 4rem auto 0 auto;
+	padding: 0 3rem;
 	max-width: 1440px;
 	width: 100%;
 	display: grid;
@@ -630,7 +649,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 	-webkit-align-items: center;
 	align-items: center;
 	border: none;
-	border-radius: 16px;
+	border-radius: 1rem; /* 10px */
 	font-size: 16px;
 	font-weight: 500;
 	line-height: 1;
@@ -667,15 +686,15 @@ body:not(.home) #header.siteHeader #headerContainer {
  * than being split up — they're one group, and the group is what wraps.
  *
  * The number: a single row needs wordmark + toggle + button + 2 gaps + padding,
- * which at desktop sizes is 716 + 200 + 78 + 28 + 96 = 1118px. The wordmark at
- * 112px is almost two thirds of that on its own — it's what sets this, and it
- * moves the moment the wordmark is resized.
+ * which at 7rem is 447 + 200 + 78 + 28 + 60 = 813px. The wordmark is a bit over
+ * half of that, so it's still what sets this — resize it and this moves. It was
+ * 1141 when the wordmark was 112px.
  *
  * The number isn't load-bearing though: #headerContainer wraps, so getting it
  * wrong costs a slightly early or late fold rather than a header hanging off the
  * side of the window.
  * ------------------------------------------------------------------------- */
-@media screen and (max-width: 1140px) {
+@media screen and (max-width: 830px) {
 	/* The whole group takes the second row, and the toggle takes whatever the
 	   button doesn't — but only where there's a toggle to make room for. On
 	   /f/:id .headerActions is one button, which has no trouble sharing the
@@ -714,34 +733,18 @@ body:not(.home) #header.siteHeader #headerContainer {
 		-webkit-transform: translateX(100%);
 		transform: translateX(100%);
 	}
-
-	/* Everything steps down together: the wordmark, the padding around it, and the
-	   grid's gutters, which stay equal to the header's so the cards line up under
-	   the wordmark rather than near it. */
-	#header.siteHeader #headerContainer {
-		padding: 48px 32px 0 32px;
-	}
-
-	body:not(.home) #header.siteHeader #headerContainer {
-		max-width: 704px; /* 640 of canvas + the padding either side */
-	}
-
-	.wordmark {
-		font-size: 88px;
-	}
-
-	#postContainer {
-		padding: 0 32px;
-	}
 }
 
+/* Below here the wordmark itself has to come down, and the padding and the grid's
+ * gutters come with it — the gutters stay equal to the header's so the cards line
+ * up under the wordmark rather than near it. */
 @media screen and (max-width: 700px) {
 	#header.siteHeader #headerContainer {
-		padding: 36px 20px 0 20px;
+		padding: 3.2rem 2rem 0 2rem;
 	}
 
 	.wordmark {
-		font-size: 56px;
+		font-size: 5.6rem; /* 56px */
 	}
 
 	/* Narrower, not shorter or lighter — the height and the type stay matched to
@@ -751,7 +754,8 @@ body:not(.home) #header.siteHeader #headerContainer {
 	}
 
 	#postContainer {
-		padding: 0 20px;
+		margin-top: 3.2rem;
+		padding: 0 2rem;
 		grid-gap: 16px;
 		gap: 16px;
 	}
@@ -764,14 +768,14 @@ body:not(.home) #header.siteHeader #headerContainer {
  * is the fallback for anything without min(). */
 @media screen and (max-width: 460px) {
 	#header.siteHeader #headerContainer {
-		padding: 28px 16px 0 16px;
+		padding: 2.4rem 1.6rem 0 1.6rem;
 		grid-gap: 12px 10px;
 		gap: 12px 10px;
 	}
 
 	.wordmark {
-		font-size: 40px;
-		font-size: min(48px, 12vw);
+		font-size: 4rem; /* 40px */
+		font-size: min(4rem, 11vw);
 	}
 
 	#header.siteHeader #createLink.button {
@@ -779,7 +783,8 @@ body:not(.home) #header.siteHeader #headerContainer {
 	}
 
 	#postContainer {
-		padding: 0 16px;
+		margin-top: 2.4rem;
+		padding: 0 1.6rem;
 	}
 }
 
