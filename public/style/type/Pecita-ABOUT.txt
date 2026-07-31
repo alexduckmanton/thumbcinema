@@ -1,0 +1,43 @@
+Pecita — provenance and licence
+===============================
+
+`pecita.woff2` / `pecita.woff` are:
+
+    Pecita, version 5.4
+    Philippe Cochy — http://pecita.eu
+    SIL Open Font License, Version 1.1 — http://scripts.sil.org/OFL
+
+Pecita is the typeface the 2013 thumbcinema logo was drawn in. These files are the
+complete face — all 4760 glyphs — converted from the distributed `Pecita.otf` to
+WOFF2 and WOFF and otherwise untouched. No subsetting, no renaming, no change to
+the outlines or the name table.
+
+That matters for the licence. A subset is a Modified Version under the OFL, and
+"Pecita" is a Reserved Font Name, so an earlier subset of this font had to ship
+under a different family name. A straight format conversion is not a Modified
+Version, so these files keep the name the designer gave them.
+
+Two things the whole font buys, at 383 KB as WOFF2 against 18 KB for a
+wordmark-only subset:
+
+  - The wordmark's joining. Pecita connects its letters with contextual
+    alternates (`calt`), which is what makes "thumbcinema" read as the original
+    logo rather than as eleven separate letters.
+  - Icons. The dingbat block — U+2700-27BF — is a hand-drawn set that matches this
+    site's drawings far better than any icon font would: pencils, nibs, a writing
+    hand, crosses, stars. The create button uses U+270D WRITING HAND.
+
+The size is a known, deliberate cost. The optimisation, when it's wanted, is to
+subset to the wordmark's letters plus whichever glyphs are actually used as icons,
+and to rename the family if that happens:
+
+    pyftsubset Pecita.otf --output-file=pecita-subset.woff2 --flavor=woff2 \
+        --text=thumbcinema --unicodes=U+270D \
+        --layout-features=kern,liga,calt,rlig
+
+To rebuild these files from a fresh copy of Pecita.otf, no subsetting involved:
+
+    python3 -c "from fontTools.ttLib import TTFont; \
+        f=TTFont('Pecita.otf'); f.flavor='woff2'; f.save('pecita.woff2')"
+
+The licence text is carried inside the font's own name table (name IDs 13 and 14).

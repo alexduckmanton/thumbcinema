@@ -40,7 +40,7 @@ against 2013 stays visible in one place.
 | `public/images/**`, favicons | **original**, unchanged |
 | `public/*.html` | new — hand-converted from the PHP templates |
 | `public/style/revival.css` | new — the only CSS that overrides 2013 |
-| `public/style/type/tc-wordmark.*` | new — the wordmark, subset from Pecita (OFL). See `TC-Wordmark-ABOUT.txt` |
+| `public/style/type/pecita.*` | new — the wordmark and the icon set. See `Pecita-ABOUT.txt` |
 | `public/style/type/inter-latin-variable.woff2` | new — the site's only text face. See `Inter-ABOUT.txt` |
 | `public/script/general/{browser-check,device,gallery,boot-create,boot-playback}.js` | new — replaces what PHP used to inline |
 | `api/`, `lib/`, `scripts/`, `db/` | new — the back end |
@@ -138,8 +138,9 @@ here lives in `revival.css`.
   `font-display: block`.** `swap` painted the fallback first and switched when
   Pecita landed, which on a logo is the least acceptable place on the site for a
   visible change of typeface. `block` holds it invisible briefly and paints once.
-  That's only safe because the preload gets the 18 KB file requested before the
-  stylesheet is even parsed — **if the preload goes, this must go back to `swap`**,
+  That's only safe because the preload gets the file requested before the
+  stylesheet is even parsed — and at 383 KB that matters far more than it did when
+  the font was an 18 KB subset. **If the preload goes, this must go back to `swap`**,
   or the wordmark can be invisible for up to 3 seconds. Inter stays on `swap`: it's
   body copy, where a beat of invisible text everywhere is the worse failure.
 
@@ -157,6 +158,20 @@ here lives in `revival.css`.
   It's the page `browser-check.js` sends you to when your browser is too old to
   run the tool, so it's the one page that can't assume webfonts, flexbox or
   `:has()`. It is not a fourth copy that got missed.
+- **The create button is a fixed-position FAB, not a header control.** It's still
+  inside `.headerActions` in the markup — `position: fixed` takes it out of flow, so
+  the DOM position costs nothing and keeps the header component identical across the
+  pages, while keeping the button early in the tab order. Two consequences: the
+  header's one-row breakpoint no longer includes it, and `.headerActions` can hold
+  nothing in flow at all (on `/f/:id`), collapsing to zero width harmlessly.
+- **The FAB is icon-only, so its accessible name is the `aria-label`.** The glyph is
+  CSS generated content precisely so it isn't announced — a screen reader saying
+  "writing hand" would be worse than silence. If the glyph ever moves into the
+  markup, the label has to move with it.
+- **`body:has(#createLink) #content` carries the bottom padding the FAB floats
+  over.** Without it the last row of cards sits under the button. `/create` has no
+  create button, so it gets no padding; browsers without `:has()` lose the padding
+  and get an overlap, not a broken layout.
 - **On `/create` and `/f/:id` the header's width tracks `.center`.** style.css
   sizes that column at 640px, dropping to 90% below 730px, and the wordmark is
   meant to start exactly where the canvas does — so the header container is
@@ -177,19 +192,22 @@ here lives in `revival.css`.
 - **The wordmark is live text, not the logo PNG**, set in **Pecita** (Philippe
   Cochy) — the typeface the 2013 logo was drawn in. Vendored, so the page still
   makes no third-party requests.
-- **The wordmark font is called `TC Wordmark`, and it contains one word.** Two
-  things to know before touching it, both in `type/TC-Wordmark-ABOUT.txt` along
-  with the command that rebuilds it:
-  - It's **a subset of the string "thumbcinema"**. Pecita joins its letters with
-    contextual alternates, and that joining is what makes the wordmark read as the
-    logo rather than as eleven separate letters — but `calt` is also nearly all of
-    the font's weight: 383 KB as WOFF2 for the whole face, 68 KB for lowercase
-    alone, 18 KB for the glyphs this one word needs. Anything else set in this
-    family falls through to Inter, silently. **If the wordmark's text ever changes,
-    the font has to be rebuilt.**
-  - It's named `TC Wordmark` rather than `Pecita` because a subset is a Modified
-    Version under the OFL and "Pecita" is a Reserved Font Name. The original
-    copyright and licence notices are intact inside the file.
+- **The whole of Pecita ships, all 4760 glyphs — 383 KB as WOFF2.** That is by far
+  the largest thing the site sends, and it's deliberate: the font is both the
+  wordmark and the icon set. See `type/Pecita-ABOUT.txt`.
+  - It's the **complete face, unmodified** — a straight format conversion, no
+    subsetting and no renaming. That's also why it's called `Pecita` and not
+    something else: a subset would be a Modified Version under the OFL, where
+    "Pecita" is a Reserved Font Name, and an earlier wordmark-only subset did have
+    to ship under a different name. Keep it unmodified and the name is correct.
+  - **Its dingbats are the icon set.** U+2700–27BF is hand-drawn pencils, nibs, a
+    writing hand, crosses and stars, in the same hand as the wordmark — which suits
+    a site made of pencil drawings better than any icon font. The create button is
+    U+270D WRITING HAND, set as CSS generated content.
+  - **The obvious optimisation is subsetting to the wordmark plus the glyphs
+    actually used as icons** — 18 KB for the wordmark alone. If that ever happens
+    the family has to be renamed, per the OFL point above. The command is in the
+    ABOUT file.
 - **Don't put `letter-spacing` on the wordmark.** Pecita is a joining script;
   spacing it apart pulls the letters off each other's entry and exit strokes and
   it stops being one line of handwriting.

@@ -12,11 +12,11 @@
 
 	<!-- Preloaded, not just @font-face'd: the stylesheet isn't parsed until it has
 	     downloaded, so without these the fonts aren't even requested until late.
-	     The wordmark is font-display: block, which trades a brief invisible period
+	     Pecita is font-display: block, which trades a brief invisible period
 	     for never showing the logo in the wrong face — a trade that only holds
 	     because of this preload. crossorigin is required even same-origin; fonts
 	     are always fetched in CORS mode. -->
-	<link rel="preload" as="font" type="font/woff2" href="/style/type/tc-wordmark.woff2" crossorigin>
+	<link rel="preload" as="font" type="font/woff2" href="/style/type/pecita.woff2" crossorigin>
 	<link rel="preload" as="font" type="font/woff2" href="/style/type/inter-latin-variable.woff2" crossorigin>
 	<link rel="stylesheet" type="text/css" href="/style/style.css">
 	<link rel="stylesheet" type="text/css" href="/style/revival.css">
@@ -37,7 +37,9 @@
 	<a href="/" id="wordmark" class="wordmark">thumbcinema</a>
 
 	<div class="headerActions">
-		<a href="/create" class="button" id="createLink">New</a>
+		<!-- Icon only, so the label lives in aria-label — the glyph itself comes from
+		     Pecita via CSS and is decorative. See "The create button" in revival.css. -->
+		<a href="/create" class="button" id="createLink" aria-label="New flipbook" title="New flipbook"></a>
 	</div>
 
 	<ul id="messages"></ul>

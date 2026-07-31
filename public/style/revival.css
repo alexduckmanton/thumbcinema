@@ -180,38 +180,37 @@ button,
  * markup was first converted.
  * ------------------------------------------------------------------------- */
 
-/* The wordmark's typeface: Pecita, by Philippe Cochy, which is what the 2013 logo
-   was drawn in — stroked white over the blue diamonds.
+/* Pecita, by Philippe Cochy — what the 2013 logo was drawn in, stroked white over
+   the blue diamonds. Vendored rather than fetched from a CDN, so the page still
+   has no third-party requests.
  *
- * It's called 'TC Wordmark' rather than 'Pecita' because these files are a subset,
- * and a subset is a Modified Version under the OFL, where "Pecita" is a Reserved
- * Font Name. See type/TC-Wordmark-ABOUT.txt for the provenance, the licence, and
- * the exact command that rebuilds it.
+ * The whole of Pecita, not a subset of it. It was cut down to the eleven letters
+   of the wordmark when that was all it set; it now also supplies the icon on the
+   create button, and its dingbat block — pencils, nibs, a writing hand, crosses —
+   is a hand-drawn icon set that matches this site exactly. Carrying all 4760
+   glyphs costs 383 KB against the subset's 18. That's a real cost and it is
+   deliberate for now; the obvious optimisation later is to subset to the wordmark
+   plus whichever glyphs are actually used as icons.
  *
- * It's a subset of one word. Pecita joins its letters with contextual alternates,
- * which is what makes the wordmark read as the logo rather than as eleven separate
- * letters — and `calt` is also most of the font: 383 KB as WOFF2 for the whole
- * face, 68 KB for lowercase alone, 18 KB for the glyphs "thumbcinema" needs. One
- * word is all this face is ever asked to set, so it carries one word. Anything
- * else given this family will silently fall through to the body face.
+ * It's called 'Pecita' again, and correctly so: an unmodified format conversion
+ * isn't a Modified Version, so the OFL's Reserved Font Name clause — which is what
+ * forced the old 'TC Wordmark' name on the subset — doesn't apply. See
+ * type/Pecita-ABOUT.txt.
  *
- * Vendored rather than fetched from a CDN, so the page still has no third-party
- * requests. */
-/* `block`, not `swap`. swap paints the fallback immediately and switches when the
-   font lands, which on the wordmark means the logo visibly changes typeface a beat
-   after the page appears — the one place on the site where that's least
-   acceptable, because it's a logo and the fallback is nothing like it. block holds
-   the text invisible for a short period (~3s) and paints once, so the wordmark
-   either isn't there yet or is right.
+ * `block`, not `swap`. swap paints the fallback immediately and switches when the
+ * font lands, which on the wordmark means the logo visibly changes typeface a beat
+ * after the page appears — the one place on the site where that's least
+ * acceptable, because it's a logo and the fallback is nothing like it. block holds
+ * the text invisible for a short period (~3s) and paints once, so the wordmark
+ * either isn't there yet or is right.
  *
- * That trade is only safe because the file is 18 KB, same-origin and preloaded
- * from the <head> of all three pages, so the invisible period is a few
- * milliseconds rather than anything anyone sees. If the preload is ever removed,
- * this should go back to swap. */
+ * That trade needs the font already in flight, so it's preloaded from the <head>
+ * of all three pages. At 383 KB that preload matters much more than it did at 18;
+ * if it is ever removed, this must go back to swap. */
 @font-face {
-	font-family: 'TC Wordmark';
-	src: url('type/tc-wordmark.woff2') format('woff2'),
-	     url('type/tc-wordmark.woff') format('woff');
+	font-family: 'Pecita';
+	src: url('type/pecita.woff2') format('woff2'),
+	     url('type/pecita.woff') format('woff');
 	font-weight: normal;
 	font-style: normal;
 	font-display: block;
@@ -299,7 +298,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 .wordmark:visited {
 	font-size: 7rem; /* 70px — see the note on rem above */
 	line-height: 1;
-	font-family: 'TC Wordmark', cursive;
+	font-family: 'Pecita', cursive;
 	color: #444;
 	text-decoration: none;
 	white-space: nowrap;
@@ -314,43 +313,99 @@ body:not(.home) #header.siteHeader #headerContainer {
 	text-decoration: none;
 }
 
-#header.siteHeader #createLink {
-	white-space: nowrap;
-}
-
-/* The original button sells itself with a darker rim and a coloured glow, which is
-   more furniture than a single flat action needs. Flat blue, no shadow: the button
-   is already the only saturated thing in the header and doesn't need help being
-   found. (Its text-shadow goes with all the others, further up.)
+/* ---------------------------------------------------------------------------
+ * The create button
  *
- * 48px tall, matching the toggle beside it — set as a height and a centred flex
- * line rather than as vertical padding, so the two controls agree on a number
- * instead of arriving at the same total by different arithmetic. */
+ * A floating action button rather than a control in the header: fixed to the
+ * bottom-right of the window, over the content. It's the one thing you can do on
+ * every page that isn't already doing it, and the home page's job is otherwise to
+ * get out of the flipbooks' way.
+ *
+ * It stays inside .headerActions in the markup — `position: fixed` takes it out of
+ * flow, so the DOM position costs nothing, and being in the header keeps it early
+ * in the tab order and keeps the header component identical across the pages.
+ * That's also why .headerActions can end up holding nothing but the toggle: on
+ * /f/:id it holds nothing at all in flow, and collapses to zero width harmlessly.
+ *
+ * Yellow, not the site's blue. The blue is the flipbook cards' link colour and the
+ * old button was competing with them; yellow is the one warm thing on the page and
+ * belongs to the pencil. Its ancestor is the 2013 home page's yellow banner —
+ * #fff082, which is too pale to carry a dark glyph at this size.
+ * ------------------------------------------------------------------------- */
+
 #header.siteHeader #createLink.button {
-	height: 44px;
-	padding: 0 22px;
-	display: -webkit-inline-box;
-	display: -webkit-inline-flex;
-	display: inline-flex;
+	position: fixed;
+	right: 3rem;
+	bottom: 3rem;
+	z-index: 50;
+
+	width: 6.4rem;
+	height: 6.4rem;
+	padding: 0;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
 	-webkit-box-align: center;
 	-webkit-align-items: center;
 	align-items: center;
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+
 	border: none;
-	font-size: 16px;
-	font-weight: 500;
-	line-height: 1;
-	box-shadow: rgba(0, 0, 0, .07) 0 1px 4px;
+	border-radius: 999px;
+	background: #ffc93c;
 	box-sizing: border-box;
+
+	/* Deeper than the cards' shadow — it's floating over them, and needs to read as
+	   nearer than the thing it's covering. */
+	box-shadow: rgba(0, 0, 0, .22) 0 4px 14px;
+	-webkit-transition: background .12s ease-out, box-shadow .12s ease-out, -webkit-transform .12s ease-out;
+	transition: background .12s ease-out, box-shadow .12s ease-out, transform .12s ease-out;
+}
+
+/* U+270D WRITING HAND, from Pecita's dingbats — a hand holding a pen, drawn in the
+   same hand as the wordmark. It's set as generated content rather than as text in
+   the markup because it's decorative: the button's accessible name comes from its
+   aria-label, and a screen reader reading out "writing hand" instead would be
+   worse than silence.
+ *
+ * The glyph sits high in its em box, so the optical centre isn't the geometric
+   one — hence the nudge. */
+#header.siteHeader #createLink.button:before {
+	content: "\270D";
+	font-family: 'Pecita', cursive;
+	font-size: 3rem;
+	line-height: 1;
+	color: #222;
+	position: relative;
+	top: .2rem;
 }
 
 #header.siteHeader #createLink.button:hover {
-	background: #5c8bf6;
+	background: #ffd45c;
+	box-shadow: rgba(0, 0, 0, .26) 0 6px 18px;
+	-webkit-transform: translateY(-1px);
+	transform: translateY(-1px);
 }
 
+/* The original .button nudges itself down 1px on press with `top`, which a fixed
+   element can't use — `top` is its position. Scale instead. */
 #header.siteHeader #createLink.button:active {
-	top: 1px;
-	background: #4272e2;
-	box-shadow: rgba(0, 0, 0, .07) 0 1px 3px;
+	top: auto;
+	background: #f0b81f;
+	box-shadow: rgba(0, 0, 0, .22) 0 2px 8px;
+	-webkit-transform: translateY(0) scale(.96);
+	transform: translateY(0) scale(.96);
+}
+
+/* Room for it to float over: without this the last row of cards, and the flipbook
+   page's description, sit underneath it at the bottom of the scroll. Only on the
+   pages that have the button — /create doesn't, since you're already creating.
+   Without :has() the padding is simply absent, which costs an overlap rather than
+   a broken layout. */
+body:has(#createLink) #content {
+	padding-bottom: 10rem;
 }
 
 /* Messages
@@ -433,7 +488,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 	display: inline-block;
 	position: relative;
 	background: #e8e8e8;
-	border-radius: 1rem; /* 10px */
+	border-radius: 999px; /* fully rounded, not a soft corner */
 	box-shadow: none;
 	font-size: 0; /* kills the whitespace gap between the inline-block anchors */
 	box-sizing: border-box;
@@ -456,9 +511,9 @@ body:not(.home) #header.siteHeader #headerContainer {
 	left: 4px;
 	bottom: 4px;
 	background: #fff;
-	/* 4px inside a 16px corner. Concentric with the track rather than equal to
-	   it, which is what stops the gap either side of the curve looking pinched. */
-	border-radius: .6rem; /* 6px: the track's 1rem less its 4px inset */
+	/* Fully rounded too. A pill inside a pill stays concentric at any inset,
+	   which the soft-cornered version had to be hand-matched to. */
+	border-radius: 999px;
 	box-shadow: rgba(0, 0, 0, .07) 0 1px 4px;
 }
 
@@ -546,7 +601,7 @@ body:not(.home) #header.siteHeader #headerContainer {
    content sets it — the grid wants more air under a 112px wordmark than the
    create page's canvas does. */
 #postContainer {
-	margin: 4rem auto 0 auto;
+	margin: 0 auto;
 	padding: 0 3rem;
 	max-width: 1440px;
 	width: 100%;
@@ -685,16 +740,16 @@ body:not(.home) #header.siteHeader #headerContainer {
 /* The toggle and the button stay together, and drop to a row of their own rather
  * than being split up — they're one group, and the group is what wraps.
  *
- * The number: a single row needs wordmark + toggle + button + 2 gaps + padding,
- * which at 7rem is 447 + 200 + 78 + 28 + 60 = 813px. The wordmark is a bit over
- * half of that, so it's still what sets this — resize it and this moves. It was
- * 1141 when the wordmark was 112px.
+ * The number: a single row needs wordmark + toggle + gap + padding, which at 7rem
+ * is 447 + 200 + 16 + 60 = 723px. The create button used to be in this sum and no
+ * longer is — it's a fixed-position FAB, out of the header's flow entirely — which
+ * is why this dropped from 831 to 740.
  *
  * The number isn't load-bearing though: #headerContainer wraps, so getting it
  * wrong costs a slightly early or late fold rather than a header hanging off the
  * side of the window.
  * ------------------------------------------------------------------------- */
-@media screen and (max-width: 830px) {
+@media screen and (max-width: 740px) {
 	/* The whole group takes the second row, and the toggle takes whatever the
 	   button doesn't — but only where there's a toggle to make room for. On
 	   /f/:id .headerActions is one button, which has no trouble sharing the
@@ -747,14 +802,7 @@ body:not(.home) #header.siteHeader #headerContainer {
 		font-size: 5.6rem; /* 56px */
 	}
 
-	/* Narrower, not shorter or lighter — the height and the type stay matched to
-	   the toggle beside it. */
-	#header.siteHeader #createLink.button {
-		padding: 0 18px;
-	}
-
 	#postContainer {
-		margin-top: 3.2rem;
 		padding: 0 2rem;
 		grid-gap: 16px;
 		gap: 16px;
@@ -778,12 +826,20 @@ body:not(.home) #header.siteHeader #headerContainer {
 		font-size: min(4rem, 11vw);
 	}
 
+	/* Closer in and a size down: 30px of inset is a lot of a 320px screen, and the
+	   button is a thumb target here rather than a pointer one. */
 	#header.siteHeader #createLink.button {
-		padding: 0 16px;
+		right: 1.6rem;
+		bottom: 1.6rem;
+		width: 5.6rem;
+		height: 5.6rem;
+	}
+
+	#header.siteHeader #createLink.button:before {
+		font-size: 2.6rem;
 	}
 
 	#postContainer {
-		margin-top: 2.4rem;
 		padding: 0 1.6rem;
 	}
 }
