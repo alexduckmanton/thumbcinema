@@ -47,9 +47,11 @@
 			<a href="/?view=all" data-view="all">All</a>
 		</div>
 
-		<!-- Icon only, so the label lives in aria-label — the glyph itself comes from
-		     Pecita via CSS and is decorative. See "The create button" in revival.css. -->
-		<a href="/create" class="button" id="createLink" aria-label="New flipbook" title="New flipbook"></a>
+		<!-- The glyph comes from Pecita via CSS and is decorative; the label is real
+		     text that folds away on scroll, so it stays in the accessibility tree
+		     either way. aria-label keeps the name stable and fuller than the visible
+		     "New". See "The create button" in revival.css. -->
+		<a href="/create" class="button" id="createLink" aria-label="New flipbook" title="New flipbook"><span class="label">New</span></a>
 	</div>
 
 	<ul id="messages"></ul>
@@ -93,6 +95,7 @@
 <script type="text/javascript" src="/script/general/header.js"></script>
 <script type="text/javascript" src="/script/general/admin.js"></script>
 <script type="text/javascript" src="/script/general/gallery.js"></script>
+<script type="text/javascript" src="/script/general/fab.js"></script>
 
 </body>
 </html>

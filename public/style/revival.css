@@ -337,11 +337,22 @@ body:not(.home) #header.siteHeader #headerContainer {
 	position: fixed;
 	right: 3rem;
 	bottom: 3rem;
+	/* `top: auto` is load-bearing, not tidiness. style.css has
+	   `.button:hover { top: -1px }` to nudge buttons up on hover, and on a fixed
+	   element `top` isn't a nudge — it's the anchor, so -1px pins the button to the
+	   top of the window and it leaps up the page the moment you point at it. It has
+	   to be re-cleared in :hover and :active below for the same reason. */
+	top: auto;
 	z-index: 50;
 
-	width: 6.4rem;
+	/* Extended by default — a circle with a label beside it — and a plain circle
+	   once you've scrolled. The width isn't animated directly: `width: auto` can't
+	   transition, so the label's own max-width is what moves and the button's
+	   auto width follows it frame by frame. That also means the expanded width is
+	   whatever the label actually needs, with no magic number to keep in sync. */
+	min-width: 6.4rem;
 	height: 6.4rem;
-	padding: 0;
+	padding: 0 2.2rem;
 	display: -webkit-box;
 	display: -webkit-flex;
 	display: flex;
@@ -351,24 +362,27 @@ body:not(.home) #header.siteHeader #headerContainer {
 	-webkit-box-pack: center;
 	-webkit-justify-content: center;
 	justify-content: center;
+	white-space: nowrap;
 
 	border: none;
 	border-radius: 999px;
 	background: #ffc93c;
 	box-sizing: border-box;
+	font-size: 16px;
+	font-weight: 500;
+	color: #222;
 
 	/* Deeper than the cards' shadow — it's floating over them, and needs to read as
 	   nearer than the thing it's covering. */
 	box-shadow: rgba(0, 0, 0, .22) 0 4px 14px;
-	-webkit-transition: background .12s ease-out, box-shadow .12s ease-out, -webkit-transform .12s ease-out;
-	transition: background .12s ease-out, box-shadow .12s ease-out, transform .12s ease-out;
+	-webkit-transition: padding .24s ease, background .12s ease-out, box-shadow .12s ease-out, -webkit-transform .12s ease-out;
+	transition: padding .24s ease, background .12s ease-out, box-shadow .12s ease-out, transform .12s ease-out;
 }
 
 /* U+270D WRITING HAND, from Pecita's dingbats — a hand holding a pen, drawn in the
-   same hand as the wordmark. It's set as generated content rather than as text in
-   the markup because it's decorative: the button's accessible name comes from its
-   aria-label, and a screen reader reading out "writing hand" instead would be
-   worse than silence.
+   same hand as the wordmark. It's generated content rather than markup because
+   it's decorative: the button's accessible name comes from its aria-label, and a
+   screen reader reading out "writing hand" instead would be worse than silence.
  *
  * The glyph sits high in its em box, so the optical centre isn't the geometric
    one — hence the nudge. */
@@ -380,23 +394,57 @@ body:not(.home) #header.siteHeader #headerContainer {
 	color: #222;
 	position: relative;
 	top: .2rem;
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+}
+
+/* The label. Collapsed by max-width rather than removed, so it stays in the
+   accessibility tree and in the DOM the whole time — this is a visual state, not a
+   change of content. */
+#header.siteHeader #createLink .label {
+	margin-left: .8rem;
+	max-width: 12rem;
+	overflow: hidden;
+	opacity: 1;
+	-webkit-transition: max-width .24s ease, opacity .16s ease-out, margin-left .24s ease;
+	transition: max-width .24s ease, opacity .16s ease-out, margin-left .24s ease;
+}
+
+/* Scrolled: the label folds away and the padding goes with it, leaving min-width
+   and height to make an exact circle. fab.js puts the class on <body>. */
+body.scrolled #header.siteHeader #createLink.button {
+	padding: 0;
+}
+
+body.scrolled #header.siteHeader #createLink .label {
+	max-width: 0;
+	margin-left: 0;
+	opacity: 0;
 }
 
 #header.siteHeader #createLink.button:hover {
+	top: auto; /* see the note on the base rule */
 	background: #ffd45c;
 	box-shadow: rgba(0, 0, 0, .26) 0 6px 18px;
 	-webkit-transform: translateY(-1px);
 	transform: translateY(-1px);
 }
 
-/* The original .button nudges itself down 1px on press with `top`, which a fixed
-   element can't use — `top` is its position. Scale instead. */
 #header.siteHeader #createLink.button:active {
 	top: auto;
 	background: #f0b81f;
 	box-shadow: rgba(0, 0, 0, .22) 0 2px 8px;
 	-webkit-transform: translateY(0) scale(.96);
 	transform: translateY(0) scale(.96);
+}
+
+/* Nothing to fold if the motion isn't wanted. */
+@media (prefers-reduced-motion: reduce) {
+	#header.siteHeader #createLink.button,
+	#header.siteHeader #createLink .label {
+		-webkit-transition: none;
+		transition: none;
+	}
 }
 
 /* Room for it to float over: without this the last row of cards, and the flipbook
