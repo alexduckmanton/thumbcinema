@@ -2,6 +2,9 @@
 # Never edited, never committed. See docs/archive.md.
 _original/
 
+# Build output
+dist/
+
 # Dependencies
 node_modules/
 
@@ -24,6 +27,9 @@ node_modules/
 # Logs
 *.log
 npm-debug.log*
+
+# Test coverage
+coverage/
 
 # Scratch
 tmp/

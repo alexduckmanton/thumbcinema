@@ -1,0 +1,64 @@
+.content {
+	position: relative;
+	width: 100%;
+	padding-top: 20px;
+	/* Room for the create button to float over. */
+	padding-bottom: 100px;
+}
+
+.info {
+	width: 100%;
+	margin: 0 0 20px;
+	padding: 0 10px 15px;
+	border-bottom: 1px solid var(--line);
+}
+
+/*
+ * 2013 put a 50px author avatar to the left of the title, and the heading carried a
+ * 60px indent and a 50px minimum height to clear it. There are no accounts and no
+ * avatars now, so both are gone — left in, they were a gap in the shape of something
+ * that hasn't existed for a decade.
+ */
+.heading {
+	padding: 0 0 15px;
+}
+
+.byline:empty {
+	display: none;
+}
+
+.description:empty {
+	display: none;
+}
+
+.missing {
+	padding: 64px 0;
+	text-align: center;
+}
+
+/*
+ * The print sheets.
+ *
+ * Off screen on screen, and the only thing on the page on paper. `page-break-after`
+ * on each sheet is what puts twenty-one pages on each sheet of A4 rather than one
+ * enormous run.
+ */
+.printRoot {
+	display: none;
+}
+
+@media print {
+	.content,
+	:global(header) {
+		display: none;
+	}
+
+	.printRoot {
+		display: block;
+	}
+
+	.printRoot svg {
+		page-break-after: always;
+		break-after: page;
+	}
+}

@@ -3,11 +3,14 @@
 # 600+ MB of archive seed data that only the import script ever reads.
 _original/
 node_modules/
+dist/
 
-# Not reachable from api/index.js — the function only needs api/ and lib/.
+# Neither the build nor the function reads these.
 docs/
-scripts/
-db/
+
+# scripts/ and db/ stay: vite.config.ts imports scripts/lib/env.js for the dev
+# server's API middleware, and excluding a file the config file mentions is a
+# build failure waiting for the first time somebody changes when it's imported.
 
 .env
 .env.*

@@ -1,0 +1,120 @@
+/*
+ * The pencil's width, in the popover under the tool.
+ *
+ * A custom control rather than an `<input type=range>` because a native range picks
+ * up the platform's own look, and this one is drawn to match the rest of the tray.
+ * It is a real slider as far as assistive technology is concerned — see the ARIA
+ * roles in the component — which the 2013 version was not.
+ */
+
+.settings {
+	position: absolute;
+	top: 110px;
+	left: -60px;
+	z-index: 1;
+	width: 160px;
+	padding: 10px;
+	background: var(--white);
+	box-shadow: rgba(0, 0, 0, 0.05) 0 6px 0 -3px;
+	user-select: none;
+	animation: dropIn 0.2s linear;
+}
+
+/* The little arrow pointing back up at the tool it belongs to. */
+.settings::before {
+	content: '';
+	position: absolute;
+	top: -30px;
+	left: 65px;
+	width: 0;
+	height: 0;
+	border: 15px solid transparent;
+	border-bottom-color: var(--white);
+}
+
+.slider {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+/* Two dots, small and large, standing for what they do. */
+.step {
+	flex: 0 0 auto;
+	padding: 0;
+	border: none;
+	border-radius: 100%;
+	background: #888;
+	cursor: pointer;
+}
+
+.smaller {
+	width: 7px;
+	height: 7px;
+	margin: 0 6px;
+}
+
+.bigger {
+	width: 20px;
+	height: 20px;
+}
+
+.step:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
+.track {
+	position: relative;
+	flex: 0 0 auto;
+	width: 80px;
+	height: 20px;
+	margin: 0 10px;
+	cursor: pointer;
+}
+
+.track::after {
+	content: '';
+	position: absolute;
+	top: 9px;
+	left: 0;
+	width: 100%;
+	height: 1px;
+	background: var(--line);
+}
+
+.handle {
+	position: absolute;
+	top: 0;
+	height: 100%;
+	width: 10px;
+	background: #888;
+}
+
+.track:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 4px;
+}
+
+@keyframes dropIn {
+	0% {
+		opacity: 0;
+		transform: translate3d(0, -60px, 0);
+	}
+	30% {
+		opacity: 1;
+		transform: translate3d(0, 5px, 0);
+	}
+	60% {
+		transform: translate3d(0, -2px, 0);
+	}
+	100% {
+		transform: translate3d(0, 0, 0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.settings {
+		animation: none;
+	}
+}

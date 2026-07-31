@@ -17,16 +17,20 @@ from the right, deleted ones fall off the bottom of the screen. That was the poi
 
 ## About this repository
 
-This is the 2025 revival. The site ran on WordPress until the hosting stopped being
-worth paying for; this version keeps **the original front end, completely unchanged**,
-and replaces everything behind it.
+The site ran on WordPress until the hosting stopped being worth paying for. The 2025
+revival brought the original front end back, unchanged, on a new back end; this
+version rewrites that front end without changing what it does or how it looks.
 
 | | |
 |---|---|
-| **Front end** | 2013 code, untouched — Backbone 1.0, Underscore, jQuery 1.9.1, paper.js 0.8. No build step. |
+| **Front end** | React 19 + TypeScript, built with Vite. paper.js for the drawing. |
 | **Back end** | One Node serverless function, one Postgres table. |
 | **Hosting** | Vercel + Neon, both on free tiers. |
-| **Gone** | WordPress, BuddyPress, accounts, likes, reports, profiles, drafts. |
+| **Gone** | WordPress, BuddyPress, accounts, likes, reports, profiles, drafts — and, now, jQuery, Backbone, Underscore, Modernizr and svg.js. |
+
+The rewrite is a port rather than a redesign: the drawing tool behaves as it did in
+2013, down to the way pages fly in and fall away. The 2013 code still runs, on the
+`time-capsule` branch, against the same database.
 
 It also carries the **585 flipbooks that survived** from 2012–2015. The database
 backup turned out to be a zero-byte file, so the artwork made it and the titles,
@@ -50,12 +54,15 @@ npm run dev              # http://localhost:3000
 For the curation toggles locally, set `ADMIN_TOKEN` in `.env` and visit
 `http://localhost:3000/?admin=<that value>` once.
 
-`npm run dev` serves the site and mounts the real API — no Vercel CLI, no Docker. The
-drawing tool works without a database; the gallery and saving need one.
+`npm run dev` is Vite with the real API mounted as middleware — no Vercel CLI, no
+Docker, no second process. The drawing tool works without a database; the gallery and
+saving need one. Node 22.12 or newer.
 
 | Command | |
 |---|---|
 | `npm run dev` | Local server on :3000 |
+| `npm run build` | Typecheck and build to `dist/` |
+| `npm test` | Run the tests |
 | `npm run db:migrate` | Apply `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Import the 2012–2015 flipbooks |
 | `npm run db:stats` | Row counts and storage use |
@@ -63,19 +70,26 @@ drawing tool works without a database; the gallery and saving need one.
 ## Layout
 
 ```
-public/          the site. script/ and style/ are 2013 originals — see CLAUDE.md
-  *.html         hand-converted from the old PHP templates
+index.html       the single page
+src/
+  routes/        gallery, create, playback
+  flipbook/      the drawing tool — engine/ has no React in it
+  components/    header, buttons, messages, admin toggles
+  lib/           API client, admin token, device, messages
+  router/        ~60 lines over the History API
+  styles/        tokens, element defaults, the 2013 icon sprite
+public/          fonts, images, favicons, sadbrowser.html
 api/index.js     Vercel entry point
 lib/router.js    the entire API
 db/schema.sql    one table
-scripts/         dev server, migrate, archive import
+scripts/         migrate, archive import, stats
 docs/            architecture, data formats, archive, deployment
 _original/       the WordPress backups (gitignored, read-only, do not delete)
 ```
 
 ## Docs
 
-- [`CLAUDE.md`](CLAUDE.md) — conventions, and the rule about not modernising the front end
+- [`CLAUDE.md`](CLAUDE.md) — conventions, invariants, and what the paper.js upgrade changed
 - [`docs/architecture.md`](docs/architecture.md) — how it fits together, and why WordPress went
 - [`docs/data-formats.md`](docs/data-formats.md) — the save contract and the two artwork formats
 - [`docs/archive.md`](docs/archive.md) — what survived the old server

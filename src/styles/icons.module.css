@@ -1,0 +1,183 @@
+/*
+ * The 2013 icon sprite.
+ *
+ * Hand-drawn, in the same hand as everything else on the site, and still the best
+ * thing to use here — an icon font or an SVG set would be tidier and would look
+ * like a different website.
+ *
+ * Compass generated the sheet and these offsets. The retina sheet has exactly
+ * double the spacing as well as double the art, so the same offsets work against it
+ * once the background is scaled back to the 1× size — which is why there's one set
+ * of positions rather than two.
+ *
+ * The pencil, eraser and transform icons are tall strips rather than single icons:
+ * the tool buttons slide the sprite up to switch state, so the "animation" is a
+ * change of `bottom` on a 304px-tall background. See the toolbar's stylesheet.
+ */
+
+.icon {
+	display: inline-block;
+	background-image: url('/images/icons.png');
+	background-repeat: no-repeat;
+}
+
+@media only screen and (min-resolution: 1.5dppx) {
+	.icon {
+		background-image: url('/images/icons@2x.png');
+		background-size: 649px 304px;
+	}
+}
+
+.blank {
+	composes: icon;
+	width: 25px;
+	height: 25px;
+	background-position: 0 0;
+}
+
+.circleplay {
+	composes: icon;
+	width: 25px;
+	height: 33px;
+	background-position: -26px 0;
+}
+
+.delete {
+	composes: icon;
+	width: 25px;
+	height: 25px;
+	background-position: -72px 0;
+}
+
+.duplicate {
+	composes: icon;
+	width: 29px;
+	height: 29px;
+	background-position: -98px 0;
+}
+
+.eraser {
+	composes: icon;
+	width: 40px;
+	height: 304px;
+	background-position: -142px 0;
+}
+
+.facebook {
+	composes: icon;
+	width: 25px;
+	height: 25px;
+	background-position: -183px 0;
+}
+
+.heartOn {
+	composes: icon;
+	width: 15px;
+	height: 15px;
+	background-position: -209px 0;
+}
+
+.heartOff {
+	composes: icon;
+	width: 15px;
+	height: 15px;
+	background-position: -225px 0;
+}
+
+.pause {
+	composes: icon;
+	width: 25px;
+	height: 25px;
+	background-position: -241px 0;
+}
+
+.pencil {
+	composes: icon;
+	width: 40px;
+	height: 304px;
+	background-position: -267px 0;
+}
+
+.play {
+	composes: icon;
+	width: 25px;
+	height: 25px;
+	background-position: -308px 0;
+}
+
+.print {
+	composes: icon;
+	width: 25px;
+	height: 25px;
+	background-position: -334px 0;
+}
+
+.flagOff {
+	composes: icon;
+	width: 15px;
+	height: 15px;
+	background-position: -360px 0;
+}
+
+.flagOn {
+	composes: icon;
+	width: 15px;
+	height: 15px;
+	background-position: -376px 0;
+}
+
+.nudgeActive {
+	composes: icon;
+	width: 26px;
+	height: 57px;
+	background-position: -392px 0;
+}
+
+.nudge {
+	composes: icon;
+	width: 26px;
+	height: 57px;
+	background-position: -419px 0;
+}
+
+.rotateActive {
+	composes: icon;
+	width: 26px;
+	height: 57px;
+	background-position: -446px 0;
+}
+
+.rotate {
+	composes: icon;
+	width: 26px;
+	height: 57px;
+	background-position: -473px 0;
+}
+
+.translateActive {
+	composes: icon;
+	width: 40px;
+	height: 57px;
+	background-position: -500px 0;
+}
+
+.translate {
+	composes: icon;
+	width: 40px;
+	height: 57px;
+	background-position: -541px 0;
+}
+
+.transform {
+	composes: icon;
+	width: 40px;
+	height: 151px;
+	background-position: -582px 0;
+}
+
+.twitter {
+	composes: icon;
+	width: 25px;
+	height: 25px;
+	background-position: -623px 0;
+}

@@ -1,0 +1,211 @@
+/*
+ * The tray under the canvas: tools on the left, page actions on the right.
+ *
+ * Shared by both pages — the create page fills it with the pencil, eraser and
+ * transform, the playback page with a view count and the playback controls — so the
+ * rule under the canvas is the same line on both.
+ */
+
+.tray {
+	position: relative;
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	width: 100%;
+	padding: 20px 0;
+	margin: 0 auto 15px;
+	border-bottom: 1px solid var(--line);
+	transition: border-color 0.25s ease-out, margin 0.25s ease-out;
+}
+
+.group {
+	display: flex;
+	align-items: flex-start;
+	margin: 0 10px;
+	padding: 0;
+	list-style: none;
+	line-height: 0;
+}
+
+/*
+ * The three modal tools.
+ *
+ * Each one is a 40px-wide window onto a 304px-tall image of a pencil or an eraser,
+ * anchored by its tip 10px below the tray. The rest of it runs up behind the canvas,
+ * which is why the canvas has a z-index and these don't. Selecting a tool slides it
+ * down another 50px and more of it comes out from behind the paper.
+ */
+.tools li {
+	position: relative;
+	width: 40px;
+	height: 25px;
+	margin-left: 20px;
+}
+
+.tool {
+	position: absolute;
+	bottom: -10px;
+	z-index: 1;
+	display: block;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: pointer;
+	transition: bottom 0.1s ease-in-out, left 0.1s ease-in-out;
+}
+
+.tool:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 2px;
+}
+
+.toolActive {
+	bottom: -60px;
+}
+
+/*
+ * Transform is four stacked images rather than one: a hand, and three arrows that
+ * fan out from behind it when the tool is on. Selecting it barely moves the base —
+ * 11px — because the movement people read here is the arrows opening, not the icon
+ * sliding.
+ */
+.transform {
+	background: none;
+}
+
+.transformActive {
+	bottom: -21px;
+}
+
+.layer {
+	position: absolute;
+	bottom: -40px;
+	transform: rotate(-180deg);
+	transform-origin: 50% 0%;
+	opacity: 0;
+	transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.layer:nth-child(1) {
+	position: relative;
+	bottom: 0;
+	left: 0;
+	z-index: 2;
+	transform: none;
+	transition: none;
+	opacity: 1;
+}
+
+.layer:nth-child(3) {
+	bottom: -45px;
+	left: 15px;
+}
+
+.layer:nth-child(4) {
+	left: 10px;
+}
+
+.transformActive .layer {
+	opacity: 1;
+}
+
+.transformActive .layer:nth-child(2) {
+	transform: rotate(0deg);
+}
+
+.transformActive .layer:nth-child(3) {
+	transform: rotate(-45deg);
+}
+
+.transformActive .layer:nth-child(4) {
+	transform: rotate(-90deg);
+}
+
+/* The right-hand group: one-shot actions and the playback toggles. */
+.actions li {
+	display: inline-block;
+	height: 25px;
+	margin: 0 10px;
+}
+
+.action {
+	position: relative;
+	display: inline-block;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: pointer;
+}
+
+.action:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 2px;
+}
+
+.action:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+/* Two icons that don't sit on the same baseline as the rest of the sheet. */
+.duplicate {
+	margin: -4px -4px 0 0;
+}
+
+.circleplay {
+	margin-top: -8px;
+	bottom: -4px;
+}
+
+.circleplayOn {
+	margin-top: 0;
+	bottom: 0;
+}
+
+/*
+ * Naming the flipbook: the tools fly up out of the tray and leave the form alone
+ * with the drawing. The ease dips them down a few pixels before they go, which is
+ * the anticipation the 2013 keyframes had.
+ */
+.stowed {
+	border-color: transparent;
+}
+
+.stowed .group {
+	transform: translateY(-100px);
+	pointer-events: none;
+}
+
+.tray .group {
+	transition: transform 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tray .group {
+		transition: none;
+	}
+}
+
+/* The playback page's left-hand group: view count and the admin toggles. */
+.meta {
+	align-items: center;
+	margin-top: 4px;
+	color: var(--ink-soft);
+}
+
+.meta li {
+	margin: 0 16px 0 0;
+	font-size: 20px;
+	line-height: 1;
+}
+
+@media screen and (max-width: 730px) {
+	.tray {
+		justify-content: center;
+		text-align: center;
+	}
+
+	.tools li {
+		margin: 0 10px;
+	}
+}

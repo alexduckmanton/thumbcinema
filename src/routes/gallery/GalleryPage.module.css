@@ -1,0 +1,156 @@
+/*
+ * The flipbook grid.
+ *
+ * 2013 laid the thumbnails out as a float mosaic: three fixed container widths and a
+ * run of nth-child rules promoting particular cards to large, medium and
+ * medium-square tiles. It was the most interesting thing on the page, which was the
+ * point when the page was mostly a yellow banner.
+ *
+ * With the banner gone the flipbooks are the page, and every one of them is the same
+ * 640×360 canvas, so they get the same tile. It also fixes what the mosaic couldn't:
+ * between the fixed widths — a 900px window, a tablet in landscape — the old grid
+ * left a ragged margin down one side. auto-fill picks a column count and the cards
+ * take up the slack.
+ */
+
+.grid {
+	display: grid;
+	/* 320px minimum, because these are drawings rather than thumbnails of drawings:
+	   at 220 a stick figure on a 640×360 canvas is a smudge. min(320px, 100%) rather
+	   than a bare 320px — a grid track won't shrink below its minimum, so a hard 320
+	   pushes the column wider than a 320px phone and the page scrolls sideways. */
+	grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+	gap: 22px;
+	width: 100%;
+	max-width: 1440px;
+	margin: 0 auto;
+	padding: 0 30px;
+}
+
+.card {
+	position: relative;
+	display: block;
+	/* Every flipbook is the same shape as the canvas it was drawn on, so the card is
+	   that shape and the thumbnail fills it without cropping. */
+	aspect-ratio: 16 / 9;
+	overflow: hidden;
+	background-color: var(--white);
+	background-size: cover;
+	background-position: center;
+	/* Softer than the 4px it was, so the cards belong to the same set of corners as
+	   the controls above them. Not the full 16: a card is a much bigger shape than a
+	   button, and a radius that reads as generous at 48px tall reads as a blob at
+	   200px wide. */
+	border-radius: var(--radius-card);
+	/* Shadow only. There was a hairline ring under this to give the white card an
+	   edge against the grey page, but a border and a shadow both drawing the same
+	   edge is one of them too many. */
+	box-shadow: var(--shadow-card);
+	transition: box-shadow 0.12s ease-out, transform 0.12s ease-out;
+}
+
+.card:hover {
+	box-shadow: var(--shadow-card-hover);
+	transform: translateY(-2px);
+}
+
+.card:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 3px;
+}
+
+/*
+ * The admin toggles, in the card's top-right corner and revealed on hover. On a
+ * phone there is no hover and the first tap would open the flipbook, so they stay
+ * visible there.
+ */
+.cardAdmin {
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 1;
+	padding: 6px 8px;
+	background: rgba(255, 255, 255, 0.9);
+	border-radius: 0 0 0 3px;
+	opacity: 0;
+	transition: opacity 0.1s linear;
+}
+
+.card:hover .cardAdmin,
+.cardAdmin:focus-within {
+	opacity: 1;
+}
+
+@media (hover: none) {
+	.cardAdmin {
+		opacity: 1;
+	}
+}
+
+.foot {
+	clear: both;
+	width: 90%;
+	min-height: 48px;
+	margin: 0 auto 48px;
+	text-align: center;
+}
+
+.foot .spinner {
+	margin: 16px auto;
+	color: var(--ink-soft);
+}
+
+.state {
+	padding: 48px 0;
+	text-align: center;
+}
+
+/* A link in a sentence, but it re-runs a fetch rather than going anywhere, so it's
+   a button wearing a link's clothes rather than an anchor with no href. */
+.retry {
+	padding: 0;
+	border: none;
+	background: none;
+	font: inherit;
+	color: var(--blue-dark);
+	cursor: pointer;
+}
+
+.retry:hover {
+	text-decoration: underline;
+}
+
+/* Room for the create button to float over: without this the last row of cards sits
+   underneath it at the bottom of the scroll. */
+.content {
+	padding-top: 20px;
+	padding-bottom: 100px;
+}
+
+@media screen and (max-width: 700px) {
+	.grid {
+		padding: 0 20px;
+		gap: 16px;
+	}
+}
+
+@media screen and (max-width: 460px) {
+	.grid {
+		padding: 0 16px;
+	}
+}
+
+.footer {
+	margin-bottom: 32px;
+	text-align: center;
+}
+
+.footer a {
+	font-size: 13px;
+	color: #8b8b8b;
+}
+
+.footer a:hover {
+	color: var(--blue);
+	text-decoration: none;
+}

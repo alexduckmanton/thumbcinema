@@ -1,0 +1,44 @@
+/*
+ * The create page's own layout: the column, the save button, and what the whole page
+ * does when a save starts.
+ */
+
+.content {
+	position: relative;
+	width: 100%;
+	padding-top: 20px;
+}
+
+.save {
+	position: relative;
+	top: 0;
+	width: 100%;
+	margin: 15px 0 50px;
+	text-align: center;
+	transition: opacity 0.4s ease-in, top 0.4s ease-in;
+}
+
+/* One page isn't a flipbook. The button stays in the layout so nothing jumps when
+   the second page arrives — it just isn't offering anything yet. */
+.noSave {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* Naming the flipbook: the save button drops off the bottom with the tray's tools
+   (which stow themselves — see Tray.module.css). */
+.naming .save {
+	top: -200px;
+	opacity: 0;
+}
+
+/* While the artwork is on the wire: nothing to press, and the wash stays up. */
+.sending {
+	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.save {
+		transition: none;
+	}
+}

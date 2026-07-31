@@ -1,0 +1,34 @@
+/*
+ * The two moderation toggles, reusing the 2013 sprite: the heart that used to mean
+ * "liked" now means featured, and the report flag that used to mean "somebody
+ * reported this" now means NSFW.
+ *
+ * Only ever rendered when an admin token is present. Placement is the caller's —
+ * the gallery card floats them in a corner, the flipbook page sits them in a row —
+ * so this file styles the controls and nothing about where they are.
+ */
+
+.toggles {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.toggle {
+	display: inline-flex;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: pointer;
+	opacity: 0.55;
+	transition: opacity 0.1s linear;
+}
+
+.toggle:hover {
+	opacity: 1;
+}
+
+.toggle:disabled {
+	opacity: 0.25;
+	cursor: default;
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>thumbcinema</title>
+	<meta name="description" content="Create awesome flipbook animations">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="theme-color" content="#f1f1f1">
+
+	<meta property="og:title" content="thumbcinema">
+	<meta property="og:image" content="/images/thumbcinema_logo@2x.png">
+	<meta property="og:site_name" content="thumbcinema">
+	<meta property="og:description" content="Create awesome flipbook animations">
+
+	<!--
+		Preloaded, not just @font-face'd: the stylesheet isn't parsed until it has
+		downloaded, so without these the fonts aren't even requested until late.
+		Pecita is font-display: block, which trades a brief invisible period for
+		never showing the logo in the wrong face — a trade that only holds because
+		of this preload. crossorigin is required even same-origin; fonts are
+		always fetched in CORS mode.
+	-->
+	<link rel="preload" as="font" type="font/woff2" href="/fonts/pecita.woff2" crossorigin>
+	<link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-variable.woff2" crossorigin>
+
+	<link rel="shortcut icon" href="/favicon.ico">
+	<link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png">
+</head>
+<body>
+	<div id="root"></div>
+
+	<!--
+		The 2013 feature gate, in one line. Modernizr tested ten CSS and DOM
+		features one by one; a browser new enough to run an ES module has all of
+		them, and one too old never executes the module at all — so `nomodule` is
+		the whole check. /sadbrowser is a static page for exactly this reason.
+	-->
+	<script nomodule>location.replace('/sadbrowser')</script>
+	<script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

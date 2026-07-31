@@ -1,0 +1,65 @@
+/*
+ * The strip of page thumbnails behind the canvas.
+ *
+ * Every page is a full-size copy of the canvas laid out in a row 99999px wide, and
+ * the whole row slides so that the active page sits exactly where the live canvas
+ * is. The active page's own thumbnail is invisible — the canvas is standing in front
+ * of it — which is what makes the row read as one flipbook rather than a filmstrip
+ * with a hole in it.
+ *
+ * Create only. The playback page never renders this, and never allocates the
+ * per-page canvases: 640×360 of backing store each, which on a 200-page archive
+ * flipbook is tens of megabytes for something nobody can see.
+ */
+
+.container {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	margin-top: -60px;
+	padding-top: 40px;
+	overflow: hidden;
+}
+
+.strip {
+	position: absolute;
+	width: 99999px;
+	transition: left 0.3s ease-in-out;
+}
+
+.page {
+	position: relative;
+	z-index: 9;
+	float: left;
+	/* 640 of canvas plus 10 of gutter either side. Written as the outer width
+	   because everything here is border-box; the arithmetic that positions the
+	   strip uses the same number, as PAGE_MARGIN in the engine's constants. */
+	width: 660px;
+	padding: 20px 10px 0;
+}
+
+.page canvas {
+	position: relative;
+	z-index: -1;
+	float: left;
+	background: var(--white);
+	cursor: pointer;
+	opacity: 1;
+	box-shadow: var(--shadow-page);
+}
+
+.active canvas {
+	opacity: 0;
+}
+
+/* Playback hides the strip outright: pages are flying past twelve times a second
+   and a row of them sliding along underneath is noise. */
+.playing {
+	display: none;
+}
+
+@media screen and (max-width: 730px) {
+	.container {
+		display: none;
+	}
+}

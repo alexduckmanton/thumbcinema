@@ -1,19 +1,42 @@
 {
   "name": "thumbcinema",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Online flipbook animation tool. 2013 Backbone front end, 2025 back end.",
+  "description": "Online flipbook animation tool. React front end, Postgres back end.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
-    "dev": "node scripts/dev-server.js",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/migrate.js",
     "db:import-archive": "node scripts/import-archive.js",
     "db:stats": "node scripts/stats.js"
   },
   "dependencies": {
-    "pg": "^8.13.1"
+    "paper": "^0.12.18",
+    "pg": "^8.13.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "@vitest/coverage-v8": "^4.1.10",
+    "jsdom": "^30.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
   }
 }

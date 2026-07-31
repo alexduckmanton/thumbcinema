@@ -11,9 +11,10 @@ fast it plays.
 It was built solo between 2012 and 2015, designed in Photoshop and built on
 Backbone.js. The [write-up is here](https://alexduckmanton.com/article/thumbcinema).
 
-## What changed in the revival
+## What changed, and when
 
-Nothing on the front end. Everything behind it.
+The revival replaced everything behind the front end and left the front end alone.
+The rewrite that followed replaced the front end too, without changing the product.
 
 ### Then (2012–2015)
 
@@ -39,21 +40,26 @@ server went off.
 
 ```
                        Vercel CDN
-browser ──────────────> public/*.html, /script, /style, /images   static
+browser ──────────────> dist/index.html, /assets, /fonts, /images   static
         │
-        ├── /f/{id} ──> public/flipbook.html                      rewrite
+        ├── everything ─> /index.html                               rewrite
         │
-        └── /api/*  ──> api/index.js ─> lib/router.js ─> Neon Postgres
+        └── /api/*  ────> api/index.js ─> lib/router.js ─> Neon Postgres
             /saveflipbook
 ```
 
-- **Front end**: unchanged 2013 code. Backbone 1.0, Underscore, jQuery 1.9.1,
-  paper.js 0.8, svg.js, Modernizr — all vendored, no build step, no package manager.
+- **Front end**: a single-page app. React 19 + TypeScript, built with Vite; paper.js
+  0.12 for the drawing. Four routes, lazily loaded, with paper in a chunk of its own
+  so the gallery never downloads it.
 - **Back end**: one Node serverless function and one Postgres table.
 - **Accounts**: gone. Saving is anonymous.
 - **Social layer**: gone. No likes, reports, profiles, avatars or drafts.
 
 Both halves fit inside free tiers.
+
+The 2013 front end still runs, unchanged, on the `time-capsule` branch and against the
+same database — which makes it the reference for any question about how the old
+behaviour worked.
 
 ## Why one function
 
@@ -68,8 +74,8 @@ Three reasons:
 1. **One cold start.** Splitting six routes across six functions means six things to
    warm up, on a site that gets bursty portfolio traffic.
 2. **One router.** `lib/router.js` is called identically by `api/index.js` on Vercel
-   and by `scripts/dev-server.js` locally. There is no adapter, and no class of bug
-   where local and production disagree about routing.
+   and by the Vite dev server's middleware locally (see `vite.config.ts`). There is no
+   adapter, and no class of bug where local and production disagree about routing.
 3. **Plain Node types.** Because handlers take raw `IncomingMessage`/`ServerResponse`
    and never touch `req.query` or `req.body`, they'd run on any Node host. Vercel is
    a deployment choice, not an architectural one.
@@ -100,25 +106,28 @@ served with `Cache-Control: immutable` and the CDN absorbs repeat traffic.
 
 | Old | New |
 |---|---|
-| `header.php` + `sidebar.php` + `footer.php` | duplicated into each `public/*.html` |
-| `index.php` (WP loop, `cat=6`, prev/next links) | `public/index.html` + `script/general/gallery.js` — Featured/All tabs, infinite scroll |
-| `single.php` (inlined post data) | `public/flipbook.html` + `script/general/boot-playback.js` |
-| `create.php` (inlined `window.onload`) | `public/create.html` + `script/general/boot-create.js` |
-| `Mobile_Detect.php` (`$GLOBALS['isMobile']`) | `script/general/device.js` |
-| Modernizr gate in `header.php` | `script/general/browser-check.js` |
+| `header.php` + `sidebar.php` + `footer.php` | `src/components/SiteHeader.tsx` |
+| `index.php` (WP loop, `cat=6`, prev/next links) | `src/routes/gallery/` — Featured/All tabs, infinite scroll |
+| `single.php` (inlined post data) | `src/routes/playback/PlaybackPage.tsx` |
+| `create.php` (inlined `window.onload`) | `src/routes/create/CreatePage.tsx` |
+| `Mobile_Detect.php` (`$GLOBALS['isMobile']`) | `src/lib/device.ts` |
+| Modernizr gate in `header.php` | `<script nomodule>` in `index.html` |
 | `saveflipbook.php` | `lib/router.js` → `lib/flipbooks.js` |
 | `likeflipbook.php`, `reportflipbook.php`, `deleteflipbook.php`, `publishflipbook.php`, `signon.php`, `updateprofile.php` | dropped |
 | `functions.php` view counter | `UPDATE ... RETURNING` in `getFlipbook()` |
 
-The four HTML files repeat their header markup rather than sharing a template. With
-four pages and no build step, a templating system would cost more than it saves.
+The 2025 revival duplicated the header markup into three static HTML files, because
+there was no build step to share it with. There is one now, and it's a component.
 
 ## Known limitations
 
 - **No server-rendered Open Graph tags.** Shared links to `/f/{id}` don't preview with
-  the flipbook's own thumbnail, because the page is static and the title arrives by
-  fetch. Fixing it means putting a function in front of `/f/:id` to inject meta tags —
-  the static shell stays, only the `<head>` becomes dynamic.
+  the flipbook's own thumbnail, because the page is a static shell and the title
+  arrives by fetch. Fixing it means putting a function in front of `/f/:id` to inject
+  meta tags — the shell stays, only the `<head>` becomes dynamic.
+- **No server rendering at all.** The gallery is a fetch behind an empty grid, which
+  costs a beat on a cold load. Worth revisiting only if the site ever needs to be
+  found by something that doesn't run JavaScript.
 - **~4 MB save limit**, imposed by Vercel's request body cap. See `docs/data-formats.md`.
 - **No rate limiting** on save. Deliberate, matching the original. `saveFlipbook()` in
   `lib/router.js` is the single place a throttle would go. New saves default to not

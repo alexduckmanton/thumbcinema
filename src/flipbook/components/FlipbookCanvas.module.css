@@ -1,0 +1,89 @@
+/*
+ * The canvas you draw on, and the sheet of paper it's pretending to be.
+ *
+ * `.book` is the 640×360 frame; everything that overlays the canvas — the loading
+ * screen, the save form, the blue wash while a save is in flight — is positioned
+ * against it.
+ */
+
+.book {
+	position: relative;
+	width: 640px;
+	height: 360px;
+	margin: 0 auto;
+	line-height: 0;
+}
+
+/*
+ * z-index 15 is load-bearing. The pencil and eraser in the tray below are 304px-tall
+ * images anchored at their tips, so most of each one sits *behind* the canvas; only
+ * the last few centimetres show below its bottom edge. Selecting a tool slides it
+ * further down and more of it appears. Drop the canvas below the tray's stacking
+ * order and two enormous pencils appear across the drawing.
+ */
+.canvas {
+	position: relative;
+	z-index: 15;
+	background: var(--white);
+	border-radius: 2px;
+	box-shadow: var(--shadow-page);
+	transition: background 0.4s ease-out, box-shadow 0.4s ease-out;
+	touch-action: none;
+}
+
+/* The loading screen, and the wash a save puts over the drawing. */
+.overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 20px;
+	background: rgba(74, 125, 244, 0.95);
+	color: var(--white);
+	font-size: 20px;
+	line-height: 1.5;
+}
+
+.overlay h2 {
+	color: inherit;
+	font-size: 20px;
+}
+
+/*
+ * The wash the save form sits on.
+ *
+ * Separate from the form because the form is taller than the canvas and this isn't:
+ * the blue is a lid over the drawing, and the buttons that hang below it belong to
+ * the page.
+ */
+.wash {
+	position: absolute;
+	inset: 0;
+	z-index: 16;
+	background: rgba(74, 125, 244, 0.9);
+}
+
+/* While the artwork is on the wire the wash stays and the spinner sits on it, so
+   there is no second layer of blue. */
+.sending {
+	background: none;
+}
+
+.missing {
+	padding: 64px 0;
+	text-align: center;
+}
+
+@media screen and (max-width: 730px) {
+	.book {
+		width: 100%;
+		height: auto;
+	}
+
+	.canvas {
+		width: 100%;
+		height: auto;
+	}
+}

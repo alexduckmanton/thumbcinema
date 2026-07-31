@@ -1,0 +1,132 @@
+/*
+ * The create button: a floating action button, not a control in the header.
+ *
+ * It's the one thing you can do on every page that isn't already doing it, and the
+ * gallery's job is otherwise to get out of the flipbooks' way. It stays inside the
+ * header's actions in the markup — `position: fixed` takes it out of flow, so the
+ * DOM position costs nothing and keeps it early in the tab order.
+ *
+ * Yellow, not the site's blue: the blue is the flipbook cards' link colour and the
+ * button was competing with them. Yellow is the one warm thing on the page and it
+ * belongs to the pencil. Its ancestor is the 2013 home page's yellow banner.
+ */
+
+.fab {
+	position: fixed;
+	right: 30px;
+	bottom: 30px;
+	z-index: 50;
+
+	/* Extended by default — a circle with a label beside it — and a plain circle
+	   once you've scrolled. The width isn't animated directly: `width: auto` can't
+	   transition, so the label's own max-width is what moves and the button's width
+	   follows it frame by frame. That also means the expanded width is whatever the
+	   label actually needs, with no magic number to keep in sync. */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 64px;
+	height: 64px;
+	padding: 0 22px;
+	white-space: nowrap;
+
+	border: none;
+	border-radius: var(--radius-pill);
+	background: var(--yellow);
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--ink-strong);
+	text-decoration: none;
+
+	/* Deeper than the cards' shadow — it floats over them and needs to read as
+	   nearer than the thing it's covering. */
+	box-shadow: rgba(0, 0, 0, 0.22) 0 4px 14px;
+	transition: padding 0.24s ease, background 0.12s ease-out, box-shadow 0.12s ease-out,
+		transform 0.12s ease-out;
+}
+
+.fab:visited {
+	color: var(--ink-strong);
+}
+
+/*
+ * U+270D WRITING HAND, from Pecita's dingbats — a hand holding a pen, drawn in the
+ * same hand as the wordmark.
+ *
+ * Generated content rather than markup because it's decorative: the button's
+ * accessible name comes from its aria-label, and a screen reader reading out
+ * "writing hand" instead would be worse than silence. If the glyph ever moves into
+ * the markup, the label has to move with it.
+ */
+.fab::before {
+	content: '\270D';
+	flex: 0 0 auto;
+	position: relative;
+	/* The glyph sits high in its em box, so the optical centre isn't the geometric one. */
+	top: 2px;
+	font-family: 'Pecita', cursive;
+	font-size: 30px;
+	line-height: 1;
+	color: var(--ink-strong);
+}
+
+/* Collapsed by max-width rather than removed, so the label stays in the DOM and in
+   the accessibility tree the whole time. This is a visual state, not a change of
+   content. */
+.label {
+	max-width: 120px;
+	margin-left: 8px;
+	overflow: hidden;
+	opacity: 1;
+	transition: max-width 0.24s ease, opacity 0.16s ease-out, margin-left 0.24s ease;
+}
+
+.scrolled {
+	padding: 0;
+}
+
+.scrolled .label {
+	max-width: 0;
+	margin-left: 0;
+	opacity: 0;
+}
+
+.fab:hover {
+	background: #ffd45c;
+	box-shadow: rgba(0, 0, 0, 0.26) 0 6px 18px;
+	transform: translateY(-1px);
+	text-decoration: none;
+}
+
+.fab:active {
+	background: #f0b81f;
+	box-shadow: rgba(0, 0, 0, 0.22) 0 2px 8px;
+	transform: translateY(0) scale(0.96);
+}
+
+.fab:focus-visible {
+	outline: 2px solid var(--ink-strong);
+	outline-offset: 3px;
+}
+
+/* Closer in and a size down: 30px of inset is a lot of a 320px screen, and the
+   button is a thumb target here rather than a pointer one. */
+@media screen and (max-width: 460px) {
+	.fab {
+		right: 16px;
+		bottom: 16px;
+		min-width: 56px;
+		height: 56px;
+	}
+
+	.fab::before {
+		font-size: 26px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.fab,
+	.label {
+		transition: none;
+	}
+}

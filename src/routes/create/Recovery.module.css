@@ -1,0 +1,40 @@
+/*
+ * The crash screen.
+ *
+ * Loud on purpose: something has gone wrong in the middle of someone's drawing, and
+ * the one useful thing to say is that the work is not lost.
+ */
+
+.overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	background: rgba(244, 61, 77, 0.95);
+	overflow: auto;
+}
+
+.panel {
+	margin-top: 125px;
+}
+
+.panel img {
+	float: left;
+	margin: 0 25px 25px 0;
+}
+
+.panel h1 {
+	font-size: 40px;
+	color: #300307;
+}
+
+.panel p {
+	color: #60050d;
+}
+
+.panel p a {
+	color: #fcced2;
+}
+
+.panel button {
+	margin-top: 5px;
+}

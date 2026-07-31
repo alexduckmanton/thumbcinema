@@ -1,0 +1,217 @@
+/*
+ * Global styling: fonts, tokens, element defaults.
+ *
+ * Everything else is a CSS module scoped to one component. This file is the only
+ * place that styles bare elements, and it stays small on purpose.
+ *
+ * On sizing: the 2013 stylesheet set the root to 10px — the `font-size: 62.5%`
+ * trick — and then wrote every length in em, so a "1.5em" paragraph meant 15px and
+ * a "4em" padding meant 40px. That made every number in the file mean something
+ * other than what it said. The values here are the same rendered sizes, written in
+ * px, against an untouched root.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Type
+ *
+ * One face, Inter, for everything except the wordmark. 2013 ran two — Arvo on
+ * headings and buttons, Arial on paragraphs and labels — so body copy and the
+ * heading above it disagreed, and so did a button and its own label.
+ *
+ * One file covers every weight: Google serves Inter as a variable font, so asking
+ * for 400 and 700 separately fetches the same 48 KB twice. Hence the 100–900 range
+ * rather than two @font-face blocks. See public/fonts/Inter-ABOUT.txt.
+ *
+ * `swap` here and `block` on the wordmark: this is body copy, where a beat of
+ * invisible text everywhere is worse than a beat of the fallback. Both are
+ * preloaded from index.html, so in practice it's neither.
+ * ------------------------------------------------------------------------- */
+
+@font-face {
+	font-family: 'Inter';
+	src: url('/fonts/inter-latin-variable.woff2') format('woff2');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+/*
+ * Pecita, by Philippe Cochy — what the 2013 logo was drawn in. It is both the
+ * wordmark and the icon set: its dingbat block (U+2700–27BF) is hand-drawn pencils,
+ * nibs and a writing hand, in the same hand as the logo.
+ *
+ * The whole face ships, all 4760 glyphs, 383 KB as WOFF2. That is by far the
+ * largest thing this site sends and it is deliberate — an unmodified format
+ * conversion isn't a Modified Version under the OFL, so it can keep the name
+ * "Pecita", which a subset could not. See public/fonts/Pecita-ABOUT.txt.
+ *
+ * `block`, not `swap`: swap paints the fallback and then switches, which on a logo
+ * means visibly changing typeface a beat after the page appears. block holds it
+ * invisible briefly and paints once. That's only safe because index.html preloads
+ * it — if that preload ever goes, this has to go back to swap or the wordmark can
+ * be missing for up to three seconds.
+ */
+@font-face {
+	font-family: 'Pecita';
+	src: url('/fonts/pecita.woff2') format('woff2'), url('/fonts/pecita.woff') format('woff');
+	font-weight: normal;
+	font-style: normal;
+	font-display: block;
+}
+
+:root {
+	--blue: #4a7df4;
+	--blue-dark: #0e4ee4;
+	--blue-deep: #07256b;
+	--green: #d5ff71;
+	--red: #f54958;
+	--yellow: #ffc93c;
+
+	--ink: #444;
+	--ink-strong: #222;
+	--ink-soft: #666;
+	--line: #ccc;
+	--page: #f1f1f1;
+	--white: #fff;
+
+	/* One rounding for the whole site. 2013's 3px reads as a square corner that
+	   didn't quite commit at the sizes these are set now. */
+	--radius-control: 10px;
+	--radius-card: 12px;
+	--radius-pill: 999px;
+
+	--shadow-card: rgba(0, 0, 0, 0.1) 0 2px 8px;
+	--shadow-card-hover: rgba(0, 0, 0, 0.16) 0 6px 18px;
+	--shadow-chip: rgba(0, 0, 0, 0.07) 0 1px 4px;
+	/* The paper drop-shadow under a canvas. Wide, offset down, no blur. */
+	--shadow-page: rgba(0, 0, 0, 0.05) 0 10px 0 -5px;
+
+	--control-height: 44px;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	background: var(--page);
+	color: var(--ink);
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+	font-size: 15px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+/*
+ * No text shadows. 2013 put a 1px shadow under nearly every piece of type, which is
+ * what held white-on-blue and pale-on-dark up against the dark, saturated chrome of
+ * the time. That chrome is gone, and each one is now a slight blur on type that was
+ * perfectly legible without it.
+ */
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	font-weight: normal;
+	color: var(--ink);
+}
+
+h1 {
+	font-size: 30px;
+	line-height: 1.2;
+}
+
+h2 {
+	font-size: 25px;
+	line-height: 1.2;
+}
+
+h3 {
+	font-size: 15px;
+	line-height: 1.2;
+	color: var(--ink-soft);
+}
+
+p {
+	margin: 0 0 1em 0;
+	font-size: 15px;
+	line-height: 1.333;
+}
+
+a {
+	color: var(--blue-dark);
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:visited {
+	color: var(--blue-deep);
+}
+
+button {
+	font: inherit;
+}
+
+input,
+textarea {
+	padding: 5px;
+	border: 1px solid var(--ink-strong);
+	border-radius: 3px;
+	background: #eee;
+	color: var(--ink);
+	font: inherit;
+	font-size: 14px;
+	resize: none;
+}
+
+input:focus,
+textarea:focus {
+	outline: none;
+	background: var(--white);
+}
+
+label {
+	display: inline-block;
+	padding: 0 0 2px 2px;
+	font-size: 14px;
+}
+
+/* The one column the create and playback pages are built on. style.css sized it at
+   640px, the width of the canvas, dropping to 90% on narrow screens. */
+.center {
+	width: 640px;
+	margin: 0 auto;
+}
+
+@media screen and (max-width: 730px) {
+	.center {
+		width: 90%;
+	}
+}
+
+/* Visually gone, still announced. Used for the gallery cards' titles, which are the
+   only text in a link that is otherwise a picture. */
+.visuallyHidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	border: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

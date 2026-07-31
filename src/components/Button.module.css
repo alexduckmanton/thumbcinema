@@ -1,0 +1,109 @@
+/*
+ * The site's one button.
+ *
+ * Colours are the 2013 palette, computed values and all — the blue's border and
+ * pressed states came out of a Sass mixin that darkened the base by fixed amounts,
+ * and those are the numbers that shipped.
+ */
+
+.button {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 5px 20px;
+	border: none;
+	border-radius: var(--radius-control);
+	font-size: 16px;
+	font-weight: 500;
+	line-height: 1;
+	color: var(--white);
+	text-decoration: none;
+	cursor: pointer;
+	background: var(--blue);
+	transition: background 0.12s ease-out, top 0.12s ease-out;
+}
+
+.button:visited {
+	color: var(--white);
+}
+
+/* Lifts a pixel under the pointer and settles back on press. Every control on the
+   site does this; it's the closest thing the design has to a signature. */
+.button:hover {
+	top: -1px;
+	background: #5484f5;
+	text-decoration: none;
+}
+
+.button:active {
+	top: 0;
+	background: #4076f3;
+	box-shadow: inset rgba(0, 0, 0, 0.15) 0 2px 0;
+}
+
+.button:focus-visible {
+	outline: 2px solid var(--ink-strong);
+	outline-offset: 2px;
+}
+
+.button:disabled {
+	cursor: default;
+	opacity: 0.6;
+}
+
+.button:disabled:hover {
+	top: 0;
+	background: var(--blue);
+}
+
+/* The save button. Green so the one irreversible action on the page doesn't look
+   like the four reversible ones next to it. */
+.submit {
+	background: var(--green);
+	color: #414f1c;
+}
+
+.submit:visited {
+	color: #414f1c;
+}
+
+.submit:hover {
+	background: #d8ff7b;
+}
+
+.submit:active {
+	background: #d2ff67;
+}
+
+/* Secondary, on a coloured field: type only, no chrome. */
+.blank {
+	padding: 0;
+	background: none;
+	font-size: 14px;
+	font-weight: 400;
+	color: var(--white);
+}
+
+.blank:hover,
+.blank:active {
+	background: none;
+	box-shadow: none;
+	text-decoration: underline;
+}
+
+/* While a request is in flight the label goes and the spinner takes its place,
+   so the button doesn't change width and jump the row it's in. */
+.loading .label {
+	visibility: hidden;
+}
+
+.spinner {
+	position: absolute;
+	color: var(--white);
+}
+
+.submit .spinner {
+	color: #414f1c;
+}

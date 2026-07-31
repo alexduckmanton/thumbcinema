@@ -1,0 +1,125 @@
+/*
+ * The site header: wordmark left, whatever the page can do right.
+ *
+ * The same component on all three pages. In the 2013 revival this markup was copied
+ * into three static HTML files because there was no build step to share it with —
+ * that's the note this replaces.
+ */
+
+.header {
+	position: relative;
+	z-index: 100;
+}
+
+.container {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 14px 16px;
+	max-width: 1440px;
+	margin: 0 auto;
+	/* No bottom padding: the gap under the header belongs to the content below,
+	   which sets its own. The grid wants more air under a 70px wordmark than the
+	   create page's canvas does. */
+	padding: 40px 30px 0;
+}
+
+/*
+ * /create and /f/:id are one column of content — `.center`, 640px wide — so the
+ * wordmark starts exactly where the canvas does rather than at the far edge of the
+ * window. 640 plus the padding either side.
+ */
+.narrow {
+	max-width: 700px;
+}
+
+/* Under 730 the canvas stops being a fixed width and becomes 90% of the window, so
+   matching it means matching the percentage rather than a number. */
+@media screen and (max-width: 730px) {
+	.narrow {
+		max-width: none;
+		padding-left: 5%;
+		padding-right: 5%;
+	}
+}
+
+/*
+ * The wordmark, in Pecita — the typeface the 2013 logo was drawn in, so this is live
+ * text where that was a 319×103 bitmap.
+ *
+ * No letter-spacing. Pecita is a joining script: spacing it apart pulls the letters
+ * off each other's entry and exit strokes and the word stops being one line of
+ * handwriting. Its own fitting is the fitting.
+ *
+ * Black rather than the site's blue. It's the one thing here that isn't a control
+ * and doesn't need to look like one.
+ */
+.wordmark,
+.wordmark:visited {
+	flex: 0 0 auto;
+	font-family: 'Pecita', cursive;
+	font-size: 70px;
+	line-height: 1;
+	color: var(--ink);
+	text-decoration: none;
+	white-space: nowrap;
+	transition: color 0.12s linear;
+}
+
+.wordmark:hover {
+	color: #111;
+	text-decoration: none;
+}
+
+/* The right-hand group. `margin-left: auto` rather than justify-content on the row,
+   so it still sits hard right when it holds one thing or nothing at all. */
+.actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-left: auto;
+}
+
+/*
+ * Two breakpoints, because two different things stop fitting at two different widths
+ * and collapsing them into one gets the band between them wrong.
+ *
+ * Here: a single row needs wordmark + toggle + gap + padding, which at 70px is
+ * 447 + 200 + 16 + 60 = 723px. The number isn't load-bearing — the row wraps, so
+ * getting it wrong costs an early or late fold rather than a header hanging off the
+ * side of the window.
+ */
+@media screen and (max-width: 740px) {
+	.actionsWide {
+		flex: 0 0 100%;
+		width: 100%;
+	}
+}
+
+/* Below here the wordmark itself has to come down, and the padding with it. */
+@media screen and (max-width: 700px) {
+	.container {
+		padding: 32px 20px 0;
+	}
+
+	.wordmark {
+		font-size: 56px;
+	}
+}
+
+/*
+ * Phones. The wordmark is a single unbreakable word about 6.4× as wide as its font
+ * size, so a fixed size either overflows a 320px screen or is picked for the
+ * narrowest phone and looks timid on every other one. Sizing it off the viewport
+ * lets it take the room that's there.
+ */
+@media screen and (max-width: 460px) {
+	.container {
+		padding: 24px 16px 0;
+		gap: 12px 10px;
+	}
+
+	.wordmark {
+		font-size: min(40px, 11vw);
+	}
+}

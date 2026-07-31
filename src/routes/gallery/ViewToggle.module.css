@@ -1,0 +1,117 @@
+/*
+ * Featured / All.
+ *
+ * The 2013 home page only ever showed one list, so there was nothing like this to
+ * inherit. It and the create button are deliberately the same height and type size:
+ * they sit next to each other and there's no reason for one to be the odd one out.
+ */
+
+/* The track. Flat: no inset shadow, just a plain grey field. The recess was there to
+   make the selected segment read as lifted off it, but the pill is white on grey and
+   carries a shadow of its own — the inset was doing the job twice.
+   44px tall: 36px of segment inside a 4px inset. */
+.track {
+	position: relative;
+	display: inline-block;
+	height: var(--control-height);
+	padding: 4px;
+	background: #e8e8e8;
+	border-radius: var(--radius-pill);
+	font-size: 0; /* kills the whitespace gap between the inline-block segments */
+	user-select: none;
+}
+
+/*
+ * The selected segment, as one element that slides rather than two that swap colour.
+ * Everything else on this site moves when it changes — pages fly in from the right,
+ * deleted ones fall away — so the toggle should too.
+ *
+ * Two equal segments means the travel is a plain 100% translate and nothing has to
+ * be measured in JavaScript.
+ */
+.pill {
+	position: absolute;
+	top: 4px;
+	bottom: 4px;
+	left: 4px;
+	display: block;
+	width: 96px;
+	background: var(--white);
+	/* A pill inside a pill stays concentric at any inset. */
+	border-radius: var(--radius-pill);
+	box-shadow: var(--shadow-chip);
+}
+
+/* Only once the initial position is set, or it slides in from the left on load —
+   landing on /?view=all should show the pill already on the right. */
+.animated {
+	/* Slight overshoot, so it lands with a bit of weight. */
+	transition: transform 0.22s cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+.onSecond {
+	transform: translateX(96px);
+}
+
+/* 36px of line-height rather than type plus padding, so the segment's height is the
+   number it says it is and the label is centred in it for free. */
+.segment {
+	position: relative;
+	z-index: 1; /* above the pill */
+	display: inline-block;
+	width: 96px;
+	height: 36px;
+	padding: 0;
+	border: none;
+	background: none;
+	font-family: inherit;
+	font-size: 16px;
+	font-weight: 500;
+	line-height: 36px;
+	color: var(--ink-soft);
+	text-align: center;
+	text-decoration: none;
+	cursor: pointer;
+	transition: color 0.15s linear;
+}
+
+.segment:hover {
+	color: var(--ink);
+	text-decoration: none;
+}
+
+/* Black on white. Blue is the create button's, and having the selected segment wear
+   it too made the header look like it had two primary actions in it — the white chip
+   is already carrying the selected state. */
+.selected,
+.selected:hover {
+	color: #000;
+}
+
+.segment:active {
+	top: 1px;
+}
+
+/*
+ * The narrow layout gives up fixed segment widths and goes full width, where the
+ * same trick still works because both segments are half the track.
+ */
+@media screen and (max-width: 740px) {
+	.track {
+		flex: 1 1 auto;
+		display: block;
+		min-width: 0;
+	}
+
+	.segment {
+		width: 50%;
+	}
+
+	.pill {
+		width: calc(50% - 4px);
+	}
+
+	.onSecond {
+		transform: translateX(100%);
+	}
+}

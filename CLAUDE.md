@@ -2,55 +2,74 @@
 
 An online flipbook animation tool. Draw a sketch, add a page, draw the next one,
 play it back. Originally built 2012–2015 on WordPress; the server was switched off
-years later. This repo is the 2025 revival: **the original front end, unchanged, on
-a new back end.**
+years later. The 2025 revival brought the original Backbone front end back on a new
+back end. **This branch is the rewrite of that front end: same product, modern code.**
 
 Live at `thumbcinema.alexduckmanton.com`.
 
 ---
 
-## The one rule
+## What this branch changed
 
-**The front end is a museum piece. Do not modernise it.**
+The 2013 front end — jQuery 1.9, Backbone 1.0, Underscore, Modernizr, svg.js and
+paper.js 0.8, loaded as thirty-odd `<script>` tags communicating through globals — is
+gone. In its place:
 
-Everything under `public/script/` (except `public/script/general/*` files listed as
-new below) and all of `public/style/` is 2013 code, copied byte-for-byte out of the
-old WordPress theme. It is Backbone 1.0, Underscore, jQuery 1.9.1 and paper.js 0.8,
-all vendored locally. It works. The point of the project is that it still works.
-
-Do not:
-
-- convert it to ES modules, classes, or a build step
-- upgrade jQuery/Backbone/paper.js
-- reformat it, add semicolons, or change the tab indentation
-- "fix" the global variables (`flipbook`, `canvas_layer`, `onion_layer`, `transform`,
-  `eraser`, …) — the files depend on load order and on each other via globals
-
-If something genuinely must change in original code, prefer adding an override in
-`public/style/revival.css` or a new file in `public/script/general/`, so the diff
-against 2013 stays visible in one place.
-
-## What is new vs original
-
-| Path | Origin |
+| | |
 |---|---|
-| `public/script/Flipbook.js`, `public/script/flip/**`, `public/script/lib/**` | **original**, unchanged |
-| `public/script/general/{header,like,report,profile,errors}.js` | **original**, unchanged |
-| `public/style/style.css`, `public/style/scss/**`, `public/style/type/Arvo-*` | **original**, unchanged |
-| `public/images/**`, favicons | **original**, unchanged |
-| `public/*.html` | new — hand-converted from the PHP templates |
-| `public/style/revival.css` | new — the only CSS that overrides 2013 |
-| `public/style/type/pecita.*` | new — the wordmark and the icon set. See `Pecita-ABOUT.txt` |
-| `public/style/type/inter-latin-variable.woff2` | new — the site's only text face. See `Inter-ABOUT.txt` |
-| `public/script/general/{browser-check,device,gallery,boot-create,boot-playback}.js` | new — replaces what PHP used to inline |
-| `api/`, `lib/`, `scripts/`, `db/` | new — the back end |
+| Build | Vite 8 |
+| UI | React 19 + TypeScript, strict |
+| Drawing | paper.js 0.12 (`paper-core`) |
+| Routing | ~60 lines over the History API, `src/router/` |
+| Styling | Plain CSS, one module per component |
+| Tests | Vitest + Testing Library |
+| Back end | Unchanged — `api/`, `lib/`, `db/`, `scripts/` |
 
-Four original scripts are kept for reference but **not loaded** by any page:
+Nothing was added that isn't earning its place: no state library, no CSS framework,
+no router package, no icon library. `react`, `react-dom`, `paper` and `pg` are the
+only runtime dependencies.
 
-- `general/like.js`, `general/report.js`, `general/profile.js` — they drove BuddyPress
-  features that no longer exist.
-- `flip/undo.js` — an abandoned second undo implementation. The original `footer.php`
-  didn't load it either; the undo that actually runs lives in `flip/canvas.js`.
+**The visual design is deliberately unchanged.** This was a port, not a redesign. If
+something looks different from the 2013 revival, that's a bug unless the comment next
+to it says otherwise — and where a rule *was* dropped, there's a comment saying which
+and why (the phantom 60px avatar gutter on the flipbook title, for instance).
+
+**`time-capsule` still runs the 2013 code and is the reference.** When you need to
+know what the old behaviour was, that branch is the answer, not archaeology.
+
+## Layout
+
+```
+index.html            the single page
+src/
+  main.tsx            boot
+  App.tsx             route switch, lazy per route
+  router/             matchRoute(), useLocation(), <Link>
+  lib/                api client, admin token, device, messages, store
+  components/         header, buttons, spinner, messages, admin toggles
+  routes/
+    gallery/          the grid, the Featured/All toggle, infinite scroll
+    create/           the drawing tool's page, save flow, crash recovery
+    playback/         one flipbook, playing
+  flipbook/
+    engine/           the drawing tool. No React in this directory.
+      geometry.ts     pure maths — resampling, angles, circleplay
+      scene.ts        paper.js project + layers
+      selection.ts    selecting and transforming
+      formats.ts      the two artwork formats, in and out
+      print.ts        the printable booklet
+      animations.ts   the page-strip keyframes
+      tools/          pencil, eraser, transform, push
+      FlipbookEngine.ts  the façade React drives
+    components/       canvas, page strip, trays, save form
+  styles/             tokens, element defaults, the icon sprite
+public/               fonts, images, favicons, sadbrowser.html
+```
+
+**`src/flipbook/engine/` must not import React.** The engine owns a mutable paper.js
+scene, which React has no business re-rendering; React drives it through method calls
+and subscribes to a small `Store` for the dozen scalars it needs to draw a toolbar.
+That boundary is also what makes the fiddly parts testable without rendering anything.
 
 ## Running it
 
@@ -61,313 +80,242 @@ npm run db:migrate
 npm run dev              # http://localhost:3000
 ```
 
-`npm run dev` serves `public/` and mounts the real API router — no Vercel CLI, no
-Docker, no login. It needs `DATABASE_URL` for anything that touches the gallery or
-saving; the drawing tool itself works without one.
-
-It sends **`Cache-Control: no-store`** on every static response, and that's
-deliberate. It used to send `no-cache`, which sounds stronger and isn't: `no-cache`
-permits a client to *store* the response provided it revalidates first, and
-revalidating needs a validator the server wasn't sending. With no `ETag` and no
-`Last-Modified` there was nothing to revalidate against, so clients served the
-stored copy instead — edits to `revival.css` silently did nothing and the CSS
-looked broken when it was correct. Don't "optimise" this back to `no-cache`
-without adding an `ETag` and conditional-request handling to go with it. Production
-is unaffected; Vercel sets its own caching headers.
+Node 22.12+ (see `.nvmrc`). `npm run dev` is Vite, with the real API router mounted
+as middleware — see `vite.config.ts`. There's no second process and no Vercel CLI;
+`lib/router.js` is imported directly, so the dev server and production run identical
+routing. It needs `DATABASE_URL` for anything that touches the gallery or saving; the
+drawing tool itself works without one.
 
 | Command | Does |
 |---|---|
-| `npm run dev` | Local server on :3000 |
+| `npm run dev` | Vite on :3000, API included |
+| `npm run build` | Typecheck, then build to `dist/` |
+| `npm test` | Vitest, once |
+| `npm run test:watch` | Vitest, watching |
+| `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:migrate` | Applies `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Loads the 2012–2015 flipbooks from `_original/` |
 | `npm run db:stats` | Row counts and storage use |
 
 ## Architecture
 
-Static pages + one serverless function + one Postgres table.
+A single-page app, one serverless function, one Postgres table.
 
 ```
-browser ──> public/*.html          static, on Vercel's CDN
+browser ──> dist/index.html      static, on Vercel's CDN
         └─> /api/*  ──> api/index.js ──> lib/router.js ──> Postgres (Neon)
             /saveflipbook
 ```
 
 - **`lib/router.js` is the entire API.** Every route is rewritten to the single
-  `/api` function by `vercel.json`, and the dev server calls the same module
-  directly. One router, two hosts, no drift.
-- Handlers use plain Node `req`/`res`, never Vercel's `req.query`/`req.body` sugar,
-  which is what makes that possible.
-- `vercel.json` passes the original path through as `__path` rather than trusting
-  either platform's rewrite semantics.
+  `/api` function by `vercel.json`; the dev server calls the same module directly.
+- **Everything else is rewritten to `/index.html`.** Vercel checks the filesystem
+  before rewrites, so hashed assets, fonts and favicons are served as files and never
+  reach the catch-all.
+- `cleanUrls` is what maps `/sadbrowser` to the static `public/sadbrowser.html`.
 
-Routes:
+Routes are unchanged: `POST /saveflipbook`, `GET /api/flipbooks`,
+`GET /api/flipbooks/:id[/data|/thumbnail]`, `PATCH /api/admin/flipbooks/:id`. See
+`src/lib/api.ts`, which is the only place the front end knows about any of them.
 
-| Route | Purpose |
-|---|---|
-| `POST /saveflipbook` | The 2013 endpoint. Form-encoded, returns a bare `/f/{id}` in the body. `data.js` assigns that straight to `window.location.href`, so **do not change this contract.** |
-| `GET /api/flipbooks?view&cursor&limit` | Gallery listing. `view` is `featured` (default) or `all`; `cursor` is opaque keyset pagination |
-| `GET /api/flipbooks/:id` | Metadata; also increments the view counter |
-| `GET /api/flipbooks/:id/data` | The artwork |
-| `GET /api/flipbooks/:id/thumbnail` | PNG |
-| `PATCH /api/admin/flipbooks/:id` | Admin only. Sets `featured` and/or `nsfw` |
+### Code splitting
 
-## The design, post-2013
+paper.js is ~210 KB and only two of the four routes need it, so the routes are lazy
+and paper is a manual chunk. The gallery — the page most visits land on — downloads
+neither. Check this hasn't regressed after touching imports: `npm run build` prints
+the chunk table.
 
-The chrome has moved on from 2013; the drawing tool hasn't, and won't. Everything
-here lives in `revival.css`.
+## The drawing tool
+
+### paper.js 0.12, not 0.8
+
+Upgrading skipped four years of breaking changes. The ones that bit, all of them
+documented at the point they matter:
+
+- **`flatten()` changed meaning.** In 0.8 the argument was a distance and it laid
+  points down at that spacing; in 0.12 it's a maximum error, and on a polyline —
+  which is what a hand-drawn stroke is — it does nothing at all. Resampling is now
+  `resamplePolyline()` in `geometry.ts`, which reproduces 0.8's arithmetic and is
+  unit-tested. It's load-bearing twice over: it's most of why saved SVG compresses to
+  ~25%, and the push tool assumes evenly spaced points.
+- **`view.update()` only draws when something changed**, and paper redraws on its own
+  every frame. So `scene.redraw()` is only needed before reading pixels back —
+  thumbnails, `toDataURL` — not after every change.
+- **`setup()` leaves the project with no layers.** `project.activeLayer` is the getter
+  that creates layer zero; `layers[0]` is undefined.
+- **`moveAbove`/`moveBelow` are `insertAbove`/`insertBelow`.**
+- **`GrayColor` is gone**; `new Color({ gray, alpha })`.
+- **`importSVG` applies SVG's default fill**, which is black. A stroke lives inside a
+  `<g fill="none">` and is imported on its own, so it comes back filled and every
+  loop in a drawing renders as a blob. Cleared explicitly on import.
+- **A hidpi canvas's backing store is 2× its CSS size**, so `drawImage` without an
+  explicit size copies the top-left quarter at double scale.
+
+### Invariants
+
+- **`SYSTEM_LAYERS === 3`, and `LEADING_SYSTEM_GROUPS === 3` with it.** paper exports
+  one `<g>` per layer, and every one of the 585 archive flipbooks was written by a
+  project with three scaffolding layers under the pages. Change one without the other
+  and every page in the archive shifts by one, silently. `assertLeadingGroups()`
+  refuses to save an export that doesn't match, and there are tests either side.
+- **The canvas has a z-index and the tools don't.** The pencil and eraser in the tray
+  are 304px-tall images anchored by their tips; most of each one sits *behind* the
+  canvas and selecting a tool slides more of it into view. Drop the canvas out of that
+  stacking order and two enormous pencils appear across the drawing.
+- **A selected stroke is moved into the selection layer, not flagged.** The selection
+  layer draws *below* the pages, which reads correctly only because the page fades to
+  20% while anything is selected.
+- **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and
+  React re-runs inline ref callbacks on every render. Page thumbnails take their size
+  from JSX attributes.
+
+### What was fixed on the way
+
+Behaviour is otherwise a faithful port, so these are worth knowing about:
+
+- **The saved thumbnail is the busiest page**, which is what 2013 meant to do. It
+  counted segments by reading `.length` off a paper `Layer`, which is undefined, so
+  every page scored zero and the cover was always page one.
+- **Horizontal flips work.** `selection.layer` was written `selection.layer` in a
+  file where the variable was `selection_layer`, so dragging a handle past its pivot
+  threw instead of mirroring.
+- **A stroke that ends off the canvas updates its thumbnail.** The old mouseup
+  listener was on the canvas, so releasing outside it left a stale page.
+- **A page animation can't lock the tool up.** Input is blocked while one plays, and
+  a hidden document never runs animations — so `finished` never settled and the tool
+  stayed blocked until a reload. `play()` now has a deadline.
+- **The eraser's recursion is a loop**, with a bound.
+- **The pencil-width control is a real slider** to assistive technology, and works
+  from the keyboard. The 2013 one was three divs.
+- **Undo is still one step deep.** That's a port, not an oversight: 2013 took a
+  snapshot on mouse-down and spent it on the next Cmd-Z, and `Scene.snapshot` does
+  the same. Making it a stack is a change in behaviour, so it isn't in this branch.
+
+## Styling
+
+**Plain CSS, one `.module.css` per component.** Vite scopes the class names, so
+there's no naming convention to maintain and no chance of two components fighting
+over `.page`. Global styles are one file, `src/styles/base.css`: fonts, custom
+properties, element defaults, and two utility classes.
+
+- **Sizes are in px against an untouched root.** 2013 set the root to 10px — the
+  `font-size: 62.5%` trick — and wrote everything in em, so `1.5em` meant 15px and
+  `4em` meant 40px. Same rendered sizes, written as what they are.
+- **Colours are the 2013 palette**, including the computed ones: the button's border
+  and pressed states came out of a Sass mixin that darkened the base by fixed amounts,
+  and those are the values that shipped.
+- **A component styles its own states.** No cross-module selectors — CSS Modules hash
+  the names, so `.naming .tools` across two files silently matches nothing. When the
+  save form goes up, the tray is told to stow itself.
+- **The icons are the 2013 sprite** (`src/styles/icons.module.css`). Hand-drawn, in
+  the same hand as everything else; an icon font would look like a different site.
+  The retina sheet has double the spacing as well as double the art, so one set of
+  offsets works against both.
 
 ### Type
 
-- **One face: Inter, everywhere.** 2013 ran two — Arvo, a slab serif, on
-  `html`/`body` and every heading and button, and Arial/Helvetica on paragraphs,
-  labels and inputs — so body copy and the heading above it disagreed, and so did a
-  button and its own label.
-- **Arvo is still in `style.css` and is simply never referenced.** An `@font-face`
-  nothing renders with is never downloaded — `document.fonts` reports it
-  `unloaded` — so the original stylesheet stays untouched at no cost. Don't
-  "clean it up".
-- **Inter is one file for every weight.** Google serves it as a variable font, so
-  requesting 400 and 700 returns the same 48 KB latin subset twice. That's why
-  `@font-face` declares `font-weight: 100 900` rather than two blocks. See
-  `type/Inter-ABOUT.txt`.
-
-- **No text shadows anywhere, and that rule is the file's only `!important`.** 2013
-  put a 1px shadow under nearly every piece of type to hold it up against dark and
-  saturated chrome that no longer exists. The shadows live in some fifteen compiled
-  selector lists, several ID-qualified, so mirroring them all to win on specificity
-  would be a wall of copied selectors that drifts silently. A blanket statement is
-  written as a blanket rule.
-
-- **1rem is 10px here, not 16px, and that's the unit the design is in.** `style.css`
-  sets the root to 10px — the 2013 `font-size: 62.5%` trick — and every em in the
-  original is sized against it. `revival.css` uses rem to match: the header's
-  `4rem 3rem` padding is 40/30, the wordmark's `7rem` is 70px, a `1rem` corner is
-  10px. **Don't "correct" these to a 16px scale**, and don't change the root to
-  make rem mean 16 — that would resize the entire original stylesheet.
-- **The fonts are preloaded from each page's `<head>`, and the wordmark is
-  `font-display: block`.** `swap` painted the fallback first and switched when
-  Pecita landed, which on a logo is the least acceptable place on the site for a
-  visible change of typeface. `block` holds it invisible briefly and paints once.
-  That's only safe because the preload gets the file requested before the
-  stylesheet is even parsed — and at 383 KB that matters far more than it did when
-  the font was an 18 KB subset. **If the preload goes, this must go back to `swap`**,
-  or the wordmark can be invisible for up to 3 seconds. Inter stays on `swap`: it's
-  body copy, where a beat of invisible text everywhere is the worse failure.
-
-### The site header
-
-- **It's the same component on all three pages**, `.siteHeader`: wordmark left,
-  whatever that page can do right, in `.headerActions`. Home gets the Featured/All
-  toggle and the New button, `/f/:id` gets New, `/create` gets nothing — you're
-  already on it.
-- **The markup is copied into all three HTML files, not templated.** There's no
-  build step and no server-rendered layout, so the choice was duplicating nine
-  lines or rendering the header from JS, and a JS header flashes an empty bar on
-  every load. **Change one, change all three.**
-- **`sadbrowser.html` deliberately keeps the 2013 header and the logo bitmap.**
-  It's the page `browser-check.js` sends you to when your browser is too old to
-  run the tool, so it's the one page that can't assume webfonts, flexbox or
-  `:has()`. It is not a fourth copy that got missed.
-- **The create button is a fixed-position FAB, not a header control.** It's still
-  inside `.headerActions` in the markup — `position: fixed` takes it out of flow, so
-  the DOM position costs nothing and keeps the header component identical across the
-  pages, while keeping the button early in the tab order. Two consequences: the
-  header's one-row breakpoint no longer includes it, and `.headerActions` can hold
-  nothing in flow at all (on `/f/:id`), collapsing to zero width harmlessly.
-- **The FAB is icon-only, so its accessible name is the `aria-label`.** The glyph is
-  CSS generated content precisely so it isn't announced — a screen reader saying
-  "writing hand" would be worse than silence. If the glyph ever moves into the
-  markup, the label has to move with it.
-- **`body:has(#createLink) #content` carries the bottom padding the FAB floats
-  over.** Without it the last row of cards sits under the button. `/create` has no
-  create button, so it gets no padding; browsers without `:has()` lose the padding
-  and get an overlap, not a broken layout.
-- **On `/create` and `/f/:id` the header's width tracks `.center`.** style.css
-  sizes that column at 640px, dropping to 90% below 730px, and the wordmark is
-  meant to start exactly where the canvas does — so the header container is
-  640 + its padding either side, and switches to a 5% padding below 730px to match
-  the percentage. Change the header's padding and this has to move with it.
-- **The selectors are written `#header.siteHeader`, not `.siteHeader`.** The 2013
-  rules are keyed on IDs — `#header` sets the dark bar and the 40px height, and
-  `#header ul#messages.active` is (2,1,1) — so a bare class loses to every one of
-  them. This was a real bug once: the class-only version left the dark bar in place
-  and the header overlapping the page.
-- **`ul#nav` is gone from all three pages.** `header.js` still refers to `#nav` in
-  its login and message handlers, but each is a jQuery call on an empty set, which
-  is a no-op. The home page had been running that way since the conversion.
-- **The one-row breakpoint isn't load-bearing any more.** `#headerContainer`
-  wraps, so getting the number wrong costs an early or late fold rather than a
-  header hanging off the side of the window. It used to be a derived number that
-  had to be exactly right, and it was wrong — see the note in the CSS.
-- **The wordmark is live text, not the logo PNG**, set in **Pecita** (Philippe
-  Cochy) — the typeface the 2013 logo was drawn in. Vendored, so the page still
-  makes no third-party requests.
-- **The whole of Pecita ships, all 4760 glyphs — 383 KB as WOFF2.** That is by far
-  the largest thing the site sends, and it's deliberate: the font is both the
-  wordmark and the icon set. See `type/Pecita-ABOUT.txt`.
-  - It's the **complete face, unmodified** — a straight format conversion, no
-    subsetting and no renaming. That's also why it's called `Pecita` and not
-    something else: a subset would be a Modified Version under the OFL, where
-    "Pecita" is a Reserved Font Name, and an earlier wordmark-only subset did have
-    to ship under a different name. Keep it unmodified and the name is correct.
-  - **Its dingbats are the icon set.** U+2700–27BF is hand-drawn pencils, nibs, a
-    writing hand, crosses and stars, in the same hand as the wordmark — which suits
-    a site made of pencil drawings better than any icon font. The create button is
-    U+270D WRITING HAND, set as CSS generated content.
-  - **The obvious optimisation is subsetting to the wordmark plus the glyphs
-    actually used as icons** — 18 KB for the wordmark alone. If that ever happens
-    the family has to be renamed, per the OFL point above. The command is in the
-    ABOUT file.
-- **Don't put `letter-spacing` on the wordmark.** Pecita is a joining script;
-  spacing it apart pulls the letters off each other's entry and exit strokes and
-  it stops being one line of handwriting.
-- **`#messagesBG` has to be `pointer-events: none`.** It's stretched over the whole
-  header now instead of being a 40px bar of its own, and it's transparent until
-  header.js gives it a type class — so without that it silently swallows every click
-  on the wordmark, the toggle and the create button.
-
-### The home page grid
-
-The 2013 home page was mostly a 25em yellow banner and a float mosaic, with the
-flipbooks as what was left over. Now they're the page.
-
-- **One uniform 16:9 tile, `auto-fill`ed, 320px minimum.** The mosaic's
-  large/medium tiles came off three fixed container widths, which left a ragged
-  edge at every size in between. Every flipbook is the same 640x360 canvas, so
-  they all get the same card. 320 rather than something smaller because these are
-  drawings, not thumbnails of drawings — below that a stick figure is a smudge.
-- **The minimum is `min(320px, 100%)`, not a bare `320px`.** A grid track won't
-  shrink below its minimum, so a hard 320 pushes the column wider than a 320px
-  phone and the whole page scrolls sideways.
-- **`revival.css` turns the mosaic off by matching `:nth-child(n)`**, which ties
-  the original's `:nth-child` specificity and wins on source order. That's why
-  there isn't an `!important` in there.
-- **Card titles are clipped, not `display: none`.** The card is an `<a>` whose only
-  text is that span, so hiding it outright leaves every link in the grid with no
-  accessible name. `gallery.js` still renders it.
-
-## Featured, NSFW and admin mode
-
-The home page has a **Featured / All** toggle. Featured is the default and is what
-the 2013 home page showed; All is everything else that isn't NSFW.
-
-- **New saves default to `featured = false`** and are promoted by hand.
-- **NSFW hides a flipbook from both tabs** but leaves it working on its own URL,
-  exactly as the original's reporting did. It's also the moderation lever — admin
-  mode can set it on anything, which matters because saves are public immediately.
-- **Archive rows' `featured` is reconstructed, not recovered.** See `docs/archive.md`;
-  the short version is that it's derived from the WordPress author ID in the filename,
-  because "featured" only ever meant "not anonymous".
-
-Admin mode is a single shared secret in `ADMIN_TOKEN` — there are no accounts, and one
-administrator flipping two booleans doesn't warrant inventing them. Visit
-`/?admin=<token>` once; it's stored in `localStorage` and scrubbed from the URL. Heart
-= featured, report flag = NSFW, reusing the 2013 sprite.
-
-Two things to keep in mind:
-
-- **If `ADMIN_TOKEN` is unset or under 16 characters the admin API 404s entirely.**
-  It fails closed, so a deploy that forgets it is safe rather than open.
-- **The token also affects reads.** `isAdmin()` on the listing route is what makes
-  NSFW rows visible in the All tab for you only — otherwise anything you moderated
-  would be impossible to find and un-moderate.
+- **One face: Inter, everywhere.** 2013 ran Arvo on headings and buttons and Arial on
+  body copy, so a button and its own label disagreed. Inter ships as a single variable
+  file for every weight — hence `font-weight: 100 900` rather than two `@font-face`
+  blocks.
+- **The wordmark is live text in Pecita** (Philippe Cochy), the typeface the 2013 logo
+  was drawn in, vendored so the page makes no third-party requests. The whole face
+  ships — 4760 glyphs, 383 KB — because its dingbats are also the icon on the create
+  button, and because an unmodified conversion may keep the name under the OFL where a
+  subset may not. See `public/fonts/Pecita-ABOUT.txt`.
+- **Both fonts are preloaded from `index.html`.** Pecita is `font-display: block`,
+  which is only safe because of that preload: without it the wordmark can be invisible
+  for three seconds. If the preload goes, `block` has to go back to `swap`.
+- **No `letter-spacing` on the wordmark.** Pecita is a joining script; spacing it
+  apart pulls the letters off each other's entry and exit strokes.
 
 ## Data
 
-One table, `flipbooks`. See `db/schema.sql` — it is commented.
-
-Artwork is stored **gzipped in a `bytea` column** and served back with
-`Content-Encoding: gzip`, never decompressed server side. paper.js SVG output is
-very repetitive and compresses to ~25%, which is what keeps the 585-piece archive
-(247 MB of artwork, 62 MB stored) inside Neon's free tier.
+One table, `flipbooks`. See `db/schema.sql` — it is commented. Artwork is stored
+gzipped in a `bytea` column and served with `Content-Encoding: gzip`, never
+decompressed server side.
 
 There are **two artwork formats** and both are still live:
 
 - `svg` — paper.js `exportSVG()` output. Everything from 2013 onward.
-- `legacy-json` — paper.js layer/segment JSON. The original 2012 format; 147 of the
-  archive pieces. `data.js` replays these stroke by stroke through the pencil tool.
+- `legacy-json` — paper.js layer/segment JSON, the 2012 format; 147 of the archive
+  pieces. There are no paths in it, only point lists, so it's replayed stroke by
+  stroke through the pencil — a 2012 flipbook genuinely redraws itself as you watch.
 
-`/api/flipbooks/:id/data` **must serve `legacy-json` as `text/plain`** — `data.js`
-calls `JSON.parse()` on the response itself, so jQuery must not parse it first.
+`/api/flipbooks/:id/data` **must serve `legacy-json` as `text/plain`**, and the client
+must not parse it by content type — which format it is comes from the flipbook's
+`format` field. `src/lib/api.ts` returns artwork as text and lets the caller decide.
 
-See `docs/data-formats.md` for the details.
+See `docs/data-formats.md`.
+
+## Featured, NSFW and admin mode
+
+The home page has a **Featured / All** toggle. Featured is the default and is what the
+2013 home page showed; All is everything else that isn't NSFW.
+
+- **New saves default to `featured = false`** and are promoted by hand.
+- **NSFW hides a flipbook from both tabs** but leaves it working on its own URL,
+  exactly as the original's reporting did. It's also the moderation lever, which
+  matters because saves are public immediately.
+- **Archive rows' `featured` is reconstructed, not recovered.** See `docs/archive.md`.
+
+Admin mode is a single shared secret in `ADMIN_TOKEN` — there are no accounts. Visit
+`/?admin=<token>` once; it's stored in `localStorage` and scrubbed from the URL.
+
+- **If `ADMIN_TOKEN` is unset or under 16 characters the admin API 404s entirely.** It
+  fails closed, so a deploy that forgets it is safe rather than open. The client treats
+  404 the same as 401 and signs out.
+- **The token also affects reads.** It's what makes NSFW rows visible in the All tab,
+  so anything moderated can still be found and un-moderated.
 
 ## Two deployments, one database
 
-The site runs twice, from two branches of this repo, against **one** Neon database:
+The site runs twice, from two branches, against **one** Neon database:
 
 | Branch | Vercel project | URL |
 |---|---|---|
 | `main` | `thumbcinema` | `thumbcinema.vercel.app` |
 | `time-capsule` | `thumbcinema-time-capsule` | `thumbcinema-time-capsule.vercel.app` |
 
-`time-capsule` is the revival as it first shipped and is meant to stay that way — the
-museum piece of the museum piece. `main` is where the UI is allowed to move on. Both
-serve their own copy of `api/index.js`, and the front end only ever calls same-origin
-relative paths, so neither deployment knows the other exists.
-
-Sharing the database is the whole point: a flipbook saved in either version appears in
-both, and moderating it in one moderates it in both, because `featured` and `nsfw` are
-columns rather than anything per-deployment.
+`time-capsule` is the revival as it first shipped — the 2013 front end — and is meant
+to stay that way. Sharing the database is the point: a flipbook saved in either
+version appears in both.
 
 What that costs is schema freedom:
 
-- **Migrations must be additive, and only `main` may make them.** `time-capsule` runs
-  older query code against the same table. `ADD COLUMN IF NOT EXISTS` and new indexes
-  are fine; renaming, dropping or retyping a column the old code reads is not.
+- **Migrations must be additive, and only `main` may make them.** `ADD COLUMN IF NOT
+  EXISTS` and new indexes are fine; renaming, dropping or retyping a column the old
+  code reads is not.
 - **Every new column needs a `DEFAULT`.** `createFlipbook()` on `time-capsule` won't
-  mention it, so a `NOT NULL` column without one breaks saving on the old version the
-  moment the migration lands — and it breaks the deployment you aren't looking at.
+  mention it, so a `NOT NULL` column without one breaks saving on the version you
+  aren't looking at.
 - **Never run `npm run db:migrate` from `time-capsule`.** Its `db/schema.sql` is a
-  frozen copy and will drift. Re-applying it is idempotent so it destroys nothing, but
-  it is at best a no-op and at worst misleading about what production actually has.
+  frozen copy and will drift.
 
-If a change genuinely can't be made additively, add a view or a second table rather
-than a second database.
-
-Both projects need `DATABASE_URL` and `ADMIN_TOKEN`, set to the same values, and both
-carry an **Ignored Build Step** so neither builds the other's branch. Only
-`thumbcinema` has the Neon integration's `POSTGRES_*`/`PG*` aliases; nothing reads
-them, since `lib/db.js` uses `DATABASE_URL` alone.
+Both projects need `DATABASE_URL` and `ADMIN_TOKEN` set to the same values, and both
+carry an **Ignored Build Step** so neither builds the other's branch.
 
 ## Things that will bite you
 
-- **A schema change can break the deployment you aren't looking at.** See "Two
-  deployments, one database" above — `time-capsule` runs 2025-revival query code
-  against the same live table that `main` migrates.
-
-- **Playback must not hand `data.js` its artwork URL at construction time.**
-  `data.js` starts its fetch inside the constructor but sets up the pencil that
-  legacy flipbooks are redrawn with via `_.defer()`. Whichever lands first wins. In
-  2013 WordPress took tens of milliseconds to serve the artwork so the pencil always
-  won; a local server or a warm CDN answers in ~3ms and the fetch wins instead, which
-  throws inside the jQuery success handler and leaves **every 2012 flipbook stuck on
-  the loading spinner**, silently. `boot-playback.js` therefore builds the Flipbook
-  with no URL — making the constructor's `load()` a no-op — and sets the URL and calls
-  `load()` itself one tick later. Don't "simplify" that back.
-- **`errors.js` is only loaded on `/create`.** It binds `window.onerror` to the crash
-  recovery flow, which only exists on the create page. The original loaded it
-  everywhere, which meant any error during playback threw a second error.
-- **The save request is capped at ~4 MB** by Vercel's request limit. The form encoding
+- **A schema change can break the deployment you aren't looking at.** See above.
+- **The save request is capped at ~4 MB** by Vercel's request limit, and form encoding
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
-  the historical archive would exceed it. `lib/http.js` returns a clean 413.
-- **New flipbooks are public immediately and there is no rate limiting.** This is a
-  deliberate choice, matching the original. `lib/router.js` `saveFlipbook()` is where
-  a throttle would go if it ever needs one.
-- **No accounts.** `logged_in` is hardcoded `true` everywhere, which is what makes the
-  original save form render its single-button variant and skip the BuddyPress account
-  forms. It also enables the draft button, which `revival.css` hides — a draft is
-  meaningless with no account to return to it with.
+  the historical archive would exceed it. The server answers 413 and the create page
+  says so in plain words.
+- **New flipbooks are public immediately and there is no rate limiting.** Deliberate,
+  matching the original. `lib/router.js` `saveFlipbook()` is where a throttle would go.
+- **No accounts.** Everything saves anonymously. The 2013 draft button is gone with
+  them — a draft you can't come back to isn't a draft.
 - **The gallery uses keyset pagination, not OFFSET.** With an infinite scroll and
   OFFSET, one flipbook saved mid-scroll shifts every later row down and the reader
-  sees a duplicate. Cursors compare on `(created_at, id)`, which is stable under
-  inserts and matches the index.
-- **Gallery fetches carry a generation number.** Switching tabs empties the grid, so a
-  response still in flight from the previous tab would otherwise land in it and splice
-  the two lists together. Responses whose generation is stale are dropped.
+  sees a duplicate.
+- **A tab switch aborts the fetch in flight.** Otherwise a page of Featured results
+  lands in a freshly emptied All grid and the two lists get spliced together.
+- **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
+  drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
+  attached to the document, and none of it should follow you to the flipbook page.
 - **Re-running the archive import does not reset `featured`.** By the second run that
-  column reflects curation done in admin mode, so it's only set on insert.
-  `--reset-featured` opts back into the inference and discards that.
+  column reflects curation done in admin mode.
 - **`_original/` is gitignored** and is the only copy of the archive seed data. Don't
   edit it, and don't let it get deleted — see `docs/archive.md`.
 

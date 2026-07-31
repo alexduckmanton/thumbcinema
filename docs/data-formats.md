@@ -2,27 +2,28 @@
 
 ## The save contract
 
-`public/script/flip/data.js` is original 2013 code and has not been touched. It
-defines the save protocol, and the back end conforms to it rather than the other way
-round.
+The save protocol was defined by 2013's `data.js`, and both the back end and the
+rewritten front end conform to it rather than the other way round — because the 585
+archive flipbooks were written by that code and have to keep working. It now lives in
+`src/lib/api.ts`:
 
-```js
-// data.js, send()
-$.ajax({
-    type: "POST",
-    url: "/saveflipbook",
-    data: {
-        title:       flip_title,
-        description: flip_desc,
-        project:     flip_xml,      // paper.js exportSVG(), serialised
-        imgBase64:   thumbnail,     // canvas.toDataURL("image/png")
-        nsfw:        isNSFW,
-        draft:       is_draft,
-        postID:      post_id
-    }
-}).done(function(msg) {
-    window.location.href = msg;     // <- the response body IS the redirect target
-});
+```ts
+// api.ts, saveFlipbook()
+const form = new URLSearchParams({
+    title: payload.title,
+    description: payload.description,
+    project: payload.svg,                  // paper.js exportSVG(), serialised
+    imgBase64: payload.thumbnailDataUrl,   // canvas.toDataURL("image/png")
+    nsfw: payload.nsfw ? '1' : '0',
+})
+
+const response = await fetch('/saveflipbook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form,
+})
+
+return (await response.text()).trim()      // <- a bare "/f/{id}"
 ```
 
 So:
@@ -30,12 +31,13 @@ So:
 - The request is **`application/x-www-form-urlencoded`**, not JSON.
 - The response is **a bare URL in a `text/plain` body**. Not JSON, no wrapper. It gets
   assigned directly to `window.location.href`.
-- `draft` and `postID` are vestigial. Drafts needed an account to return to them with,
-  so the draft button is hidden by `revival.css` and these fields are ignored.
+- `draft` and `postID` are gone. Drafts needed an account to return to them with, and
+  the server ignored both fields anyway.
 - `nsfw` is honoured: flagged flipbooks keep working on their own URL but are left out
   of the browse grid, which is exactly what the original did with the `nsfw` category.
 
-**Do not change this contract without changing `data.js`, and don't change `data.js`.**
+**Don't change this contract.** It's the 2013 endpoint, it is what the `time-capsule`
+deployment still posts to, and both deployments share one database.
 
 ## Artwork: two formats
 
@@ -59,11 +61,15 @@ page, in page order, each containing the strokes on that page:
 ```
 
 The first three groups are paper.js's system layers (guide, undo, selection); real
-pages start at index 3. `data.js` `draw_page()` starts its loop there, which is why
-the numbering looks off by three.
+pages start at index 3. `parseSvgPages()` skips the same three, which is why the
+numbering looks off — see `LEADING_SYSTEM_GROUPS` in `src/flipbook/engine/formats.ts`,
+and `assertLeadingGroups()`, which refuses to save an export that doesn't match.
 
-Loading is fast: `data.js` `load_xml()` drops the markup into a hidden `#svg` div and
-`canvas_layer.importSVG()` reads each element back into paper.js.
+Loading parses the file with `DOMParser` and imports each stroke with
+`layer.importSVG()`. Two things bite here and both are handled at the point they
+matter: the strokes' `fill="none"` lives on the `<g>`, not on each polyline, so an
+imported stroke comes back filled black unless the fill is cleared; and `stroke-width`
+is inherited the same way, so it's reapplied per stroke from the group's value.
 
 ### `legacy-json` — 2012
 
@@ -80,9 +86,10 @@ The original format, before the SVG export existed. Raw paper.js layer/segment J
 ```
 
 Same three leading system layers. There are no paths, only point lists — so
-`data.js` `load_legacy()` cannot import it, and instead **replays every stroke through
-the pencil tool**, calling `beginDraw()`, `dragDraw(point)` per segment, `endDraw()`.
-It's slow on big flipbooks and it is genuinely re-drawing the animation as you watch.
+there is nothing to import, so it is **replayed stroke by stroke through the pencil**
+— `begin()`, `extend(point)` per segment, `end()`. It is genuinely re-drawing the
+animation as you watch. The replay yields in frame-sized slices rather than one page
+per `setTimeout(0)`, which is what the 2013 loader did.
 
 147 of the 585 archive pieces are in this format.
 
@@ -92,43 +99,36 @@ It's slow on big flipbooks and it is genuinely re-drawing the animation as you w
 
 | Format | Content-Type | Why |
 |---|---|---|
-| `svg` | `image/svg+xml` | jQuery `.load()` treats it as HTML and the parser handles SVG foreign content |
-| `legacy-json` | **`text/plain`** | `data.js` calls `JSON.parse()` on the response itself. If jQuery sees `application/json` it parses first, and `JSON.parse(object)` throws. |
+| `svg` | `image/svg+xml` | It is an SVG |
+| `legacy-json` | **`text/plain`** | 2013's jQuery parsed `application/json` before the client saw it, and `JSON.parse(object)` throws |
 
 The original served these as WordPress attachments — `.xml` and `.txt` respectively —
-which is where those content types come from. Getting the legacy one wrong breaks
-every 2012 flipbook, silently, only on those rows.
+which is where those content types come from. `time-capsule` still depends on the
+legacy one being `text/plain`; getting it wrong breaks every 2012 flipbook there,
+silently, only on those rows.
 
-### The load race
+The rewritten client doesn't depend on either. `getFlipbookData()` returns the response
+as text and the caller picks a parser from the flipbook's `format` field, which is the
+thing that actually knows.
 
-There is a second, subtler way to break exactly the same set of rows.
+### The load race, and how it went away
 
-`data.js` `initialize()` schedules the legacy pencil's setup with `_.defer()`, but
-`Flipbook.js` calls `data.load()` synchronously inside the same constructor — so the
-fetch is already in flight before the pencil exists:
+There used to be a second, subtler way to break exactly the same set of rows.
 
-```js
-// data.js
-} else {
-    _.defer(this.init_legacy_pencil);        // pencil ready on the next tick
-}
-...
-legacy_draw_page: function(page_index, nodes) {
-    ...
-    this.legacy_pencil.beginDraw();          // throws if the fetch got here first
-```
+2013's `data.js` scheduled the legacy pencil's setup with `_.defer()` while
+`Flipbook.js` started the artwork fetch synchronously in the same constructor. In 2013
+the fetch always lost — WordPress took tens of milliseconds to serve a file — but a
+local dev server or a warm CDN edge answers in about 3 ms, the fetch won, and the
+resulting `TypeError` was swallowed inside jQuery's success handler. Every 2012
+flipbook sat on the spinner forever.
 
-In 2013 this never lost: the artwork was a file served by WordPress over a real
-network, taking tens of milliseconds. A local dev server or a warm CDN edge answers in
-about 3 ms, which beats the deferred setup, and the resulting `TypeError` is swallowed
-inside jQuery's success handler. The page just sits on the spinner forever.
-
-`boot-playback.js` sidesteps it without touching `data.js`: the Flipbook is
-constructed with **no** `data_json`/`data_xml`, so the constructor's `load()` returns
-immediately, and the boot code sets the URL and calls `load()` itself one tick later.
+The revival worked around it in `boot-playback.js` without touching the original. The
+rewrite doesn't have the race at all: the playback page awaits the artwork and then
+awaits the replay, and both are ordinary promises. **`time-capsule` still has it, and
+still has the workaround** — don't collapse that deferral back into the constructor
+over there.
 
 Faster infrastructure exposing a latent 2013 race is a fun way to lose an afternoon.
-Don't collapse that deferral back into the constructor.
 
 ## Storage
 
@@ -154,11 +154,11 @@ noticeably — `<`, `>`, `"` and spaces all become three characters — so the p
 limit is somewhere around a 2.5 MB drawing.
 
 `lib/http.js` enforces 4 MB on the stream and `lib/flipbooks.js` enforces 3 MB on the
-decoded SVG, both returning `413`. `data.js`'s `.fail()` handler shows the "Oh no!
-Something went wrong" message, which is the right user-facing outcome even if it isn't
-a specific one.
+decoded SVG, both returning `413`. The create page recognises that status and says
+"that flipbook is too big to save, try deleting a few pages" rather than the generic
+failure, which is at least actionable.
 
 Judging by the archive, this would have affected roughly 5% of historical flipbooks —
-the very long ones. Raising it means either compressing client-side before POST (which
-would mean editing `data.js`) or moving the upload to object storage with a presigned
-URL. Neither is worth it until someone actually hits it.
+the very long ones. Raising it means either compressing client-side before POST or
+moving the upload to object storage with a presigned URL. Neither is worth it until
+someone actually hits it.

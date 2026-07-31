@@ -1,0 +1,146 @@
+/*
+ * The save form, over the drawing.
+ *
+ * It covers the canvas rather than appearing below it: the flipbook is finished at
+ * this point and the only thing left is to name it. The blue is the site's, at full
+ * strength — the one moment the chrome is loud.
+ */
+
+.form {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 17;
+	width: 100%;
+	padding: 40px;
+	color: var(--white);
+	line-height: 1.5;
+}
+
+.form fieldset {
+	position: relative;
+	margin: 0;
+	padding: 0 0 20px;
+	border: none;
+}
+
+.form legend {
+	padding: 0;
+	font-size: 25px;
+}
+
+.form ol {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.form li {
+	padding-top: 20px;
+}
+
+.form label {
+	color: var(--white);
+}
+
+.form input[type='text'],
+.form textarea {
+	display: block;
+	width: 100%;
+	border-color: #1a5af1;
+	background: #e9effe;
+	color: #07256b;
+}
+
+.form input[type='text']:focus,
+.form textarea:focus {
+	border-color: #0c46cc;
+	background: var(--white);
+}
+
+.form textarea {
+	height: 63px;
+}
+
+.optional {
+	opacity: 0.666;
+}
+
+/* The NSFW checkbox sits inline with its own label rather than above it — it's the
+   one field that reads as a sentence. */
+.checkbox {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.checkbox input {
+	width: auto;
+	margin: 0;
+}
+
+.checkbox label {
+	padding: 0;
+}
+
+.buttons {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+/*
+ * Each row drops in on its own timing, which is the same trick the message banner
+ * uses: neighbouring elements get different durations rather than different delays,
+ * so they land out of order.
+ */
+.form li,
+.form legend,
+.form .buttons {
+	animation: dropIn 0.3s linear;
+}
+
+.form li:nth-child(1) {
+	animation-duration: 0.3s;
+}
+.form li:nth-child(2) {
+	animation-duration: 0.2s;
+}
+.form li:nth-child(3) {
+	animation-duration: 0.4s;
+}
+
+@keyframes dropIn {
+	0% {
+		opacity: 0;
+		transform: translate3d(0, -60px, 0);
+	}
+	30% {
+		opacity: 1;
+		transform: translate3d(0, 5px, 0);
+	}
+	60% {
+		transform: translate3d(0, -2px, 0);
+	}
+	100% {
+		transform: translate3d(0, 0, 0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.form li,
+	.form legend,
+	.form .buttons {
+		animation: none;
+	}
+}
+
+/*
+ * On a tablet the form is competing with an on-screen keyboard for a 360px-tall
+ * space, so the optional field goes. It was optional anyway.
+ */
+@media screen and (max-width: 1024px) and (pointer: coarse) {
+	.description {
+		display: none;
+	}
+}
