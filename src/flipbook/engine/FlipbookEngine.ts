@@ -54,8 +54,6 @@ export interface FlipbookState {
 export interface EngineOptions {
 	mode: EngineMode
 	isTouch: boolean
-	/** Playback only: replays the flipbook once it has finished loading. */
-	autoPlay?: boolean
 }
 
 /**

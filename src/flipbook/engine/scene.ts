@@ -66,10 +66,6 @@ export class Scene {
 		this.activeLayer.activate()
 	}
 
-	activate(): void {
-		this.scope.activate()
-	}
-
 	get project(): paper.Project {
 		return this.scope.project
 	}

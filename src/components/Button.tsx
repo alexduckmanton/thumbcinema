@@ -31,6 +31,3 @@ export function Button({
 		</button>
 	)
 }
-
-/** Same look, but a real link — used for "New flipbook" and the gallery's retry. */
-export const buttonClass = styles.button
