@@ -8,13 +8,13 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
+    "dev": "node scripts/with-node.js vite",
+    "build": "npm run typecheck && node scripts/with-node.js vite build",
+    "preview": "node scripts/with-node.js vite preview",
+    "test": "node scripts/with-node.js vitest run",
+    "test:watch": "node scripts/with-node.js vitest",
+    "test:coverage": "node scripts/with-node.js vitest run --coverage",
+    "typecheck": "node scripts/with-node.js tsc --noEmit",
     "db:migrate": "node scripts/migrate.js",
     "db:import-archive": "node scripts/import-archive.js",
     "db:stats": "node scripts/stats.js"

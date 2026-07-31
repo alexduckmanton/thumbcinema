@@ -56,7 +56,10 @@ For the curation toggles locally, set `ADMIN_TOKEN` in `.env` and visit
 
 `npm run dev` is Vite with the real API mounted as middleware — no Vercel CLI, no
 Docker, no second process. The drawing tool works without a database; the gallery and
-saving need one. Node 22.12 or newer.
+saving need one.
+
+Node 22.12 or newer — there's an `.nvmrc`, and the scripts will find an installed
+version that works if the one on your `PATH` doesn't.
 
 | Command | |
 |---|---|

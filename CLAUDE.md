@@ -80,8 +80,15 @@ npm run db:migrate
 npm run dev              # http://localhost:3000
 ```
 
-Node 22.12+ (see `.nvmrc`). `npm run dev` is Vite, with the real API router mounted
-as middleware — see `vite.config.ts`. There's no second process and no Vercel CLI;
+Node 22.12+ — Vite and Vitest sit on Rolldown, which imports `styleText` from
+`node:util`. There's an `.nvmrc`, and `scripts/with-node.js` wraps every script that
+needs it: on an older Node it finds an installed one that will do and re-executes
+under that, so `npm run dev` works without remembering `nvm use` first. It says so
+when it does. If it can't find one it says that instead, rather than letting a
+`SyntaxError` surface from inside node_modules.
+
+`npm run dev` is Vite, with the real API router mounted as middleware — see
+`vite.config.ts`. There's no second process and no Vercel CLI;
 `lib/router.js` is imported directly, so the dev server and production run identical
 routing. It needs `DATABASE_URL` for anything that touches the gallery or saving; the
 drawing tool itself works without one.
