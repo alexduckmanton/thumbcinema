@@ -65,6 +65,16 @@ npm run dev              # http://localhost:3000
 Docker, no login. It needs `DATABASE_URL` for anything that touches the gallery or
 saving; the drawing tool itself works without one.
 
+It sends **`Cache-Control: no-store`** on every static response, and that's
+deliberate. It used to send `no-cache`, which sounds stronger and isn't: `no-cache`
+permits a client to *store* the response provided it revalidates first, and
+revalidating needs a validator the server wasn't sending. With no `ETag` and no
+`Last-Modified` there was nothing to revalidate against, so clients served the
+stored copy instead — edits to `revival.css` silently did nothing and the CSS
+looked broken when it was correct. Don't "optimise" this back to `no-cache`
+without adding an `ETag` and conditional-request handling to go with it. Production
+is unaffected; Vercel sets its own caching headers.
+
 | Command | Does |
 |---|---|
 | `npm run dev` | Local server on :3000 |

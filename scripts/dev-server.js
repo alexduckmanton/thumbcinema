@@ -75,6 +75,26 @@ const server = createServer(async (req, res) => {
 	}
 });
 
+// `no-store`, not `no-cache`. They read like synonyms and aren't: `no-cache` lets a
+// client *store* the response as long as it revalidates before reusing it — and
+// revalidating needs a validator, which this server wasn't sending. With no ETag and
+// no Last-Modified there was nothing to revalidate against, and clients fell back to
+// serving the stored copy. That cost an afternoon once: revival.css kept coming back
+// as an older version, edits appeared to do nothing, and the CSS looked broken when
+// it was correct. `no-store` says don't keep it at all, which is the only thing a dev
+// server actually wants.
+//
+// Last-Modified is still sent, but only as information — with no-store nothing will
+// ever send it back as If-Modified-Since, and that's fine. The cost is that every
+// reload re-fetches the fonts; they're on local disk, and it means the cold-load path
+// (preload + font-display: block) is what you see every time, which is the one worth
+// checking anyway.
+const NO_STORE = {
+	'Cache-Control': 'no-store, max-age=0',
+	'Pragma': 'no-cache', // for anything speaking HTTP/1.0 in between
+	'Expires': '0'
+};
+
 async function sendFile(res, filePath) {
 	const info = await stat(filePath);
 	if (!info.isFile()) return notFound(res);
@@ -82,14 +102,16 @@ async function sendFile(res, filePath) {
 	res.writeHead(200, {
 		'Content-Type': MIME[extname(filePath).toLowerCase()] || 'application/octet-stream',
 		'Content-Length': info.size,
-		'Cache-Control': 'no-cache' // always see your edits
+		'Last-Modified': info.mtime.toUTCString(),
+		...NO_STORE
 	});
 
 	createReadStream(filePath).pipe(res);
 }
 
 function notFound(res) {
-	res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+	// Also no-store: a cached 404 means a file you've just added stays missing.
+	res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...NO_STORE });
 	res.end('Not found');
 }
 
