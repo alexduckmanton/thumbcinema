@@ -13,13 +13,11 @@
 
 .book {
 	position: relative;
-	/*
-	 * As wide as it's given, but never so tall that the controls under it are pushed
-	 * off the bottom of the window — which on a phone held sideways is the binding
-	 * constraint rather than the width. Each page says how much room the rest of it
-	 * needs; 260 is the playback page's, as the more common of the two.
-	 */
-	width: min(100%, calc((100dvh - var(--book-reserve, 260px)) * 16 / 9));
+	/* As wide as it's given, but never so tall that the controls under it are pushed
+	   off the bottom of the window — which on a phone held sideways is the binding
+	   constraint rather than the width. The formula is in base.css, because the page
+	   scrubber under the canvas is sized off the same one. */
+	width: var(--book-width);
 	aspect-ratio: 640 / 360;
 	margin: 0 auto;
 	line-height: 0;

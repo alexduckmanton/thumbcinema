@@ -151,7 +151,7 @@ export function CreatePage() {
 							engine={engine}
 							activePage={state.activePage}
 							pages={pages}
-							busy={state.busy}
+							playing={state.playback !== 'none'}
 						/>
 					) : null}
 

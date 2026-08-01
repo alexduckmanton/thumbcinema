@@ -288,14 +288,21 @@ finger rather than a pointer.
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
 - **The tools are turned over and stuck to the bottom of the window.** They point up
   at the paper rather than down away from it, and selecting one draws it further up
-  out of the window — the same 50px slide as the desktop's, the other way. The fan of
-  arrows behind the transform button doesn't come with them: it opens downwards, and
-  there is nothing below the bottom of the window to open into. The cost is that push
-  mode has no icon of its own there.
+  out of the window — the desktop's slide the other way about. Pencil and eraser are
+  one picture each and flip the picture (`.blade`); transform is four stacked images
+  whose fan is built out of `bottom` and a top-edge `transform-origin`, so the whole
+  button turns over instead and the fan opens up into the page.
 - **The page strip goes, and `PageNav` replaces it.** The strip is full-size copies of
   the canvas at a fixed 660px pitch positioned by arithmetic, which can't be scaled
   without rewriting it; and hiding it is what buys the drawing the full width of the
-  window. Two arrows and a page count do the same job in 44px.
+  window. An arrow at each end and a scrubber between them do the same job in 48px:
+  the handle follows the finger while it's held and settles onto the nearest page
+  when it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows
+  playback as well as leading it, because the engine publishes every page change
+  including the twelve a second that `play` makes — which is also the one time the
+  settle's transition is turned off. The arrows wrap rather than greying out at the
+  ends, because playback loops. It's exactly as wide as the drawing it scrubs;
+  `--book-width` is declared on `.center` so both are sized off one formula.
 - **The width slider stands up.** Same component: it reads which way it runs from the
   shape of its own track, so the breakpoint lives only in the stylesheet.
 - **Circleplay works with a finger**, on both pages. It listens for `pointermove`

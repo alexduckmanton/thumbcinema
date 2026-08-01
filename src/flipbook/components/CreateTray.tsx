@@ -89,10 +89,9 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 					>
 						{/* Four stacked images: the hand, and three arrows that fan out
 						    from behind it when the tool is on. */}
-						<span
-							className={`${styles.layer} ${styles.blade} ${icons.transform}`}
-							aria-hidden="true"
-						/>
+						{/* No `blade` here, unlike the pencil and the eraser: on a phone this
+						    button is turned over as a whole, arrows and all. */}
+						<span className={`${styles.layer} ${icons.transform}`} aria-hidden="true" />
 						<span
 							className={`${styles.layer} ${
 								tool === 'transform' && transformIndex === 0

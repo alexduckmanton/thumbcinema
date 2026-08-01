@@ -266,6 +266,19 @@ label {
 	width: 100%;
 	padding: 0 20px;
 	margin: 0 auto;
+
+	/*
+	 * How wide the sheet of paper is: as much as this column will give it, but never
+	 * so tall that what sits under it is pushed off the bottom of the window. Each
+	 * page says how much room the rest of it needs, in `--book-reserve`.
+	 *
+	 * Declared here rather than on the canvas because the page scrubber has to be
+	 * exactly as wide as the drawing it scrubs, and they're siblings in this column —
+	 * so `100%` means the same thing to both, and both are resolved against it. It
+	 * can't go on `:root`: a `var()` inside a custom property is substituted where the
+	 * property is *declared*, and `--book-reserve` is set below that, on each page.
+	 */
+	--book-width: min(100%, calc((100dvh - var(--book-reserve, 260px)) * 16 / 9));
 }
 
 @media screen and (max-width: 460px) {

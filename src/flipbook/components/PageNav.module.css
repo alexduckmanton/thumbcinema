@@ -1,41 +1,45 @@
 /*
- * Back a page, forward a page, and which page this is. Under the canvas, on a phone.
+ * Back a page, forward a page, and a scrubber between them. Under the canvas, on a
+ * phone.
  *
  * The chevrons are drawn rather than taken from the icon sheet. Every icon on that
- * sheet is hand-drawn and this is deliberately not — an arrow in the same hand as the
- * pencil would read as another tool, and these are the page-turn, which is the one
- * piece of chrome here that should say nothing about itself at all. Two borders on a
- * rotated square, which is also the whole reason there's no arrow on the sheet to
- * take: nobody has ever needed to draw one.
+ * sheet is hand-drawn and these are deliberately not — an arrow in the same hand as
+ * the pencil would read as another tool, and these are the page-turn, which is the
+ * one piece of chrome here that should say nothing about itself at all. Two borders
+ * on a rotated square, which is also the whole reason there's no arrow on the sheet
+ * to take: nobody has ever needed to draw one.
  */
 
 .nav {
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	width: 100%;
-	margin: 10px 0 0;
+	gap: 4px;
+	/* The width of the drawing, not of the column: this is the flipbook's own ruler,
+	   and a bar running past both edges of the paper it belongs to reads as the page's
+	   rather than the flipbook's. Sideways, that's the difference between 310px and
+	   the whole window. */
+	width: var(--book-width);
+	margin: 10px auto 0;
+
+	/* The bar's height, and the handle's diameter with it — the handle is a circle
+	   that exactly fills the bar. One number, because the arithmetic that positions it
+	   subtracts a handle from the travel and `pageAt` measures the same handle back
+	   off the pointer. */
+	--scrub-size: 48px;
 }
 
 .arrow {
 	display: flex;
+	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	width: 48px;
-	height: 44px;
+	width: 44px;
+	height: var(--scrub-size);
 	padding: 0;
 	border: none;
 	background: none;
 	color: var(--ink);
 	cursor: pointer;
-}
-
-/* At the ends of the flipbook. Faded rather than hidden, so the row doesn't change
-   width as you walk through the pages. */
-.arrow:disabled {
-	opacity: 0.25;
-	cursor: default;
 }
 
 .arrow:focus-visible {
@@ -63,28 +67,65 @@
 	transform: rotate(45deg);
 }
 
-.count {
-	min-width: 72px;
-	margin: 0;
-	color: var(--ink-soft);
-	font-size: 14px;
-	font-variant-numeric: tabular-nums;
-	line-height: 1;
-	text-align: center;
+/*
+ * The bar: a groove for the handle to run in, and nothing else on it.
+ *
+ * White, like the sheet of paper above it, on the grey of the page. The handle is the
+ * width slider's grey, so the two things on this page you drag look like the same
+ * kind of thing.
+ */
+.track {
+	position: relative;
+	flex: 1 1 auto;
+	height: var(--scrub-size);
+	border-radius: var(--radius-pill);
+	background: var(--white);
+	cursor: pointer;
+	/* The drag is the control; the page mustn't take it for a scroll. */
+	touch-action: none;
+	user-select: none;
 }
 
-.of {
-	opacity: 0.6;
+.track:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 2px;
+}
+
+/* The handle. Under the finger it is wherever the finger is; the moment it isn't, it
+   is on a page. */
+.handle {
+	position: absolute;
+	top: 0;
+	left: calc(var(--fraction) * (100% - var(--scrub-size)));
+	width: var(--scrub-size);
+	height: var(--scrub-size);
+	border-radius: var(--radius-pill);
+	background: #888;
+}
+
+/*
+ * The settle onto the nearest page, and every other move the handle makes on its own.
+ *
+ * Off in the two cases where easing would be a lie: while it's being dragged, where
+ * it has to be exactly under the finger rather than on its way to it, and during
+ * playback, where it is moved twelve times a second and anything easing between those
+ * would smear into a blur that says nothing about which page is showing.
+ */
+.eased {
+	transition: left 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.eased {
+		transition: none;
+	}
 }
 
 /* A short window, where every row is paying for its height. */
 @media screen and (max-height: 560px) {
 	.nav {
 		margin-top: 4px;
-	}
-
-	.arrow {
-		height: 36px;
+		--scrub-size: 36px;
 	}
 }
 

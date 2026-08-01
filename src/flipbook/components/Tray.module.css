@@ -272,8 +272,9 @@
 		padding: 0 calc(8px + env(safe-area-inset-right)) env(safe-area-inset-bottom)
 			calc(8px + env(safe-area-inset-left));
 		margin: 0;
+		/* No rule along the top. The tools stand up through where it would run, and a
+		   line drawn across a pencil reads as a line drawn across a pencil. */
 		background: var(--page);
-		border-top: 1px solid var(--line);
 		transition: transform 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045);
 	}
 
@@ -300,16 +301,23 @@
 		margin: 0 4px 0 0;
 	}
 
-	/*
-	 * Scoped to the tray rather than left bare, because the transform button's own
-	 * base layer is one of these and it carries a `transform: none` of the same
-	 * weight — and, less obviously, a `transform-origin` of the top edge, which is
-	 * what the fan of arrows above it rotates around. Turning something over about its
-	 * top edge doesn't turn it over, it throws it its own height into the air.
-	 */
 	.floating .blade {
 		transform: rotate(180deg);
-		transform-origin: 50% 50%;
+	}
+
+	/*
+	 * Transform turns over as a whole button rather than one image inside it.
+	 *
+	 * The other two are a single picture each, so flipping the picture is the whole
+	 * job. This one is four stacked images — a hand, and three arrows that fan out
+	 * from behind it — and the fan is built out of `bottom`, a top-edge
+	 * `transform-origin` and three rotations that all mean "downwards". Turning the
+	 * button over turns the arrangement over with it, so the fan opens up into the
+	 * page above the tools instead of playing out below the bottom of the window,
+	 * and the hand comes over with it for free.
+	 */
+	.floating .transform {
+		transform: rotate(180deg);
 	}
 
 	/* Half the bar's depth when it's resting, all but 8px of it when it's the tool in
@@ -325,20 +333,6 @@
 	.floating .transformActive {
 		top: 8px;
 		bottom: auto;
-	}
-
-	/*
-	 * Not the fan of arrows, though.
-	 *
-	 * They open downwards from behind the hand, and there is nothing below the bottom
-	 * of the window to open into — they'd play out entirely off the screen. The slide
-	 * says the tool is on, which is what they were there to say. What goes with them
-	 * is the only sign that a second press has cycled into push mode; push is a
-	 * pointer instrument that needs a selection first, and it is the one thing here
-	 * that reads better on a desktop.
-	 */
-	.floating .transform .layer:not(:first-child) {
-		display: none;
 	}
 
 	/* Bigger than the ink in them: these are thumb targets now, and the icons they
