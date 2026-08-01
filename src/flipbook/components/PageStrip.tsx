@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { PAGE_ANIMATION_EASE, PAGE_ANIMATION_MS } from '../engine/animations'
 import { CANVAS_HEIGHT, CANVAS_WIDTH, PAGE_MARGIN } from '../engine/constants'
 import type { FlipbookEngine, PageState } from '../engine/FlipbookEngine'
 import styles from './PageStrip.module.css'
@@ -13,15 +12,13 @@ export interface PageStripProps {
 	pages: PageState[]
 	activePage: number
 	playing: boolean
-	/** True while a page is arriving or leaving; the strip travels with it. */
-	animating: boolean
 	/** True while a page is still on its way into the canvas's slot. */
 	arriving: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 }
 
-export function PageStrip({ engine, pages, activePage, playing, animating, arriving, canvasRef }: PageStripProps) {
+export function PageStrip({ engine, pages, activePage, playing, arriving, canvasRef }: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
 	const [canvasOffset, setCanvasOffset] = useState(0)
 
@@ -48,27 +45,11 @@ export function PageStrip({ engine, pages, activePage, playing, animating, arriv
 	// Nothing, while a page is still travelling into that slot.
 	const covered = arriving ? -1 : activePage
 
-	/*
-	 * The strip's own pace.
-	 *
-	 * Its resting transition is the quick one that answers a click on a thumbnail.
-	 * While a page is arriving or leaving it borrows the page animation's clock
-	 * instead, because the two are describing the same movement: the pages either
-	 * side of the gap sliding along was finishing in 0.3s while the page they were
-	 * closing over was still falling, which read as them snapping into place ahead
-	 * of it.
-	 */
-	const timing = snap
-		? { transitionDuration: '0s' }
-		: animating
-			? { transitionDuration: `${PAGE_ANIMATION_MS}ms`, transitionTimingFunction: PAGE_ANIMATION_EASE }
-			: undefined
-
 	return (
 		<div className={styles.container} ref={container} aria-hidden="true">
 			<div
 				className={playing ? `${styles.strip} ${styles.playing}` : styles.strip}
-				style={{ left: `${left}px`, ...timing }}
+				style={{ left: `${left}px`, transitionDuration: snap ? '0s' : undefined }}
 			>
 				{pages.map((page, index) => (
 					<div

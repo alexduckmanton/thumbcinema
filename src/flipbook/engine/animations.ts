@@ -17,15 +17,14 @@
  */
 
 const EASE = 'ease-in-out'
-const DURATION = 750
 
 /**
- * How long a page takes to arrive or leave. Exported because the strip has to slide
- * in step with it — sliding on its own, faster clock, is what made the neighbouring
- * pages look like they snapped into place while the deleted one was still falling.
+ * The full length of a page animation — but not how long a page takes to *travel*.
+ * Each of these throws its page to the next slot by offset 0.35–0.4 and spends the
+ * remainder settling, which is why the strip's own transition is 0.3s and must stay
+ * there. See `.strip` in `PageStrip.module.css`.
  */
-export const PAGE_ANIMATION_MS = DURATION
-export const PAGE_ANIMATION_EASE = EASE
+const DURATION = 750
 
 /** One page thumbnail's width plus its gutters. Matches `.page` in the stylesheet. */
 const PAGE_STEP = 660

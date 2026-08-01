@@ -21,6 +21,16 @@
 	overflow: hidden;
 }
 
+/*
+ * 0.3s is not a taste decision, it is the page animations' travel time.
+ *
+ * Every keyframe set that moves a page from one slot to the next arrives at offset
+ * 0.35–0.4 of its 750ms and spends the rest settling — a quick throw, then a wobble.
+ * The strip carries every page that isn't individually animated, so it has to cover
+ * the same ground in the same 300ms or the two disagree. Stretched to the full 750ms
+ * it does not merely look slower: the thrown page lands in the next slot 450ms
+ * before the page already there has finished leaving it, and covers it on the way.
+ */
 .strip {
 	position: absolute;
 	width: 99999px;

@@ -103,7 +103,6 @@ export function CreatePage() {
 						pages={state.pages}
 						activePage={state.activePage}
 						playing={state.playback !== 'none'}
-						animating={state.busy}
 						arriving={state.arriving}
 						canvasRef={canvasRef}
 					/>
