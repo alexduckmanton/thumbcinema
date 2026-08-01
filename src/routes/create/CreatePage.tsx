@@ -3,13 +3,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
+import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import { settledPageCount } from '../../flipbook/engine/pages'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
-import { canDraw, isTouch } from '../../lib/device'
+import { isTouch } from '../../lib/device'
 import { registerMessage, showMessage } from '../../lib/messages'
 import { guardNavigation, navigate } from '../../router/Router'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
@@ -27,11 +28,6 @@ export function CreatePage() {
 
 	useEffect(() => {
 		document.title = 'create — thumbcinema'
-	}, [])
-
-	// Phones were always turned away: the canvas needs a real pointer and some room.
-	useEffect(() => {
-		if (!canDraw) navigate('/', { replace: true })
 	}, [])
 
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools.
@@ -134,6 +130,11 @@ export function CreatePage() {
 							</div>
 						) : null}
 
+						{/* Somewhere to circle that isn't the drawing. See `.scrub`. */}
+						{isTouch && state?.playback === 'circleplay' ? (
+							<div className={canvasStyles.scrub} aria-hidden="true" />
+						) : null}
+
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
 
 						{phase !== 'drawing' ? (
@@ -144,6 +145,15 @@ export function CreatePage() {
 							/>
 						) : null}
 					</div>
+
+					{engine && state && phase === 'drawing' ? (
+						<PageNav
+							engine={engine}
+							activePage={state.activePage}
+							pages={pages}
+							busy={state.busy}
+						/>
+					) : null}
 
 					{engine && state ? (
 						<CreateTray engine={engine} state={state} stowed={phase !== 'drawing'} />

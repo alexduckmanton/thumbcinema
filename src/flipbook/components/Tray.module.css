@@ -227,7 +227,19 @@
 	line-height: 1;
 }
 
-@media screen and (max-width: 730px) {
+/* ---------------------------------------------------------------------------
+ * Phones, and any window too small for the layout above.
+ *
+ * Desktop is the base here rather than the other way round, because half of this
+ * file belongs to the playback page — where the tray is a row under a flipbook at
+ * every width and there is no second layout to be first about. What changes below is
+ * the create page's tray, which stops being a row under the canvas and becomes the
+ * tools themselves, along the bottom edge of the window where a thumb is.
+ *
+ * Narrow or short; see the note in base.css.
+ * ------------------------------------------------------------------------- */
+
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.tray {
 		justify-content: center;
 		text-align: center;
@@ -235,5 +247,137 @@
 
 	.tools li {
 		margin: 0 10px;
+	}
+
+	/*
+	 * The create page's tray, fixed to the bottom of the window.
+	 *
+	 * z-index 16 puts it over the canvas's 15 — they don't overlap in portrait, but a
+	 * phone held sideways is 360-odd points tall and everything is closer than it
+	 * looks — and under the save form's 17, which covers everything by design.
+	 */
+	.floating {
+		position: fixed;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 16;
+		/* Both back: the rule above centres the playback page's tray on a narrow
+		   screen, and this one wants its two groups at the two thumbs instead. */
+		justify-content: space-between;
+		align-items: stretch;
+		height: calc(var(--tray-height) + env(safe-area-inset-bottom));
+		/* Clear of the home indicator, and of the notch when the phone is sideways —
+		   which is exactly where the two groups are, hard against both edges. */
+		padding: 0 calc(8px + env(safe-area-inset-right)) env(safe-area-inset-bottom)
+			calc(8px + env(safe-area-inset-left));
+		margin: 0;
+		background: var(--page);
+		border-top: 1px solid var(--line);
+		transition: transform 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+	}
+
+	.floating .group {
+		height: 100%;
+		margin: 0;
+	}
+
+	/*
+	 * Upside down.
+	 *
+	 * The pencil and the eraser are drawings of the real things, tip downwards, and on
+	 * a desktop they hang below the canvas like tools laid on a desk. Down there they
+	 * are also as far from the drawing as anything on the page can be, which on a
+	 * phone is the wrong end of the screen. So they're turned over: each one now
+	 * stands on the bottom edge of the window pointing up at the paper, with the rest
+	 * of its length running off the screen below. Selecting one draws it further up
+	 * out of the window, which is the desktop's movement the other way about — and
+	 * about as far, 40px against 50.
+	 */
+	.floating .tools li {
+		width: 40px;
+		height: 100%;
+		margin: 0 4px 0 0;
+	}
+
+	/*
+	 * Scoped to the tray rather than left bare, because the transform button's own
+	 * base layer is one of these and it carries a `transform: none` of the same
+	 * weight — and, less obviously, a `transform-origin` of the top edge, which is
+	 * what the fan of arrows above it rotates around. Turning something over about its
+	 * top edge doesn't turn it over, it throws it its own height into the air.
+	 */
+	.floating .blade {
+		transform: rotate(180deg);
+		transform-origin: 50% 50%;
+	}
+
+	/* Half the bar's depth when it's resting, all but 8px of it when it's the tool in
+	   hand — half a bar of pencil is also a target a thumb can find without looking.
+	   Off the bar's own height, so a short window shortens both together. */
+	.floating .tool {
+		top: calc(var(--tray-height) / 2);
+		bottom: auto;
+		transition: top 0.1s ease-in-out;
+	}
+
+	.floating .toolActive,
+	.floating .transformActive {
+		top: 8px;
+		bottom: auto;
+	}
+
+	/*
+	 * Not the fan of arrows, though.
+	 *
+	 * They open downwards from behind the hand, and there is nothing below the bottom
+	 * of the window to open into — they'd play out entirely off the screen. The slide
+	 * says the tool is on, which is what they were there to say. What goes with them
+	 * is the only sign that a second press has cycled into push mode; push is a
+	 * pointer instrument that needs a selection first, and it is the one thing here
+	 * that reads better on a desktop.
+	 */
+	.floating .transform .layer:not(:first-child) {
+		display: none;
+	}
+
+	/* Bigger than the ink in them: these are thumb targets now, and the icons they
+	   hold are 25 to 33px of a 40 × 44 box. */
+	.floating .actions {
+		align-items: center;
+	}
+
+	.floating .actions li {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 44px;
+		margin: 0;
+	}
+
+	/* The two nudges that line these icons up with the rest of the sheet are for a
+	   row sitting on a baseline. This one centres each icon in its own box. */
+	.floating .duplicate,
+	.floating .circleplay,
+	.floating .circleplayOn {
+		margin: 0;
+		bottom: 0;
+	}
+
+	/* Naming the flipbook: the whole bar leaves, rather than the tools flying up out
+	   of it into the form. */
+	.floating.stowed {
+		transform: translateY(100%);
+	}
+
+	.floating.stowed .group {
+		transform: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.floating {
+		transition: none;
 	}
 }

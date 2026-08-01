@@ -75,7 +75,15 @@
 	display: none;
 }
 
-@media screen and (max-width: 730px) {
+/*
+ * Gone on a phone, in either orientation.
+ *
+ * Every page in here is a full-size copy of the canvas at a fixed 660px pitch, and
+ * the row is positioned by arithmetic against that number — so a strip around a
+ * canvas that has been scaled to a 375px window would be a row of 640px thumbnails
+ * marching off both sides of it. What replaces it is `PageNav`.
+ */
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.container {
 		display: none;
 	}

@@ -33,13 +33,14 @@
 	max-width: 700px;
 }
 
-/* Under 730 the canvas stops being a fixed width and becomes 90% of the window, so
-   matching it means matching the percentage rather than a number. */
+/* Under 730 the canvas stops being a fixed width and fills the window less a gutter,
+   so matching it means matching the gutter. `.center` sets the same pair, and the
+   narrowest breakpoint below takes both of them down to 16 together. */
 @media screen and (max-width: 730px) {
 	.narrow {
 		max-width: none;
-		padding-left: 5%;
-		padding-right: 5%;
+		padding-left: 20px;
+		padding-right: 20px;
 	}
 }
 
@@ -121,5 +122,24 @@
 
 	.wordmark {
 		font-size: min(40px, 11vw);
+	}
+}
+
+/*
+ * A short window — a phone held sideways — where the whole thing is shorter than the
+ * header and the canvas together. There's width to spare and no height at all, so the
+ * wordmark comes down to a caption's size; the create page below it is counting on
+ * the room.
+ */
+@media screen and (max-height: 560px) {
+	.container {
+		/* `viewport-fit=cover` puts the page under the notch, and sideways the notch is
+		   down one of the long edges — where the wordmark starts. */
+		padding: 10px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
+		gap: 8px 16px;
+	}
+
+	.wordmark {
+		font-size: 32px;
 	}
 }

@@ -76,10 +76,7 @@ export function PlaybackTray({
 					</li>
 				) : null}
 
-				{!isTouch ? (
-					<CirclePlayButton engine={engine} playback={state.playback} enabled={canPlay} />
-				) : null}
-
+				<CirclePlayButton engine={engine} playback={state.playback} enabled={canPlay} />
 				<PlayButton engine={engine} playback={state.playback} enabled={canPlay} />
 			</ul>
 		</div>

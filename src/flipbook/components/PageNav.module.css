@@ -1,0 +1,99 @@
+/*
+ * Back a page, forward a page, and which page this is. Under the canvas, on a phone.
+ *
+ * The chevrons are drawn rather than taken from the icon sheet. Every icon on that
+ * sheet is hand-drawn and this is deliberately not — an arrow in the same hand as the
+ * pencil would read as another tool, and these are the page-turn, which is the one
+ * piece of chrome here that should say nothing about itself at all. Two borders on a
+ * rotated square, which is also the whole reason there's no arrow on the sheet to
+ * take: nobody has ever needed to draw one.
+ */
+
+.nav {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	width: 100%;
+	margin: 10px 0 0;
+}
+
+.arrow {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: 44px;
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--ink);
+	cursor: pointer;
+}
+
+/* At the ends of the flipbook. Faded rather than hidden, so the row doesn't change
+   width as you walk through the pages. */
+.arrow:disabled {
+	opacity: 0.25;
+	cursor: default;
+}
+
+.arrow:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 2px;
+	border-radius: var(--radius-control);
+}
+
+.chevron {
+	width: 12px;
+	height: 12px;
+	border-top: 2px solid currentColor;
+	border-right: 2px solid currentColor;
+}
+
+.back {
+	/* Nudged by half its own overhang either way, so the ink sits on the centre of the
+	   button rather than the corner of the square that draws it. */
+	margin-left: 4px;
+	transform: rotate(-135deg);
+}
+
+.forward {
+	margin-right: 4px;
+	transform: rotate(45deg);
+}
+
+.count {
+	min-width: 72px;
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
+	text-align: center;
+}
+
+.of {
+	opacity: 0.6;
+}
+
+/* A short window, where every row is paying for its height. */
+@media screen and (max-height: 560px) {
+	.nav {
+		margin-top: 4px;
+	}
+
+	.arrow {
+		height: 36px;
+	}
+}
+
+/*
+ * Gone wherever the strip of page thumbnails is showing: it does all of this and
+ * more, and the arrow keys do the rest. See the note in base.css.
+ */
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.nav {
+		display: none;
+	}
+}

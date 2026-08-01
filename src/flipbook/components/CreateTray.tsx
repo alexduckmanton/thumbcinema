@@ -19,6 +19,11 @@ export interface CreateTrayProps {
  * split as 2013. The transform button is one button with two modes: pressing it
  * again cycles into push, and push refuses to switch on when nothing is selected, so
  * it cycles straight back.
+ *
+ * `floating` is what the stylesheet keys the phone layout off: the same two groups,
+ * fixed along the bottom edge of the window with the tools turned over. It's on the
+ * markup rather than a media query alone because the playback page shares this
+ * stylesheet and keeps its tray in the flow at every width.
  */
 export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const { tool, transformIndex, playback, pages } = state
@@ -31,8 +36,10 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const toolClass = (id: ModalToolId) =>
 		tool === id ? `${styles.tool} ${styles.toolActive}` : styles.tool
 
+	const trayClass = [styles.tray, styles.floating, stowed ? styles.stowed : ''].filter(Boolean)
+
 	return (
-		<div className={stowed ? `${styles.tray} ${styles.stowed}` : styles.tray}>
+		<div className={trayClass.join(' ')}>
 			<ul className={`${styles.group} ${styles.tools}`}>
 				<li>
 					<button
@@ -42,7 +49,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						aria-pressed={tool === 'pencil'}
 						onClick={() => engine.selectTool('pencil')}
 					>
-						<span className={icons.pencil} aria-hidden="true" />
+						<span className={`${styles.blade} ${icons.pencil}`} aria-hidden="true" />
 						<span className="visuallyHidden">Draw</span>
 					</button>
 
@@ -61,7 +68,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						aria-pressed={tool === 'eraser'}
 						onClick={() => engine.selectTool('eraser')}
 					>
-						<span className={icons.eraser} aria-hidden="true" />
+						<span className={`${styles.blade} ${icons.eraser}`} aria-hidden="true" />
 						<span className="visuallyHidden">Erase</span>
 					</button>
 				</li>
@@ -82,7 +89,10 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 					>
 						{/* Four stacked images: the hand, and three arrows that fan out
 						    from behind it when the tool is on. */}
-						<span className={`${styles.layer} ${icons.transform}`} aria-hidden="true" />
+						<span
+							className={`${styles.layer} ${styles.blade} ${icons.transform}`}
+							aria-hidden="true"
+						/>
 						<span
 							className={`${styles.layer} ${
 								tool === 'transform' && transformIndex === 0
@@ -184,9 +194,12 @@ export function PlayButton({
 }
 
 /**
- * Circleplay: scrub the flipbook by drawing circles with the pointer. There is no
- * touch equivalent — you'd be covering the thing you're scrubbing — so it isn't
- * offered there.
+ * Circleplay: scrub the flipbook by drawing circles with the pointer.
+ *
+ * Offered on touch as well, where it was previously held back on the grounds that a
+ * hand covers the thing it's scrubbing. It does, and it is still the best control on
+ * the site — winding a flipbook back and forth with a finger is what the gesture was
+ * always an imitation of. Circling in the corner leaves plenty of it visible.
  */
 export function CirclePlayButton({
 	engine,

@@ -102,6 +102,11 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 					<div className={canvasStyles.book}>
 						<canvas ref={canvasRef} className={canvasStyles.canvas} />
 
+						{/* Somewhere to circle that isn't the flipbook. See `.scrub`. */}
+						{isTouch && state?.playback === 'circleplay' ? (
+							<div className={canvasStyles.scrub} aria-hidden="true" />
+						) : null}
+
 						{ready ? null : (
 							<div className={canvasStyles.overlay}>
 								<Spinner label="Loading flipbook" />

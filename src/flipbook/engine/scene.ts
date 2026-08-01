@@ -40,6 +40,10 @@ export class Scene {
 
 	private activeIndex = 0
 
+	/** How much smaller than 640×360 the canvas is being *shown* at. See `pinCoordinates`. */
+	private displayScale = 1
+	private readonly resizeObserver: ResizeObserver | null = null
+
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas
 		canvas.width = CANVAS_WIDTH
@@ -50,6 +54,8 @@ export class Scene {
 		// double-mount), and sharing paper's default project makes that a mess.
 		this.scope = new paper.PaperScope()
 		this.scope.setup(canvas)
+
+		this.resizeObserver = this.pinCoordinates()
 
 		// `setup()` leaves the project with no layers at all — paper creates the first
 		// one lazily, the moment anything asks for the active layer. So this getter
@@ -64,6 +70,65 @@ export class Scene {
 
 		this.activeLayer = new this.scope.Layer()
 		this.activeLayer.activate()
+	}
+
+	/**
+	 * Keeps the project 640×360 however small the canvas is drawn.
+	 *
+	 * paper takes the project's coordinate space from the *displayed* size of the
+	 * element — `DomElement.getSize`, which is its bounding rectangle — so a canvas
+	 * shown 350 CSS px wide on a phone gave a project 350 units wide, and every
+	 * stroke, every thumbnail and every saved SVG came out that shape. Every flipbook
+	 * ever made is 640×360 and they all have to stay interchangeable, so the view size
+	 * is stated rather than measured and the display size is left entirely to CSS.
+	 *
+	 * Two things follow from that, and both are dealt with here:
+	 *
+	 *  - **paper writes an inline width and height** onto the element as it sizes it,
+	 *    but only on a hidpi screen — where it also has to state the CSS size to keep
+	 *    the backing store 2× it. That inline pair would beat the stylesheet and pin
+	 *    the canvas at 640px on a 375px screen, so it is removed again.
+	 *  - **A pointer is mapped to a project point by subtracting the element's
+	 *    position and nothing else.** On a canvas drawn at half size every event would
+	 *    land at half the distance from the top left that it should. `getEventPoint`
+	 *    is the one place that conversion happens — for the tools, the hit tests and
+	 *    the selection alike — so it is wrapped rather than each of them corrected.
+	 *
+	 * Not `view.zoom`, which is the mechanism this looks like it should be using:
+	 * `project.exportSVG()` defaults to the view's bounds and multiplies its matrix
+	 * into the output, so a zoomed view would save the artwork at the phone's scale
+	 * *and* wrap it in an extra `<g>` — which would put every page in the archive one
+	 * group out. See `assertLeadingGroups`.
+	 */
+	private pinCoordinates(): ResizeObserver | null {
+		const view = this.scope.view
+
+		view.viewSize = new this.scope.Size(CANVAS_WIDTH, CANVAS_HEIGHT)
+		this.canvas.style.removeProperty('width')
+		this.canvas.style.removeProperty('height')
+
+		const toProject = view.getEventPoint.bind(view)
+		// Untyped parameter on purpose: paper declares this as taking its own `Event`
+		// class and hands it a DOM one, and naming either of them here is a lie. The
+		// contextual type from the assignment is exactly what `toProject` accepts.
+		view.getEventPoint = (event) => toProject(event).divide(this.displayScale)
+
+		// Read once up front as well as watched: this runs in a layout effect, so the
+		// canvas is already laid out, and the observer's first callback is a frame away.
+		if (this.canvas.offsetWidth > 0) this.displayScale = this.canvas.offsetWidth / CANVAS_WIDTH
+
+		if (typeof ResizeObserver === 'undefined') return null
+
+		// The observer's own box rather than `getBoundingClientRect`: page animations
+		// put a transform on this canvas, and the rectangle would report the scale of
+		// whatever frame it is mid-flight in. A layout box doesn't move.
+		const observer = new ResizeObserver(([entry]) => {
+			const width = entry?.borderBoxSize?.[0]?.inlineSize ?? this.canvas.offsetWidth
+			if (width > 0) this.displayScale = width / CANVAS_WIDTH
+		})
+		observer.observe(this.canvas)
+
+		return observer
 	}
 
 	get project(): paper.Project {
@@ -251,6 +316,8 @@ export class Scene {
 	 * double-mount teardown would throw on the way out.
 	 */
 	destroy(): void {
+		this.resizeObserver?.disconnect()
+
 		const view = this.scope.view as paper.View | null
 		const project = this.scope.project as paper.Project | null
 

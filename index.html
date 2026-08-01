@@ -4,7 +4,18 @@
 	<meta charset="utf-8">
 	<title>thumbcinema</title>
 	<meta name="description" content="Create awesome flipbook animations">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<!--
+		Zoom is off, and it is off deliberately.
+
+		The drawing tool is a pointer instrument: a two-finger pinch over the canvas
+		and a two-finger stretch of a drawing are the same gesture, and circleplay is
+		a drag that has to mean scrubbing rather than panning. `user-scalable=no` is
+		honoured on Android and ignored by iOS, which is why `preventPinchZoom()`
+		exists as well — between them they cover both. `viewport-fit=cover` is what
+		makes `env(safe-area-inset-bottom)` non-zero, which the tools along the bottom
+		of the window sit above.
+	-->
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 	<meta name="theme-color" content="#f1f1f1">
 
 	<meta property="og:title" content="thumbcinema">

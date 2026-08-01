@@ -144,3 +144,20 @@
 		display: none;
 	}
 }
+
+/*
+ * The blue comes with the form on a phone.
+ *
+ * On a desktop this sits on the wash over the canvas — a lid over the drawing — and
+ * is about as tall as one, so the couple of rows that hang below the bottom edge read
+ * as belonging to the page rather than to the lid. Scaled to a phone the canvas is
+ * under 200px tall and the form is three times that, which left two thirds of it as
+ * white text on a grey background. So it carries its own blue here, opaque, and the
+ * wash underneath has nothing left to do.
+ */
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
+	.form {
+		padding: 24px 20px;
+		background: var(--blue);
+	}
+}

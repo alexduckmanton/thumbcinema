@@ -93,6 +93,37 @@
 	--shadow-page: rgba(0, 0, 0, 0.05) 0 10px 0 -5px;
 
 	--control-height: 44px;
+
+	/* How tall the create page's tools are where they're fixed to the bottom of the
+	   window, which is the phone layout below. The page reserves the same number
+	   underneath itself, so shared rather than written twice. See Tray.module.css. */
+	--tray-height: 96px;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * The one breakpoint, written out in every file that has two layouts:
+ *
+ *     @media screen and (max-width: 730px), screen and (max-height: 560px)
+ *     @media screen and (min-width: 731px) and (min-height: 561px)
+ *
+ * Narrow *or short* gets the phone layout, and the height half of that is not an
+ * afterthought: a phone held sideways is 800 points wide and 375 tall, so a width
+ * test on its own would hand it the desktop layout — a 640×360 canvas and a page
+ * strip in a window that can't hold either. Short and wide on a desktop is rare, and
+ * when it happens the phone layout is the better answer there too: it scales the
+ * canvas to the window instead of running off the bottom of it.
+ *
+ * The number itself is 2013's, and it is the width the page strip needs.
+ * ---------------------------------------------------------------------------
+ */
+
+/* A short window is paying for every pixel of height, and the deepest thing on the
+   create page that isn't the drawing gives some back. */
+@media screen and (max-height: 560px) {
+	:root {
+		--tray-height: 72px;
+	}
 }
 
 *,
@@ -108,6 +139,12 @@ body {
 	border: 0;
 }
 
+html {
+	/* Landscape on iOS otherwise inflates the type on its own, which on the create
+	   page moves the tools out from under the thumb they were placed for. */
+	-webkit-text-size-adjust: 100%;
+}
+
 body {
 	background: var(--page);
 	color: var(--ink);
@@ -115,6 +152,28 @@ body {
 	font-size: 15px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
+
+	/*
+	 * Scrolling and single taps, and nothing else. `manipulation` is what takes
+	 * double-tap-to-zoom off the table — and the 300ms wait for a second tap with it,
+	 * which is most of why the tool buttons used to feel slow to a finger. The canvas
+	 * goes further and takes `none`; see FlipbookCanvas.module.css.
+	 */
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * While circleplay has the pointer.
+ *
+ * Scrubbing is a drag that means something, and a drag the browser has decided is a
+ * scroll stops being reported at all — so for the length of the gesture the document
+ * hands its own gestures over. Set on `<html>` by the engine; see `SCRUBBING`.
+ */
+.scrubbing,
+.scrubbing body {
+	touch-action: none;
+	overscroll-behavior: none;
 }
 
 /*
@@ -195,16 +254,30 @@ label {
 	font-size: 14px;
 }
 
-/* The one column the create and playback pages are built on. style.css sized it at
-   640px, the width of the canvas, dropping to 90% on narrow screens. */
+/*
+ * The one column the create and playback pages are built on.
+ *
+ * A gutter rather than a percentage, and the same gutter the header uses, so the
+ * wordmark starts exactly where the sheet of paper does. 2013 sized this at 640px
+ * flat and dropped it to 90% below 730 — which on a phone spent 10% of a screen the
+ * drawing tool badly needs on empty margin.
+ */
 .center {
-	width: 640px;
+	width: 100%;
+	padding: 0 20px;
 	margin: 0 auto;
 }
 
-@media screen and (max-width: 730px) {
+@media screen and (max-width: 460px) {
 	.center {
-		width: 90%;
+		padding: 0 16px;
+	}
+}
+
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.center {
+		width: 640px;
+		padding: 0;
 	}
 }
 

@@ -1,25 +1,21 @@
 /**
- * Replaces the server-side Mobile_Detect.php that used to set $GLOBALS['isMobile']
- * and $GLOBALS['isTablet'] before the page rendered. Same two questions, asked
- * client side: is this a touch device, and is it a phone — too small to draw on.
+ * The one thing the site still asks about the device it's on: is this a touch screen.
  *
- * Read once at module load. None of these change during a page view, and reading
+ * It used to ask two. The 2013 server ran Mobile_Detect.php and set
+ * `$GLOBALS['isMobile']`, and phones were turned away from /create outright — the
+ * canvas was a fixed 640px and there was nowhere to put the tools. Both of those are
+ * fixed rather than detected now: the canvas is scaled to whatever it's given (see
+ * `Scene.pinCoordinates`) and the tools sit along the bottom of the window, so there
+ * is no longer a class of device the drawing tool is kept away from.
+ *
+ * What's left is genuinely about input rather than size — the push tool's hover dots,
+ * and printing — and even that is a hint. A tablet with a keyboard is both.
+ *
+ * Read once at module load. It doesn't change during a page view, and reading
  * `navigator` on every render would be a lot of ceremony for a constant.
  */
 
-const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
 const maxTouchPoints = typeof navigator === 'undefined' ? 0 : (navigator.maxTouchPoints ?? 0)
 
 export const isTouch: boolean =
 	(typeof window !== 'undefined' && 'ontouchstart' in window) || maxTouchPoints > 0
-
-export const isTablet: boolean =
-	/iPad/i.test(ua) ||
-	(/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
-	// iPadOS masquerades as desktop Safari, and is only given away by the touch points.
-	(/Macintosh/i.test(ua) && maxTouchPoints > 1)
-
-export const isPhone: boolean = /iPhone|iPod|Android.*Mobile|Windows Phone|BlackBerry/i.test(ua)
-
-/** Phones were always turned away from /create — the canvas needs a real pointer and some room. */
-export const canDraw: boolean = !isPhone || isTablet

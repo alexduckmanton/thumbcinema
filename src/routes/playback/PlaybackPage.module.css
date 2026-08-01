@@ -4,6 +4,24 @@
 	padding-top: 20px;
 	/* Room for the create button to float over. */
 	padding-bottom: 100px;
+
+	/* Header, tray and title, which is what the canvas is sized around when the
+	   window is too short to give it the full width. See FlipbookCanvas. */
+	--book-reserve: 300px;
+}
+
+/*
+ * A short window counts the header and the controls, and stops there.
+ *
+ * The title and description are below the flipbook and can be below the fold with
+ * it: this is a page for watching something, and scrolling to read about it
+ * afterwards is no hardship. Sized against the whole of a sideways phone, the
+ * flipbook itself would be about 130px across.
+ */
+@media screen and (max-height: 560px) {
+	.content {
+		--book-reserve: 170px;
+	}
 }
 
 .info {

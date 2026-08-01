@@ -20,6 +20,14 @@ import type { ModalTool, ModalToolId } from './tools/types'
 export type PlaybackMode = 'none' | 'play' | 'circleplay'
 export type EngineMode = 'create' | 'playback'
 
+/**
+ * Set on `<html>` for as long as circleplay is scrubbing, and defined in
+ * `styles/base.css`: it turns off the browser's own touch gestures for the whole
+ * document. A class rather than an inline style because what it does — including
+ * whether it needs to say anything about overscroll — belongs with the stylesheet.
+ */
+const SCRUBBING = 'scrubbing'
+
 export interface FlipbookState {
 	pages: PageState[]
 	activePage: number
@@ -546,7 +554,12 @@ export class FlipbookEngine {
 		this.scene.clearOnion()
 
 		this.circleplay = circleplayInitial(this.scene.activePage)
-		document.addEventListener('mousemove', this.handleCircleplayMove)
+		document.addEventListener('pointermove', this.handleCircleplayMove)
+
+		// A circle drawn with a finger is a scroll as far as the browser is concerned,
+		// and a scrolling page stops sending pointer moves the moment it decides that.
+		// For as long as the gesture *is* the control, nothing else may claim it.
+		document.documentElement.classList.add(SCRUBBING)
 	}
 
 	pause(): void {
@@ -564,7 +577,8 @@ export class FlipbookEngine {
 			this.playTimer = null
 		}
 		if (this.circleplay) {
-			document.removeEventListener('mousemove', this.handleCircleplayMove)
+			document.removeEventListener('pointermove', this.handleCircleplayMove)
+			document.documentElement.classList.remove(SCRUBBING)
 			this.circleplay = null
 		}
 	}
@@ -579,7 +593,7 @@ export class FlipbookEngine {
 		}, 1000 / FPS)
 	}
 
-	private handleCircleplayMove = (event: MouseEvent): void => {
+	private handleCircleplayMove = (event: PointerEvent): void => {
 		if (!this.circleplay) return
 
 		this.circleplay = advanceCircleplay(

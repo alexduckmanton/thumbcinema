@@ -46,7 +46,7 @@ src/
   main.tsx            boot
   App.tsx             route switch, lazy per route
   router/             matchRoute(), useLocation(), <Link>
-  lib/                api client, admin token, device, messages, store
+  lib/                api client, admin token, device, messages, store, zoom
   components/         header, buttons, spinner, messages, admin toggles
   routes/
     gallery/          the grid, the Featured/All toggle, infinite scroll
@@ -64,7 +64,7 @@ src/
       constants.ts    canvas size, frame rate, the ink colours
       tools/          pencil, eraser, transform, push
       FlipbookEngine.ts  the façade React drives
-    components/       canvas, page strip, trays, save form
+    components/       canvas, page strip, page arrows, trays, save form
   styles/             tokens, element defaults, the icon sprite
 public/               fonts, images, favicons, sadbrowser.html
 ```
@@ -190,6 +190,25 @@ documented at the point they matter:
 - **A hidpi canvas's backing store is 2× its CSS size**, so `drawImage` without an
   explicit size copies the top-left quarter at double scale.
 
+### The project is 640×360 whatever the canvas is shown at
+
+`Scene.pinCoordinates()`, and it is the one thing to understand before touching how
+the canvas is sized. paper takes the project's coordinate space from the element's
+*bounding rectangle*, so a canvas displayed 350px wide on a phone gave a project 350
+units wide and everything drawn on it — strokes, thumbnails, the saved SVG — came out
+that shape. The view size is stated instead of measured, and three things follow:
+
+- **CSS owns the display size, entirely.** paper writes an inline `width`/`height`
+  onto the element on a hidpi screen; those are removed straight after.
+- **`getEventPoint` is wrapped** to divide by however much the canvas is currently
+  scaled by, tracked with a `ResizeObserver`. That's the single place paper converts a
+  pointer to a project point, so the tools, the hit tests and the selection are all
+  corrected at once.
+- **Not `view.zoom`.** `project.exportSVG()` defaults to the view's bounds and folds
+  its matrix into the output — a zoomed view would save the artwork at the phone's
+  scale *and* wrap it in an extra `<g>`, which is the `LEADING_SYSTEM_GROUPS` invariant
+  below.
+
 ### Invariants
 
 - **`SYSTEM_LAYERS === 3`, and `LEADING_SYSTEM_GROUPS === 3` with it.** paper exports
@@ -257,6 +276,36 @@ it's one of these. Each is deliberate:
 - **Undo is one step deep**, which is a port rather than an oversight: 2013 takes a
   snapshot on mouse-down and spends it on the next Cmd-Z, and `Scene.snapshot` does
   the same. A stack would be a change to what the tool does, not a fix.
+- **You can draw on a phone.** 2013 asked `Mobile_Detect.php` and sent phones back to
+  the gallery, and the revival kept that. See below.
+
+## Drawing on a phone
+
+The one place this is deliberately no longer a port. The tool is the same tool — same
+canvas, same tools, same save — laid out for a screen a third of the width and for a
+finger rather than a pointer.
+
+- **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
+- **The tools are turned over and stuck to the bottom of the window.** They point up
+  at the paper rather than down away from it, and selecting one draws it further up
+  out of the window — the same 50px slide as the desktop's, the other way. The fan of
+  arrows behind the transform button doesn't come with them: it opens downwards, and
+  there is nothing below the bottom of the window to open into. The cost is that push
+  mode has no icon of its own there.
+- **The page strip goes, and `PageNav` replaces it.** The strip is full-size copies of
+  the canvas at a fixed 660px pitch positioned by arithmetic, which can't be scaled
+  without rewriting it; and hiding it is what buys the drawing the full width of the
+  window. Two arrows and a page count do the same job in 44px.
+- **The width slider stands up.** Same component: it reads which way it runs from the
+  shape of its own track, so the breakpoint lives only in the stylesheet.
+- **Circleplay works with a finger**, on both pages. It listens for `pointermove`
+  rather than `mousemove`, puts `.scrubbing` on `<html>` so the browser doesn't take
+  the gesture for a scroll, and — on touch only — covers the canvas with `.scrub` so
+  the first movement doesn't draw a line across the flipbook.
+- **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
+  which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
+  Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
+  the body, and the canvas takes `touch-action: none` so a stroke is never a scroll.
 
 ## Styling
 
@@ -268,6 +317,22 @@ properties, element defaults, and two utility classes.
 - **Sizes are in px against an untouched root.** 2013 set the root to 10px — the
   `font-size: 62.5%` trick — and wrote everything in em, so `1.5em` meant 15px and
   `4em` meant 40px. Same rendered sizes, written as what they are.
+- **One breakpoint, and it tests height as well as width**, written out in full in
+  every file that has two layouts:
+
+  ```css
+  @media screen and (max-width: 730px), screen and (max-height: 560px)   /* phone */
+  @media screen and (min-width: 731px) and (min-height: 561px)           /* desktop */
+  ```
+
+  730 is 2013's number and is the width the page strip needs. The height half is not
+  an afterthought: a phone held sideways is 800 points wide and 375 tall, and a width
+  test alone hands it a 640×360 canvas and a page strip in a window that can hold
+  neither. There's a note in `base.css` saying so.
+- **Where a page has two layouts, the phone's is the base and the desktop's is the
+  breakpoint** — the create page, the canvas, the width slider. The shared files
+  aren't, and say why: the tray is half the playback page's, which has one layout at
+  every width.
 - **Colours are the 2013 palette**, including the computed ones: the button's border
   and pressed states came out of a Sass mixin that darkened the base by fixed amounts,
   and those are the values that shipped.
@@ -370,6 +435,14 @@ carry an **Ignored Build Step** so neither builds the other's branch.
 ## Things that will bite you
 
 - **A schema change can break the deployment you aren't looking at.** See above.
+- **`time-capsule` still turns phones away from `/create`**, because it is the 2013
+  code and that is what it did. Someone on a phone who saved from `main` and then
+  opened the other deployment will find the create button gone. That's the branch
+  being what it is, not a bug to go and fix there.
+- **The page strip's canvases are allocated on a phone too**, ~900 KB each; the strip
+  is hidden in CSS rather than not rendered, because the page animations still pin and
+  fly its thumbnails. Fine for a flipbook you drew on a phone, worth remembering if
+  loading a 200-page one into the tool ever becomes a thing.
 - **The save request is capped at ~4 MB** by Vercel's request limit, and form encoding
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
   the historical archive would exceed it. The server answers 413 and the create page

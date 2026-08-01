@@ -1,19 +1,37 @@
 /*
  * The create page's own layout: the column, the save button, and what the whole page
  * does when a save starts.
+ *
+ * Written for a phone first and let out at 731px, because the phone is the layout
+ * with something to solve. A desktop has more room than the tool needs and the shape
+ * of it hasn't changed since 2013: strip, canvas, tray, save. A phone has to be told
+ * what gives — the strip goes, the canvas is scaled to whatever is left, the tools
+ * come down to the bottom edge of the window, and the page has to fit between the two
+ * without scrolling, because a page that scrolls while you draw on it is a page that
+ * has taken the stroke away from you.
  */
 
 .content {
 	position: relative;
 	width: 100%;
 	padding-top: 20px;
+	/* Clear of the tools, which are fixed to the bottom of the window below 731px. */
+	padding-bottom: calc(var(--tray-height) + env(safe-area-inset-bottom) + 16px);
+
+	/*
+	 * Everything on this page that isn't the drawing, which is what the canvas is
+	 * sized around: header, the page arrows, the save button, the tools, and a little
+	 * slack. Held sideways a phone is barely taller than the tray is deep, so the
+	 * number comes down and each of the parts it counts comes down with it.
+	 */
+	--book-reserve: 360px;
 }
 
 .save {
 	position: relative;
 	top: 0;
 	width: 100%;
-	margin: 15px 0 50px;
+	margin: 20px 0 0;
 	text-align: center;
 	transition: opacity 0.4s ease-in, top 0.4s ease-in;
 }
@@ -106,16 +124,12 @@
 	outline-offset: 3px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.saveButton {
-		transition: none;
-	}
-}
-
-/* Naming the flipbook: the save button drops off the bottom with the tray's tools
-   (which stow themselves — see Tray.module.css). */
+/*
+ * Naming the flipbook: the save button leaves the same way the tools do, which on a
+ * phone is downwards and off the bottom of the window.
+ */
 .naming .save {
-	top: -200px;
+	top: 120px;
 	opacity: 0;
 }
 
@@ -124,8 +138,61 @@
 	pointer-events: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
+/*
+ * A phone held sideways.
+ *
+ * The canvas is 16:9 and so is the screen, which ought to be the best this thing ever
+ * looks — except that everything around it is now competing for 375 points of height
+ * rather than 812. So the page puts itself on a diet: the tools lose a quarter of
+ * their depth, the save button and the page arrows shrink with them, and the reserve
+ * comes down to match. The header does its own shrinking; see SiteHeader.
+ */
+@media screen and (max-height: 560px) {
+	.content {
+		padding-top: 8px;
+		--book-reserve: 215px;
+	}
+
 	.save {
+		margin-top: 10px;
+	}
+
+	.saveButton {
+		height: 40px;
+		padding: 0 20px;
+		font-size: 24px;
+	}
+
+	.saveLabel {
+		top: 2px;
+	}
+}
+
+/*
+ * Desktop: a window with room for the page strip. See the note in base.css.
+ *
+ * Only three things differ, and all three are about there being room: nothing is
+ * fixed to the bottom of the window, so nothing has to be left clear of it; the
+ * column has air under it; and the save button flies *up* with the tools rather than
+ * down past them.
+ */
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.content {
+		padding-bottom: 0;
+	}
+
+	.save {
+		margin: 15px 0 50px;
+	}
+
+	.naming .save {
+		top: -200px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.save,
+	.saveButton {
 		transition: none;
 	}
 }
