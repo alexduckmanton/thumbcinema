@@ -15,11 +15,13 @@ export interface PageStripProps {
 	playing: boolean
 	/** True while a page is arriving or leaving; the strip travels with it. */
 	animating: boolean
+	/** True while a page is still on its way into the canvas's slot. */
+	arriving: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 }
 
-export function PageStrip({ engine, pages, activePage, playing, animating, canvasRef }: PageStripProps) {
+export function PageStrip({ engine, pages, activePage, playing, animating, arriving, canvasRef }: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
 	const [canvasOffset, setCanvasOffset] = useState(0)
 
@@ -41,6 +43,10 @@ export function PageStrip({ engine, pages, activePage, playing, animating, canva
 
 	const left = canvasOffset - PAGE_MARGIN - activePage * PAGE_STEP
 	const snap = useSnapOnRemoval(pages.length)
+
+	// Which thumbnail the canvas is standing in front of, and so which one to hide.
+	// Nothing, while a page is still travelling into that slot.
+	const covered = arriving ? -1 : activePage
 
 	/*
 	 * The strip's own pace.
@@ -67,7 +73,7 @@ export function PageStrip({ engine, pages, activePage, playing, animating, canva
 				{pages.map((page, index) => (
 					<div
 						key={page.id}
-						className={index === activePage ? `${styles.page} ${styles.active}` : styles.page}
+						className={index === covered ? `${styles.page} ${styles.covered}` : styles.page}
 						onClick={() => engine.goToPage(index)}
 					>
 						{/* Sized here rather than by the engine: assigning `width` clears a

@@ -35,6 +35,18 @@ export interface FlipbookState {
 	pages: PageState[]
 	activePage: number
 
+	/**
+	 * True while a page thumbnail is sliding into the slot the drawing canvas stands
+	 * in, and hasn't got there yet.
+	 *
+	 * The strip hides whichever thumbnail is behind the canvas, and that is normally
+	 * the active page. During a delete the next page becomes active the instant you
+	 * click — so it was being hidden 4ms in and spending its whole 750ms journey
+	 * invisible, which read as it teleporting into place while every other page slid.
+	 * While this is set the strip hides nothing.
+	 */
+	arriving: boolean
+
 	/** Null on the playback page, which has no drawing tools at all. */
 	tool: ModalToolId | null
 	/** Which of the transform button's two modes is showing: 0 transform, 1 push. */
@@ -100,6 +112,7 @@ export class FlipbookEngine {
 		this.store = new Store<FlipbookState>({
 			pages: [{ id: this.nextPageId++, segments: 0 }],
 			activePage: 0,
+			arriving: false,
 			tool: options.mode === 'create' ? 'pencil' : null,
 			transformIndex: 0,
 			pencilWidth: DEFAULT_PENCIL_WIDTH,
@@ -413,7 +426,10 @@ export class FlipbookEngine {
 		if (canvas) freeze(canvas, { lift: true })
 
 		this.scene.setActivePage(sibling)
-		this.store.set({ activePage: sibling })
+
+		// Not when the page is being replaced: there the canvas itself is what
+		// arrives, and its thumbnail should stay hidden underneath it as usual.
+		this.store.set({ activePage: sibling, arriving: !replacing })
 
 		const siblingCanvas = this.thumbnailFor(sibling)
 		const unpinSibling = siblingCanvas ? freeze(siblingCanvas) : null
@@ -442,8 +458,10 @@ export class FlipbookEngine {
 		this.scene.removePage(index)
 		this.thumbnails.delete(doomed.id)
 
+		// The arriving page has landed exactly where the canvas is, so handing the
+		// slot back to it — which hides its thumbnail — can't be seen happening.
 		const remaining = this.store.snapshot.pages.filter((page) => page.id !== doomed.id)
-		this.store.set({ pages: remaining, activePage: this.scene.activePage })
+		this.store.set({ pages: remaining, activePage: this.scene.activePage, arriving: false })
 
 		for (const undo of pinned) undo()
 		this.setBusy(false)

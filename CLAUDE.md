@@ -177,6 +177,12 @@ documented at the point they matter:
 - **A selected stroke is moved into the selection layer, not flagged.** The selection
   layer draws *below* the pages, which reads correctly only because the page fades to
   20% while anything is selected.
+- **The hidden thumbnail is not always the active page.** The strip hides whichever
+  page the drawing canvas stands in front of, which is what `.covered` means — and
+  during a delete the arriving page is active from the first frame but takes 750ms to
+  get there. Hiding it on `activePage` made it vanish 4ms in and spend its whole
+  journey invisible, so it looked like it teleported while every other page slid.
+  `state.arriving` is what holds the two apart; don't collapse them.
 - **A page thumbnail can't be raised by its own z-index.** `.page` in the strip has
   one, which makes it a stacking context, so a z-index on the `<canvas>` inside can
   only order it against siblings it hasn't got. Anything that has to come forward —

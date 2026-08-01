@@ -48,7 +48,14 @@
 	box-shadow: var(--shadow-page);
 }
 
-.active canvas {
+/*
+ * The one the live canvas is standing in front of.
+ *
+ * Not necessarily the active page: while a page is sliding into that slot it is
+ * already the active one but hasn't arrived, and hiding it early is the difference
+ * between it sliding over and appearing to teleport.
+ */
+.covered canvas {
 	opacity: 0;
 }
 
