@@ -3,17 +3,17 @@
 An online flipbook animation tool. Draw a sketch, add a page, draw the next one,
 play it back. Originally built 2012–2015 on WordPress; the server was switched off
 years later. The 2025 revival brought the original Backbone front end back on a new
-back end. **This branch is the rewrite of that front end: same product, modern code.**
+back end, and this is the rewrite of that front end: **same product, modern code.**
 
 Live at `thumbcinema.alexduckmanton.com`.
 
 ---
 
-## What this branch changed
+## The stack
 
-The 2013 front end — jQuery 1.9, Backbone 1.0, Underscore, Modernizr, svg.js and
-paper.js 0.8, loaded as thirty-odd `<script>` tags communicating through globals — is
-gone. In its place:
+What the 2013 front end was — jQuery 1.9, Backbone 1.0, Underscore, Modernizr, svg.js
+and paper.js 0.8, loaded as thirty-odd `<script>` tags communicating through globals —
+is worth knowing only because `time-capsule` still runs it. Here it is:
 
 | | |
 |---|---|
@@ -57,8 +57,10 @@ src/
       scene.ts        paper.js project + layers
       selection.ts    selecting and transforming
       formats.ts      the two artwork formats, in and out
+      pages.ts        the page list as data, and how to count it
       print.ts        the printable booklet
-      animations.ts   the page-strip keyframes
+      animations.ts   the page-strip keyframes, and freeze()
+      constants.ts    canvas size, frame rate, the ink colours
       tools/          pencil, eraser, transform, push
       FlipbookEngine.ts  the façade React drives
     components/       canvas, page strip, trays, save form
@@ -99,7 +101,9 @@ drawing tool itself works without one.
 | `npm run build` | Typecheck, then build to `dist/` |
 | `npm test` | Vitest, once |
 | `npm run test:watch` | Vitest, watching |
+| `npm run test:coverage` | Vitest with a v8 coverage report |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run preview` | Serves the built `dist/` — static only, no API |
 | `npm run db:migrate` | Applies `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Loads the 2012–2015 flipbooks from `_original/` |
 | `npm run db:stats` | Row counts and storage use |
@@ -181,52 +185,55 @@ documented at the point they matter:
   one too many for 750ms, and deleting the only page — which inserts the replacement
   up front — makes it two. Ask `settledPageCount()` whether this is a flipbook yet;
   the raw length flicks the play buttons on and fades the save button in and out.
-- **Pages can't be added or removed while it's playing.** Playback changes page every
-  83ms and a page animation runs for 750ms; the two used to run over each other and
-  leave the strip in a heap. `canChangePages` refuses in the engine, so the keyboard
-  shortcuts are covered too, not just the greyed-out buttons. The drawing tools stay
-  live — they stop playback before they touch anything.
+- **A page can't be added or removed in the same press that stops playback.** Playback
+  changes page every 83ms and a page animation runs for 750ms; doing both at once
+  leaves the strip in a heap. `beginPageChange()` stops playback and returns false, so
+  the press buys the pause and the next one does the work. It lives in the engine, so
+  the `n` and `d` shortcuts go through it as well as the buttons. The drawing tools
+  don't need it — they stop playback themselves, and nothing is animating when they do.
 - **The hidden thumbnail is not always the active page.** The strip hides whichever
-  page the drawing canvas stands in front of, which is what `.covered` means — and
-  during a delete the arriving page is active from the first frame but takes 750ms to
-  get there. Hiding it on `activePage` made it vanish 4ms in and spend its whole
-  journey invisible, so it looked like it teleported while every other page slid.
-  `state.arriving` is what holds the two apart; don't collapse them. It also steps
-  the canvas aside for the duration — it shows the arriving page from the first
-  frame, and standing in the destination displaying the page still travelling
-  towards it reads as a static duplicate in front of the one that's moving.
+  page the canvas stands in front of — that is what `.covered` means — and during a
+  delete the arriving page is active from the first frame but takes 750ms to get
+  there. Keying that class off `activePage` hides it 4ms in and leaves it invisible
+  for its whole journey, so it reads as teleporting while every other page slides.
+  `state.arriving` holds the two apart; don't collapse them. It also steps the canvas
+  aside for the duration, because the canvas shows the arriving page immediately and
+  standing in the destination displaying the page still travelling towards it reads
+  as a static duplicate in front of the one that's moving.
 - **A page thumbnail can't be raised by its own z-index.** `.page` in the strip has
   one, which makes it a stacking context, so a z-index on the `<canvas>` inside can
-  only order it against siblings it hasn't got. Anything that has to come forward —
-  the page falling away during a delete, which otherwise spends the first 300ms of
-  its fall hidden behind the drawing canvas — is lifted by `freeze(el, {lift: true})`,
-  which sets it on the wrapper. 2013's `deletePage` keyframes asked for `z-index: 20`
-  on the canvas and were defeated by this.
+  only order it against siblings it hasn't got — 2013's `deletePage` keyframes ask for
+  `z-index: 20` there and get nothing. Anything that has to come forward is lifted by
+  `freeze(el, { lift: true })`, which sets it on the wrapper instead. The page falling
+  away during a delete needs it: without it the first 300ms of the fall happen behind
+  the drawing canvas, which is the whole anticipation and the start of the plunge.
 - **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and
   React re-runs inline ref callbacks on every render. Page thumbnails take their size
   from JSX attributes.
 
-### What was fixed on the way
+### Where it differs from `time-capsule`
 
-Behaviour is otherwise a faithful port, so these are worth knowing about:
+The port is otherwise faithful, so a difference from the 2013 code is a bug unless
+it's one of these. Each is deliberate:
 
 - **The saved thumbnail is the busiest page**, which is what 2013 meant to do. It
   counted segments by reading `.length` off a paper `Layer`, which is undefined, so
   every page scored zero and the cover was always page one.
-- **Horizontal flips work.** `selection.layer` was written `selection.layer` in a
-  file where the variable was `selection_layer`, so dragging a handle past its pivot
-  threw instead of mirroring.
+- **Horizontal flips work.** 2013's `scale.js` reaches for `selection.layer` in a file
+  where the variable is `selection_layer`, so dragging a handle past its pivot throws
+  instead of mirroring.
 - **A stroke that ends off the canvas updates its thumbnail.** The old mouseup
   listener was on the canvas, so releasing outside it left a stale page.
-- **A page animation can't lock the tool up.** Input is blocked while one plays, and
-  a hidden document never runs animations — so `finished` never settled and the tool
-  stayed blocked until a reload. `play()` now has a deadline.
+- **A page animation can't lock the tool up.** The page actions are held while one
+  plays, and a hidden document doesn't run animations at all — so `finished` never
+  settles and 2013 stays held until a reload. `play()` races it against a deadline.
+  (Drawing is *not* held: you can put a stroke down mid-animation, as you could then.)
 - **The eraser's recursion is a loop**, with a bound.
 - **The pencil-width control is a real slider** to assistive technology, and works
   from the keyboard. The 2013 one was three divs.
-- **Undo is still one step deep.** That's a port, not an oversight: 2013 took a
-  snapshot on mouse-down and spent it on the next Cmd-Z, and `Scene.snapshot` does
-  the same. Making it a stack is a change in behaviour, so it isn't in this branch.
+- **Undo is one step deep**, which is a port rather than an oversight: 2013 takes a
+  snapshot on mouse-down and spends it on the next Cmd-Z, and `Scene.snapshot` does
+  the same. A stack would be a change to what the tool does, not a fix.
 
 ## Styling
 
