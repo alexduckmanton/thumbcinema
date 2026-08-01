@@ -95,15 +95,13 @@
 	--shadow-card: rgba(0, 0, 0, 0.1) 0 2px 8px;
 	--shadow-card-hover: rgba(0, 0, 0, 0.16) 0 6px 18px;
 	--shadow-chip: rgba(0, 0, 0, 0.07) 0 1px 4px;
-	/* The paper drop-shadow under a canvas. Wide, offset down, no blur. */
+	/* The page strip's, and only the page strip's: wide, offset down, no blur, which
+	   reads as a sheet lying on the one behind it rather than as a card lifted off the
+	   page. The flipbook itself — in the gallery, on the playback page and on the
+	   canvas you draw on — takes the card shadow above. */
 	--shadow-page: rgba(0, 0, 0, 0.05) 0 10px 0 -5px;
 
 	--control-height: 44px;
-
-	/* How deep the create page's tray is on the phone layout below. The page reserves
-	   the same number underneath itself, so shared rather than written twice. See
-	   Tray.module.css. */
-	--tray-height: 72px;
 }
 
 /*
@@ -123,14 +121,6 @@
  * The number itself is 2013's, and it is the width the page strip needs.
  * ---------------------------------------------------------------------------
  */
-
-/* A short window is paying for every pixel of height, and the deepest thing on the
-   create page that isn't the drawing gives some back. */
-@media screen and (max-height: 560px) {
-	:root {
-		--tray-height: 56px;
-	}
-}
 
 *,
 *::before,

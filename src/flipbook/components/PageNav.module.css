@@ -16,41 +16,58 @@
  */
 
 /*
- * The row: the page bar, and the two playback keys in a box of their own beside it.
- */
-.row {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	/* The width of the drawing, not of the column: this is the flipbook's own ruler,
-	   and a row running past both edges of the paper it belongs to reads as the page's
-	   rather than the flipbook's. Sideways, that's the difference between 310px and
-	   the whole window. */
-	width: var(--book-width);
-	margin: 10px auto 0;
-
-	/* The row's height, and the handle's diameter with it — the handle is a circle
-	   that exactly fills the bar. One number, because the arithmetic that positions it
-	   subtracts a handle from the travel and `fractionAt` measures the same handle back
-	   off the pointer. */
-	--scrub-size: 48px;
-}
-
-/*
  * The bar: a groove for the handle to run in, and the arrows standing on it.
  *
  * White, like the sheet of paper above it, on the grey of the page.
+ *
+ * z-index for the same reason the canvas has one: the pencil and the eraser are
+ * 304px-tall pictures anchored by their tips in the tray below, and all but the last
+ * few centimetres of each runs up the page behind whatever is above it. Without this
+ * they cross the bar instead of passing behind it.
+ *
+ * 10 rather than the canvas's 15: under the paper, which carries a shadow of its own
+ * and drops it into the gap and onto the top of this.
  */
 .track {
 	position: relative;
-	flex: 1 1 auto;
+	z-index: 10;
+	/*
+	 * The drawing's width and 8px past it either side.
+	 *
+	 * This is the flipbook's own ruler and takes the flipbook's width, rather than the
+	 * column's — sideways that is the difference between 263px and the whole window.
+	 * The 8px is the overhang: it halves the distance from the end of the bar to the
+	 * edge of the screen, which is enough to read as a control that runs the width of
+	 * the page rather than a second sheet of paper the same size as the first.
+	 *
+	 * Centred by translation rather than by `margin: auto`, because on a phone the
+	 * drawing is already the full width of the column and auto margins on a box wider
+	 * than its container both resolve to zero — which puts all 16px of the overhang on
+	 * the right.
+	 */
+	left: 50%;
+	width: calc(var(--book-width) + 16px);
 	height: var(--scrub-size);
+	transform: translateX(-50%);
+	/* Clear of the pages above. They are sheets of paper with a shadow under them and
+	   this is a control; touching, they read as one object. */
+	margin: 8px 0 0;
 	border-radius: var(--radius-pill);
 	background: var(--white);
+	/* The drawing's, which is the gallery card's: this sits directly under the paper
+	   and lifting one off the page while the other lies flat on it separates two things
+	   that are meant to be read as one control and the thing it controls. */
+	box-shadow: var(--shadow-card);
 	cursor: pointer;
 	/* The drag is the control; the page mustn't take it for a scroll. */
 	touch-action: none;
 	user-select: none;
+
+	/* The bar's height, and the handle's diameter with it — the handle is a circle
+	   that exactly fills the bar. One number, because the arithmetic that positions it
+	   subtracts a handle from the travel and `fractionAt` measures the same handle back
+	   off the pointer. */
+	--scrub-size: 48px;
 }
 
 .track:focus-visible {
@@ -118,9 +135,17 @@
  * The handle. Under the finger it is wherever the finger is; the moment it isn't, it
  * is on a page.
  *
- * The playback icons' blue, which is the one thing on this page that is already about
- * where in the flipbook you are. Over the arrows, and deliberately not a button: a
- * press on it falls through to the bar underneath and starts the drag there.
+ * Two circles: the box, which is the size of the bar and the size of the target, and
+ * the dot inside it, which is two thirds of that and is the whole of what you see. The
+ * box is white rather than nothing, so that at either end of the bar it covers the
+ * arrow it has arrived over — the thing you are holding should not be something you
+ * can miss, and a hole in it showing a chevron through the middle reads as two
+ * controls in the same place.
+ *
+ * The dot is the playback icons' blue, which is the colour of the two buttons this
+ * stands in for down here — a tap on it plays. Over the arrows, and deliberately not a
+ * button: a press on it falls through to the bar underneath, which is what decides
+ * whether it was a tap or the start of a drag.
  */
 .handle {
 	position: absolute;
@@ -130,53 +155,17 @@
 	width: var(--scrub-size);
 	height: var(--scrub-size);
 	border-radius: var(--radius-pill);
-	background: var(--blue-playback);
-}
-
-/*
- * Play and circleplay, in their own box on the same row.
- *
- * The same white pill at the same height as the bar, because they are the same kind of
- * thing — the bar says where in the flipbook you are and these two move you through it
- * on their own. Down in the tray they sat among the drawing tools, which is a different
- * subject entirely.
- */
-.keys {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	height: var(--scrub-size);
-	padding: 0 10px;
-	border-radius: var(--radius-pill);
 	background: var(--white);
 }
 
-.key {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: 38px;
-	height: 100%;
-	padding: 0;
-	border: none;
-	background: none;
-	cursor: pointer;
-}
-
-/* Off until there is a second page to play, which can be the whole time you are
-   drawing the first one. Grey as well as faded: both icons are coloured, and colour
-   alone still reads as available. */
-.key:disabled {
-	opacity: 0.35;
-	filter: grayscale(1);
-	cursor: default;
-}
-
-.key:focus-visible {
-	outline: 2px solid var(--blue);
-	outline-offset: -4px;
-	border-radius: var(--radius-control);
+/* A sixth of the bar's height in from each edge, which leaves two thirds of it: 32 of
+   48, and 24 of the 36 a short window gets. One number, so the two agree. */
+.handle::after {
+	content: '';
+	position: absolute;
+	inset: calc(var(--scrub-size) / 6);
+	border-radius: var(--radius-pill);
+	background: var(--blue-playback);
 }
 
 /*
@@ -199,13 +188,8 @@
 
 /* A short window, where every row is paying for its height. */
 @media screen and (max-height: 560px) {
-	.row {
-		margin-top: 4px;
+	.track {
 		--scrub-size: 36px;
-	}
-
-	.key {
-		width: 32px;
 	}
 }
 
@@ -215,7 +199,7 @@
  * tray up there. See the note in base.css.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
-	.row {
+	.track {
 		display: none;
 	}
 }

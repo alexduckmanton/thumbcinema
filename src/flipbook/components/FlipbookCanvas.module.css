@@ -37,7 +37,10 @@
 	height: 100%;
 	background: var(--white);
 	border-radius: 2px;
-	box-shadow: var(--shadow-page);
+	/* The gallery card's shadow, not the strip's. A thumbnail in the strip is one of a
+	   stack of sheets and takes the flat drop that says so; this is the flipbook
+	   itself, and it is the same object the gallery is full of. */
+	box-shadow: var(--shadow-card);
 	transition: background 0.4s ease-out, box-shadow 0.4s ease-out;
 
 	/*

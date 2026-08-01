@@ -10,15 +10,14 @@ export interface WidthSliderProps {
 
 export function WidthSlider({ value, onChange }: WidthSliderProps) {
 	const track = useRef<HTMLDivElement | null>(null)
-	const [vertical, setVertical] = useState(false)
+	const [vertical, setVertical] = useState(true)
 
 	/*
 	 * Which way the track runs is a layout decision, and the layout has already made
-	 * it: on a phone the tools are along the bottom of the window, where there is
-	 * height going spare and no width at all, so the track stands up. Rather than
-	 * write that breakpoint out a second time in JavaScript, the element is asked what
-	 * shape it ended up — taller than it is wide is an upright one — and the
-	 * stylesheet stays the only place the number lives.
+	 * it: the control stands up everywhere except a window too short to stand it up
+	 * in. Rather than write that breakpoint out a second time in JavaScript, the
+	 * element is asked what shape it ended up — taller than it is wide is an upright
+	 * one — and the stylesheet stays the only place the number lives.
 	 */
 	useLayoutEffect(() => {
 		const element = track.current

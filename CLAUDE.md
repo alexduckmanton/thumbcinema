@@ -216,10 +216,11 @@ that shape. The view size is stated instead of measured, and three things follow
   project with three scaffolding layers under the pages. Change one without the other
   and every page in the archive shifts by one, silently. `assertLeadingGroups()`
   refuses to save an export that doesn't match, and there are tests either side.
-- **The canvas has a z-index and the tools don't.** The pencil and eraser in the tray
-  are 304px-tall images anchored by their tips; most of each one sits *behind* the
-  canvas and selecting a tool slides more of it into view. Drop the canvas out of that
-  stacking order and two enormous pencils appear across the drawing.
+- **The canvas has a z-index, the page bar has a lower one, and the tools have
+  neither.** The pencil and eraser in the tray are 304px-tall images anchored by their
+  tips; most of each one sits *behind* the canvas and selecting a tool slides more of
+  it into view. Drop either of the two out of that stacking order and enormous pencils
+  appear across the drawing.
 - **A selected stroke is moved into the selection layer, not flagged.** The selection
   layer draws *below* the pages, which reads correctly only because the page fades to
   20% while anything is selected.
@@ -286,24 +287,20 @@ canvas, same tools, same save — laid out for a screen a third of the width and
 finger rather than a pointer.
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
-- **The tools are turned over and stand in a tray.** They point up at the paper rather
-  than down away from it, and selecting one draws it further up out of the window —
-  the desktop's slide the other way about. Pencil and eraser are one picture each and
-  flip the picture (`.blade`); transform is four stacked images whose fan is built out
-  of `bottom` and a top-edge `transform-origin`, so the whole button turns over instead
-  and the fan opens up into the page. The tray is a white rounded box floating clear of
-  the bottom edge, and the tools sit *in* it: cropped along its bottom rim and rising
-  out of the top when picked up. That crop is `clip-path: inset(… 0 …)` on the list
-  rather than `overflow: hidden`, because only one of the four edges is closed — and it
-  carries the tray's own bottom-left corner radius, or the pencil paints a square
-  corner over the curve.
-- **The six controls are spaced by their gaps, not their boxes.** The tools are 40px
-  pictures and the page actions are 25–29px icons, so equal columns leave 3px between
-  the tools and 16px between the actions and the tools read as one solid block. Instead
-  every button keeps its own width and takes an equal cut of what's left
-  (`flex-grow: 1` on a content basis), and the two lists grow by as many buttons as
-  they hold, so the cut is the same size across the seam between them. That number is
-  in the stylesheet, so a button moving in or out of the tray means changing it.
+- **The tray is the desktop's tray, and the order of the column with it**: strip,
+  canvas, page bar, tools, save. The tools were turned over and stood in a floating
+  white box along the bottom edge for a while, on the reasoning that the bottom of the
+  window is where a thumb is; it went back because the picture the tool makes is a
+  pencil hanging off the bottom of the paper with its length running up behind the
+  drawing, and that survives being scaled down but not being flipped. What a phone
+  hasn't the width for is the last two buttons — play and circleplay come out
+  (`.playbackKey`), which leaves six controls in a 335px column at 20px apart.
+- **The tools are cut off at the tray's top edge.** Each is a 304px picture anchored by
+  its tip, and on a desktop the whole of that run is behind a 360px canvas. Scaled to a
+  phone the paper is 200px tall and the pencil is not scaled with it, so it came out of
+  the top of the drawing and stood in the air above it. `clip-path: inset(-20px …)` on
+  the list cuts them along the line the page bar's bottom edge runs on, which is where
+  the eye already reads them as going under something.
 - **The page strip stays, scaled, and `PageNav` is added under it.** The strip was
   hidden on a phone at first, and everything about that was wrong: the page animations
   are two pages moving — one thrown out as another arrives — and half of each one was
@@ -322,29 +319,61 @@ finger rather than a pointer.
   `engine.setPageStep()`, which is what the keyframes that throw a page into the next
   slot are built from. That is why `KEYFRAMES` is a table of functions rather than a
   table of arrays, and why `PAGE_MARGIN` is gone from `constants.ts`.
-- **`PageNav` is the bar under the drawing: two arrows, a scrubber and the two
-  playback keys.** The handle follows the finger while it's held and settles onto the
-  nearest page when it's let go (`fractionAt` and `pageAt`, both unit tested), and it
-  follows playback as well as leading it, because the engine publishes every page
-  change including the twelve a second that `play` makes — which is also the one time
-  the settle's transition is turned off. The two arrows stand *on* the bar rather than
-  beside it, and stop their own presses reaching it, or each one is also a jump to the
-  end it sits at; the handle is over both and covers one when it gets there, which is
-  the right way round. They wrap rather than greying out at the ends, because playback
-  loops. Play and circleplay sit in a second white pill on the same row — they are
-  about where you are in the flipbook, which is this row's subject and not the tray's,
-  and moving them up bought the tray a quarter of its width. They are `PageNav`'s own
-  buttons, and the tray's copies are hidden below the breakpoint: two buttons of
-  duplication against reaching into another component's stylesheet to undo the nudges
-  that sit its icons on a baseline this row hasn't got. The row is exactly as wide as
-  the drawing it scrubs; `--book-width` is declared on `.center` so both are sized off
-  one formula.
-- **The width slider stands up.** Same component: it reads which way it runs from the
-  shape of its own track, so the breakpoint lives only in the stylesheet.
-- **Circleplay works with a finger**, on both pages. It listens for `pointermove`
-  rather than `mousemove`, puts `.scrubbing` on `<html>` so the browser doesn't take
-  the gesture for a scroll, and — on touch only — covers the canvas with `.scrub` so
-  the first movement doesn't draw a line across the flipbook.
+- **`PageNav` is one white bar under the drawing: two arrows, a scrubber, and play.**
+  The handle follows the finger while it's held and settles onto the nearest page when
+  it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows playback as
+  well as leading it, because the engine publishes every page change including the
+  twelve a second that `play` makes — which is also the one time the settle's
+  transition is turned off. The two arrows stand *on* the bar rather than beside it,
+  and stop their own presses reaching it, or each one is also a jump to the end it sits
+  at; the handle is over both and covers one when it gets there, which is the right way
+  round. They wrap rather than greying out at the ends, because playback loops. **A tap
+  on the handle plays**, which is why a press on it waits: it is a tap until it has
+  travelled `TAP_SLOP`, and a drag from then on, and the pause a drag opens with is
+  paid at the moment it becomes one rather than on the way in. **A one-page flipbook
+  puts the handle at the right-hand end**, not the left: one page is the last page as
+  much as the first, and a handle at the near end reads as a flipbook you have the rest
+  of still to come. The bar is the drawing's width and 8px past it either side —
+  `--book-width` is declared on `.center` so both are sized off one formula — which
+  halves the distance to the edge of the screen and is what stops it reading as a
+  second sheet of paper the same size as the first. It is centred by translation rather
+  than by `margin: auto`, because on a phone the drawing is already the full width of
+  the column and auto margins on a box wider than its container both resolve to zero.
+  `z-index: 10` puts it under the paper, which drops its shadow into the 8px gap above
+  it and onto its top edge. **Both arrows stop playback**, as taking hold of the handle
+  does, and so do the arrow keys — they go through the same `step()`. A page you asked
+  for that shows for 83ms and is then left behind isn't a page turn.
+- **The strip stops easing while the bar is dragged.** It slides from page to page over
+  0.3s, and under a finger sweeping the bar that is a second flipbook arriving half a
+  second behind the first — it reads as the drawing being dragged about rather than the
+  pages being turned. `scrubbing` lives on the create page rather than in the engine or
+  in either component: the bar knows when a drag starts and stops, the strip is what
+  has to stop easing, and it is nothing to do with the drawing.
+- **There is no circleplay on the create page's phone layout.** It is the one thing
+  that comes off. Six controls is what the tray holds, play is a tap on the handle, and
+  circleplay has nowhere left to be asked for. It is still on the playback page at
+  every width, and still works with a finger there: it listens for `pointermove` rather
+  than `mousemove`, puts `.scrubbing` on `<html>` so the browser doesn't take the
+  gesture for a scroll, and — on touch only — covers the canvas with `.scrub` so the
+  first movement doesn't draw a line across the flipbook.
+- **The width slider stands up, at every width.** A 40px capsule hanging 5px under the
+  pencil's tip, exactly as wide as the tool and centred on it — the shape of the thing
+  it sets. 2013 laid it on its side because it had 640px of column and no reason not
+  to. It lies down again in a window too short to stand it up in, which is the one
+  layout difference left in that file, and the component reads which of the two it got
+  from the shape of its own track rather than from a second copy of the breakpoint.
+- **The window is full, and the width popover is what fills it.** Held sideways the
+  column is header, canvas, bar, tray, save button and 16px of air in 390 points, and
+  the popover hangs 90px below the tool on top of that. It is the bottom of that box,
+  not the save button, that `--book-reserve` is set from — 250 in a short window, which
+  is what leaves the drawing 249×140 rather than a page that scrolls under the hand
+  drawing on it. It is also why **the save button is over to the right in a short
+  window and centred everywhere else**: lying down the popover is 160px through the
+  middle of that band, permanently, because the pencil is the tool you start with, and
+  centred the two overlap by 46px. Standing up it is 40px hard against the left and
+  there is no collision to dodge. `.save` is `--book-width` wide rather than the
+  column's width, so "the right" is the right-hand edge of the paper and not of a
+  window the flipbook is a narrow panel in the middle of.
 - **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
   which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
   Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
@@ -373,9 +402,16 @@ properties, element defaults, and two utility classes.
   test alone hands it a 640×360 canvas and a page strip in a window that can hold
   neither. There's a note in `base.css` saying so.
 - **Where a page has two layouts, the phone's is the base and the desktop's is the
-  breakpoint** — the create page, the canvas, the width slider. The shared files
-  aren't, and say why: the tray is half the playback page's, which has one layout at
-  every width.
+  breakpoint** — the create page, the canvas. The shared files aren't, and say why: the
+  tray is half the playback page's, which has one layout at every width. The width
+  slider has no desktop breakpoint at all any more; the only query in it is the short
+  window that lays it down.
+- **The flipbook has one shadow and the page strip has another.** A gallery card, the
+  flipbook on the playback page and the canvas you draw on are all the same object and
+  all take `--shadow-card`; the page bar under the canvas takes it too, because a
+  control lying flat under paper that is lifted off the page separates two things meant
+  to be read together. `--shadow-page` — wide, offset down, no blur — is now the strip's
+  alone, where it says "a sheet lying on the one behind it".
 - **Colours are the 2013 palette**, including the computed ones: the button's border
   and pressed states came out of a Sass mixin that darkened the base by fixed amounts,
   and those are the values that shipped.

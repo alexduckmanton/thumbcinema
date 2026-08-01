@@ -24,6 +24,11 @@ export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
 
+	// While the page bar is under a finger. It belongs to neither component and both
+	// need it — the bar knows when the drag starts and stops, and the strip is what
+	// has to stop easing between pages while it lasts.
+	const [scrubbing, setScrubbing] = useState(false)
+
 	const crash = useCrashRecovery(engine)
 
 	useEffect(() => {
@@ -102,6 +107,7 @@ export function CreatePage() {
 						activePage={state.activePage}
 						playing={state.playback !== 'none'}
 						arriving={state.arriving}
+						scrubbing={scrubbing}
 						canvasRef={canvasRef}
 					/>
 				) : null}
@@ -152,6 +158,7 @@ export function CreatePage() {
 							activePage={state.activePage}
 							pages={pages}
 							playback={state.playback}
+							onScrubbing={setScrubbing}
 						/>
 					) : null}
 

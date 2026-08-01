@@ -12,6 +12,8 @@ export interface PageStripProps {
 	playing: boolean
 	/** True while a page is still on its way into the canvas's slot. */
 	arriving: boolean
+	/** True while the page bar is being dragged. See below. */
+	scrubbing: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 }
@@ -22,6 +24,7 @@ export function PageStrip({
 	activePage,
 	playing,
 	arriving,
+	scrubbing,
 	canvasRef,
 }: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
@@ -98,7 +101,13 @@ export function PageStrip({
 				style={
 					{
 						left: `${left}px`,
-						transitionDuration: snap ? '0s' : undefined,
+						// Instant, in both of the cases where easing would be a lie. One
+						// is a removal, below. The other is a finger on the page bar: it
+						// is already on the page it is asking for, and a row of thumbnails
+						// still arriving half a second later is a second flipbook running
+						// alongside the first — which reads as the drawing being dragged
+						// about rather than the pages being turned.
+						transitionDuration: snap || scrubbing ? '0s' : undefined,
 						// How wide a page is drawn. The stylesheet adds its own gutters to it
 						// and this file reads those back, so neither has to state the other's
 						// number. See `measure`.

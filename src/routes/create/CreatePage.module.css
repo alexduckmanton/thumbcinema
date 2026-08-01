@@ -4,35 +4,38 @@
  *
  * Written for a phone first and let out at 731px, because the phone is the layout
  * with something to solve. A desktop has more room than the tool needs and the shape
- * of it hasn't changed since 2013: strip, canvas, tray, save. A phone has to be told
- * what gives — the strip goes, the canvas is scaled to whatever is left, the tools
- * come down to the bottom edge of the window, and the page has to fit between the two
- * without scrolling, because a page that scrolls while you draw on it is a page that
- * has taken the stroke away from you.
+ * of it hasn't changed since 2013: strip, canvas, tray, save. The order is the same on
+ * a phone — with a page bar between the canvas and the tray — and what gives is size:
+ * the canvas is scaled to whatever is left after the rest of the column has been
+ * counted, because a page that scrolls while you draw on it is a page that has taken
+ * the stroke away from you.
  */
 
 .content {
 	position: relative;
 	width: 100%;
 	padding-top: 20px;
-	/* Clear of the tools, which float above the bottom of the window below 731px: the
-	   tray's own depth, the 8px it stands off the edge by, and some air over it. */
-	padding-bottom: calc(var(--tray-height) + env(safe-area-inset-bottom) + 24px);
+	/* Air under the save button, and clear of the home indicator with it. */
+	padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
 
 	/*
 	 * Everything on this page that isn't the drawing, which is what the canvas is
-	 * sized around: header, the page arrows, the save button, the tools, and a little
-	 * slack. Held sideways a phone is barely taller than the tray is deep, so the
-	 * number comes down and each of the parts it counts comes down with it.
+	 * sized around: header, the page bar, the tray, the save button, this column's own
+	 * padding, and a little slack. Held sideways a phone is barely taller than that
+	 * list, so the number comes down and each of the parts it counts comes down with it.
 	 */
-	--book-reserve: 336px;
+	--book-reserve: 318px;
 }
 
 .save {
 	position: relative;
 	top: 0;
-	width: 100%;
-	margin: 20px 0 0;
+	/* The drawing's width, not the column's. It reads as centred either way; what this
+	   buys is the short window below, where "the right" has to mean the right-hand edge
+	   of the paper — sideways the column is the whole window and the flipbook is a
+	   narrow panel in the middle of it. Same ruler as the page bar. */
+	width: var(--book-width);
+	margin: 20px auto 0;
 	text-align: center;
 	transition: opacity 0.4s ease-in, top 0.4s ease-in;
 }
@@ -144,18 +147,27 @@
  *
  * The canvas is 16:9 and so is the screen, which ought to be the best this thing ever
  * looks — except that everything around it is now competing for 375 points of height
- * rather than 812. So the page puts itself on a diet: the tools lose a quarter of
- * their depth, the save button and the page arrows shrink with them, and the reserve
- * comes down to match. The header does its own shrinking; see SiteHeader.
+ * rather than 812. So the page puts itself on a diet: the page bar and the save button
+ * lose a quarter of their depth and the reserve comes down to match. The header does
+ * its own shrinking; see SiteHeader.
  */
 @media screen and (max-height: 560px) {
 	.content {
 		padding-top: 8px;
-		--book-reserve: 199px;
+		--book-reserve: 250px;
 	}
 
+	/*
+	 * Over to the right, and only here.
+	 *
+	 * This is the one layout where the pencil's width popover lies down, and lying down
+	 * it is 160px through the middle of this band — permanently, because the pencil is
+	 * the tool you start with. Centred, the two overlap by 46px. Standing up it is 40px
+	 * hard against the left and the button goes back to the middle.
+	 */
 	.save {
 		margin-top: 10px;
+		text-align: right;
 	}
 
 	.saveButton {
@@ -172,10 +184,10 @@
 /*
  * Desktop: a window with room for the page strip. See the note in base.css.
  *
- * Only three things differ, and all three are about there being room: nothing is
- * fixed to the bottom of the window, so nothing has to be left clear of it; the
- * column has air under it; and the save button flies *up* with the tools rather than
- * down past them.
+ * Only three things differ, and all three are about there being room: there is no
+ * bottom edge to keep clear of, so the column's own margin under the save button is
+ * all it needs; that margin is larger; and the save button flies *up* with the tools
+ * rather than down past them.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {

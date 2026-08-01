@@ -20,10 +20,8 @@ export interface CreateTrayProps {
  * again cycles into push, and push refuses to switch on when nothing is selected, so
  * it cycles straight back.
  *
- * `floating` is what the stylesheet keys the phone layout off: the same two groups,
- * fixed along the bottom edge of the window with the tools turned over. It's on the
- * markup rather than a media query alone because the playback page shares this
- * stylesheet and keeps its tray in the flow at every width.
+ * One layout at every width, bar the two playback buttons: on a phone the row is only
+ * as wide as the column, and they are the two controls with somewhere else to be.
  */
 export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const { tool, transformIndex, playback, pages } = state
@@ -36,7 +34,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const toolClass = (id: ModalToolId) =>
 		tool === id ? `${styles.tool} ${styles.toolActive}` : styles.tool
 
-	const trayClass = [styles.tray, styles.floating, stowed ? styles.stowed : ''].filter(Boolean)
+	const trayClass = [styles.tray, stowed ? styles.stowed : ''].filter(Boolean)
 
 	return (
 		<div className={trayClass.join(' ')}>
@@ -157,8 +155,8 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 					</button>
 				</li>
 
-				{/* Hidden on the phone, where these two have moved up into the page bar
-				    and sit beside the scrubber. See `.playbackKey`. */}
+				{/* Hidden on the phone, where the row hasn't the width for eight controls
+				    and the page bar's handle plays instead. See `.playbackKey`. */}
 				<CirclePlayButton
 					engine={engine}
 					playback={playback}
