@@ -63,6 +63,12 @@
 	--blue: #4a7df4;
 	--blue-dark: #0e4ee4;
 	--blue-deep: #07256b;
+	/* Not the blue above: this one is out of the 2013 icon sheet, where it is the play
+	   and circleplay arrows, and it is `HIGHLIGHT_COLOR` in the engine, where it is a
+	   selected stroke. The page scrubber's handle borrows it, because it is the other
+	   control on that page that says where in the flipbook you are — sampled from the
+	   sprite rather than nearly matched by eye. */
+	--blue-playback: #2299ff;
 	--green: #d5ff71;
 	--red: #f54958;
 	/* The yellow belongs to the pencil, and to the two buttons that start and finish a
@@ -94,10 +100,10 @@
 
 	--control-height: 44px;
 
-	/* How tall the create page's tools are where they're fixed to the bottom of the
-	   window, which is the phone layout below. The page reserves the same number
-	   underneath itself, so shared rather than written twice. See Tray.module.css. */
-	--tray-height: 96px;
+	/* How deep the create page's tray is on the phone layout below. The page reserves
+	   the same number underneath itself, so shared rather than written twice. See
+	   Tray.module.css. */
+	--tray-height: 72px;
 }
 
 /*
@@ -122,7 +128,7 @@
    create page that isn't the drawing gives some back. */
 @media screen and (max-height: 560px) {
 	:root {
-		--tray-height: 72px;
+		--tray-height: 56px;
 	}
 }
 

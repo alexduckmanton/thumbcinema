@@ -2,8 +2,11 @@
 export const CANVAS_WIDTH = 640
 export const CANVAS_HEIGHT = 360
 
-/** Gap either side of a page thumbnail in the strip above the canvas. */
-export const PAGE_MARGIN = 10
+/*
+ * The gap either side of a page thumbnail used to be here, as PAGE_MARGIN. It is in
+ * PageStrip's stylesheet now and nowhere else: it differs by layout, and the strip
+ * reads its own padding back off the page rather than agreeing a number with the CSS.
+ */
 
 /** Ink. */
 export const PENCIL_COLOR = '#444'

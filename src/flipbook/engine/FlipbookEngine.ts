@@ -1,5 +1,5 @@
 import { Store } from '../../lib/store'
-import { freeze, play } from './animations'
+import { DEFAULT_PAGE_STEP, freeze, play } from './animations'
 import { CANVAS_HEIGHT, CANVAS_WIDTH, FPS, PENCIL_COLOR } from './constants'
 import { assertLeadingGroups, parseLegacyPages, parseSvgPages, strokeWidthFor } from './formats'
 import {
@@ -91,6 +91,9 @@ export class FlipbookEngine {
 
 	/** One canvas per page, registered by React as the strip renders. */
 	private readonly thumbnails = new Map<number, HTMLCanvasElement>()
+
+	/** How far one page is from the next on screen. See `setPageStep`. */
+	private pageStep = DEFAULT_PAGE_STEP
 
 	private nextPageId = 1
 	private playTimer: number | null = null
@@ -196,6 +199,18 @@ export class FlipbookEngine {
 			element.getContext('2d')?.drawImage(this.seedNext.source, 0, 0, element.width, element.height)
 			this.seedNext = null
 		}
+	}
+
+	/**
+	 * How far it is from one page to the next, measured off the strip.
+	 *
+	 * Every animation that throws a page into the next slot travels exactly this far,
+	 * and the strip is a row of copies of the drawing — which is 640 wide on a desktop
+	 * and about half that on a phone. So the number can't be a constant, and it is the
+	 * strip that knows it. See `PageStrip`, which measures and reports it.
+	 */
+	setPageStep(step: number): void {
+		if (step > 0) this.pageStep = step
 	}
 
 	/** Copies the live canvas onto the active page's thumbnail. */
@@ -477,7 +492,7 @@ export class FlipbookEngine {
 		const arriving = replacing
 			? play(this.scene.canvas, 'newPage')
 			: siblingCanvas
-				? play(siblingCanvas, atEnd ? 'focusPrevThumb' : 'focusNextThumb')
+				? play(siblingCanvas, atEnd ? 'focusPrevThumb' : 'focusNextThumb', { step: this.pageStep })
 				: Promise.resolve()
 
 		// The deleted page holds its last frame: it's about to be removed, and
@@ -882,7 +897,9 @@ export class FlipbookEngine {
 		const unpinOutgoing = outgoingCanvas ? freeze(outgoingCanvas) : null
 
 		await Promise.all([
-			outgoingCanvas ? play(outgoingCanvas, 'newPageIcon') : Promise.resolve(),
+			outgoingCanvas
+				? play(outgoingCanvas, 'newPageIcon', { step: this.pageStep })
+				: Promise.resolve(),
 			play(this.scene.canvas, incoming),
 		])
 

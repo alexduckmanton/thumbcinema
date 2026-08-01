@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 
-import type { FlipbookEngine } from '../engine/FlipbookEngine'
+import icons from '../../styles/icons.module.css'
+import type { FlipbookEngine, PlaybackMode } from '../engine/FlipbookEngine'
 import styles from './PageNav.module.css'
 
 export interface PageNavProps {
@@ -8,21 +9,20 @@ export interface PageNavProps {
 	activePage: number
 	/** Settled pages — the one falling out of a delete isn't one of them yet. */
 	pages: number
-	/** True while the flipbook is playing, in either mode. See `.eased`. */
-	playing: boolean
+	/** Which way the flipbook is playing, if it is. See `.eased`. */
+	playback: PlaybackMode
 }
 
 /**
  * Back a page, forward a page, and a scrubber for everything in between.
  *
- * Phones only. Above the breakpoint the strip of thumbnails is showing and does all
- * of this at once — you can see the pages either side and click straight onto one —
- * and the arrow keys have always been the keyboard route. Below it the strip is
- * hidden, and hiding it is what buys the canvas the full width of the window: a
- * filmstrip needs room either side of the page to be a filmstrip, and there isn't
- * any.
+ * Phones only. The strip of thumbnails is on both layouts, but on a phone the drawing
+ * takes nearly the whole window and all that shows of the pages either side is a few
+ * millimetres — enough to say the flipbook carries on, nowhere near enough to reach
+ * for. Above the breakpoint there is room to see them and click straight onto one, and
+ * the arrow keys have always been the keyboard route.
  *
- * So the pages you can't see become a bar you can drag. The handle is on a page, not
+ * So the pages you can't reach become a bar you can drag. The handle is on a page, not
  * between pages: it follows the pointer while you're holding it and settles onto the
  * nearest of `pages` positions when you let go, the two ends included, so a two-page
  * flipbook has a handle that is either hard left or hard right and nothing in
@@ -33,13 +33,28 @@ export interface PageNavProps {
  * The arrows wrap. Playback loops, so the page after the last one is page one
  * wherever else you look at this, and an arrow that greys out at the end of a
  * two-page flipbook is a dead control half the time.
+ *
+ * All three live in the one bar, stacked in the order you'd reach for them: the bar
+ * itself takes a press anywhere along it and sends the handle there, the arrows sit
+ * over it and take their own presses back off it, and the handle is over both. Near
+ * an end it covers the arrow underneath, which is the right way round — the thing
+ * you are holding should not be something you can miss.
+ *
+ * Play and circleplay sit in a second box on the same row. They belong up here rather
+ * than in the tray: everything on this row is about where you are in the flipbook and
+ * everything in the tray is about what you're drawing with, and it buys the tools an
+ * extra quarter of the tray. Their own buttons rather than the tray's, which is two
+ * `<button>`s of duplication against reaching into another component's stylesheet to
+ * undo the nudges that sit its icons on a baseline this row hasn't got.
  */
-export function PageNav({ engine, activePage, pages, playing }: PageNavProps) {
+export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
 	const track = useRef<HTMLDivElement | null>(null)
 	const handle = useRef<HTMLSpanElement | null>(null)
 
 	/** Where the pointer is holding the handle, 0–1, or null when nothing is. */
 	const [held, setHeld] = useState<number | null>(null)
+
+	const playing = playback !== 'none'
 
 	// The active page can briefly be past the end of the settled count — a delete
 	// makes the arriving page active from the first frame and spends 750ms getting it
@@ -85,8 +100,11 @@ export function PageNav({ engine, activePage, pages, playing }: PageNavProps) {
 		scrubTo(event.clientX)
 	}
 
+	// `held` rather than `hasPointerCapture`: it is set by the press and cleared by the
+	// release, so it says the same thing about our own drag without asking the DOM
+	// about a capture that a mouse merely passing over the bar never had.
 	const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-		if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+		if (held === null) return
 		scrubTo(event.clientX)
 	}
 
@@ -109,12 +127,7 @@ export function PageNav({ engine, activePage, pages, playing }: PageNavProps) {
 	const fraction = held ?? (pages > 1 ? current / (pages - 1) : 0)
 
 	return (
-		<div className={styles.nav}>
-			<button type="button" className={styles.arrow} title="Previous page" onClick={() => step(-1)}>
-				<span className={`${styles.chevron} ${styles.back}`} aria-hidden="true" />
-				<span className="visuallyHidden">Previous page</span>
-			</button>
-
+		<div className={styles.row}>
 			<div
 				ref={track}
 				className={styles.track}
@@ -135,6 +148,31 @@ export function PageNav({ engine, activePage, pages, playing }: PageNavProps) {
 				onLostPointerCapture={() => setHeld(null)}
 				onKeyDown={handleKeyDown}
 			>
+				<button
+					type="button"
+					className={`${styles.arrow} ${styles.back}`}
+					title="Previous page"
+					// Standing on the bar without being part of it: without this the press
+					// would run on up to the bar behind and scrub to wherever the arrow is,
+					// which is one end or the other.
+					onPointerDown={stopScrub}
+					onClick={() => step(-1)}
+				>
+					<span className={`${styles.chevron} ${styles.pointBack}`} aria-hidden="true" />
+					<span className="visuallyHidden">Previous page</span>
+				</button>
+
+				<button
+					type="button"
+					className={`${styles.arrow} ${styles.forward}`}
+					title="Next page"
+					onPointerDown={stopScrub}
+					onClick={() => step(1)}
+				>
+					<span className={`${styles.chevron} ${styles.pointForward}`} aria-hidden="true" />
+					<span className="visuallyHidden">Next page</span>
+				</button>
+
 				<span
 					ref={handle}
 					className={held === null && !playing ? `${styles.handle} ${styles.eased}` : styles.handle}
@@ -142,12 +180,41 @@ export function PageNav({ engine, activePage, pages, playing }: PageNavProps) {
 				/>
 			</div>
 
-			<button type="button" className={styles.arrow} title="Next page" onClick={() => step(1)}>
-				<span className={`${styles.chevron} ${styles.forward}`} aria-hidden="true" />
-				<span className="visuallyHidden">Next page</span>
-			</button>
+			<div className={styles.keys}>
+				<button
+					type="button"
+					className={styles.key}
+					title={playback === 'circleplay' ? 'Stop circleplay' : 'Circleplay'}
+					aria-pressed={playback === 'circleplay'}
+					disabled={pages < 2}
+					onClick={() => engine.toggleCircleplay()}
+				>
+					<span
+						className={playback === 'circleplay' ? icons.pause : icons.circleplay}
+						aria-hidden="true"
+					/>
+					<span className="visuallyHidden">Circleplay</span>
+				</button>
+
+				<button
+					type="button"
+					className={styles.key}
+					title={playback === 'play' ? 'Pause' : 'Play'}
+					aria-pressed={playback === 'play'}
+					disabled={pages < 2}
+					onClick={() => engine.togglePlay()}
+				>
+					<span className={playback === 'play' ? icons.pause : icons.play} aria-hidden="true" />
+					<span className="visuallyHidden">{playback === 'play' ? 'Pause' : 'Play'}</span>
+				</button>
+			</div>
 		</div>
 	)
+}
+
+/** Module scope: it closes over nothing, and the arrows get one each. */
+function stopScrub(event: React.PointerEvent<HTMLButtonElement>) {
+	event.stopPropagation()
 }
 
 /**

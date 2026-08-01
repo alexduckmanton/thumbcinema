@@ -1,6 +1,11 @@
 /*
- * Back a page, forward a page, and a scrubber between them. Under the canvas, on a
- * phone.
+ * The page bar: one white pill under the canvas, with a back arrow at one end, a
+ * forward arrow at the other and a handle that runs between them. Phones only.
+ *
+ * Three things in one control rather than three controls in a row, because the row
+ * spent 88px of a 335px window on two arrows that are only ever one page's worth of
+ * travel. Inside the bar they cost nothing: the handle passes over them, and it is
+ * only ever *at* an end when the arrow underneath is the one you least need.
  *
  * The chevrons are drawn rather than taken from the icon sheet. Every icon on that
  * sheet is hand-drawn and these are deliberately not — an arrow in the same hand as
@@ -10,69 +15,31 @@
  * to take: nobody has ever needed to draw one.
  */
 
-.nav {
+/*
+ * The row: the page bar, and the two playback keys in a box of their own beside it.
+ */
+.row {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 8px;
 	/* The width of the drawing, not of the column: this is the flipbook's own ruler,
-	   and a bar running past both edges of the paper it belongs to reads as the page's
+	   and a row running past both edges of the paper it belongs to reads as the page's
 	   rather than the flipbook's. Sideways, that's the difference between 310px and
 	   the whole window. */
 	width: var(--book-width);
 	margin: 10px auto 0;
 
-	/* The bar's height, and the handle's diameter with it — the handle is a circle
+	/* The row's height, and the handle's diameter with it — the handle is a circle
 	   that exactly fills the bar. One number, because the arithmetic that positions it
-	   subtracts a handle from the travel and `pageAt` measures the same handle back
+	   subtracts a handle from the travel and `fractionAt` measures the same handle back
 	   off the pointer. */
 	--scrub-size: 48px;
 }
 
-.arrow {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: 44px;
-	height: var(--scrub-size);
-	padding: 0;
-	border: none;
-	background: none;
-	color: var(--ink);
-	cursor: pointer;
-}
-
-.arrow:focus-visible {
-	outline: 2px solid var(--blue);
-	outline-offset: 2px;
-	border-radius: var(--radius-control);
-}
-
-.chevron {
-	width: 12px;
-	height: 12px;
-	border-top: 2px solid currentColor;
-	border-right: 2px solid currentColor;
-}
-
-.back {
-	/* Nudged by half its own overhang either way, so the ink sits on the centre of the
-	   button rather than the corner of the square that draws it. */
-	margin-left: 4px;
-	transform: rotate(-135deg);
-}
-
-.forward {
-	margin-right: 4px;
-	transform: rotate(45deg);
-}
-
 /*
- * The bar: a groove for the handle to run in, and nothing else on it.
+ * The bar: a groove for the handle to run in, and the arrows standing on it.
  *
- * White, like the sheet of paper above it, on the grey of the page. The handle is the
- * width slider's grey, so the two things on this page you drag look like the same
- * kind of thing.
+ * White, like the sheet of paper above it, on the grey of the page.
  */
 .track {
 	position: relative;
@@ -91,16 +58,125 @@
 	outline-offset: 2px;
 }
 
-/* The handle. Under the finger it is wherever the finger is; the moment it isn't, it
-   is on a page. */
+/*
+ * The arrows, at the two ends and inside the rounding.
+ *
+ * Pale, and paler than anything else on the page on purpose: they are a shortcut for
+ * something the handle already does, sitting on white a few pixels under a drawing.
+ * At the ink colour they were the loudest thing below the canvas.
+ */
+.arrow {
+	position: absolute;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--scrub-size);
+	height: var(--scrub-size);
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-pill);
+	background: none;
+	color: var(--line);
+	cursor: pointer;
+}
+
+.back {
+	left: 0;
+}
+
+.forward {
+	right: 0;
+}
+
+.arrow:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: -2px;
+}
+
+.chevron {
+	width: 12px;
+	height: 12px;
+	border-top: 2px solid currentColor;
+	border-right: 2px solid currentColor;
+}
+
+.pointBack {
+	/* Nudged by half its own overhang either way, so the ink sits on the centre of the
+	   button rather than the corner of the square that draws it. */
+	margin-left: 4px;
+	transform: rotate(-135deg);
+}
+
+.pointForward {
+	margin-right: 4px;
+	transform: rotate(45deg);
+}
+
+/*
+ * The handle. Under the finger it is wherever the finger is; the moment it isn't, it
+ * is on a page.
+ *
+ * The playback icons' blue, which is the one thing on this page that is already about
+ * where in the flipbook you are. Over the arrows, and deliberately not a button: a
+ * press on it falls through to the bar underneath and starts the drag there.
+ */
 .handle {
 	position: absolute;
 	top: 0;
 	left: calc(var(--fraction) * (100% - var(--scrub-size)));
+	z-index: 2;
 	width: var(--scrub-size);
 	height: var(--scrub-size);
 	border-radius: var(--radius-pill);
-	background: #888;
+	background: var(--blue-playback);
+}
+
+/*
+ * Play and circleplay, in their own box on the same row.
+ *
+ * The same white pill at the same height as the bar, because they are the same kind of
+ * thing — the bar says where in the flipbook you are and these two move you through it
+ * on their own. Down in the tray they sat among the drawing tools, which is a different
+ * subject entirely.
+ */
+.keys {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	height: var(--scrub-size);
+	padding: 0 10px;
+	border-radius: var(--radius-pill);
+	background: var(--white);
+}
+
+.key {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	width: 38px;
+	height: 100%;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: pointer;
+}
+
+/* Off until there is a second page to play, which can be the whole time you are
+   drawing the first one. Grey as well as faded: both icons are coloured, and colour
+   alone still reads as available. */
+.key:disabled {
+	opacity: 0.35;
+	filter: grayscale(1);
+	cursor: default;
+}
+
+.key:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: -4px;
+	border-radius: var(--radius-control);
 }
 
 /*
@@ -123,18 +199,23 @@
 
 /* A short window, where every row is paying for its height. */
 @media screen and (max-height: 560px) {
-	.nav {
+	.row {
 		margin-top: 4px;
 		--scrub-size: 36px;
+	}
+
+	.key {
+		width: 32px;
 	}
 }
 
 /*
- * Gone wherever the strip of page thumbnails is showing: it does all of this and
- * more, and the arrow keys do the rest. See the note in base.css.
+ * Gone wherever there is room to see and click the page thumbnails themselves: they do
+ * all of this and more, the arrow keys do the rest, and play and circleplay are in the
+ * tray up there. See the note in base.css.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
-	.nav {
+	.row {
 		display: none;
 	}
 }

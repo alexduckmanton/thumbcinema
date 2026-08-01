@@ -1,11 +1,11 @@
 /*
  * The strip of page thumbnails behind the canvas.
  *
- * Every page is a full-size copy of the canvas laid out in a row 99999px wide, and
- * the whole row slides so that the active page sits exactly where the live canvas
- * is. The active page's own thumbnail is invisible — the canvas is standing in front
- * of it — which is what makes the row read as one flipbook rather than a filmstrip
- * with a hole in it.
+ * Every page is a copy of the canvas, drawn at 640×360 and *shown* at whatever the
+ * canvas is currently shown at, laid out in a row 99999px wide; the whole row slides
+ * so that the active page sits exactly where the live canvas is. The active page's own
+ * thumbnail is invisible — the canvas is standing in front of it — which is what makes
+ * the row read as one flipbook rather than a filmstrip with a hole in it.
  *
  * Create only. The playback page never renders this, and never allocates the
  * per-page canvases: 640×360 of backing store each, which on a 200-page archive
@@ -37,21 +37,32 @@
 	transition: left 0.3s ease-in-out;
 }
 
+/*
+ * One page: a copy of the drawing, at the size the drawing is currently drawn at,
+ * with a gutter either side.
+ *
+ * `--page-width` comes from the component, which measures the live canvas — 640 on a
+ * desktop, about half that on a phone. The gutter is stated only here, and the
+ * component reads it back off this box, so the two agree without either one repeating
+ * the other's number.
+ */
 .page {
 	position: relative;
 	z-index: 9;
 	float: left;
-	/* 640 of canvas plus 10 of gutter either side. Written as the outer width
-	   because everything here is border-box; the arithmetic that positions the
-	   strip uses the same number, as PAGE_MARGIN in the engine's constants. */
-	width: 660px;
-	padding: 20px 10px 0;
+	width: calc(var(--page-width) + var(--page-gutter) * 2);
+	padding: 20px var(--page-gutter) 0;
+
+	--page-gutter: 10px;
 }
 
 .page canvas {
 	position: relative;
 	z-index: -1;
 	float: left;
+	width: var(--page-width);
+	/* From the 640×360 attributes, so a scaled thumbnail keeps the flipbook's shape. */
+	height: auto;
 	background: var(--white);
 	cursor: pointer;
 	opacity: 1;
@@ -76,15 +87,16 @@
 }
 
 /*
- * Gone on a phone, in either orientation.
+ * On a phone the strip is still here, and the gutter closes up.
  *
- * Every page in here is a full-size copy of the canvas at a fixed 660px pitch, and
- * the row is positioned by arithmetic against that number — so a strip around a
- * canvas that has been scaled to a 375px window would be a row of 640px thumbnails
- * marching off both sides of it. What replaces it is `PageNav`.
+ * The drawing takes nearly the whole window, so all there is to see the neighbouring
+ * pages through is the column's own side padding — 16px, and every pixel of the gutter
+ * is spent twice out of it. 4px leaves 8px of the next page showing past the edge of
+ * the drawing, which is enough to say the flipbook carries on in both directions and
+ * is all that's going without making the drawing smaller.
  */
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
-	.container {
-		display: none;
+	.page {
+		--page-gutter: 4px;
 	}
 }

@@ -13,7 +13,7 @@ function fakeEngine() {
 describe('PageNav', () => {
 	it('turns the page in both directions', async () => {
 		const engine = fakeEngine()
-		render(<PageNav engine={engine} activePage={1} pages={3} playing={false} />)
+		render(<PageNav engine={engine} activePage={1} pages={3} playback="none" />)
 
 		await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
 		expect(engine.goToPage).toHaveBeenLastCalledWith(2)
@@ -25,20 +25,34 @@ describe('PageNav', () => {
 	it('wraps at both ends, because playback does', async () => {
 		const engine = fakeEngine()
 		const { rerender } = render(
-			<PageNav engine={engine} activePage={0} pages={3} playing={false} />,
+			<PageNav engine={engine} activePage={0} pages={3} playback="none" />,
 		)
 
 		await userEvent.click(screen.getByRole('button', { name: 'Previous page' }))
 		expect(engine.goToPage).toHaveBeenLastCalledWith(2)
 
-		rerender(<PageNav engine={engine} activePage={2} pages={3} playing={false} />)
+		rerender(<PageNav engine={engine} activePage={2} pages={3} playback="none" />)
 
 		await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
 		expect(engine.goToPage).toHaveBeenLastCalledWith(0)
 	})
 
+	it('takes the arrows back off the bar they stand on', async () => {
+		const engine = fakeEngine()
+		render(<PageNav engine={engine} activePage={1} pages={5} playback="none" />)
+
+		await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
+
+		// Pressing the bar starts a scrub, and a scrub takes over from playback. Pressing
+		// an arrow is a press on the bar unless the arrow stops it there: without that,
+		// every arrow is also a jump to whichever end the arrow happens to sit at.
+		expect(engine.pause).not.toHaveBeenCalled()
+		expect(engine.goToPage).toHaveBeenCalledTimes(1)
+		expect(engine.goToPage).toHaveBeenCalledWith(2)
+	})
+
 	it('says where in the flipbook it is', () => {
-		render(<PageNav engine={fakeEngine()} activePage={2} pages={9} playing={false} />)
+		render(<PageNav engine={fakeEngine()} activePage={2} pages={9} playback="none" />)
 
 		const scrubber = screen.getByRole('slider', { name: 'Page' })
 		expect(scrubber).toHaveAttribute('aria-valuenow', '3')
@@ -49,7 +63,7 @@ describe('PageNav', () => {
 
 	it('scrubs with the arrow keys, without needing a pointer', async () => {
 		const engine = fakeEngine()
-		render(<PageNav engine={engine} activePage={4} pages={9} playing={false} />)
+		render(<PageNav engine={engine} activePage={4} pages={9} playback="none" />)
 
 		screen.getByRole('slider').focus()
 
@@ -63,7 +77,7 @@ describe('PageNav', () => {
 	it('never points past the end, which a delete would', () => {
 		// The arriving page is active from the first frame and the page it replaces is
 		// still falling, so for 750ms the active index is past the settled count.
-		render(<PageNav engine={fakeEngine()} activePage={1} pages={1} playing={false} />)
+		render(<PageNav engine={fakeEngine()} activePage={1} pages={1} playback="none" />)
 
 		expect(screen.getByRole('slider')).toHaveAttribute('aria-valuetext', 'Page 1 of 1')
 	})

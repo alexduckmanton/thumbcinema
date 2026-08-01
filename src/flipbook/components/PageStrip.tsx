@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { CANVAS_HEIGHT, CANVAS_WIDTH, PAGE_MARGIN } from '../engine/constants'
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import type { PageState } from '../engine/pages'
 import styles from './PageStrip.module.css'
-
-/** One page's outer width: the canvas plus its gutters. Matches `.page` in the CSS. */
-const PAGE_STEP = CANVAS_WIDTH + PAGE_MARGIN * 2
 
 export interface PageStripProps {
 	engine: FlipbookEngine
@@ -28,25 +25,66 @@ export function PageStrip({
 	canvasRef,
 }: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
-	const [canvasOffset, setCanvasOffset] = useState(0)
+	const firstPage = useRef<HTMLDivElement | null>(null)
+	const [metrics, setMetrics] = useState({ offset: 0, width: CANVAS_WIDTH, gutter: 0 })
 
-	// Where the live canvas sits relative to the strip's container. Measured rather
-	// than assumed, because `.center` is a percentage width below 730px.
+	/*
+	 * Three numbers, all read off what the browser actually laid out.
+	 *
+	 * `offset` is where the live canvas sits relative to this container, and `width` is
+	 * how wide it is — which is 640 on a desktop and whatever the window could spare on
+	 * a phone, because the thumbnails are copies of the drawing and have to be exactly
+	 * the size of it to stand behind it. `gutter` is the page's own padding, taken from
+	 * the stylesheet rather than agreed with it, so the gap between pages can differ by
+	 * layout without this file knowing that layouts exist.
+	 */
 	const measure = useCallback(() => {
 		const canvas = canvasRef.current
 		const box = container.current
-		if (!canvas || !box) return
+		const page = firstPage.current
+		if (!canvas || !box || !page) return
 
-		setCanvasOffset(canvas.getBoundingClientRect().left - box.getBoundingClientRect().left)
+		setMetrics({
+			offset: canvas.getBoundingClientRect().left - box.getBoundingClientRect().left,
+			width: canvas.offsetWidth,
+			gutter: Number.parseFloat(getComputedStyle(page).paddingLeft) || 0,
+		})
 	}, [canvasRef])
 
+	/*
+	 * Both, because they answer different halves of it.
+	 *
+	 * The canvas changes width when the window does, but it also changes width when
+	 * nothing fires a resize at all — `--book-width` is drawn off `100dvh`, and on a
+	 * phone that moves as the browser's own chrome slides in and out. And the window
+	 * changes the canvas's *position* without changing its size at all, which is every
+	 * desktop window: the drawing stays 640 and the column re-centres under it.
+	 */
 	useEffect(() => {
 		measure()
 		window.addEventListener('resize', measure)
-		return () => window.removeEventListener('resize', measure)
-	}, [measure])
 
-	const left = canvasOffset - PAGE_MARGIN - activePage * PAGE_STEP
+		const canvas = canvasRef.current
+		const observer =
+			canvas && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+		observer?.observe(canvas as Element)
+
+		return () => {
+			window.removeEventListener('resize', measure)
+			observer?.disconnect()
+		}
+	}, [measure, canvasRef])
+
+	/** One page to the next: the drawing's width plus a gutter either side. */
+	const step = metrics.width + metrics.gutter * 2
+
+	// The engine throws pages from one slot to the next and needs to know how far that
+	// is. It can't be told at build time for the same reason it isn't measured there.
+	useEffect(() => {
+		engine.setPageStep(step)
+	}, [engine, step])
+
+	const left = metrics.offset - metrics.gutter - activePage * step
 	const snap = useSnapOnRemoval(pages.length)
 
 	// Which thumbnail the canvas is standing in front of, and so which one to hide.
@@ -57,7 +95,16 @@ export function PageStrip({
 		<div className={styles.container} ref={container} aria-hidden="true">
 			<div
 				className={playing ? `${styles.strip} ${styles.playing}` : styles.strip}
-				style={{ left: `${left}px`, transitionDuration: snap ? '0s' : undefined }}
+				style={
+					{
+						left: `${left}px`,
+						transitionDuration: snap ? '0s' : undefined,
+						// How wide a page is drawn. The stylesheet adds its own gutters to it
+						// and this file reads those back, so neither has to state the other's
+						// number. See `measure`.
+						'--page-width': `${metrics.width}px`,
+					} as React.CSSProperties
+				}
 			>
 				{pages.map((page, index) => (
 					// The whole strip is `aria-hidden`: these are decorative copies of the
@@ -68,6 +115,7 @@ export function PageStrip({
 					// biome-ignore lint/a11y/useKeyWithClickEvents: arrow keys are the keyboard route.
 					<div
 						key={page.id}
+						ref={index === 0 ? firstPage : null}
 						className={index === covered ? `${styles.page} ${styles.covered}` : styles.page}
 						onClick={() => engine.goToPage(index)}
 					>

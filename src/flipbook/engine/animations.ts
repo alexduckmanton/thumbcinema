@@ -26,8 +26,15 @@ const EASE = 'ease-in-out'
  */
 const DURATION = 750
 
-/** One page thumbnail's width plus its gutters. Matches `.page` in the stylesheet. */
-const PAGE_STEP = 660
+/**
+ * How far it is from one page to the next: a thumbnail's width plus its gutters.
+ *
+ * Only the fallback. The strip is a row of copies of the drawing, and the drawing is
+ * whatever width the window could spare — 640 on a desktop, half that on a phone —
+ * so the real number is measured off `.page` and handed to `play()` by the strip.
+ * Everything that throws a page from one slot to the next is written against it.
+ */
+export const DEFAULT_PAGE_STEP = 660
 
 /** The drop shadow under a page, as a keyframe value. */
 const shadow = (alpha: number) => `rgba(0, 0, 0, ${alpha}) 0 10px 0 -5px`
@@ -43,9 +50,9 @@ export type PageAnimation =
 // biome-ignore format: one line per keyframe. These are a table — the offsets and the
 // values line up down the page, and that is how you read an animation. The formatter
 // breaks each one across five lines and the shape goes with it.
-const KEYFRAMES: Record<PageAnimation, Keyframe[]> = {
+const KEYFRAMES: Record<PageAnimation, (step: number) => Keyframe[]> = {
 	/** The incoming canvas, spinning in from off to the right. */
-	newPage: [
+	newPage: () => [
 		{ offset: 0, transform: 'translate3d(1500px, -150px, 0) rotate3d(180, 180, -180, 90deg) scale3d(1.5, 1.5, 1.5)' },
 		{ offset: 0.4, transform: 'translate3d(-10px, 2px, 0) rotate3d(0, 0, 0, 0.5deg) scale3d(1, 1, 1)' },
 		{ offset: 0.6, transform: 'translate3d(4px, -1px, 0) rotate3d(0, 0, 0, 0deg) scale3d(1, 1, 1)' },
@@ -54,16 +61,16 @@ const KEYFRAMES: Record<PageAnimation, Keyframe[]> = {
 	],
 
 	/** The page you were on, thrown left into the strip to make room. */
-	newPageIcon: [
+	newPageIcon: (step) => [
 		{ offset: 0, transform: 'translate3d(0, 0, 0) scale3d(1, 1, 1)', boxShadow: shadow(0.05) },
-		{ offset: 0.4, transform: `translate3d(-${PAGE_STEP}px, -15px, 0) rotate3d(1, 1, -1, -1deg) scale3d(1.01, 1.01, 1)`, boxShadow: shadow(0) },
-		{ offset: 0.6, transform: `translate3d(-${PAGE_STEP - 4}px, 3px, 0) scale3d(1, 1, 1)`, boxShadow: shadow(0) },
-		{ offset: 0.8, transform: `translate3d(-${PAGE_STEP}px, 0, 0) scale3d(1, 1, 1)`, boxShadow: shadow(0.05) },
-		{ offset: 1, transform: `translate3d(-${PAGE_STEP}px, 0, 0) scale3d(1, 1, 1)`, boxShadow: shadow(0.05) },
+		{ offset: 0.4, transform: `translate3d(-${step}px, -15px, 0) rotate3d(1, 1, -1, -1deg) scale3d(1.01, 1.01, 1)`, boxShadow: shadow(0) },
+		{ offset: 0.6, transform: `translate3d(-${step - 4}px, 3px, 0) scale3d(1, 1, 1)`, boxShadow: shadow(0) },
+		{ offset: 0.8, transform: `translate3d(-${step}px, 0, 0) scale3d(1, 1, 1)`, boxShadow: shadow(0.05) },
+		{ offset: 1, transform: `translate3d(-${step}px, 0, 0) scale3d(1, 1, 1)`, boxShadow: shadow(0.05) },
 	],
 
 	/** Duplicating doesn't change what's on screen, so the canvas just bumps. */
-	nudge: [
+	nudge: () => [
 		{ offset: 0, transform: 'translate3d(0, 5px, 0)' },
 		{ offset: 0.2, transform: 'translate3d(0, -2px, 0)' },
 		{ offset: 0.35, transform: 'translate3d(0, 1px, 0)' },
@@ -71,27 +78,27 @@ const KEYFRAMES: Record<PageAnimation, Keyframe[]> = {
 		{ offset: 1, transform: 'translate3d(0, 0, 0)' },
 	],
 
-	deletePage: [
+	deletePage: () => [
 		{ offset: 0, transform: 'translate3d(0, 2px, 0) rotate(0deg) scale3d(1, 1, 1)' },
 		{ offset: 0.25, transform: 'translate3d(-10px, -50px, 0) rotate(-10deg) scale3d(1, 1, 1)' },
 		{ offset: 1, transform: 'translate3d(-200px, 1000px, 0) rotate(-170deg) scale3d(0.5, 0.75, 1)' },
 	],
 
 	/** The page that takes over when the last page is deleted, sliding in from the right. */
-	focusPrevThumb: [
+	focusPrevThumb: (step) => [
 		{ offset: 0, transform: 'translate3d(0, 0, 0) rotate(0deg)' },
-		{ offset: 0.35, transform: `translate3d(${PAGE_STEP + 20}px, 0, 0) rotate(0.5deg)` },
-		{ offset: 0.55, transform: `translate3d(${PAGE_STEP - 5}px, 0, 0) rotate(-0.25deg)`, boxShadow: shadow(0) },
-		{ offset: 0.75, transform: `translate3d(${PAGE_STEP}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
-		{ offset: 1, transform: `translate3d(${PAGE_STEP}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
+		{ offset: 0.35, transform: `translate3d(${step + 20}px, 0, 0) rotate(0.5deg)` },
+		{ offset: 0.55, transform: `translate3d(${step - 5}px, 0, 0) rotate(-0.25deg)`, boxShadow: shadow(0) },
+		{ offset: 0.75, transform: `translate3d(${step}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
+		{ offset: 1, transform: `translate3d(${step}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
 	],
 
-	focusNextThumb: [
+	focusNextThumb: (step) => [
 		{ offset: 0, transform: 'translate3d(0, 0, 0) rotate(0deg)' },
-		{ offset: 0.35, transform: `translate3d(-${PAGE_STEP + 20}px, 0, 0) rotate(-0.5deg)` },
-		{ offset: 0.55, transform: `translate3d(-${PAGE_STEP - 5}px, 0, 0) rotate(0.25deg)`, boxShadow: shadow(0) },
-		{ offset: 0.75, transform: `translate3d(-${PAGE_STEP}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
-		{ offset: 1, transform: `translate3d(-${PAGE_STEP}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
+		{ offset: 0.35, transform: `translate3d(-${step + 20}px, 0, 0) rotate(-0.5deg)` },
+		{ offset: 0.55, transform: `translate3d(-${step - 5}px, 0, 0) rotate(0.25deg)`, boxShadow: shadow(0) },
+		{ offset: 0.75, transform: `translate3d(-${step}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
+		{ offset: 1, transform: `translate3d(-${step}px, 0, 0) rotate(0deg)`, boxShadow: shadow(0.05) },
 	],
 }
 
@@ -115,13 +122,15 @@ export async function play(
 		/** Holds the element at its final frame instead of snapping back. */
 		hold?: boolean
 		duration?: number
+		/** One page to the next, in pixels. See `DEFAULT_PAGE_STEP`. */
+		step?: number
 	} = {},
 ): Promise<void> {
 	if (typeof element.animate !== 'function' || prefersReducedMotion()) return
 
 	const duration = options.duration ?? DURATION
 
-	const running = element.animate(KEYFRAMES[animation], {
+	const running = element.animate(KEYFRAMES[animation](options.step ?? DEFAULT_PAGE_STEP), {
 		duration,
 		easing: EASE,
 		fill: options.hold ? 'forwards' : 'none',

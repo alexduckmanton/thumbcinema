@@ -250,59 +250,129 @@
 	}
 
 	/*
-	 * The create page's tray, fixed to the bottom of the window.
+	 * The create page's tray: one white container, floating clear of the bottom edge
+	 * of the window, with every control in it.
 	 *
 	 * z-index 16 puts it over the canvas's 15 — they don't overlap in portrait, but a
 	 * phone held sideways is 360-odd points tall and everything is closer than it
 	 * looks — and under the save form's 17, which covers everything by design.
+	 *
+	 * The rounding is 24px rather than the site's 10, because at this size a control
+	 * rounding reads as a box with soft corners and what this wants to read as is a
+	 * tray: one object that the tools are standing in and can be lifted out of.
 	 */
 	.floating {
 		position: fixed;
-		right: 0;
-		bottom: 0;
-		left: 0;
+		/* Inset on all three sides, and clear of the home indicator and of the notch
+		   when the phone is sideways. */
+		right: calc(8px + env(safe-area-inset-right));
+		bottom: calc(8px + env(safe-area-inset-bottom));
+		left: calc(8px + env(safe-area-inset-left));
 		z-index: 16;
-		/* Both back: the rule above centres the playback page's tray on a narrow
-		   screen, and this one wants its two groups at the two thumbs instead. */
-		justify-content: space-between;
 		align-items: stretch;
-		height: calc(var(--tray-height) + env(safe-area-inset-bottom));
-		/* Clear of the home indicator, and of the notch when the phone is sideways —
-		   which is exactly where the two groups are, hard against both edges. */
-		padding: 0 calc(8px + env(safe-area-inset-right)) env(safe-area-inset-bottom)
-			calc(8px + env(safe-area-inset-left));
+		/* Not the shared `width: 100%`, which against a fixed box means the width of the
+		   window and puts the right-hand inset outside it. */
+		width: auto;
+		height: var(--tray-height);
+		padding: 0 8px;
 		margin: 0;
+		border-radius: 24px;
 		/* No rule along the top. The tools stand up through where it would run, and a
 		   line drawn across a pencil reads as a line drawn across a pencil. */
-		background: var(--page);
+		background: var(--white);
 		transition: transform 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045);
 	}
 
+	/*
+	 * Eight controls, evenly spaced, and you shouldn't be able to see where one list
+	 * ends and the other begins.
+	 *
+	 * Even *gaps*, not even columns. The three tools are 40px-wide pictures of real
+	 * objects and the five actions are 25 to 29px icons, so a row of equal columns puts
+	 * 3px between the tools and 16px between the actions — the tools read as one solid
+	 * block with the rest of the row spread out beside it, which is exactly how it
+	 * looked. What's wanted is the same air between every pair.
+	 *
+	 * So each button keeps its own width and every one of the eight takes an equal cut
+	 * of what's left over — `flex-grow: 1` on a content-sized basis — and the two lists
+	 * grow by as many buttons as they hold, three and five, so that the shares stay the
+	 * same size across the seam between them. Each button centres its icon in its share,
+	 * which puts half a share of air on either side: even gaps all the way along, and
+	 * half of one at each end. The numbers are the markup's, in a stylesheet written
+	 * for that markup.
+	 */
 	.floating .group {
 		height: 100%;
 		margin: 0;
 	}
 
+	/* Three buttons each: the two playback keys have moved up to the page bar, which is
+	   `.playbackKey` below. */
+	.floating .tools,
+	.floating .actions {
+		flex: 3 1 auto;
+	}
+
+	/* Named this fully only to outrank the rule further down that lays these out: that
+	   one names the element too, and comes later. */
+	.floating .actions li.playbackKey {
+		display: none;
+	}
+
+	/* `margin: 0` because the desktop row spaces its tools with one, and a margin here
+	   would be counted before the shares are handed out and land in one gap only. */
+	.floating .group li {
+		flex: 1 1 auto;
+		min-width: 0;
+		margin: 0;
+	}
+
 	/*
-	 * Upside down.
+	 * Upside down, and mostly inside the tray.
 	 *
 	 * The pencil and the eraser are drawings of the real things, tip downwards, and on
 	 * a desktop they hang below the canvas like tools laid on a desk. Down there they
 	 * are also as far from the drawing as anything on the page can be, which on a
 	 * phone is the wrong end of the screen. So they're turned over: each one now
-	 * stands on the bottom edge of the window pointing up at the paper, with the rest
-	 * of its length running off the screen below. Selecting one draws it further up
-	 * out of the window, which is the desktop's movement the other way about — and
-	 * about as far, 40px against 50.
+	 * stands in the tray pointing up at the paper, tip 10px below the rim, with the
+	 * rest of its 304px running down past the bottom of the tray and clipped off.
+	 * Selecting one lifts it 40px — the desktop's movement the other way about, and
+	 * about as far — which takes its tip up out of the tray altogether.
+	 *
+	 * Clipped along one edge only, which `overflow` can't do: the bottom is the rim of
+	 * the tray and everything below it is inside the wood, while the top has to be open
+	 * for the tool that's been picked up, the transform's fan of arrows, and the
+	 * pencil's width popover. Hence the inset with three sides pushed out of the way.
+	 *
+	 * The one corner that is rounded is the tray's own bottom left. This list starts at
+	 * the tray's padding, so reaching 8px back past its own edge puts the clip's corner
+	 * exactly on the tray's — without which the pencil paints a square corner over the
+	 * curve and the tray stops being a rounded box at the one place you look for it.
 	 */
+	.floating .tools {
+		clip-path: inset(-500px -500px 0 -8px round 0 0 0 24px);
+	}
+
+	/* The 40px is the desktop rule's and is repeated because it is load-bearing here in
+	   a way it isn't there: the button inside is absolutely positioned, so without a
+	   width of its own this box has no content to be sized from and takes no share. */
 	.floating .tools li {
 		width: 40px;
 		height: 100%;
-		margin: 0 4px 0 0;
 	}
 
 	.floating .blade {
 		transform: rotate(180deg);
+	}
+
+	/* Centred in its share of the tray rather than left-aligned in a 40px box: the
+	   spacing above is centre-to-centre and this is what puts the centres there. */
+	.floating .tool {
+		top: 10px;
+		bottom: auto;
+		left: 50%;
+		transform: translateX(-50%);
+		transition: top 0.1s ease-in-out;
 	}
 
 	/*
@@ -317,26 +387,17 @@
 	 * and the hand comes over with it for free.
 	 */
 	.floating .transform {
-		transform: rotate(180deg);
-	}
-
-	/* Half the bar's depth when it's resting, all but 8px of it when it's the tool in
-	   hand — half a bar of pencil is also a target a thumb can find without looking.
-	   Off the bar's own height, so a short window shortens both together. */
-	.floating .tool {
-		top: calc(var(--tray-height) / 2);
-		bottom: auto;
-		transition: top 0.1s ease-in-out;
+		transform: translateX(-50%) rotate(180deg);
 	}
 
 	.floating .toolActive,
 	.floating .transformActive {
-		top: 8px;
+		top: -30px;
 		bottom: auto;
 	}
 
-	/* Bigger than the ink in them: these are thumb targets now, and the icons they
-	   hold are 25 to 33px of a 40 × 44 box. */
+	/* The icons they hold are 25 to 33px tall, and this centres each one in the tray's
+	   full depth rather than sitting it on a baseline the way the desktop row does. */
 	.floating .actions {
 		align-items: center;
 	}
@@ -345,8 +406,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 40px;
-		height: 44px;
+		height: 100%;
 		margin: 0;
 	}
 
@@ -367,6 +427,21 @@
 
 	.floating.stowed .group {
 		transform: none;
+	}
+}
+
+/*
+ * A phone held sideways, where the tray is a quarter shallower and the window is 375
+ * points tall in total.
+ *
+ * The rise comes down with it. A tool standing 30px out of a 72px tray is standing
+ * nearly half out of it, and what it stands out into is the page bar and the save
+ * button — there being no spare height up there for it to stand in.
+ */
+@media screen and (max-height: 560px) {
+	.floating .toolActive,
+	.floating .transformActive {
+		top: -18px;
 	}
 }
 

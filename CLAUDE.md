@@ -286,23 +286,59 @@ canvas, same tools, same save — laid out for a screen a third of the width and
 finger rather than a pointer.
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
-- **The tools are turned over and stuck to the bottom of the window.** They point up
-  at the paper rather than down away from it, and selecting one draws it further up
-  out of the window — the desktop's slide the other way about. Pencil and eraser are
-  one picture each and flip the picture (`.blade`); transform is four stacked images
-  whose fan is built out of `bottom` and a top-edge `transform-origin`, so the whole
-  button turns over instead and the fan opens up into the page.
-- **The page strip goes, and `PageNav` replaces it.** The strip is full-size copies of
-  the canvas at a fixed 660px pitch positioned by arithmetic, which can't be scaled
-  without rewriting it; and hiding it is what buys the drawing the full width of the
-  window. An arrow at each end and a scrubber between them do the same job in 48px:
-  the handle follows the finger while it's held and settles onto the nearest page
-  when it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows
-  playback as well as leading it, because the engine publishes every page change
-  including the twelve a second that `play` makes — which is also the one time the
-  settle's transition is turned off. The arrows wrap rather than greying out at the
-  ends, because playback loops. It's exactly as wide as the drawing it scrubs;
-  `--book-width` is declared on `.center` so both are sized off one formula.
+- **The tools are turned over and stand in a tray.** They point up at the paper rather
+  than down away from it, and selecting one draws it further up out of the window —
+  the desktop's slide the other way about. Pencil and eraser are one picture each and
+  flip the picture (`.blade`); transform is four stacked images whose fan is built out
+  of `bottom` and a top-edge `transform-origin`, so the whole button turns over instead
+  and the fan opens up into the page. The tray is a white rounded box floating clear of
+  the bottom edge, and the tools sit *in* it: cropped along its bottom rim and rising
+  out of the top when picked up. That crop is `clip-path: inset(… 0 …)` on the list
+  rather than `overflow: hidden`, because only one of the four edges is closed — and it
+  carries the tray's own bottom-left corner radius, or the pencil paints a square
+  corner over the curve.
+- **The six controls are spaced by their gaps, not their boxes.** The tools are 40px
+  pictures and the page actions are 25–29px icons, so equal columns leave 3px between
+  the tools and 16px between the actions and the tools read as one solid block. Instead
+  every button keeps its own width and takes an equal cut of what's left
+  (`flex-grow: 1` on a content basis), and the two lists grow by as many buttons as
+  they hold, so the cut is the same size across the seam between them. That number is
+  in the stylesheet, so a button moving in or out of the tray means changing it.
+- **The page strip stays, scaled, and `PageNav` is added under it.** The strip was
+  hidden on a phone at first, and everything about that was wrong: the page animations
+  are two pages moving — one thrown out as another arrives — and half of each one was
+  being played on an element with no layout box, so adding a page showed the new one
+  arrive out of nowhere, duplicating showed only a bob, and deleting showed a blank
+  canvas, because `arriving` steps the drawing aside for a thumbnail that isn't there.
+  It is on both layouts now. A page is `--page-width` wide, which the component sets
+  from the live canvas, so the thumbnails are copies of the drawing at the size the
+  drawing is currently drawn at. What that costs on a phone is the peek: the drawing
+  takes all but 16px of the window, and the gutter is spent twice out of that, so 4px
+  of gutter leaves 8px of the next page showing. More than that means a smaller
+  drawing.
+- **Nothing knows the pitch at build time any more.** It was `CANVAS_WIDTH +
+  PAGE_MARGIN * 2`, a constant in three places; it is now measured — the component
+  reads the page's own padding back off the box, and hands the total to
+  `engine.setPageStep()`, which is what the keyframes that throw a page into the next
+  slot are built from. That is why `KEYFRAMES` is a table of functions rather than a
+  table of arrays, and why `PAGE_MARGIN` is gone from `constants.ts`.
+- **`PageNav` is the bar under the drawing: two arrows, a scrubber and the two
+  playback keys.** The handle follows the finger while it's held and settles onto the
+  nearest page when it's let go (`fractionAt` and `pageAt`, both unit tested), and it
+  follows playback as well as leading it, because the engine publishes every page
+  change including the twelve a second that `play` makes — which is also the one time
+  the settle's transition is turned off. The two arrows stand *on* the bar rather than
+  beside it, and stop their own presses reaching it, or each one is also a jump to the
+  end it sits at; the handle is over both and covers one when it gets there, which is
+  the right way round. They wrap rather than greying out at the ends, because playback
+  loops. Play and circleplay sit in a second white pill on the same row — they are
+  about where you are in the flipbook, which is this row's subject and not the tray's,
+  and moving them up bought the tray a quarter of its width. They are `PageNav`'s own
+  buttons, and the tray's copies are hidden below the breakpoint: two buttons of
+  duplication against reaching into another component's stylesheet to undo the nudges
+  that sit its icons on a baseline this row hasn't got. The row is exactly as wide as
+  the drawing it scrubs; `--book-width` is declared on `.center` so both are sized off
+  one formula.
 - **The width slider stands up.** Same component: it reads which way it runs from the
   shape of its own track, so the breakpoint lives only in the stylesheet.
 - **Circleplay works with a finger**, on both pages. It listens for `pointermove`
@@ -446,10 +482,11 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   code and that is what it did. Someone on a phone who saved from `main` and then
   opened the other deployment will find the create button gone. That's the branch
   being what it is, not a bug to go and fix there.
-- **The page strip's canvases are allocated on a phone too**, ~900 KB each; the strip
-  is hidden in CSS rather than not rendered, because the page animations still pin and
-  fly its thumbnails. Fine for a flipbook you drew on a phone, worth remembering if
-  loading a 200-page one into the tool ever becomes a thing.
+- **Every page in the strip is a 640×360 canvas**, ~900 KB of backing store each, on
+  both layouts — the thumbnails are displayed smaller on a phone but they are not
+  *drawn* smaller, because a page that has to stand behind the live canvas at full
+  fidelity when you're on it can't be. Fine for a flipbook you drew on a phone, worth
+  remembering if loading a 200-page one into the tool ever becomes a thing.
 - **The save request is capped at ~4 MB** by Vercel's request limit, and form encoding
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
   the historical archive would exceed it. The server answers 413 and the create page

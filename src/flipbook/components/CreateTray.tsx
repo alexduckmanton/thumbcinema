@@ -157,8 +157,20 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 					</button>
 				</li>
 
-				<CirclePlayButton engine={engine} playback={playback} enabled={canPlay} />
-				<PlayButton engine={engine} playback={playback} enabled={canPlay} />
+				{/* Hidden on the phone, where these two have moved up into the page bar
+				    and sit beside the scrubber. See `.playbackKey`. */}
+				<CirclePlayButton
+					engine={engine}
+					playback={playback}
+					enabled={canPlay}
+					className={styles.playbackKey}
+				/>
+				<PlayButton
+					engine={engine}
+					playback={playback}
+					enabled={canPlay}
+					className={styles.playbackKey}
+				/>
 			</ul>
 		</div>
 	)
@@ -168,15 +180,18 @@ export function PlayButton({
 	engine,
 	playback,
 	enabled,
+	className,
 }: {
 	engine: FlipbookEngine
 	playback: FlipbookState['playback']
 	enabled: boolean
+	/** On the `<li>`, for a caller that has to lay these out differently. */
+	className?: string
 }) {
 	const on = playback === 'play'
 
 	return (
-		<li>
+		<li className={className}>
 			<button
 				type="button"
 				className={`${styles.action} ${styles.playback}`}
@@ -204,15 +219,18 @@ export function CirclePlayButton({
 	engine,
 	playback,
 	enabled,
+	className,
 }: {
 	engine: FlipbookEngine
 	playback: FlipbookState['playback']
 	enabled: boolean
+	/** On the `<li>`, for a caller that has to lay these out differently. */
+	className?: string
 }) {
 	const on = playback === 'circleplay'
 
 	return (
-		<li>
+		<li className={className}>
 			<button
 				type="button"
 				className={`${styles.action} ${styles.playback} ${on ? styles.circleplayOn : styles.circleplay}`}

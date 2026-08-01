@@ -15,8 +15,9 @@
 	position: relative;
 	width: 100%;
 	padding-top: 20px;
-	/* Clear of the tools, which are fixed to the bottom of the window below 731px. */
-	padding-bottom: calc(var(--tray-height) + env(safe-area-inset-bottom) + 16px);
+	/* Clear of the tools, which float above the bottom of the window below 731px: the
+	   tray's own depth, the 8px it stands off the edge by, and some air over it. */
+	padding-bottom: calc(var(--tray-height) + env(safe-area-inset-bottom) + 24px);
 
 	/*
 	 * Everything on this page that isn't the drawing, which is what the canvas is
@@ -24,7 +25,7 @@
 	 * slack. Held sideways a phone is barely taller than the tray is deep, so the
 	 * number comes down and each of the parts it counts comes down with it.
 	 */
-	--book-reserve: 360px;
+	--book-reserve: 336px;
 }
 
 .save {
@@ -150,7 +151,7 @@
 @media screen and (max-height: 560px) {
 	.content {
 		padding-top: 8px;
-		--book-reserve: 215px;
+		--book-reserve: 199px;
 	}
 
 	.save {

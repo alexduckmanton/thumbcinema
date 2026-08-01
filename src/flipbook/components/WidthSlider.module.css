@@ -20,12 +20,15 @@
 .settings {
 	position: absolute;
 	/* Above the tools rather than below them: below is off the bottom of the window.
-	   Flush with the left of the pencil it belongs to, which is as far left as the
-	   tray's own padding lets anything go. */
-	bottom: calc(100% + 8px);
+	   Clear of the pencil as well as of the tray — the pencil is only ever the pencil
+	   in hand while this is up, and a picked-up tool stands 30px out of the tray.
+	   Flush with the left of the pencil it belongs to. */
+	bottom: calc(100% + 40px);
 	left: 0;
 	z-index: 1;
 	padding: 10px 8px;
+	/* Fully rounded, like the tray it stands on and the page bar above it. */
+	border-radius: var(--radius-pill);
 	background: var(--white);
 	/* The same flat drop the sheets of paper have, rather than a blurred one. */
 	box-shadow: rgba(0, 0, 0, 0.05) 0 6px 0 -3px;
@@ -167,6 +170,9 @@
 		right: auto;
 		bottom: auto;
 		left: -60px;
+		/* Square, as it has always been up here. The rounding belongs to the phone's
+		   tray, and there is no tray on this layout for it to belong to. */
+		border-radius: 0;
 	}
 }
 
