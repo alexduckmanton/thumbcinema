@@ -3,6 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
+// The two handles are told apart by their class, and the names are scoped.
+import styles from './PageNav.module.css'
 import { fractionAt, PageNav, pageAt } from './PageNav'
 
 /** Only the methods the arrows and the scrubber call. The rest of the engine isn't in this. */
@@ -18,7 +20,29 @@ function bar() {
 	const track = screen.getByRole('slider', { name: 'Page' })
 	track.setPointerCapture = vi.fn()
 
-	return { track, handle: track.lastElementChild as HTMLElement }
+	const copies = [...track.querySelectorAll<HTMLElement>(`.${styles.handle}`)]
+	const at = (lap: number) => copies.find((el) => el.style.getPropertyValue('--lap') === `${lap}`)
+
+	return {
+		track,
+		copies,
+		/** The copy on the bar. */
+		handle: at(0) as HTMLElement,
+		/** The one a lap behind it, waiting at the near door. Sweeps only. */
+		behind: at(-1),
+		/** And the one a lap in front, which is never on the bar at all. */
+		ahead: at(1),
+	}
+}
+
+/** How far along its travel the handle is drawn, 0–1. The stylesheet does the rest. */
+function fraction() {
+	return Number(bar().track.style.getPropertyValue('--fraction'))
+}
+
+/** And how far past the end of it, in handle-widths: 0 all the way down the bar. */
+function over() {
+	return Number(bar().track.style.getPropertyValue('--over'))
 }
 
 describe('PageNav', () => {
@@ -127,6 +151,207 @@ describe('PageNav', () => {
 		expect(engine.pause).toHaveBeenCalledTimes(1)
 		expect(engine.goToPage).toHaveBeenCalled()
 		expect(engine.togglePlay).not.toHaveBeenCalled()
+	})
+
+	it('sweeps the handle at a floor speed while a short flipbook plays', () => {
+		const engine = fakeEngine()
+		const play = (activePage: number) => (
+			<PageNav
+				engine={engine}
+				activePage={activePage}
+				pages={2}
+				playback="play"
+				onScrubbing={() => {}}
+			/>
+		)
+		const { rerender } = render(play(0))
+
+		// Two pages, so the handle was going end to end six times a second. It now takes
+		// a twenty-fourth of the bar per frame instead, wherever the pages are up to.
+		expect(fraction()).toBeCloseTo(0)
+		rerender(play(1))
+		expect(fraction()).toBeCloseTo(1 / 23)
+		rerender(play(0))
+		expect(fraction()).toBeCloseTo(2 / 23)
+
+		// And a re-render that isn't a page turn doesn't move it.
+		rerender(play(0))
+		expect(fraction()).toBeCloseTo(2 / 23)
+	})
+
+	it('starts the sweep from wherever the page had left the handle', () => {
+		const engine = fakeEngine()
+		const at = (activePage: number, playback: 'none' | 'play') => (
+			<PageNav
+				engine={engine}
+				activePage={activePage}
+				pages={3}
+				playback={playback}
+				onScrubbing={() => {}}
+			/>
+		)
+		const { rerender } = render(at(1, 'none'))
+		expect(fraction()).toBeCloseTo(0.5)
+
+		// Pressing play mustn't move it. The bar goes from three positions to
+		// twenty-four at that moment, and the handle is on neither scale — it is
+		// halfway along, and stays halfway along.
+		rerender(at(1, 'play'))
+		expect(fraction()).toBeCloseTo(0.5)
+
+		rerender(at(2, 'play'))
+		expect(fraction()).toBeCloseTo(0.5 + 1 / 23)
+	})
+
+	it('carries the handle out one end of the bar and its double in at the other', () => {
+		const engine = fakeEngine()
+		const play = (activePage: number) => (
+			<PageNav
+				engine={engine}
+				activePage={activePage}
+				pages={2}
+				playback="play"
+				onScrubbing={() => {}}
+			/>
+		)
+		const { rerender } = render(play(0))
+
+		// A page turn a frame, alternating between the flipbook's two pages.
+		let frame = 0
+		const tick = () => rerender(play(++frame % 2))
+
+		// Twenty-three of them take it to the far end of its travel, the last of them
+		// short by however much of a step was left rather than stepping over the end.
+		for (let i = 0; i < 23; i++) tick()
+		expect(fraction()).toBeCloseTo(1)
+		expect(over()).toBe(0)
+
+		// And then into the tunnel, a third of a handle-width at a time. Only two of the
+		// three transit steps are positions it stands in — the third is the lap turning
+		// over, below.
+		for (const step of [1 / 3, 2 / 3]) {
+			tick()
+			expect(fraction()).toBeCloseTo(1)
+			expect(over()).toBeCloseTo(step)
+			expect(bar().handle.className).toContain('stepped')
+		}
+
+		// The one waiting at the near door, two thirds of a handle-width short of it.
+		const arriving = bar().behind
+
+		// Round. Every copy takes on the job of the one in front of it, which is a step
+		// each and no more — so this frame slides like every other, and the handle now on
+		// the bar is the very element that had spent the tunnel sliding towards the door.
+		tick()
+		expect(fraction()).toBe(0)
+		expect(over()).toBe(0)
+		expect(bar().handle).toBe(arriving)
+		expect(bar().handle.className).toContain('stepped')
+
+		// And away down the bar again on the next frame, still the same element.
+		tick()
+		expect(fraction()).toBeCloseTo(1 / 23)
+		expect(bar().handle).toBe(arriving)
+	})
+
+	it('keeps a copy either side of the handle while a sweep is running', () => {
+		const engine = fakeEngine()
+		const at = (playback: 'none' | 'play' | 'circleplay') => (
+			<PageNav
+				engine={engine}
+				activePage={1}
+				pages={2}
+				playback={playback}
+				onScrubbing={() => {}}
+			/>
+		)
+		const { rerender } = render(at('none'))
+		expect(bar().copies).toHaveLength(1)
+		const resting = bar().handle
+
+		rerender(at('play'))
+		expect(bar().copies).toHaveLength(3)
+		expect(bar().behind).toBeDefined()
+		expect(bar().ahead).toBeDefined()
+		// And the one on the bar is still the element that was already standing there:
+		// starting a sweep puts two either side of it rather than replacing it.
+		expect(bar().handle).toBe(resting)
+
+		// Circleplay is a scrub rather than a sweep: the pointer is driving the pages,
+		// the handle is saying which one it landed on, and it never leaves the bar.
+		rerender(at('circleplay'))
+		expect(bar().copies).toHaveLength(1)
+	})
+
+	it('puts the arrows away while it plays, and both kinds of playing count', () => {
+		const engine = fakeEngine()
+		const at = (playback: 'none' | 'play' | 'circleplay') => (
+			<PageNav
+				engine={engine}
+				activePage={1}
+				pages={5}
+				playback={playback}
+				onScrubbing={() => {}}
+			/>
+		)
+		const { rerender } = render(at('none'))
+		expect(bar().track.className).not.toContain('playing')
+
+		rerender(at('play'))
+		expect(bar().track.className).toContain('playing')
+
+		rerender(at('circleplay'))
+		expect(bar().track.className).toContain('playing')
+
+		rerender(at('none'))
+		expect(bar().track.className).not.toContain('playing')
+	})
+
+	it('puts the handle back on the page when a sweep is stopped inside the tunnel', () => {
+		const engine = fakeEngine()
+		const at = (activePage: number, playback: 'none' | 'play') => (
+			<PageNav
+				engine={engine}
+				activePage={activePage}
+				pages={2}
+				playback={playback}
+				onScrubbing={() => {}}
+			/>
+		)
+		// Starting at the far end, so the next frame is the first of the tunnel.
+		const { rerender } = render(at(1, 'play'))
+		expect(fraction()).toBeCloseTo(1)
+
+		rerender(at(0, 'play'))
+		expect(over()).toBeCloseTo(1 / 3)
+
+		// Let go of it there and the handle is off the end of the bar, so it comes back
+		// to the page without easing: 0.18s of swooping in from the right is not a
+		// flipbook being paused, it is a handle being thrown at one.
+		rerender(at(0, 'none'))
+		expect(fraction()).toBe(0)
+		expect(over()).toBe(0)
+		expect(bar().handle.className).not.toContain('eased')
+
+		// And easing again from the next page turn, for a drag to settle from.
+		rerender(at(1, 'none'))
+		expect(fraction()).toBe(1)
+		expect(bar().handle.className).toContain('eased')
+	})
+
+	it('leaves a long flipbook on the page it is showing', () => {
+		render(
+			<PageNav
+				engine={fakeEngine()}
+				activePage={6}
+				pages={24}
+				playback="play"
+				onScrubbing={() => {}}
+			/>,
+		)
+
+		// At the floor and above, the handle is the page and playback changes nothing.
+		expect(fraction()).toBeCloseTo(6 / 23)
 	})
 
 	it('says where in the flipbook it is', () => {

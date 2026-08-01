@@ -59,6 +59,14 @@
 	   that are meant to be read as one control and the thing it controls. */
 	box-shadow: var(--shadow-card);
 	cursor: pointer;
+	/*
+	 * The two doorways at the ends of the bar.
+	 *
+	 * Rounded, because the bar is: the handle is a circle exactly the height of the
+	 * bar, so standing at either end it sits precisely inside the rounding, and a step
+	 * past that it starts being eaten by the same curve it was resting against.
+	 */
+	overflow: hidden;
 	/* The drag is the control; the page mustn't take it for a scroll. */
 	touch-action: none;
 	user-select: none;
@@ -68,6 +76,23 @@
 	   subtracts a handle from the travel and `fractionAt` measures the same handle back
 	   off the pointer. */
 	--scrub-size: 48px;
+
+	/*
+	 * Where the handle stands, and the whole of the loop it runs round.
+	 *
+	 * `--fraction` is 0 at the first page and 1 at the last, and it buys the bar less
+	 * one handle so that at either end the handle is inside the bar rather than half
+	 * out of it. `--over` is what is left: one handle-width of bar past the far end,
+	 * which the sweep walks into on its way round. At the two extremes the sum is 0 and
+	 * the bar's whole width — so the loop is exactly `100%` long, which is what lets
+	 * the double below be drawn one flat `100%` behind and land on the near end at the
+	 * moment this one clears the far one.
+	 *
+	 * Declared here and inherited so the two copies can't disagree about it, and so
+	 * the component sets the two numbers in one place. The percentages resolve against
+	 * this element either way: it is the handles' containing block.
+	 */
+	--at: calc(var(--fraction, 0) * (100% - var(--scrub-size)) + var(--over, 0) * var(--scrub-size));
 }
 
 .track:focus-visible {
@@ -97,6 +122,25 @@
 	background: none;
 	color: var(--line);
 	cursor: pointer;
+	transition: opacity 0.2s ease, visibility 0.2s;
+}
+
+/*
+ * Gone while it plays.
+ *
+ * They are for stepping through a flipbook a page at a time, which is the opposite of
+ * what is happening, and each one stops playback to do it — so a bar with two of them
+ * still on it is offering to interrupt the thing you just started. What's left is the
+ * handle running along on its own, which is all this row has to say while it plays.
+ *
+ * `visibility` as well as opacity, so they leave the tab order and stop taking presses
+ * rather than sitting there invisible and clickable. It's discrete, so it waits for the
+ * fade on the way out and goes first on the way back. The arrow *keys* are unaffected:
+ * they are the bar's own, not these buttons'.
+ */
+.playing .arrow {
+	opacity: 0;
+	visibility: hidden;
 }
 
 .back {
@@ -147,10 +191,26 @@
  * button: a press on it falls through to the bar underneath, which is what decides
  * whether it was a tap or the start of a drag.
  */
+/*
+ * A loop drawn flat.
+ *
+ * `--at` runs 0 to `100%` over a lap, and `--lap` says how many laps behind this copy
+ * is running: 0 is the one on the bar, -1 is a whole bar-length back and waiting at the
+ * near door, +1 is a bar-length in front and gone. Only the middle one is ever on the
+ * bar except in the tunnel, where the pair of them are the two halves of one circle cut
+ * by the ends.
+ *
+ * Nothing is ever repositioned. When the lap turns over, `--at` starts again and every
+ * copy's `--lap` goes up by one — so each simply takes on the job of the one in front,
+ * and the distance it moves to do it is one step, exactly like every other frame. The
+ * copy that mounts to replace the one at the back does so a lap behind the near door,
+ * and the one that drops off the front is a lap past the far one; both are outside the
+ * doorways and neither is anything to look at.
+ */
 .handle {
 	position: absolute;
 	top: 0;
-	left: calc(var(--fraction) * (100% - var(--scrub-size)));
+	left: calc(var(--at) + var(--lap, 0) * 100%);
 	z-index: 2;
 	width: var(--scrub-size);
 	height: var(--scrub-size);
@@ -171,19 +231,41 @@
 /*
  * The settle onto the nearest page, and every other move the handle makes on its own.
  *
- * Off in the two cases where easing would be a lie: while it's being dragged, where
- * it has to be exactly under the finger rather than on its way to it, and during
- * playback, where it is moved twelve times a second and anything easing between those
- * would smear into a blur that says nothing about which page is showing.
+ * Off while it's being dragged, where it has to be exactly under the finger rather
+ * than on its way to it, and off during playback, which has its own below.
  */
 .eased {
 	transition: left 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * The sweep, during playback of a flipbook too short to fill the bar.
+ *
+ * One frame of the flipbook, linear, and `--frame` is the engine's own number rather
+ * than 83ms written down twice: the handle arrives exactly as the next frame is
+ * published, so a row of twelve steps a second joins up into a slide instead of
+ * reading as twelve separate jumps. Slower than a frame and it would lag behind and
+ * never arrive; faster and the jump is back.
+ *
+ * Carries on through the tunnel and across the lap's own seam, which are the same speed
+ * and the same slide — the only thing that changes there is which end of the bar you can
+ * see it from, and which copy of it you are watching.
+ *
+ * Off only for a sweep cut short inside the tunnel, where the handle is off the end of
+ * the bar and sliding back onto a page from there would be a swoop in from the far door.
+ * See `snap`.
+ */
+.stepped {
+	transition: left var(--frame) linear;
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.eased {
 		transition: none;
 	}
+
+	/* `.stepped` stays. Taking it off doesn't remove any motion — the handle covers the
+	   same ground either way — it only puts back the stepping it was added to smooth. */
 }
 
 /* A short window, where every row is paying for its height. */

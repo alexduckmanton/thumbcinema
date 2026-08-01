@@ -333,7 +333,12 @@ finger rather than a pointer.
   transition is turned off. The two arrows stand *on* the bar rather than beside it,
   and stop their own presses reaching it, or each one is also a jump to the end it sits
   at; the handle is over both and covers one when it gets there, which is the right way
-  round. They wrap rather than greying out at the ends, because playback loops. **A tap
+  round. They wrap rather than greying out at the ends, because playback loops, and
+  they go altogether while it plays — stepping a page at a time is the opposite of what
+  is happening, and each one stops playback to do it, so a bar still wearing them is
+  offering to interrupt the thing you just started. `visibility` as well as opacity, so
+  they leave the tab order rather than sitting there invisible and clickable; the arrow
+  *keys* are the bar's own and are unaffected. **A tap
   on the handle plays**, which is why a press on it waits: it is a tap until it has
   travelled `TAP_SLOP`, and a drag from then on, and the pause a drag opens with is
   paid at the moment it becomes one rather than on the way in. **A one-page flipbook
@@ -349,6 +354,55 @@ finger rather than a pointer.
   it and onto its top edge. **Both arrows stop playback**, as taking hold of the handle
   does, and so do the arrow keys — they go through the same `step()`. A page you asked
   for that shows for 83ms and is then left behind isn't a page turn.
+- **The handle has a top speed: `MIN_PLAYBACK_STOPS`, 24.** A two-page flipbook plays
+  twelve frames a second, and a handle on the page went end to end six times a second —
+  not motion, a flicker at the two ends of the bar, and the shorter the flipbook the
+  worse it got. Below that many pages the bar stops being a page indicator during
+  `play` and becomes a rate: one step of `1 / (stops - 1)` per frame the engine turns,
+  wrapping at the end, so it crosses in two seconds while the flipbook loops underneath
+  it however many times it likes. At 24 pages and above `stops` is the page count and
+  nothing changes at all. It is `play` only — circleplay is a scrub, where the pointer
+  is driving the pages and the handle has to say which one it landed on — and
+  `aria-valuenow` is the real page throughout. The steps are joined up by a `left`
+  transition of exactly one frame, linear, off the engine's own `FPS` so it can't fall
+  out of step: it arrives as the next frame is published.
+- **The lap doesn't end, it goes round.** The handle's travel is the bar less its own
+  width, so at either end it sits inside the bar — which leaves exactly one
+  handle-width of bar past the far end, and a sweep walks into it: `TRANSIT_STEPS`
+  frames in which the handle carries on out of sight while the copy a lap behind
+  arrives at the near end at the same rate. `overflow: hidden` on the bar is the two
+  doorways, rounded because the bar is. The sum is one handle's worth of circle on the
+  bar at every position in the lap, measured — so what you watch is one shape going
+  round rather than one being thrown backwards, which is what the flipbook has just
+  done too. Three transit steps because that makes the two speeds nearly the same one
+  (16px a frame against a page-step's 13.5) without measuring the bar to find out how
+  many of its steps go into a handle.
+- **There are three copies, keyed by lap, and none of them is ever repositioned.** The
+  handle is `calc(var(--at) + var(--lap) * 100%)` and `--at` runs 0 to `100%` over a
+  lap, so the copies sit a whole bar-length apart: the one on the bar, the one waiting
+  behind the near door, and one a lap in front that is never visible at all. When the
+  lap turns over, `--at` starts again and every copy's `--lap` goes up by one — so each
+  takes on the job of the one in front and moves exactly one step to do it, and **the
+  seam slides like any other frame**. The copy that mounts is a lap behind the near
+  door and the one that unmounts is a lap past the far one, so neither is anything to
+  look at. The first version relabelled two copies instead, which cost a frame: the
+  handle reached the far door and its double reached the near one, and swapping which
+  was which produced a second frame with the same picture — the handle visibly stopped
+  for one frame on the way in, and only on the way in, because nothing is duplicated
+  on the way out. The third copy is what the fix costs, and it earns it: without it the
+  copy leaving is taken off the bar with a sliver still showing rather than sliding out
+  through the door.
+- **`snap` is now only a sweep cut short.** Pausing inside the tunnel leaves the handle
+  off the end of the bar, and easing back onto a page from there is a swoop in through
+  the far door. Nothing else in the sweep jumps.
+- **`--fraction` and `--over` are set on the bar, not on the handles.** All three copies
+  read the same `--at` off it, so they can't disagree about where the handle is, and
+  the component sets the two numbers in one place. Verified rather than assumed: a
+  custom property changed on the parent does start the child's `left` transition.
+- **Longer flipbooks still snap at the loop.** The tunnel costs frames, and a handle
+  that is the real page indicator can't spend any — it would drift a tunnel's worth
+  behind per lap. For 24 pages and up the handle is on the page and the jump back is
+  honest.
 - **The strip stops easing while the bar is dragged.** It slides from page to page over
   0.3s, and under a finger sweeping the bar that is a second flipbook arriving half a
   second behind the first — it reads as the drawing being dragged about rather than the
