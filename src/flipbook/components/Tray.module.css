@@ -80,16 +80,22 @@
 .layer {
 	position: absolute;
 	bottom: -40px;
+	/* Explicit, because the hand below is in flow and an absolute box with
+	   `left: auto` falls where it *would* have gone — which is 40px to the right of
+	   the button, out over the eraser. The arrows are stacked on the hand, not
+	   queued up next to it. */
+	left: 0;
 	transform: rotate(-180deg);
 	transform-origin: 50% 0%;
 	opacity: 0;
 	transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
+/* The hand. Left in flow, unlike the arrows, because it is what gives the button
+   its size — 2013 had that from the anchor's own sprite class. */
 .layer:nth-child(1) {
 	position: relative;
 	bottom: 0;
-	left: 0;
 	z-index: 2;
 	transform: none;
 	transition: none;

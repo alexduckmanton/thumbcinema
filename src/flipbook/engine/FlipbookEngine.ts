@@ -392,9 +392,22 @@ export class FlipbookEngine {
 
 		this.setBusy(true)
 
-		// Everything on the far side of the gap is pinned so it doesn't slide while
-		// the deleted page is still falling.
-		const pinned = atEnd ? this.freezeRange(0, index) : this.freezeRange(index + 1, this.pageCount)
+		/*
+		 * Focusing the sibling slides the whole strip one page along, and which pages
+		 * have to be held still through that is the whole of this.
+		 *
+		 * Deleting a page mid-book focuses the page after it, so the strip travels
+		 * left. The pages *before* the gap are already where they will end up, so they
+		 * are pinned; the pages after it are one step from where they end up, so they
+		 * are let go and ride the slide. Deleting the last page focuses backwards
+		 * instead, and then every page really does move along — so nothing is pinned.
+		 */
+		const pinned = atEnd ? [] : this.freezeRange(0, index)
+
+		// The page on its way out is pinned too, and never unpinned: it has to fall
+		// from where it is rather than from where the strip is heading, and it holds
+		// its last frame until it's removed outright a moment later.
+		if (canvas) freeze(canvas)
 
 		this.scene.setActivePage(sibling)
 		this.store.set({ activePage: sibling })

@@ -11,7 +11,7 @@ import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
 import { canDraw, isTouch } from '../../lib/device'
 import { registerMessage, showMessage } from '../../lib/messages'
-import { navigate } from '../../router/Router'
+import { guardNavigation, navigate } from '../../router/Router'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
 import styles from './CreatePage.module.css'
 import { Recovery } from './Recovery'
@@ -152,11 +152,25 @@ export function CreatePage() {
 	)
 }
 
+const WARNING = "Whoa, you haven't saved your flipbook yet. Leave and you'll lose it."
+
+/** Module scope, so the effect below doesn't see a new function on every render. */
+const askBeforeLeaving = () => window.confirm(WARNING)
+
+/** Marks the spare history entry the back guard leaves behind. See below. */
+const SPARE = 'tc:unsaved'
+
 /**
- * The "you haven't saved this" prompt.
+ * The "you haven't saved this" prompt, on all three ways out.
  *
  * One page is a drawing, not a flipbook, so it doesn't count as work worth warning
- * about — which is exactly where 2013 drew the line too.
+ * about — which is exactly where 2013 drew the line too. What has changed since is
+ * that this is one document now: in 2013 the logo and the back button both left the
+ * page for real and `beforeunload` caught them both, and here neither one does.
+ *
+ *  - Reloading and closing the tab: `beforeunload`, and the browser's own wording.
+ *  - The logo, and any other `<Link>`: the router asks the guard first.
+ *  - Back: see below. It can't be cancelled, so it's answered rather than stopped.
  */
 function useUnsavedWarning(enabled: boolean): void {
 	useEffect(() => {
@@ -165,11 +179,62 @@ function useUnsavedWarning(enabled: boolean): void {
 		const onBeforeUnload = (event: BeforeUnloadEvent) => {
 			event.preventDefault()
 			// Browsers show their own wording now; the string is only for very old ones.
-			event.returnValue = "Whoa, you haven't saved your flipbook yet."
+			event.returnValue = WARNING
 		}
 
 		window.addEventListener('beforeunload', onBeforeUnload)
-		return () => window.removeEventListener('beforeunload', onBeforeUnload)
+		const release = guardNavigation(askBeforeLeaving)
+
+		/*
+		 * Back, which can't be stopped — by the time `popstate` fires the entry it came
+		 * from is already gone. So instead of stopping it, this leaves a spare entry on
+		 * the stack for the same URL. Back lands on the spare: same route, same
+		 * component, nothing re-rendered and nothing lost, which is the moment there's
+		 * something to ask about. Stay, and the spare goes back on ready for the next
+		 * press; leave, and one more step back reaches where they were headed.
+		 *
+		 * It costs an extra history entry, and a forward button with somewhere to go,
+		 * for as long as the drawing is unsaved. A trackpad swipe costing an afternoon's
+		 * work costs more.
+		 */
+
+		// Read before the spare is pushed: a tab opened straight on /create has nothing
+		// behind it, and saying "you're leaving" and then not leaving is worse than not
+		// asking at all.
+		const canGoBack = window.history.length > 1
+
+		// Marked, so that deleting back down to one page and drawing a second again
+		// doesn't stack up a fresh spare every time the guard comes back on.
+		const pushSpare = () => {
+			if (window.history.state?.[SPARE]) return
+			window.history.pushState({ ...window.history.state, [SPARE]: true }, '', window.location.href)
+		}
+
+		pushSpare()
+		let leaving = false
+
+		const onPopState = () => {
+			if (leaving) return
+
+			if (!askBeforeLeaving()) {
+				pushSpare()
+				return
+			}
+
+			leaving = true
+			// Released first, or going home would ask a second time.
+			release()
+			if (canGoBack) window.history.back()
+			else navigate('/')
+		}
+
+		window.addEventListener('popstate', onPopState)
+
+		return () => {
+			window.removeEventListener('beforeunload', onBeforeUnload)
+			window.removeEventListener('popstate', onPopState)
+			release()
+		}
 	}, [enabled])
 }
 

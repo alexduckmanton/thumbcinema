@@ -37,12 +37,13 @@ export function PageStrip({ engine, pages, activePage, playing, canvasRef }: Pag
 	}, [measure])
 
 	const left = canvasOffset - PAGE_MARGIN - activePage * PAGE_STEP
+	const snap = useSnapOnRemoval(pages.length)
 
 	return (
 		<div className={styles.container} ref={container} aria-hidden="true">
 			<div
 				className={playing ? `${styles.strip} ${styles.playing}` : styles.strip}
-				style={{ left: `${left}px` }}
+				style={{ left: `${left}px`, transitionDuration: snap ? '0s' : undefined }}
 			>
 				{pages.map((page, index) => (
 					<div
@@ -62,4 +63,36 @@ export function PageStrip({ engine, pages, activePage, playing, canvasRef }: Pag
 			</div>
 		</div>
 	)
+}
+
+/**
+ * True for the one render in which a page has just left the strip.
+ *
+ * A deleted page takes every page after it one step to the left, and at that same
+ * moment the strip's own `left` moves one step to the right to compensate. The
+ * reflow is instant and the transition is not, so left to itself the strip jumps a
+ * page and then glides back over 0.3s. Killing the transition for that render lands
+ * both together — which is what 2013 did by zeroing `#pages`' transition-duration
+ * and putting it back a tick later.
+ *
+ * Set during render rather than in an effect: React re-renders immediately without
+ * painting the discarded one, so the transition is never briefly live.
+ */
+function useSnapOnRemoval(count: number): boolean {
+	const [previous, setPrevious] = useState(count)
+	const [snap, setSnap] = useState(false)
+
+	if (previous !== count) {
+		setPrevious(count)
+		setSnap(count < previous)
+	}
+
+	useEffect(() => {
+		if (!snap) return
+
+		const frame = requestAnimationFrame(() => setSnap(false))
+		return () => cancelAnimationFrame(frame)
+	}, [snap])
+
+	return snap
 }

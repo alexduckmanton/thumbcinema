@@ -157,9 +157,6 @@ export class Selection {
 
 			this.bounds = new this.scene.scope.Path.Rectangle(rectangle)
 			this.bounds.strokeColor = new this.scene.scope.Color(HIGHLIGHT_COLOR)
-			// Transparent rather than absent: a filled path answers `bounds.contains`
-			// hit tests, which is what makes the inside of the box draggable.
-			this.bounds.fillColor = new this.scene.scope.Color({ gray: 0, alpha: 0 })
 			this.bounds.strokeWidth = 1
 			this.bounds.dashArray = [4, 2]
 
@@ -193,14 +190,32 @@ export class Selection {
 
 		if (this.isEmpty || !this.bounds || shiftHeld) return this.type
 
-		// Anywhere in a generous ring outside the box rotates.
+		// Anywhere in a generous ring outside the box rotates — unless something
+		// below claims the point first.
 		if (isWithinOuterRadius(this.bounds, point, ROTATE_RADIUS)) {
 			this.type = 'rotate'
 			this.setCursor('alias')
 		}
 
+		/*
+		 * Inside the box moves it, and that beats everything else.
+		 *
+		 * Asked of the rectangle directly rather than of a hit test, which is what
+		 * 2013 did: the box carried a fully transparent fill and `hitTest({fill: true})`
+		 * answered for the whole interior. paper 0.12 changed `Style.hasFill()` to
+		 * require `alpha > 0`, so a transparent fill is now no fill and that hit never
+		 * fires — leaving only the outline within grab tolerance, which is why the
+		 * inside of a selection rotated and just its inner edge moved.
+		 */
+		if (this.bounds.bounds.contains(point)) {
+			this.type = 'translate'
+			this.setCursor('move')
+			return this.type
+		}
+
+		// Outside it: the corner and edge handles, which reach `handleTolerance`
+		// beyond the box.
 		const handle = this.bounds.hitTest(point, {
-			fill: true,
 			bounds: true,
 			stroke: true,
 			tolerance: this.handleTolerance,
@@ -208,12 +223,6 @@ export class Selection {
 		if (!handle) return this.type
 
 		this.handle = handle
-
-		if (this.bounds.bounds.contains(point)) {
-			this.type = 'translate'
-			this.setCursor('move')
-			return this.type
-		}
 
 		const corner = cornerIndex(handle.name)
 		if (corner !== null) {

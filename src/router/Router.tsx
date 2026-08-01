@@ -47,8 +47,32 @@ export interface NavigateOptions {
 	preserveScroll?: boolean
 }
 
+/**
+ * A page's veto on being navigated away from.
+ *
+ * `beforeunload` covers reloads and anything that leaves the document, and the
+ * browser owns that prompt — but a client-side navigation isn't a page load and
+ * fires none of it, so the create page's logo link would quietly discard an unsaved
+ * drawing. Anything that would leave asks here first. Returning false calls it off.
+ *
+ * One at a time: there is only ever one route mounted, and the last one to ask is
+ * the one on screen.
+ */
+export type NavigationGuard = () => boolean
+
+let guard: NavigationGuard | null = null
+
+/** Installs `ask`, and returns the release — call it on unmount. */
+export function guardNavigation(ask: NavigationGuard): () => void {
+	guard = ask
+	return () => {
+		if (guard === ask) guard = null
+	}
+}
+
 export function navigate(to: string, options: NavigateOptions = {}): void {
 	if (to === getSnapshot() && !options.replace) return
+	if (guard && !guard()) return
 
 	window.history[options.replace ? 'replaceState' : 'pushState']({}, '', to)
 	window.dispatchEvent(new Event(LOCATION_EVENT))

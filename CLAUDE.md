@@ -152,6 +152,11 @@ documented at the point they matter:
   that creates layer zero; `layers[0]` is undefined.
 - **`moveAbove`/`moveBelow` are `insertAbove`/`insertBelow`.**
 - **`GrayColor` is gone**; `new Color({ gray, alpha })`.
+- **A transparent fill is no longer a fill.** `Style.hasFill()` now requires
+  `alpha > 0`, so `hitTest({ fill: true })` ignores it. 0.8 used exactly that — an
+  invisible fill on the selection box — to answer "is the pointer inside the
+  selection", and the transform tool's whole interior went dead when it stopped
+  working. `updateTransformType()` asks the rectangle directly instead.
 - **`importSVG` applies SVG's default fill**, which is black. A stroke lives inside a
   `<g fill="none">` and is imported on its own, so it comes back filled and every
   loop in a drawing renders as a blob. Cleared explicitly on import.
@@ -318,6 +323,12 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   sees a duplicate.
 - **A tab switch aborts the fetch in flight.** Otherwise a page of Featured results
   lands in a freshly emptied All grid and the two lists get spliced together.
+- **An unsaved drawing holds a spare history entry.** 2013 left the page for real on
+  every navigation, so `beforeunload` covered the logo and the back button along with
+  everything else; here neither one is a page load. `<Link>` goes through the router's
+  `guardNavigation()`, and back is answered rather than blocked — a duplicate entry is
+  pushed so the first press lands on the same URL and can be asked about. Cost: one
+  extra entry, and a live forward button, while the flipbook is unsaved.
 - **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
   drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
   attached to the document, and none of it should follow you to the flipbook page.
