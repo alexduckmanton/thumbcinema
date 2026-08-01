@@ -342,20 +342,28 @@ export class FlipbookEngine {
 	}
 
 	/**
-	 * Adding and removing pages is refused outright while the flipbook is playing,
-	 * rather than quietly pausing first and carrying on.
+	 * Whether a page can be added or removed right now — and if playback is what's in
+	 * the way, stops it so the next press can go through.
 	 *
-	 * Playback swaps the visible page every 83ms, and a page animation is 750ms of
-	 * pinned thumbnails and a canvas mid-flight — the two ran over each other and left
-	 * the strip a mess. The tools are fine: they stop playback the moment you draw and
-	 * nothing is animating.
+	 * Playback swaps the visible page every 83ms and a page animation is 750ms of
+	 * pinned thumbnails and a canvas mid-flight; doing both at once left the strip in
+	 * a heap. Pausing and carrying on in one press was how that happened, so the press
+	 * buys the pause and nothing else. The tools don't need this — they stop playback
+	 * themselves and nothing is animating when they do.
 	 */
-	private get canChangePages(): boolean {
-		return !this.store.snapshot.busy && this.store.snapshot.playback === 'none'
+	private beginPageChange(): boolean {
+		if (this.store.snapshot.busy) return false
+
+		if (this.store.snapshot.playback !== 'none') {
+			this.pause()
+			return false
+		}
+
+		return true
 	}
 
 	async addBlankPage(): Promise<void> {
-		if (!this.canChangePages) return
+		if (!this.beginPageChange()) return
 
 		this.captureActivePage()
 
@@ -371,7 +379,7 @@ export class FlipbookEngine {
 	}
 
 	async duplicatePage(): Promise<void> {
-		if (!this.canChangePages) return
+		if (!this.beginPageChange()) return
 
 		this.captureActivePage()
 
@@ -389,7 +397,7 @@ export class FlipbookEngine {
 	}
 
 	async deletePage(): Promise<void> {
-		if (!this.canChangePages) return
+		if (!this.beginPageChange()) return
 
 		// The thumbnail is about to stand in for the canvas, in the same place and at
 		// the same size, so any drift between the two would show as a jump the moment

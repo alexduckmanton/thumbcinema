@@ -92,14 +92,14 @@
 }
 
 .fab:hover {
-	background: #ffd45c;
+	background: var(--yellow-hover);
 	box-shadow: rgba(0, 0, 0, 0.26) 0 6px 18px;
 	transform: translateY(-1px);
 	text-decoration: none;
 }
 
 .fab:active {
-	background: #f0b81f;
+	background: var(--yellow-active);
 	box-shadow: rgba(0, 0, 0, 0.22) 0 2px 8px;
 	transform: translateY(0) scale(0.96);
 }

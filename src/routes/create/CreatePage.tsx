@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { Button } from '../../components/Button'
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
@@ -151,9 +150,14 @@ export function CreatePage() {
 					) : null}
 
 					<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
-						<Button onClick={() => setPhase('naming')} disabled={pages < 2}>
-							Save flipbook
-						</Button>
+						<button
+							type="button"
+							className={styles.saveButton}
+							onClick={() => setPhase('naming')}
+							disabled={pages < 2}
+						>
+							<span className={styles.saveLabel}>Save</span>
+						</button>
 					</div>
 				</div>
 			</main>

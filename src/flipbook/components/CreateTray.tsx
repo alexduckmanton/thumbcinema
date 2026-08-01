@@ -24,9 +24,9 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const { tool, transformIndex, playback, pages } = state
 	const canPlay = settledPageCount(pages) > 1
 
-	// Adding and removing pages is off while the flipbook is playing: the two sets of
-	// animations ran over each other. Drawing is fine — it stops playback first.
-	const canChangePages = !state.busy && playback === 'none'
+	// Only while a page is actually arriving or leaving. Playing doesn't disable
+	// these — the press stops playback instead, and the next one goes through.
+	const canChangePages = !state.busy
 
 	const toolClass = (id: ModalToolId) =>
 		tool === id ? `${styles.tool} ${styles.toolActive}` : styles.tool
@@ -168,7 +168,7 @@ export function PlayButton({
 		<li>
 			<button
 				type="button"
-				className={styles.action}
+				className={`${styles.action} ${styles.playback}`}
 				title={on ? 'Pause' : 'Play'}
 				aria-pressed={on}
 				disabled={!enabled}
@@ -201,7 +201,7 @@ export function CirclePlayButton({
 		<li>
 			<button
 				type="button"
-				className={`${styles.action} ${on ? styles.circleplayOn : styles.circleplay}`}
+				className={`${styles.action} ${styles.playback} ${on ? styles.circleplayOn : styles.circleplay}`}
 				title={on ? 'Stop circleplay' : 'Circleplay'}
 				aria-pressed={on}
 				disabled={!enabled}

@@ -265,6 +265,11 @@ properties, element defaults, and two utility classes.
   for three seconds. If the preload goes, `block` has to go back to `swap`.
 - **No `letter-spacing` on the wordmark.** Pecita is a joining script; spacing it
   apart pulls the letters off each other's entry and exit strokes.
+- **Pecita doesn't centre itself.** Its ascent and descent are lopsided against where
+  the letters actually sit, so centring the text box leaves the word high — 3.25px of
+  it at 30px, against Inter's 0.13px. Anything setting Pecita inside a control needs
+  the offset measured (`measureText`, `actualBoundingBox*` vs `fontBoundingBox*`) and
+  written down: the save button and the create button's dingbat both carry one.
 
 ## Data
 

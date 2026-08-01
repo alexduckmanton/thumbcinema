@@ -65,7 +65,13 @@
 	--blue-deep: #07256b;
 	--green: #d5ff71;
 	--red: #f54958;
+	/* The yellow belongs to the pencil, and to the two buttons that start and finish a
+	   flipbook — the create button on the gallery and save on the create page. They
+	   are separate components (one floats, one doesn't) and have to look identical, so
+	   the pressed states are tokens rather than a pair of hexes in two files. */
 	--yellow: #ffc93c;
+	--yellow-hover: #ffd45c;
+	--yellow-active: #f0b81f;
 
 	--ink: #444;
 	--ink-strong: #222;

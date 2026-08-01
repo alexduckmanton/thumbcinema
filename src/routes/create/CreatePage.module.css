@@ -25,6 +25,89 @@
 	pointer-events: none;
 }
 
+/*
+ * Save, matched to the create button on the gallery.
+ *
+ * The two are the ends of the same errand — one starts a flipbook, the other
+ * finishes it — so they are the same yellow at the same size with the same rounding,
+ * and the shared shades are tokens so they can't drift. Not the same component: that
+ * one floats over the grid, collapses to a circle on scroll, and is a link. This one
+ * sits in the column and is a button, and there is nothing under it to float over,
+ * so it takes no shadow.
+ *
+ * Not `<Button>` either. That is the site's blue control and this overrides its
+ * colour, size, radius, weight, face and hover — at which point sharing the base
+ * costs more than it saves.
+ */
+.saveButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 64px;
+	height: 64px;
+	padding: 0 26px;
+
+	border: none;
+	border-radius: var(--radius-pill);
+	background: var(--yellow);
+	color: var(--ink-strong);
+	cursor: pointer;
+
+	/*
+	 * Pecita, as on the wordmark — this is the button that turns the drawing into
+	 * something with a name, so it is signed in the same hand.
+	 *
+	 * 30px against the tray's 16px because Pecita runs small: it is a handwriting
+	 * face with a shallow x-height, and set at a UI size it reads as a caption rather
+	 * than a label. No letter-spacing, for the reason the wordmark gives.
+	 */
+	font-family: 'Pecita', cursive;
+	font-size: 30px;
+	line-height: 1;
+
+	transition: background 0.12s ease-out, transform 0.12s ease-out;
+}
+
+/*
+ * Pecita does not centre itself, which is the same reason the create button nudges
+ * its writing-hand glyph down 2px.
+ *
+ * Flexbox centres the text's *box*, and the browser sizes that from the font's own
+ * metrics — at 30px Pecita reports an ascent of 20 and a descent of 10, so the box
+ * centre sits 5px above the baseline. The ink of the word doesn't: "Save" has no
+ * descender, so it runs 16.5px up from the baseline and 0 below, putting its centre
+ * 8.25px above. The letters therefore sit 3.25px high in a box that is itself
+ * centred. Inter, for comparison, is out by 0.13px and needs nothing.
+ *
+ * 3px of that back, measured rather than guessed: 23.5px of air above the ink and
+ * 24px below. Without it, 20.5 and 27 — visibly high on a 64px button.
+ */
+.saveLabel {
+	position: relative;
+	top: 3px;
+}
+
+.saveButton:hover {
+	background: var(--yellow-hover);
+	transform: translateY(-1px);
+}
+
+.saveButton:active {
+	background: var(--yellow-active);
+	transform: translateY(0) scale(0.96);
+}
+
+.saveButton:focus-visible {
+	outline: 2px solid var(--ink-strong);
+	outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.saveButton {
+		transition: none;
+	}
+}
+
 /* Naming the flipbook: the save button drops off the bottom with the tray's tools
    (which stow themselves — see Tray.module.css). */
 .naming .save {

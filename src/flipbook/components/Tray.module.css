@@ -148,9 +148,27 @@
 	outline-offset: 2px;
 }
 
+/*
+ * The page actions don't fade when they're off.
+ *
+ * They are only ever unavailable for the 750ms a page takes to arrive or leave, and
+ * a row of icons dipping to a third and back for three-quarters of a second reads as
+ * a flash rather than as a state. Pressing one in that window does nothing, which is
+ * the whole cost of not saying so.
+ */
 .action:disabled {
-	opacity: 0.35;
 	cursor: default;
+}
+
+/*
+ * Playback is different: it is off until there is a second page to play, which can
+ * be the whole time you are drawing the first one. That is a state worth showing, so
+ * these do fade — and go grey with it, because two of the three are coloured icons
+ * and colour alone still reads as available.
+ */
+.playback:disabled {
+	opacity: 0.35;
+	filter: grayscale(1);
 }
 
 /* Two icons that don't sit on the same baseline as the rest of the sheet. */
