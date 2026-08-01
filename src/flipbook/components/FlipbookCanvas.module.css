@@ -31,6 +31,22 @@
 	touch-action: none;
 }
 
+/*
+ * The canvas standing aside while the strip does the work.
+ *
+ * It shows whichever page is active, and during a delete that becomes the arriving
+ * page immediately — so it sat in the destination slot displaying the very page that
+ * was still sliding towards it, statically, and (being z-index 15 against the strip's
+ * 9) in front of it. Its thumbnail is an exact copy in the same place, so stepping
+ * out and letting that land instead is invisible at both ends.
+ *
+ * No transition: the swap has to happen on one frame, in step with the strip
+ * uncovering the thumbnail underneath.
+ */
+.handedOver {
+	opacity: 0;
+}
+
 /* The loading screen, and the wash a save puts over the drawing. */
 .overlay {
 	position: absolute;

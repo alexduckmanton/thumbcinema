@@ -388,6 +388,11 @@ export class FlipbookEngine {
 
 		this.pause()
 
+		// The thumbnail is about to stand in for the canvas, in the same place and at
+		// the same size, so any drift between the two would show as a jump the moment
+		// the canvas steps aside.
+		this.captureActivePage()
+
 		const index = this.scene.activePage
 		const pages = this.store.snapshot.pages
 		const doomed = pages[index]

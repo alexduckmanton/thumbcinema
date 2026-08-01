@@ -182,7 +182,10 @@ documented at the point they matter:
   during a delete the arriving page is active from the first frame but takes 750ms to
   get there. Hiding it on `activePage` made it vanish 4ms in and spend its whole
   journey invisible, so it looked like it teleported while every other page slid.
-  `state.arriving` is what holds the two apart; don't collapse them.
+  `state.arriving` is what holds the two apart; don't collapse them. It also steps
+  the canvas aside for the duration — it shows the arriving page from the first
+  frame, and standing in the destination displaying the page still travelling
+  towards it reads as a static duplicate in front of the one that's moving.
 - **A page thumbnail can't be raised by its own z-index.** `.page` in the strip has
   one, which makes it a stacking context, so a z-index on the `<canvas>` inside can
   only order it against siblings it hasn't got. Anything that has to come forward —

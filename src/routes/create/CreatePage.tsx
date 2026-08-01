@@ -111,7 +111,14 @@ export function CreatePage() {
 
 				<div className="center">
 					<div className={canvasStyles.book}>
-						<canvas ref={canvasRef} className={canvasStyles.canvas} />
+						<canvas
+							ref={canvasRef}
+							className={
+								state?.arriving
+									? `${canvasStyles.canvas} ${canvasStyles.handedOver}`
+									: canvasStyles.canvas
+							}
+						/>
 
 						{state?.loading ? (
 							<div className={canvasStyles.overlay}>
