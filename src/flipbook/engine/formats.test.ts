@@ -39,8 +39,7 @@ describe('parseSvgPages', () => {
 	})
 
 	it('ignores non-group children, so a <defs> block cannot shift the pages', () => {
-		const svg =
-			'<svg xmlns="http://www.w3.org/2000/svg"><defs/><g/><g/><g/><g id="page"/></svg>'
+		const svg = '<svg xmlns="http://www.w3.org/2000/svg"><defs/><g/><g/><g/><g id="page"/></svg>'
 
 		const pages = parseSvgPages(svg)
 		expect(pages).toHaveLength(1)
@@ -79,14 +78,41 @@ describe('parseLegacyPages', () => {
 
 	it('skips the same three system layers as the SVG format', () => {
 		const json = legacy([
-			{ children: [{ segments: [{ x: '1.4', y: '2.6' }, { x: '10', y: '20' }] }] },
+			{
+				children: [
+					{
+						segments: [
+							{ x: '1.4', y: '2.6' },
+							{ x: '10', y: '20' },
+						],
+					},
+				],
+			},
 		])
 
-		expect(parseLegacyPages(json)).toEqual([[[{ x: 1, y: 3 }, { x: 10, y: 20 }]]])
+		expect(parseLegacyPages(json)).toEqual([
+			[
+				[
+					{ x: 1, y: 3 },
+					{ x: 10, y: 20 },
+				],
+			],
+		])
 	})
 
 	it('rounds coordinates, which arrive as strings', () => {
-		const json = legacy([{ children: [{ segments: [{ x: '466.7', y: '83.2' }, { x: '1', y: '1' }] }] }])
+		const json = legacy([
+			{
+				children: [
+					{
+						segments: [
+							{ x: '466.7', y: '83.2' },
+							{ x: '1', y: '1' },
+						],
+					},
+				],
+			},
+		])
 		expect(parseLegacyPages(json)[0]![0]![0]).toEqual({ x: 467, y: 83 })
 	})
 

@@ -23,6 +23,7 @@ is worth knowing only because `time-capsule` still runs it. Here it is:
 | Routing | ~60 lines over the History API, `src/router/` |
 | Styling | Plain CSS, one module per component |
 | Tests | Vitest + Testing Library |
+| Lint and format | Biome |
 | Back end | Unchanged — `api/`, `lib/`, `db/`, `scripts/` |
 
 Nothing was added that isn't earning its place: no state library, no CSS framework,
@@ -68,6 +69,25 @@ src/
 public/               fonts, images, favicons, sadbrowser.html
 ```
 
+### Biome
+
+`biome.json`, and it is scoped deliberately:
+
+- **The formatter only touches `src/`.** `lib/`, `api/` and `scripts/` are the back end
+  the rewrite didn't change; reformatting them would put hundreds of lines of noise
+  into files nobody is working in. The linter still reads them.
+- **JSON and CSS are excluded outright.** `package-lock.json` belongs to npm, and the
+  stylesheets are hand-set — the comments and the grouping in them are doing work that
+  a formatter would flatten.
+- **`// biome-ignore` needs its reason on one line**, immediately above the code. A
+  reason that wraps onto a second `//` line silently stops suppressing anything.
+- Every suppression in the tree says why. If a rule is wrong often enough to be worth
+  turning off, turn it off in `biome.json` instead.
+- **There is no CI.** `npm run check` — typecheck, lint, tests — is the gate, and
+  running it is a habit rather than something enforced. Vercel runs the typecheck as
+  part of `npm run build`, so a type error can't reach production, but a lint failure
+  can.
+
 **`src/flipbook/engine/` must not import React.** The engine owns a mutable paper.js
 scene, which React has no business re-rendering; React drives it through method calls
 and subscribes to a small `Store` for the dozen scalars it needs to draw a toolbar.
@@ -103,6 +123,9 @@ drawing tool itself works without one.
 | `npm run test:watch` | Vitest, watching |
 | `npm run test:coverage` | Vitest with a v8 coverage report |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | Biome, read-only |
+| `npm run lint:fix` | Biome, applying what it can fix safely |
+| `npm run check` | Typecheck, lint and tests — what to run before pushing |
 | `npm run preview` | Serves the built `dist/` — static only, no API |
 | `npm run db:migrate` | Applies `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Loads the 2012–2015 flipbooks from `_original/` |

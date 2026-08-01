@@ -41,9 +41,12 @@ export function WidthSlider({ value, onChange }: WidthSliderProps) {
 	}
 
 	const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-		const step = event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1
-			: event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 1
-			: 0
+		const step =
+			event.key === 'ArrowLeft' || event.key === 'ArrowDown'
+				? -1
+				: event.key === 'ArrowRight' || event.key === 'ArrowUp'
+					? 1
+					: 0
 		if (!step) return
 
 		event.preventDefault()

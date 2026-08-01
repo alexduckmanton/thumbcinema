@@ -20,12 +20,22 @@ export function Button({
 	type = 'button',
 	...rest
 }: ButtonProps) {
-	const classNames = [styles.button, variant !== 'primary' ? styles[variant] : '', loading ? styles.loading : '']
+	const classNames = [
+		styles.button,
+		variant !== 'primary' ? styles[variant] : '',
+		loading ? styles.loading : '',
+	]
 		.filter(Boolean)
 		.join(' ')
 
 	return (
-		<button type={type} className={classNames} disabled={disabled || loading} aria-busy={loading} {...rest}>
+		<button
+			type={type}
+			className={classNames}
+			disabled={disabled || loading}
+			aria-busy={loading}
+			{...rest}
+		>
 			<span className={styles.label}>{children}</span>
 			{loading ? <Spinner className={styles.spinner} label="" /> : null}
 		</button>

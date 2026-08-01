@@ -49,7 +49,11 @@ export function AdminToggles({ id, flags, onChange, className }: AdminTogglesPro
 			// when the server has no token configured.
 			if (status === 401 || status === 404) {
 				signOut()
-				showMessage({ copy: "That admin token isn't working any more.", cta: 'Fine', type: 'error' })
+				showMessage({
+					copy: "That admin token isn't working any more.",
+					cta: 'Fine',
+					type: 'error',
+				})
 			} else {
 				showMessage({ copy: "Couldn't save that. Try again?", cta: 'Dang', type: 'error' })
 			}

@@ -33,6 +33,10 @@ export function Messages() {
 			<ul className={`${styles.messages} ${styles[message.type]}`} role="status" aria-live="polite">
 				{/* One <li> per word: each drops in on its own timing. */}
 				{message.copy.split(' ').map((word, index) => (
+					// Position in the sentence is the identity here: this list is a fixed string
+					// split apart, so it never reorders, never grows, and is replaced wholesale
+					// when the message changes. The index is also what staggers each word.
+					// biome-ignore lint/suspicious/noArrayIndexKey: a split string never reorders.
 					<li key={`${index}-${word}`} className={styles.word}>
 						{/* The space belongs in the text, not in the gap between the list
 						    items: a screen reader reads the words and would otherwise run

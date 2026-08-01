@@ -85,7 +85,9 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						<span className={`${styles.layer} ${icons.transform}`} aria-hidden="true" />
 						<span
 							className={`${styles.layer} ${
-								tool === 'transform' && transformIndex === 0 ? icons.translateActive : icons.translate
+								tool === 'transform' && transformIndex === 0
+									? icons.translateActive
+									: icons.translate
 							}`}
 							aria-hidden="true"
 						/>

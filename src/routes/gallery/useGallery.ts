@@ -41,47 +41,44 @@ export function useGallery(view: GalleryView): GalleryResult {
 	// Read inside the fetch so `loadMore` can stay a stable callback.
 	const state = useRef({ loading: false, exhausted: false })
 
-	const fetchPage = useCallback(
-		async (currentView: GalleryView) => {
-			if (state.current.loading || state.current.exhausted) return
+	const fetchPage = useCallback(async (currentView: GalleryView) => {
+		if (state.current.loading || state.current.exhausted) return
 
-			state.current.loading = true
-			setLoading(true)
-			setFailed(false)
+		state.current.loading = true
+		setLoading(true)
+		setFailed(false)
 
-			const controller = new AbortController()
-			inFlight.current = controller
+		const controller = new AbortController()
+		inFlight.current = controller
 
-			try {
-				const page = await listFlipbooks(
-					{ view: currentView, limit: PAGE_SIZE, cursor: cursor.current },
-					{ signal: controller.signal, headers: adminHeaders() },
-				)
+		try {
+			const page = await listFlipbooks(
+				{ view: currentView, limit: PAGE_SIZE, cursor: cursor.current },
+				{ signal: controller.signal, headers: adminHeaders() },
+			)
 
-				cursor.current = page.next_cursor
-				setItems((previous) => [...previous, ...page.items])
+			cursor.current = page.next_cursor
+			setItems((previous) => [...previous, ...page.items])
 
-				if (!page.next_cursor) {
-					state.current.exhausted = true
-					setExhausted(true)
-				}
-			} catch (error) {
-				if (controller.signal.aborted) return
-
-				// Stop, rather than hammering a failing endpoint on every scroll tick.
-				// `retry` is what clears this.
+			if (!page.next_cursor) {
 				state.current.exhausted = true
 				setExhausted(true)
-				setFailed(true)
-			} finally {
-				if (!controller.signal.aborted) {
-					state.current.loading = false
-					setLoading(false)
-				}
 			}
-		},
-		[],
-	)
+		} catch {
+			if (controller.signal.aborted) return
+
+			// Stop, rather than hammering a failing endpoint on every scroll tick.
+			// `retry` is what clears this.
+			state.current.exhausted = true
+			setExhausted(true)
+			setFailed(true)
+		} finally {
+			if (!controller.signal.aborted) {
+				state.current.loading = false
+				setLoading(false)
+			}
+		}
+	}, [])
 
 	// A tab switch is a fresh list: cancel anything outstanding and start over.
 	useEffect(() => {

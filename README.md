@@ -66,6 +66,8 @@ version that works if the one on your `PATH` doesn't.
 | `npm run dev` | Local server on :3000 |
 | `npm run build` | Typecheck and build to `dist/` |
 | `npm test` | Run the tests |
+| `npm run lint` | Biome (`lint:fix` to apply what it can) |
+| `npm run check` | Typecheck, lint and tests together |
 | `npm run db:migrate` | Apply `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Import the 2012–2015 flipbooks |
 | `npm run db:stats` | Row counts and storage use |

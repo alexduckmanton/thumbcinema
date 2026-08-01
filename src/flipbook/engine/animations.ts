@@ -40,6 +40,9 @@ export type PageAnimation =
 	| 'focusPrevThumb'
 	| 'focusNextThumb'
 
+// biome-ignore format: one line per keyframe. These are a table — the offsets and the
+// values line up down the page, and that is how you read an animation. The formatter
+// breaks each one across five lines and the shape goes with it.
 const KEYFRAMES: Record<PageAnimation, Keyframe[]> = {
 	/** The incoming canvas, spinning in from off to the right. */
 	newPage: [
@@ -105,11 +108,15 @@ export function prefersReducedMotion(): boolean {
  * test) or the reader has asked for reduced motion — callers use this to sequence
  * work, so it must always settle.
  */
-export async function play(element: Element, animation: PageAnimation, options: {
-	/** Holds the element at its final frame instead of snapping back. */
-	hold?: boolean
-	duration?: number
-} = {}): Promise<void> {
+export async function play(
+	element: Element,
+	animation: PageAnimation,
+	options: {
+		/** Holds the element at its final frame instead of snapping back. */
+		hold?: boolean
+		duration?: number
+	} = {},
+): Promise<void> {
 	if (typeof element.animate !== 'function' || prefersReducedMotion()) return
 
 	const duration = options.duration ?? DURATION

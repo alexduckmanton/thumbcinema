@@ -20,7 +20,10 @@ export interface ShortcutOptions {
  * Keys are matched on `event.key` rather than `keyCode`, which is deprecated and
  * was never right on a non-US layout.
  */
-export function useKeyboardShortcuts(engine: FlipbookEngine | null, options: ShortcutOptions): void {
+export function useKeyboardShortcuts(
+	engine: FlipbookEngine | null,
+	options: ShortcutOptions,
+): void {
 	const { enabled, tools } = options
 
 	useEffect(() => {

@@ -63,10 +63,7 @@ describe('listFlipbooks', () => {
 	it('passes the admin header through — it is what unhides NSFW rows', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ items: [], next_cursor: null }))
 
-		await listFlipbooks(
-			{ view: 'all', limit: 5 },
-			{ headers: { Authorization: 'Bearer secret' } },
-		)
+		await listFlipbooks({ view: 'all', limit: 5 }, { headers: { Authorization: 'Bearer secret' } })
 
 		const init = fetchMock.mock.calls[0]![1] as RequestInit
 		expect((init.headers as Record<string, string>).Authorization).toBe('Bearer secret')
@@ -145,7 +142,9 @@ describe('saveFlipbook', () => {
 			nsfw: true,
 		})
 
-		expect(new URLSearchParams(String((fetchMock.mock.calls[0]![1] as RequestInit).body)).get('nsfw')).toBe('1')
+		expect(
+			new URLSearchParams(String((fetchMock.mock.calls[0]![1] as RequestInit).body)).get('nsfw'),
+		).toBe('1')
 	})
 
 	it('surfaces the 413 a too-large flipbook gets', async () => {

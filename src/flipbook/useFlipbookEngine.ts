@@ -16,6 +16,12 @@ export function useFlipbookEngine(options: EngineOptions) {
 
 	// Layout effect, not effect: the engine sizes the canvas and draws the first
 	// frame, and doing that after paint shows a flash of an unsized canvas.
+	//
+	// `options` is deliberately not a dependency. It is read once, at construction, and
+	// callers pass an object literal — depending on it would build a new paper.js scene
+	// on every render. Changing mode mid-life isn't a thing the tool does: the route
+	// remounts instead.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: built once, on mount. See above.
 	useLayoutEffect(() => {
 		const canvas = canvasRef.current
 		if (!canvas) return
@@ -27,9 +33,6 @@ export function useFlipbookEngine(options: EngineOptions) {
 			created.destroy()
 			setEngine(null)
 		}
-		// Options are read once, at construction. Changing mode mid-life isn't a
-		// thing the tool does — the route remounts instead.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	return { engine, state: useEngineState(engine), canvasRef }

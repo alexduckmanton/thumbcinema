@@ -19,7 +19,14 @@ export interface PageStripProps {
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 }
 
-export function PageStrip({ engine, pages, activePage, playing, arriving, canvasRef }: PageStripProps) {
+export function PageStrip({
+	engine,
+	pages,
+	activePage,
+	playing,
+	arriving,
+	canvasRef,
+}: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
 	const [canvasOffset, setCanvasOffset] = useState(0)
 
@@ -53,6 +60,12 @@ export function PageStrip({ engine, pages, activePage, playing, arriving, canvas
 				style={{ left: `${left}px`, transitionDuration: snap ? '0s' : undefined }}
 			>
 				{pages.map((page, index) => (
+					// The whole strip is `aria-hidden`: these are decorative copies of the
+					// canvas rather than controls. Clicking one is a pointer shortcut for the
+					// arrow keys, which are the keyboard route and are bound on the document.
+					// A tab stop per page would be noise rather than access.
+					// biome-ignore lint/a11y/noStaticElementInteractions: decorative, aria-hidden.
+					// biome-ignore lint/a11y/useKeyWithClickEvents: arrow keys are the keyboard route.
 					<div
 						key={page.id}
 						className={index === covered ? `${styles.page} ${styles.covered}` : styles.page}

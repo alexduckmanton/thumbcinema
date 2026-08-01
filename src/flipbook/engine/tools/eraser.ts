@@ -59,7 +59,7 @@ export class EraserTool implements ModalTool {
 	eraseAt(point: paper.Point): void {
 		for (let i = 0; i < MAX_ERASURES_PER_EVENT; i++) {
 			const hit = this.scene.activeLayer.hitTest(point, HIT_ERASE)
-			if (!hit || hit.type !== 'segment') return
+			if (hit?.type !== 'segment') return
 
 			const path = hit.item as paper.Path
 

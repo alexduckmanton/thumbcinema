@@ -15,6 +15,9 @@
     "test:watch": "node scripts/with-node.js vitest",
     "test:coverage": "node scripts/with-node.js vitest run --coverage",
     "typecheck": "node scripts/with-node.js tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "check": "npm run typecheck && npm run lint && npm test",
     "db:migrate": "node scripts/migrate.js",
     "db:import-archive": "node scripts/import-archive.js",
     "db:stats": "node scripts/stats.js"
@@ -26,6 +29,7 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.6",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

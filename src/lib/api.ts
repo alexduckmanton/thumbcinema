@@ -114,7 +114,10 @@ export function getFlipbook(id: string, options: RequestOptions = {}): Promise<F
  * `JSON.parse`, and which one it is comes from the flipbook's `format` — the
  * response's content type is an implementation detail of how it's stored.
  */
-export async function getFlipbookData(dataUrl: string, options: RequestOptions = {}): Promise<string> {
+export async function getFlipbookData(
+	dataUrl: string,
+	options: RequestOptions = {},
+): Promise<string> {
 	const response = await fetch(dataUrl, { signal: options.signal })
 	if (!response.ok) return fail(response)
 	return response.text()
@@ -153,7 +156,10 @@ export interface SavePayload {
  * practical ceiling is roughly a 2.5 MB drawing; the server answers 413 past that
  * and the message comes back through `ApiError`.
  */
-export async function saveFlipbook(payload: SavePayload, options: RequestOptions = {}): Promise<string> {
+export async function saveFlipbook(
+	payload: SavePayload,
+	options: RequestOptions = {},
+): Promise<string> {
 	const form = new URLSearchParams({
 		title: payload.title,
 		description: payload.description,

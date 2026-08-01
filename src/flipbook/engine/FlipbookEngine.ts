@@ -1,12 +1,7 @@
 import { Store } from '../../lib/store'
 import { freeze, play } from './animations'
 import { CANVAS_HEIGHT, CANVAS_WIDTH, FPS, PENCIL_COLOR } from './constants'
-import {
-	assertLeadingGroups,
-	parseLegacyPages,
-	parseSvgPages,
-	strokeWidthFor,
-} from './formats'
+import { assertLeadingGroups, parseLegacyPages, parseSvgPages, strokeWidthFor } from './formats'
 import {
 	advanceCircleplay,
 	circleplayInitial,
@@ -242,7 +237,8 @@ export class FlipbookEngine {
 		if (this.store.snapshot.busy) return
 
 		if (this.store.snapshot.tool === id) {
-			if (id === 'transform') this.setTransformIndex(this.store.snapshot.transformIndex === 0 ? 1 : 0)
+			if (id === 'transform')
+				this.setTransformIndex(this.store.snapshot.transformIndex === 0 ? 1 : 0)
 			return
 		}
 
@@ -526,7 +522,10 @@ export class FlipbookEngine {
 	// --- playback ------------------------------------------------------------
 
 	togglePlay(): void {
-		if (this.store.snapshot.playback === 'play') return this.pause()
+		if (this.store.snapshot.playback === 'play') {
+			this.pause()
+			return
+		}
 		if (this.pageCount < 2) return
 
 		this.stopPlayback()
@@ -536,7 +535,10 @@ export class FlipbookEngine {
 	}
 
 	toggleCircleplay(): void {
-		if (this.store.snapshot.playback === 'circleplay') return this.pause()
+		if (this.store.snapshot.playback === 'circleplay') {
+			this.pause()
+			return
+		}
 		if (this.pageCount < 2) return
 
 		this.stopPlayback()
@@ -637,7 +639,9 @@ export class FlipbookEngine {
 	 */
 	exportForRecovery(): string {
 		this.scene.activeLayer.remove()
-		return new XMLSerializer().serializeToString(this.scene.project.exportSVG({ asString: false }) as SVGElement)
+		return new XMLSerializer().serializeToString(
+			this.scene.project.exportSVG({ asString: false }) as SVGElement,
+		)
 	}
 
 	/**

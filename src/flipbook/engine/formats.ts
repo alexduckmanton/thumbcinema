@@ -52,7 +52,7 @@ export function parseSvgPages(text: string): ParsedPage[] {
 	if (error) throw new ArtworkError('The artwork file could not be parsed.')
 
 	const root = document.documentElement
-	if (!root || root.tagName.toLowerCase() !== 'svg') {
+	if (root?.tagName.toLowerCase() !== 'svg') {
 		throw new ArtworkError('The artwork file is not an SVG.')
 	}
 
