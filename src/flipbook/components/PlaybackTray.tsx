@@ -30,7 +30,7 @@ export function PlaybackTray({
 	const shareUrl = typeof window === 'undefined' ? '' : window.location.href
 
 	return (
-		<div className={styles.tray}>
+		<div className={`${styles.tray} ${styles.ruled}`}>
 			<ul className={`${styles.group} ${styles.meta}`}>
 				<li>
 					<a

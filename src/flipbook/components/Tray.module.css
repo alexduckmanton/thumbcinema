@@ -2,8 +2,7 @@
  * The tray under the canvas: tools on the left, page actions on the right.
  *
  * Shared by both pages — the create page fills it with the pencil, eraser and
- * transform, the playback page with a view count and the playback controls — so the
- * rule under the canvas is the same line on both.
+ * transform, the playback page with a view count and the playback controls.
  */
 
 .tray {
@@ -14,8 +13,17 @@
 	width: 100%;
 	padding: 20px 0;
 	margin: 0 auto 15px;
+}
+
+/*
+ * A rule under it, which only the playback page wants.
+ *
+ * There it separates the controls from the flipbook's title and description below.
+ * The create page has nothing under the tray but the save button and a lot of air,
+ * so the line was drawing a box round the drawing for no reason.
+ */
+.ruled {
 	border-bottom: 1px solid var(--line);
-	transition: border-color 0.25s ease-out, margin 0.25s ease-out;
 }
 
 .group {
@@ -191,10 +199,6 @@
  * with the drawing. The ease dips them down a few pixels before they go, which is
  * the anticipation the 2013 keyframes had.
  */
-.stowed {
-	border-color: transparent;
-}
-
 .stowed .group {
 	transform: translateY(-100px);
 	pointer-events: none;

@@ -43,8 +43,11 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 64px;
-	height: 64px;
+	/* 48 rather than the create button's 64. That one is a floating target with the
+	   whole gallery behind it; this one sits in a 640px column under the tray and at
+	   64 it was the loudest thing on the page. Everything else about the two matches. */
+	min-width: 48px;
+	height: 48px;
 	padding: 0 26px;
 
 	border: none;
@@ -79,8 +82,9 @@
  * 8.25px above. The letters therefore sit 3.25px high in a box that is itself
  * centred. Inter, for comparison, is out by 0.13px and needs nothing.
  *
- * 3px of that back, measured rather than guessed: 23.5px of air above the ink and
- * 24px below. Without it, 20.5 and 27 — visibly high on a 64px button.
+ * 3px of that back, measured rather than guessed: 15.5px of air above the ink and
+ * 16px below. Without it, 12.5 and 19 — visibly high. The correction is a property
+ * of the face, not of the button, so it doesn't move if the height does.
  */
 .saveLabel {
 	position: relative;
