@@ -143,9 +143,15 @@ browser ──> dist/index.html      static, on Vercel's CDN
 
 - **`lib/router.js` is the entire API.** Every route is rewritten to the single
   `/api` function by `vercel.json`; the dev server calls the same module directly.
-- **Everything else is rewritten to `/index.html`.** Vercel checks the filesystem
-  before rewrites, so hashed assets, fonts and favicons are served as files and never
-  reach the catch-all.
+- **Everything else is rewritten to `/`, and it has to be `/` rather than
+  `/index.html`.** Vercel checks the filesystem before rewrites, so hashed assets,
+  fonts and favicons are served as files and never reach the catch-all — but under
+  `cleanUrls` the output filesystem has no `/index.html` in it at all. That path is a
+  308 to `/`, and a rewrite doesn't follow redirects: it looks the destination up and
+  finds nothing, so **every deep link 404s while the app still works perfectly from the
+  home page**, which is exactly as long as it takes to not notice. This has now bitten
+  twice — `defc72d` fixed the same thing for `/f/:id` by dropping `.html` off its
+  destination, and the React rewrite put it straight back.
 - `cleanUrls` is what maps `/sadbrowser` to the static `public/sadbrowser.html`.
 
 Routes are unchanged: `POST /saveflipbook`, `GET /api/flipbooks`,

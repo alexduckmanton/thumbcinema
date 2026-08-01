@@ -12,7 +12,7 @@
   "rewrites": [
     { "source": "/saveflipbook", "destination": "/api?__path=/saveflipbook" },
     { "source": "/api/:path*", "destination": "/api?__path=/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/" }
   ],
 
   "headers": [
