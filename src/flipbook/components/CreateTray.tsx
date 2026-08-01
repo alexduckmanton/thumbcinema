@@ -1,4 +1,5 @@
 import type { FlipbookEngine, FlipbookState } from '../engine/FlipbookEngine'
+import { settledPageCount } from '../engine/pages'
 import type { ModalToolId } from '../engine/tools/types'
 import icons from '../../styles/icons.module.css'
 import { WidthSlider } from './WidthSlider'
@@ -21,7 +22,11 @@ export interface CreateTrayProps {
  */
 export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const { tool, transformIndex, playback, pages } = state
-	const canPlay = pages.length > 1
+	const canPlay = settledPageCount(pages) > 1
+
+	// Adding and removing pages is off while the flipbook is playing: the two sets of
+	// animations ran over each other. Drawing is fine — it stops playback first.
+	const canChangePages = !state.busy && playback === 'none'
 
 	const toolClass = (id: ModalToolId) =>
 		tool === id ? `${styles.tool} ${styles.toolActive}` : styles.tool
@@ -107,7 +112,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						type="button"
 						className={styles.action}
 						title="Delete page"
-						disabled={state.busy}
+						disabled={!canChangePages}
 						onClick={() => void engine.deletePage()}
 					>
 						<span className={icons.delete} aria-hidden="true" />
@@ -120,7 +125,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						type="button"
 						className={styles.action}
 						title="Blank page (n)"
-						disabled={state.busy}
+						disabled={!canChangePages}
 						onClick={() => void engine.addBlankPage()}
 					>
 						<span className={icons.blank} aria-hidden="true" />
@@ -133,7 +138,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						type="button"
 						className={`${styles.action} ${styles.duplicate}`}
 						title="Duplicate page (d)"
-						disabled={state.busy}
+						disabled={!canChangePages}
 						onClick={() => void engine.duplicatePage()}
 					>
 						<span className={icons.duplicate} aria-hidden="true" />

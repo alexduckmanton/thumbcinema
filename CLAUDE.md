@@ -177,6 +177,15 @@ documented at the point they matter:
 - **A selected stroke is moved into the selection layer, not flagged.** The selection
   layer draws *below* the pages, which reads correctly only because the page fades to
   20% while anything is selected.
+- **A page being deleted is still in `pages` while it falls.** So `pages.length` is
+  one too many for 750ms, and deleting the only page — which inserts the replacement
+  up front — makes it two. Ask `settledPageCount()` whether this is a flipbook yet;
+  the raw length flicks the play buttons on and fades the save button in and out.
+- **Pages can't be added or removed while it's playing.** Playback changes page every
+  83ms and a page animation runs for 750ms; the two used to run over each other and
+  leave the strip in a heap. `canChangePages` refuses in the engine, so the keyboard
+  shortcuts are covered too, not just the greyed-out buttons. The drawing tools stay
+  live — they stop playback before they touch anything.
 - **The hidden thumbnail is not always the active page.** The strip hides whichever
   page the drawing canvas stands in front of, which is what `.covered` means — and
   during a delete the arriving page is active from the first frame but takes 750ms to

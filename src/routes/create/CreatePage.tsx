@@ -6,6 +6,7 @@ import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
+import { settledPageCount } from '../../flipbook/engine/pages'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
@@ -37,7 +38,9 @@ export function CreatePage() {
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools.
 	useKeyboardShortcuts(engine, { enabled: phase === 'drawing', tools: true })
 
-	const pages = state?.pages.length ?? 1
+	// Not the raw length: a page on its way off the screen is still in the list, and
+	// counting it makes the save button fade in and straight back out again.
+	const pages = state ? settledPageCount(state.pages) : 1
 	useUnsavedWarning(pages > 1 && phase !== 'sending')
 
 	const handleSave = useCallback(

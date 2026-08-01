@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { CANVAS_HEIGHT, CANVAS_WIDTH, PAGE_MARGIN } from '../engine/constants'
-import type { FlipbookEngine, PageState } from '../engine/FlipbookEngine'
+import type { FlipbookEngine } from '../engine/FlipbookEngine'
+import type { PageState } from '../engine/pages'
 import styles from './PageStrip.module.css'
 
 /** One page's outer width: the canvas plus its gutters. Matches `.page` in the CSS. */

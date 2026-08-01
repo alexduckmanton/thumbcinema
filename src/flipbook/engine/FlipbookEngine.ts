@@ -13,6 +13,7 @@ import {
 	circleplayPage,
 	type CircleplayState,
 } from './geometry'
+import type { PageState } from './pages'
 import { Scene } from './scene'
 import { Selection } from './selection'
 import { EraserTool } from './tools/eraser'
@@ -23,13 +24,6 @@ import type { ModalTool, ModalToolId } from './tools/types'
 
 export type PlaybackMode = 'none' | 'play' | 'circleplay'
 export type EngineMode = 'create' | 'playback'
-
-export interface PageState {
-	/** Stable across inserts and deletes, so React keys don't reshuffle canvases. */
-	readonly id: number
-	/** How much is drawn on this page. The busiest page becomes the saved thumbnail. */
-	readonly segments: number
-}
 
 export interface FlipbookState {
 	pages: PageState[]
@@ -347,10 +341,22 @@ export class FlipbookEngine {
 		return this.store.snapshot.pages.length
 	}
 
-	async addBlankPage(): Promise<void> {
-		if (this.store.snapshot.busy) return
+	/**
+	 * Adding and removing pages is refused outright while the flipbook is playing,
+	 * rather than quietly pausing first and carrying on.
+	 *
+	 * Playback swaps the visible page every 83ms, and a page animation is 750ms of
+	 * pinned thumbnails and a canvas mid-flight — the two ran over each other and left
+	 * the strip a mess. The tools are fine: they stop playback the moment you draw and
+	 * nothing is animating.
+	 */
+	private get canChangePages(): boolean {
+		return !this.store.snapshot.busy && this.store.snapshot.playback === 'none'
+	}
 
-		this.pause()
+	async addBlankPage(): Promise<void> {
+		if (!this.canChangePages) return
+
 		this.captureActivePage()
 
 		const from = this.scene.activePage
@@ -365,9 +371,8 @@ export class FlipbookEngine {
 	}
 
 	async duplicatePage(): Promise<void> {
-		if (this.store.snapshot.busy) return
+		if (!this.canChangePages) return
 
-		this.pause()
 		this.captureActivePage()
 
 		const from = this.scene.activePage
@@ -384,9 +389,7 @@ export class FlipbookEngine {
 	}
 
 	async deletePage(): Promise<void> {
-		if (this.store.snapshot.busy) return
-
-		this.pause()
+		if (!this.canChangePages) return
 
 		// The thumbnail is about to stand in for the canvas, in the same place and at
 		// the same size, so any drift between the two would show as a jump the moment
@@ -398,11 +401,22 @@ export class FlipbookEngine {
 		const doomed = pages[index]
 		if (!doomed) return
 
+		// Marked from the moment it starts to fall. It has to stay in the list to be
+		// rendered on its way out, but it stops counting towards the flipbook now —
+		// otherwise deleting the only page leaves two in the list for 750ms and the
+		// play and save buttons blink on and off again.
+		const leaving = pages.map((page, i) => (i === index ? { ...page, leaving: true } : page))
+
 		// The strip is never empty: deleting the only page leaves a fresh one behind.
 		const replacing = pages.length === 1
 		if (replacing) {
 			this.scene.insertBlankPage(0)
-			this.store.set({ pages: [...pages, { id: this.nextPageId++, segments: 0 }], activePage: 1 })
+			this.store.set({
+				pages: [...leaving, { id: this.nextPageId++, segments: 0 }],
+				activePage: 1,
+			})
+		} else {
+			this.store.set({ pages: leaving })
 		}
 
 		const canvas = this.thumbnails.get(doomed.id)
