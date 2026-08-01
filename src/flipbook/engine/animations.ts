@@ -19,6 +19,14 @@
 const EASE = 'ease-in-out'
 const DURATION = 750
 
+/**
+ * How long a page takes to arrive or leave. Exported because the strip has to slide
+ * in step with it — sliding on its own, faster clock, is what made the neighbouring
+ * pages look like they snapped into place while the deleted one was still falling.
+ */
+export const PAGE_ANIMATION_MS = DURATION
+export const PAGE_ANIMATION_EASE = EASE
+
 /** One page thumbnail's width plus its gutters. Matches `.page` in the stylesheet. */
 const PAGE_STEP = 660
 
@@ -139,25 +147,49 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
+ * Above the drawing canvas, which is `z-index: 15`.
+ *
+ * It has to go on the *page wrapper*, not on the thumbnail. `.page` carries a
+ * z-index of its own, which makes it a stacking context, so a z-index on the canvas
+ * inside it can only order it against its own siblings — of which there are none.
+ * 2013's `deletePage` keyframes asked for `z-index: 20` on the canvas and were
+ * defeated by exactly this: the page being deleted spent the first 300ms of its fall
+ * hidden behind the canvas it was falling off.
+ */
+const ABOVE_CANVAS = '20'
+
+export interface FreezeOptions {
+	/** Lifts the thumbnail's page wrapper over everything, canvas included. */
+	lift?: boolean
+}
+
+/**
  * Pins an element where it currently is on screen so a reflow around it doesn't
- * drag it along. The strip slides when a page is inserted, and without this the
- * pages that aren't part of the animation slide with it.
+ * drag it along. The strip slides when a page is inserted or removed, and without
+ * this the pages that aren't part of the animation slide with it.
  *
  * Returns the undo.
  */
-export function freeze(element: HTMLElement, shiftLeft = 0): () => void {
+export function freeze(element: HTMLElement, options: FreezeOptions = {}): () => void {
 	const rect = element.getBoundingClientRect()
 
 	const previous = element.getAttribute('style')
 
 	element.style.transitionDuration = '0s'
 	element.style.position = 'fixed'
-	element.style.zIndex = '10'
 	element.style.top = `${rect.top}px`
-	element.style.left = `${rect.left - shiftLeft}px`
+	element.style.left = `${rect.left}px`
+
+	const wrapper = options.lift ? element.parentElement : null
+	const wrapperPrevious = wrapper?.getAttribute('style') ?? null
+	if (wrapper) wrapper.style.zIndex = ABOVE_CANVAS
 
 	return () => {
 		if (previous === null) element.removeAttribute('style')
 		else element.setAttribute('style', previous)
+
+		if (!wrapper) return
+		if (wrapperPrevious === null) wrapper.removeAttribute('style')
+		else wrapper.setAttribute('style', wrapperPrevious)
 	}
 }

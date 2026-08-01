@@ -381,7 +381,8 @@ export class FlipbookEngine {
 		if (!doomed) return
 
 		// The strip is never empty: deleting the only page leaves a fresh one behind.
-		if (pages.length === 1) {
+		const replacing = pages.length === 1
+		if (replacing) {
 			this.scene.insertBlankPage(0)
 			this.store.set({ pages: [...pages, { id: this.nextPageId++, segments: 0 }], activePage: 1 })
 		}
@@ -406,17 +407,31 @@ export class FlipbookEngine {
 
 		// The page on its way out is pinned too, and never unpinned: it has to fall
 		// from where it is rather than from where the strip is heading, and it holds
-		// its last frame until it's removed outright a moment later.
-		if (canvas) freeze(canvas)
+		// its last frame until it's removed outright a moment later. `lift` is what
+		// puts it in front of the drawing canvas, so the fall is visible from the
+		// first frame rather than from halfway down.
+		if (canvas) freeze(canvas, { lift: true })
 
 		this.scene.setActivePage(sibling)
 		this.store.set({ activePage: sibling })
 
 		const siblingCanvas = this.thumbnailFor(sibling)
 		const unpinSibling = siblingCanvas ? freeze(siblingCanvas) : null
-		const arriving = siblingCanvas
-			? play(siblingCanvas, atEnd ? 'focusPrevThumb' : 'focusNextThumb')
-			: Promise.resolve()
+
+		/*
+		 * What takes its place.
+		 *
+		 * Deleting the last page in the book replaces it, and a page arriving is a
+		 * page arriving: it flies in on the canvas exactly as a blank one does. 2013
+		 * got this for free by animating every page that joined the collection,
+		 * including the one delete put there — without it the replacement simply
+		 * appeared, in front of the page still falling off the screen.
+		 */
+		const arriving = replacing
+			? play(this.scene.canvas, 'newPage')
+			: siblingCanvas
+				? play(siblingCanvas, atEnd ? 'focusPrevThumb' : 'focusNextThumb')
+				: Promise.resolve()
 
 		// The deleted page holds its last frame: it's about to be removed, and
 		// letting it snap back into view for one frame first would be a flicker.

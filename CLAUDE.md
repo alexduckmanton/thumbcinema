@@ -177,6 +177,13 @@ documented at the point they matter:
 - **A selected stroke is moved into the selection layer, not flagged.** The selection
   layer draws *below* the pages, which reads correctly only because the page fades to
   20% while anything is selected.
+- **A page thumbnail can't be raised by its own z-index.** `.page` in the strip has
+  one, which makes it a stacking context, so a z-index on the `<canvas>` inside can
+  only order it against siblings it hasn't got. Anything that has to come forward —
+  the page falling away during a delete, which otherwise spends the first 300ms of
+  its fall hidden behind the drawing canvas — is lifted by `freeze(el, {lift: true})`,
+  which sets it on the wrapper. 2013's `deletePage` keyframes asked for `z-index: 20`
+  on the canvas and were defeated by this.
 - **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and
   React re-runs inline ref callbacks on every render. Page thumbnails take their size
   from JSX attributes.
