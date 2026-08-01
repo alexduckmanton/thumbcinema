@@ -27,17 +27,33 @@
 	--book-reserve: 318px;
 }
 
+/*
+ * The save button, held against the bottom of the window.
+ *
+ * On a phone the column ends wherever the tools happen to end and the rest of the
+ * screen is air, so a button in the flow sits in the middle of nothing and moves
+ * about as the drawing is resized. Down here it is where a thumb already is and it
+ * doesn't move.
+ *
+ * The padding is what keeps it on the flipbook's ruler rather than the window's: the
+ * box runs the full width and is inset to the width of the drawing, so "centred" and
+ * "right" below both mean centred and right *on the paper*. Sideways that is the
+ * difference between the right-hand edge of a 249px flipbook and the right-hand edge
+ * of an 844px screen, which is nowhere near the thing it saves.
+ */
 .save {
-	position: relative;
-	top: 0;
-	/* The drawing's width, not the column's. It reads as centred either way; what this
-	   buys is the short window below, where "the right" has to mean the right-hand edge
-	   of the paper — sideways the column is the whole window and the flipbook is a
-	   narrow panel in the middle of it. Same ruler as the page bar. */
-	width: var(--book-width);
-	margin: 20px auto 0;
+	position: fixed;
+	right: 0;
+	/* Clear of the home indicator as well as of the edge. */
+	bottom: calc(8px + env(safe-area-inset-bottom));
+	left: 0;
+	z-index: 16;
+	padding: 0 calc((100% - var(--book-width)) / 2);
 	text-align: center;
-	transition: opacity 0.4s ease-in, top 0.4s ease-in;
+	/* `transform` rather than `top`, which a box pinned by `bottom` can't use without
+	   being stretched between the two. The desktop's fly-away uses it as well, so the
+	   two layouts differ by the direction and nothing else. */
+	transition: opacity 0.4s ease-in, transform 0.4s ease-in;
 }
 
 /* One page isn't a flipbook. The button stays in the layout so nothing jumps when
@@ -53,9 +69,9 @@
  * The two are the ends of the same errand — one starts a flipbook, the other
  * finishes it — so they are the same yellow at the same size with the same rounding,
  * and the shared shades are tokens so they can't drift. Not the same component: that
- * one floats over the grid, collapses to a circle on scroll, and is a link. This one
- * sits in the column and is a button, and there is nothing under it to float over,
- * so it takes no shadow.
+ * one collapses to a circle on scroll and is a link, and it floats over a grid of
+ * flipbooks, which is what its shadow is for. This one floats over an empty page on
+ * a phone and sits in the column on a desktop, and has nothing to be lifted off.
  *
  * Not `<Button>` either. That is the site's blue control and this overrides its
  * colour, size, radius, weight, face and hover — at which point sharing the base
@@ -133,8 +149,12 @@
  * phone is downwards and off the bottom of the window.
  */
 .naming .save {
-	top: 120px;
+	transform: translateY(120px);
 	opacity: 0;
+	/* Gone as far as a press is concerned the moment it starts leaving, rather than
+	   after the 0.4s: it is transparent all the way down and a transparent button held
+	   over the page is a dead spot on it. */
+	pointer-events: none;
 }
 
 /* While the artwork is on the wire: nothing to press, and the wash stays up. */
@@ -166,7 +186,6 @@
 	 * hard against the left and the button goes back to the middle.
 	 */
 	.save {
-		margin-top: 10px;
 		text-align: right;
 	}
 
@@ -184,22 +203,28 @@
 /*
  * Desktop: a window with room for the page strip. See the note in base.css.
  *
- * Only three things differ, and all three are about there being room: there is no
- * bottom edge to keep clear of, so the column's own margin under the save button is
- * all it needs; that margin is larger; and the save button flies *up* with the tools
- * rather than down past them.
+ * Only three things differ, and all three are about there being room: the save button
+ * goes back into the column, where there is somewhere for it to be that isn't the
+ * bottom edge of the window; the column has air under it; and the button flies *up*
+ * with the tools rather than down past them.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
 		padding-bottom: 0;
 	}
 
+	/* `static` undoes the four properties that pinned it, and the padding goes with
+	   them: this column is 640px and so is the drawing, so the inset is zero anyway —
+	   but only until the window is short enough for `--book-width` to be the height's
+	   answer rather than the width's, and by then the canvas has stopped shrinking. */
 	.save {
+		position: static;
+		padding: 0;
 		margin: 15px 0 50px;
 	}
 
 	.naming .save {
-		top: -200px;
+		transform: translateY(-200px);
 	}
 }
 

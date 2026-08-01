@@ -369,17 +369,21 @@ finger rather than a pointer.
   layout difference left in that file, and the component reads which of the two it got
   from the shape of its own track rather than from a second copy of the breakpoint.
 - **The window is full, and the width popover is what fills it.** Held sideways the
-  column is header, canvas, bar, tray, save button and 16px of air in 390 points, and
-  the popover hangs 90px below the tool on top of that. It is the bottom of that box,
-  not the save button, that `--book-reserve` is set from — 250 in a short window, which
-  is what leaves the drawing 249×140 rather than a page that scrolls under the hand
-  drawing on it. It is also why **the save button is over to the right in a short
-  window and centred everywhere else**: lying down the popover is 160px through the
-  middle of that band, permanently, because the pencil is the tool you start with, and
-  centred the two overlap by 46px. Standing up it is 40px hard against the left and
-  there is no collision to dodge. `.save` is `--book-width` wide rather than the
-  column's width, so "the right" is the right-hand edge of the paper and not of a
-  window the flipbook is a narrow panel in the middle of.
+  column is header, canvas, bar, tray and 8px of air in 390 points, and the popover
+  hangs 93px below the tool on top of that. It is the bottom of that box that
+  `--book-reserve` is set from — 250 in a short window, which is what leaves the
+  drawing 249×140 rather than a page that scrolls under the hand drawing on it.
+- **The save button is fixed 8px off the bottom of the window**, because the column
+  ends wherever the tools happen to end and the rest of a phone screen is air. It is a
+  full-width box inset by `calc((100% - var(--book-width)) / 2)` rather than a
+  `--book-width` box, so it is pinned to the viewport and still measured against the
+  paper: sideways, "the right" is the right-hand edge of a 249px flipbook and not of an
+  844px screen. It is over to the right in a short window and centred everywhere else,
+  because that is the one layout where the width popover lies down and takes 160px
+  through the middle of the same band. `transform`, not `top`, does the fly-away when
+  the form goes up — a box pinned by `bottom` can't use `top` without being stretched
+  between the two — and the desktop's fly-away moved to `transform` with it, so the two
+  differ by the direction and nothing else.
 - **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
   which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
   Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
