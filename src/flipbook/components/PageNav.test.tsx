@@ -240,6 +240,29 @@ describe('PageNav', () => {
 		expect(bar().handle).toBe(resting)
 	})
 
+	it('holds nothing while the flipbook is still arriving', () => {
+		const engine = fakeEngine()
+		// One page, which is where every load starts — and one page puts the handle at the
+		// far end, so this is exactly the frame that used to throw it back across the bar
+		// the moment the second page landed.
+		const at = (pages: number, waiting: boolean) => (
+			<PageNav engine={engine} activePage={0} pages={pages} playback="none" waiting={waiting} />
+		)
+		const { rerender } = render(at(1, true))
+
+		expect(fraction()).toBe(1)
+		expect(bar().track.className).toContain('waiting')
+		// Off the tab order with it: there is nothing here to take hold of yet.
+		expect(bar().track.tabIndex).toBe(-1)
+
+		// The flipbook arrives. The handle is back at page one and the bar is live, and
+		// nothing was visible in between.
+		rerender(at(12, false))
+		expect(fraction()).toBe(0)
+		expect(bar().track.className).not.toContain('waiting')
+		expect(bar().track.tabIndex).toBe(0)
+	})
+
 	it('puts the arrows away while it plays', () => {
 		const engine = fakeEngine()
 		const at = (playback: 'none' | 'play') => (

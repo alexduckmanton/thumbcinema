@@ -170,6 +170,11 @@ export function CreatePage() {
 							activePage={state.activePage}
 							pages={pages}
 							playback={state.playback}
+							// A crashed drawing being replayed arrives a page at a time exactly
+							// as a saved one does, so the bar waits the same way. Empty on a
+							// fresh page too, and there is nothing to say about a flipbook of
+							// one page anyway.
+							waiting={state.loading}
 						/>
 					) : null}
 

@@ -50,7 +50,16 @@
 	justify-content: space-between;
 	gap: 20px;
 	width: 100%;
-	margin: 0 0 20px;
+	/*
+	 * 20px off the page bar, against the bar's own 8px off the canvas.
+	 *
+	 * The tray used to hold this space open with its top padding. Without it the writing
+	 * sat directly under the bar and the two read as one block — and they are not: the
+	 * bar belongs to the flipbook above it, which is why it takes the paper's shadow and
+	 * sits in the paper's 8px, and this is what the flipbook is *called*. The gap has to
+	 * be plainly larger than that 8px or the bar looks like it belongs to the title.
+	 */
+	margin: 20px 0;
 	padding: 0 10px 15px;
 }
 

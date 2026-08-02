@@ -670,6 +670,20 @@ is now true at both widths and the differences are called out where they exist.
   keep it off the width popover — same band, same problem, one answer now instead of a
   special case. `--book-reserve` is 212 in a short window rather than 250, because what
   it used to be set from was the bottom of that popover and the popover is gone.
+- **The bar comes up empty, and that is `.waiting`.** A saved flipbook arrives a page at
+  a time, so until the second page lands it is a one-page flipbook — which puts the handle
+  at the *right-hand* end, one page being the last page as much as the first. So the bar
+  appeared wearing a handle hard right and two arrows, and a beat later playback started
+  and threw the handle back across the bar. The pill itself stays, because it is holding
+  its space in the column and the row below it must not move; the handle and the arrows go
+  until there is a page one to stand on. Two details are load-bearing: `transition: none`
+  on the handle, because the throw is set going on the render *before* the class comes off
+  and a handle that merely turned visible would finish a 180ms slide in plain sight — the
+  rule is written as a descendant so it outweighs `.eased` and `.stepped`; and
+  `tabIndex={-1}` alongside `pointer-events: none`, because there is nothing here to take
+  hold of with a finger or a tab key. Playback passes `!ready` rather than `state.loading`:
+  a long flipbook goes on landing for a while after it starts playing, and by then the bar
+  is telling the truth about the pages it has.
 - **The page bar is on the desktop layout too, and its width there is stated rather than
   derived.** It was hidden above the breakpoint on the grounds that up there you can
   click straight onto a page thumbnail. You can, and it is still the fastest way to a
@@ -739,7 +753,10 @@ The same flipbook, the same page bar, and much less around it than there used to
   left and is gone from `Tray.module.css`.
 - **`PageNav` is here**, the create page's bar, at every width and full width under the
   flipbook. It is the only play button this page has: the handle is tapped to play and
-  dragged to scrub, which is what took circleplay's job as well as play's.
+  dragged to scrub, which is what took circleplay's job as well as play's. It stands 8px
+  under the paper and the title's row stands 20px under it — the bar belongs to the
+  flipbook, which is why it takes the paper's shadow, and a title tucked up against it
+  reads as owning the bar instead.
 - **There is no tray here at all any more, at any width.** It was the create page's row
   of controls carrying print, play, circleplay and the admin toggles; play became the
   handle above and circleplay was deleted, which left a full-width bar of chrome holding

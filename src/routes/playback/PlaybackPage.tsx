@@ -147,6 +147,11 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 							activePage={state.activePage}
 							pages={state.pages.length}
 							playback={state.playback}
+							// Empty until the flipbook is one — see `.waiting`. `ready` rather
+							// than `state.loading`: the rest of a long flipbook goes on landing
+							// for a while after it starts playing, and the bar is telling the
+							// truth about the pages it has by then.
+							waiting={!ready}
 						/>
 					) : null}
 

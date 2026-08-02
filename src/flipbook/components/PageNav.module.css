@@ -143,6 +143,43 @@
 	visibility: hidden;
 }
 
+/*
+ * Before there is a flipbook: the bar, and nothing in it.
+ *
+ * A saved flipbook arrives a page at a time, and until the second one lands it is a
+ * one-page flipbook — which puts the handle at the *right-hand* end, because one page is
+ * the last page as much as the first. So the bar came up wearing a handle hard right and
+ * two arrows, and a beat later the flipbook started playing and the handle threw itself
+ * back to the near end. That is the one snap left in this control and it was on the very
+ * first thing anybody sees.
+ *
+ * The bar itself stays, because it is holding its own space in the column and the row
+ * below it must not move. What it holds goes: the white pill waits alongside the pulsing
+ * sheet above it, and the handle appears on page one at the moment there is a page one.
+ *
+ * `transition: none` on the handle, and it is doing real work: the throw from one end to
+ * the other is set going on the render *before* this class comes off, so a handle that
+ * merely turned visible would appear a frame or two into a 180ms slide and finish it in
+ * plain sight. The specificity beats `.eased` and `.stepped`, which is why it is written
+ * as a descendant rather than added to the list of them.
+ *
+ * `pointer-events` and `tabIndex` together: there is nothing to take hold of, so neither
+ * a finger nor a tab key should find anything here.
+ */
+.waiting {
+	pointer-events: none;
+}
+
+.waiting .arrow,
+.waiting .handle {
+	opacity: 0;
+	visibility: hidden;
+}
+
+.waiting .handle {
+	transition: none;
+}
+
 .back {
 	left: 0;
 }

@@ -11,7 +11,11 @@ export interface PageNavProps {
 	pages: number
 	/** Which way the flipbook is playing, if it is. See `.eased`. */
 	playback: PlaybackMode
-	/** True while the bar is being dragged, for whoever else has to stop easing. */
+	/**
+	 * True while there is no flipbook to point at yet — a saved one still arriving, or a
+	 * crashed drawing being replayed. The bar stays; what it holds doesn't. See `.waiting`.
+	 */
+	waiting?: boolean
 }
 
 /**
@@ -48,7 +52,7 @@ export interface PageNavProps {
  * the thing you let go of to have it moved for you. A press on the handle therefore
  * waits: it is a tap until it has travelled `TAP_SLOP`, and a drag from then on.
  */
-export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
+export function PageNav({ engine, activePage, pages, playback, waiting = false }: PageNavProps) {
 	const track = useRef<HTMLDivElement | null>(null)
 	const handle = useRef<HTMLSpanElement | null>(null)
 
@@ -221,10 +225,15 @@ export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
 	return (
 		<div
 			ref={track}
-			// The arrows go while it plays; see `.playing`.
-			className={playing ? `${styles.track} ${styles.playing}` : styles.track}
+			// The arrows go while it plays; see `.playing`. Both they and the handle go
+			// while there is nothing to point at; see `.waiting`.
+			className={[styles.track, playing ? styles.playing : '', waiting ? styles.waiting : '']
+				.filter(Boolean)
+				.join(' ')}
 			role="slider"
-			tabIndex={0}
+			// Out of the tab order while it is a picture of itself. `.waiting` takes the
+			// presses off it; this is the same thing for a keyboard.
+			tabIndex={waiting ? -1 : 0}
 			aria-label="Page"
 			aria-valuemin={1}
 			aria-valuemax={pages}
