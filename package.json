@@ -20,6 +20,7 @@
     "check": "npm run typecheck && npm run lint && npm test",
     "db:migrate": "node scripts/migrate.js",
     "db:import-archive": "node scripts/import-archive.js",
+    "db:backfill-brotli": "node scripts/backfill-brotli.js",
     "db:stats": "node scripts/stats.js"
   },
   "dependencies": {

@@ -27,9 +27,11 @@ function flipbook(id: string, over: Partial<FlipbookSummary> = {}): FlipbookSumm
 		id,
 		title: `Flipbook ${id}`,
 		source: 'user',
+		format: 'svg',
 		featured: false,
 		nsfw: false,
 		created_at: '2025-01-01T00:00:00.000Z',
+		data_url: `/api/flipbooks/${id}/data`,
 		thumbnail_url: `/api/flipbooks/${id}/thumbnail`,
 		...over,
 	}

@@ -1,0 +1,46 @@
+/*
+ * The flipbook, over the thumbnail of it.
+ *
+ * Over rather than instead of: the card's background image is a PNG of the busiest
+ * page and it is already on screen, so the canvas lies on top of it and fades up when
+ * it has something to show. Swapping them would mean a frame of empty white card
+ * between the two, on a hover, which is the one moment the card is being looked at.
+ */
+
+.preview {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+
+	/*
+	 * The card is the link, and the pointer has to go on reaching it — this canvas
+	 * covers every pixel of it. Everything the preview does with the pointer it does
+	 * by listening on the card itself, so there is nothing here to hit.
+	 */
+	pointer-events: none;
+
+	/*
+	 * Invisible until the first frame is drawn, which is one rAF after the artwork
+	 * lands. A canvas is transparent before anything is put on it and the card behind
+	 * it is white, so without this a hover on a slow flipbook would wash the thumbnail
+	 * out for as long as it took to arrive.
+	 */
+	opacity: 0;
+	transition: opacity 0.14s linear;
+}
+
+.painted {
+	opacity: 1;
+}
+
+/*
+ * The scrub itself is direct manipulation and stays — it is the pointer's own
+ * movement, not motion the page decided on. What goes is the cross-fade, which is.
+ */
+@media (prefers-reduced-motion: reduce) {
+	.preview {
+		transition: none;
+	}
+}

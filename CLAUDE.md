@@ -68,6 +68,11 @@ src/
       FlipbookEngine.ts  the façade React drives
     components/       canvas, page strip, page arrows, trays, save form,
                       the cursor ring and the loupe
+    preview/          the gallery's flipbooks. No paper.js in this directory.
+      artwork.ts      a saved file as Path2D pages, on demand
+      render.ts       one page onto a 2D canvas
+      cache.ts        the flipbooks the grid has in hand, shared by every card
+      FlipbookPreview.tsx  the canvas on the hovered card
   styles/             tokens, element defaults, the icon sprite
 public/               fonts, images, favicons, sadbrowser.html
 ```
@@ -132,6 +137,7 @@ drawing tool itself works without one.
 | `npm run preview` | Serves the built `dist/` — static only, no API |
 | `npm run db:migrate` | Applies `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Loads the 2012–2015 flipbooks from `_original/` |
+| `npm run db:backfill-brotli` | Compresses `data_br` for any row without one |
 | `npm run db:stats` | Row counts and storage use |
 
 ## Architecture
@@ -182,6 +188,17 @@ The trap is that a plain `import` of anything large, anywhere under a route, sil
 puts it back. The chunk table won't say so — paper is still its own chunk either way.
 What to check is the entry bundle's dependency list for each route: nothing that only
 the drawing tool needs belongs in it.
+
+**The gallery's hover preview is split for the same reason and warmed rather than
+awaited.** `FlipbookPreview` is `lazy()` and its chunk is 1.8 kB gzipped, but it drags
+`engine/formats.ts` along with it — and that file is also in both paper routes' chunks,
+so leaving it in the entry would have every visit to every page carry a copy of it. The
+factory is named (`loadPreview`) so the gallery can call it in an effect on mount: by
+the time a pointer lands on a card the module is in memory and `lazy` resolves out of
+the module cache, so the Suspense boundary never shows. What must stay true is that
+neither the gallery's chunk nor the preview's reaches paper — `grep from\" dist/assets/
+GalleryPage-*.js` after a build is the check, and today it is five imports, none of
+them paper.
 
 ## The drawing tool
 
@@ -774,6 +791,89 @@ The same flipbook, the same page bar, and much less around it than there used to
   is in the title's row, which is below the fold on this page and costs the flipbook
   nothing. Sideways the flipbook now fills the window down to the bar.
 
+## The gallery, and the flipbooks that play in it
+
+A card in the grid is a flipbook, and hovering one plays it: the pointer's position
+across the card is the position in the flipbook, left edge the first page and right
+edge the last. Clicking still goes to the playback page, which is unchanged.
+
+The thing to understand before touching any of it is that **the gallery does not use
+the drawing engine, and does not load paper.js at all.** That is not a shortcut taken
+to save a download; it is what the split is for.
+
+- **`src/flipbook/preview/` is a second renderer, and a much smaller one.**
+  `FlipbookEngine` builds a paper.js project — a scene graph, a layer per page, hit
+  testing, an undo history, four tools — and every part of that exists so a drawing can
+  be *changed*. A card only ever shows one. What is left once you take the editing out
+  is: parse the file into paths, and stroke them onto a canvas. That is three small
+  files and 1.8 kB gzipped, against paper's 71.
+- **What the two share is the hard part, and it was already shared.**
+  `engine/formats.ts` knows the two artwork formats, the three stroke vocabularies and
+  the leading-three-groups contract. It has never imported paper and every function in
+  it is a pure function of a string — which is exactly why it can be read twice. If a
+  fourth stroke vocabulary ever appears, that is still the one file that learns about
+  it, and both renderers get it.
+- **It draws the same pixels, and that is measured rather than assumed.** The same page
+  rendered both ways at the same size, composited over the same white: on an archive
+  flipbook (polylines) and on one saved by this tool (path data) the ink pixel counts
+  are *equal* and no channel differs by more than 1. They agree because paper.js
+  strokes to a 2D canvas as well — same rasteriser, same cap, join, colour and width,
+  restated in the same place for the same reason. The one difference is the 2012
+  format, where 152 pixels in 921,600 differ on a dense page: the engine replays those
+  through the pencil, which resamples them at five-pixel spacing, and the preview draws
+  the corner the file actually holds. The preview is the more faithful of the two.
+- **One canvas exists at a time, because one card is under the pointer at a time.**
+  `FlipbookPreview` is mounted into whichever card is hovered and nowhere else, so the
+  grid never holds fifty canvases, fifty engines or fifty of anything. Everything
+  underneath it is a module-level singleton: one renderer, one cache.
+- **Nothing about the scrub goes through React.** A pointer moves sixty to a hundred
+  and twenty times a second, and each move changes one number and at most the pixels in
+  a canvas — neither of which is a thing to re-render a grid of cards for. The
+  `pointermove` listener is attached to the card natively and writes a fraction to a
+  ref; a rAF reads it and draws. React is told exactly once, when the first frame lands
+  and the canvas can fade up over the still thumbnail underneath it.
+- **The cache reports by calling a repaint, not by asking for a render.** This was a
+  `useReducer` bump at first, which is the obvious way to do it and is silently wrong:
+  nothing in the paint reads React state, so a render changed nothing, and a flipbook
+  arrived to a canvas that never drew it. What that looks like is a card sitting on its
+  thumbnail — which is also exactly what it does while loading, so it looks like a slow
+  network rather than a bug. See `repaint` in `FlipbookPreview`.
+- **The scrub is mapped across the flipbook's page count, not across the pages that
+  have arrived.** `readArtwork` hands back the total before it builds a single page,
+  because a long flipbook goes on landing for a while and a scrub that remapped itself
+  under a stationary pointer would drift through the drawing on its own.
+- **A fetch in flight is abandoned when the card is left; a decode already running is
+  not.** Sweeping a pointer down a column would otherwise start twenty downloads nobody
+  is waiting for. But once the bytes are here they are paid for, and what remains is
+  arithmetic in idle slices — stopping there would throw away the download to save the
+  cheap half and leave the next hover starting from nothing. Both halves are in
+  `retain`, and both are covered in `cache.test.ts`.
+- **Pages are built a frame at a time**, the same bargain `FlipbookEngine.replay` makes:
+  the largest flipbook in the archive is nine megabytes of polyline text, and building
+  all of it before showing any of it is a locked-up tab. `readArtwork` is a generator so
+  the cache can drive it in slices.
+- **Six flipbooks are kept, and the one on screen is never evicted.** `Path2D` is
+  native and compact but it is still memory, and the archive holds flipbooks of two
+  hundred pages. Six is enough that going back to a card you were just on is free,
+  which is the whole of what the cache is for.
+- **It is asked of the pointer, not of the device.** `event.pointerType === 'touch'`
+  rather than `isTouch`, the same distinction the drawing tool's loupe makes: `isTouch`
+  answers for the machine, including while somebody is using a trackpad on a laptop
+  that has a touchscreen. What a tap must not do is start downloading a flipbook the
+  tap is already navigating away from.
+- **There is no hover-intent delay**, deliberately. The guard against a pointer sweeping
+  the grid isn't to hesitate before every card, which everyone pays for on every hover
+  — it is that letting go abandons the download.
+- **The card's listing row carries `format` and `data_url` now.** Without them the
+  hover would have to fetch the flipbook's metadata before it could start fetching the
+  artwork, which is a round trip in front of every first hover. Extra fields are
+  harmless to `time-capsule`, which reads the ones it knows.
+- **The canvas lies over the PNG thumbnail rather than replacing it.** A canvas is
+  transparent until something is drawn on it, so swapping them would put a frame of
+  empty white card in the one moment the card is being looked at. It fades up when it
+  has something to show; leaving the card takes it away and the thumbnail is simply
+  there again.
+
 ## Styling
 
 **Plain CSS, one `.module.css` per component.** Vite scopes the class names, so
@@ -869,9 +969,32 @@ properties, element defaults, and two utility classes.
 
 ## Data
 
-One table, `flipbooks`. See `db/schema.sql` — it is commented. Artwork is stored
-gzipped in a `bytea` column and served with `Content-Encoding: gzip`, never
-decompressed server side.
+One table, `flipbooks`. See `db/schema.sql` — it is commented.
+
+**Artwork is stored compressed twice and decompressed never.** `data_gz` is gzip at
+level 9, `data_br` is brotli at quality 11, and `sendFlipbookData` hands back whichever
+the client's `Accept-Encoding` asked for — brotli first, gzip if it won't take brotli
+or if the row hasn't got one, and a `gunzip` only for the rare client that advertises
+neither.
+
+- **Brotli is 18 MB where gzip is 62.** Not the 15–20% it usually saves over gzip on
+  text, and the reason is worth knowing before anyone decides one copy is enough: a
+  flipbook is the same drawing forty times over, so almost all of the redundancy in
+  the file is *between* pages. DEFLATE's 32 KB window can never see two pages of a
+  nine-megabyte file at once; brotli's reaches 16 MB. The biggest flipbook in the
+  archive is 4.1 MB of gzip and 232 KB of brotli. Nothing about the artwork changes —
+  it is the same bytes, packed better.
+- **Both are kept because `time-capsule` reads `data_gz` and knows nothing else.**
+  `data_br` is nullable for the same reason: a flipbook saved on that branch simply
+  arrives without one and is served as gzip. That is the fallback working, not a gap.
+- **`npm run db:backfill-brotli` fills in whatever is outstanding**, is safe to
+  re-run, and is what to run after an archive import — which deliberately nulls
+  `data_br` on the rows it replaces rather than leaving a brotli copy of artwork that
+  is no longer there. Getting that wrong would serve one drawing to everyone who takes
+  brotli and a different one to everyone who doesn't, which is invisible from either
+  side.
+- **A brotli copy is only written when it is smaller.** On the very smallest rows it
+  isn't, and those keep `data_br` null on purpose.
 
 There are **two artwork formats** and both are still live:
 
@@ -951,6 +1074,18 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
   the historical archive would exceed it. The server answers 413 and the create page
   says so in plain words.
+- **A save now compresses twice, and brotli at quality 11 is the slow one.** The two run
+  in parallel and the reader is waiting on the response for their permalink, so if
+  saving ever feels slow on a large flipbook that is where to look — `brotli()` in
+  `lib/flipbooks.js`. Quality 11 is deliberate: it is paid once for bytes that are then
+  immutable and CDN-cached forever, and every reader of that flipbook gets the benefit.
+  Dropping to 9 or 10 would be the first thing to try, not dropping the column.
+- **Hovering a card downloads a whole flipbook.** That is the design and brotli is what
+  makes it reasonable — median 45 KB across the first Featured page, worst 288 KB — but
+  it is a real request per card hovered, and the archive's largest are still hundreds of
+  kilobytes. Preloading a page of cards rather than waiting for the pointer is now
+  arguably affordable (1.75 MB for all 24) and was not before; it is deliberately not
+  done, because most of a grid is never hovered.
 - **New flipbooks are public immediately and there is no rate limiting.** Deliberate,
   matching the original. `lib/router.js` `saveFlipbook()` is where a throttle would go.
 - **No accounts.** Everything saves anonymously. The 2013 draft button is gone with

@@ -4,10 +4,12 @@
 -- That is genuinely all the 2013 WordPress install was storing either; it just
 -- needed a posts table, a postmeta table and two attachment rows to say it.
 --
--- Artwork is stored gzipped. The SVG that paper.js exports is extremely
--- repetitive polyline data and compresses to roughly 25% of its original size,
--- which takes the 585-piece archive from 247 MB down to 62 MB. The API serves the
--- bytes back with Content-Encoding: gzip, so nothing decompresses server side.
+-- Artwork is stored compressed, twice: gzipped in data_gz and brotli'd in data_br.
+-- The SVG that paper.js exports is extremely repetitive polyline data and gzips to
+-- roughly 25% of its original size, which takes the 585-piece archive from 247 MB
+-- down to 62 MB; brotli takes the same bytes six times smaller again. The API serves
+-- whichever the client asked for, so nothing decompresses server side either way.
+-- See the note on data_br below for why both are kept.
 --
 -- This file is idempotent and is the whole migration story: `npm run db:migrate`
 -- applies it, and re-applying it against a populated database is safe. New columns
@@ -60,6 +62,22 @@ CREATE TABLE IF NOT EXISTS flipbooks (
 --
 -- New saves default to false and are promoted by hand from admin mode.
 ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT false;
+
+-- The same artwork, brotli-compressed, and the copy the API prefers to serve.
+--
+-- Six times smaller than the gzip beside it — 7.8 MB of gzip across a 49-file sample
+-- becomes 1.3 MB — and not one coordinate is changed by it. The gap is that wide
+-- because of what this data is: a flipbook is the same drawing forty times over, and
+-- deflate's window is 32 KB against a file that runs to nine megabytes, so gzip can
+-- only ever see repetition *within* a page. Brotli's window reaches 16 MB and matches
+-- page against page, which is where all the redundancy in a flipbook actually lives.
+--
+-- Nullable, and additive in the way the two deployments require: `time-capsule`'s
+-- createFlipbook() knows nothing about this column, so anything saved over there
+-- lands with it NULL and is served as gzip exactly as before. Nothing reads it but
+-- the router, and the router falls back on its own. data_gz stays NOT NULL and stays
+-- written on every save — it is what the other branch serves from.
+ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS data_br BYTEA;
 
 -- The WordPress author ID, parsed from the archive filename ({post}_u{user}_...).
 -- It is the entire evidence base for the featured reconstruction, so it's kept:
