@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 
 import type { FlipbookPage, FlipbookSummary } from '../../lib/api'
 import { GalleryPage } from './GalleryPage'
+import styles from './GalleryPage.module.css'
 
 const listFlipbooks = vi.fn<(...args: unknown[]) => Promise<FlipbookPage>>()
 
@@ -38,6 +39,11 @@ function page(items: FlipbookSummary[], next: string | null = null): FlipbookPag
 	return { items, view: 'featured', limit: 24, next_cursor: next }
 }
 
+/** The placeholder cards. Aria-hidden by design, so there is no role to ask for. */
+function skeletons() {
+	return document.querySelectorAll(`.${styles.skeleton}`)
+}
+
 beforeEach(() => {
 	listFlipbooks.mockReset()
 	window.history.replaceState({}, '', '/')
@@ -52,6 +58,36 @@ describe('GalleryPage', () => {
 		const first = await screen.findByRole('link', { name: 'Flipbook aaa' })
 		expect(first).toHaveAttribute('href', '/f/aaa')
 		expect(await screen.findByRole('link', { name: 'Flipbook bbb' })).toBeInTheDocument()
+	})
+
+	it('lays the grid out with placeholder cards while a page is on its way', async () => {
+		let land = (_: FlipbookPage) => {}
+		listFlipbooks.mockReturnValue(new Promise<FlipbookPage>((resolve) => (land = resolve)))
+
+		render(<GalleryPage />)
+
+		// From the first paint, rather than from whenever the effect gets round to
+		// asking: an empty grid with nothing in it is the one thing this is here to
+		// prevent.
+		expect(skeletons()).toHaveLength(12)
+		expect(screen.queryByRole('heading', { name: 'Nothing here yet.' })).not.toBeInTheDocument()
+
+		land(page([flipbook('aaa')]))
+
+		await screen.findByRole('link', { name: 'Flipbook aaa' })
+		expect(skeletons()).toHaveLength(0)
+	})
+
+	it('says what the placeholders cannot, for anyone not looking at them', async () => {
+		listFlipbooks.mockResolvedValue(page([flipbook('aaa')]))
+
+		render(<GalleryPage />)
+		expect(screen.getByRole('status')).toHaveTextContent('Loading flipbooks')
+
+		await screen.findByRole('link', { name: 'Flipbook aaa' })
+		// The region stays; only what it says goes. A live region that comes and goes
+		// with its own contents is one a reader may never get to announce.
+		expect(screen.getByRole('status')).toHaveTextContent('')
 	})
 
 	it('names an untitled flipbook, so no link in the grid is nameless', async () => {

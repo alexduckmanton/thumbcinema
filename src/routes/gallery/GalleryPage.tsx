@@ -4,7 +4,6 @@ import { Button } from '../../components/Button'
 import { AdminToggles } from '../../components/AdminToggles'
 import { CreateButton } from '../../components/CreateButton'
 import { SiteHeader } from '../../components/SiteHeader'
-import { Spinner } from '../../components/Spinner'
 import type { GalleryView } from '../../lib/api'
 import { Link, navigate, useLocation } from '../../router/Router'
 import { flipbookPath } from '../../router/routes'
@@ -14,6 +13,23 @@ import styles from './GalleryPage.module.css'
 
 /** How far from the bottom to start fetching: roughly a screen and a half. */
 const PREFETCH_PX = 1200
+
+/**
+ * The placeholder cards, standing in for a page that's on its way.
+ *
+ * Twelve, because the grid is `auto-fill` at a 320px minimum inside a 1440px maximum
+ * and so is never more than four columns wide or fewer than one — and twelve is a whole
+ * number of rows at all four counts. Any of the smaller numbers that fill a screen is
+ * ragged at one width or another, and a placeholder that stops halfway along a row
+ * reads as a page that has finished arriving badly.
+ *
+ * Still short of the page size, deliberately. Twenty-four empty cards is a claim about
+ * how long the page will be, and the fetch may well come back with three.
+ *
+ * A list of numbers rather than a count, so each one is keyed by something that is its
+ * own rather than by where it happens to sit.
+ */
+const SKELETON = Array.from({ length: 12 }, (_, index) => index)
 
 export function GalleryPage() {
 	const { search } = useLocation()
@@ -61,10 +77,31 @@ export function GalleryPage() {
 							/>
 						</Link>
 					))}
+
+					{/* The cards that haven't landed yet, in the grid with the rest so they
+					    take the columns the real ones are about to. Nothing moves when a page
+					    arrives — the cards were already there and simply take on a drawing. */}
+					{loading
+						? SKELETON.map((card) => (
+								<span
+									key={card}
+									className={styles.skeleton}
+									style={{ '--card': card } as React.CSSProperties}
+									aria-hidden
+								/>
+							))
+						: null}
 				</div>
 
 				<div className={styles.foot} ref={sentinel}>
-					{loading ? <Spinner className={styles.spinner} label="Loading more flipbooks" /> : null}
+					{/* What the spinner used to say. The skeleton above is a picture of a page
+					    that isn't here yet and says nothing at all to a screen reader, so the
+					    announcement is text — and the region is always mounted, because a live
+					    region that appears at the same moment as its own contents is one a
+					    reader may never announce. */}
+					<p role="status" className="visuallyHidden">
+						{loading ? 'Loading flipbooks' : ''}
+					</p>
 
 					{/* The manual retry: a failed fetch stops the scroll from trying again
 					    on its own, so there has to be a way back. */}

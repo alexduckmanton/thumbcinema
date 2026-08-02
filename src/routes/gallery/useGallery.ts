@@ -32,7 +32,11 @@ export interface GalleryResult {
  */
 export function useGallery(view: GalleryView): GalleryResult {
 	const [items, setItems] = useState<FlipbookSummary[]>([])
-	const [loading, setLoading] = useState(false)
+	// True from the outset, not from when the fetch starts. The first page is asked for
+	// in an effect, which runs after the first paint, so starting at false means one
+	// frame of an empty grid and "Nothing here yet." before the skeleton appears. This
+	// hook is never mounted and not loading.
+	const [loading, setLoading] = useState(true)
 	const [exhausted, setExhausted] = useState(false)
 	const [failed, setFailed] = useState(false)
 

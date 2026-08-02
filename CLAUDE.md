@@ -600,6 +600,13 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   sees a duplicate.
 - **A tab switch aborts the fetch in flight.** Otherwise a page of Featured results
   lands in a freshly emptied All grid and the two lists get spliced together.
+- **The gallery's skeleton is twelve cards because the grid is one to four columns
+  wide.** `auto-fill` at a 320px minimum inside a 1440px maximum can't produce any other
+  count, and twelve divides by all four — so the placeholder is always a whole number of
+  rows. Move either end of that formula and it goes ragged at some width. `useGallery`
+  starts `loading` at `true` rather than `false` with it: the first page is asked for in
+  an effect, which runs *after* the first paint, so the alternative is a frame of
+  "Nothing here yet." before the skeleton appears.
 - **An unsaved drawing holds a spare history entry.** 2013 left the page for real on
   every navigation, so `beforeunload` covered the logo and the back button along with
   everything else; here neither one is a page load. `<Link>` goes through the router's

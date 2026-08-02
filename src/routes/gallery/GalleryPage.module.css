@@ -87,17 +87,57 @@
 	}
 }
 
+/*
+ * A card that hasn't arrived.
+ *
+ * It replaced a spinner in the foot of the list, which said "something is happening"
+ * somewhere below the thing it was happening to. This says what is happening and
+ * where: the grid is laid out before the flipbooks land, in the columns they will
+ * take, so a page arriving is drawings appearing on cards that were already there
+ * rather than the page being built underneath the reader.
+ *
+ * No shadow, unlike the card it stands in for. The shadow is what lifts a flipbook off
+ * the page and there is no flipbook here yet — it arrives with the drawing, which is
+ * the one moment in all this where something should visibly change.
+ */
+.skeleton {
+	aspect-ratio: 16 / 9;
+	border-radius: var(--radius-card);
+	/* Between the page behind it and the white of a real card, and pulsing across most
+	   of that distance: dark enough to read as a gap in the grid rather than as a
+	   flipbook that happens to be blank. */
+	background-color: #e6e6e6;
+	animation: waiting 1.4s ease-in-out infinite alternate;
+	/*
+	 * A wave rather than a dozen cards blinking in unison, which at this size is a
+	 * strobe.
+	 *
+	 * Negative, so they are already spread across the cycle on the first frame instead
+	 * of starting together and drifting apart. 70ms each puts the twelve of them across
+	 * 770ms of a 1400ms swing — a little over half of one, so the far end of the grid is
+	 * always going the same way as the near end and never quite with it.
+	 */
+	animation-delay: calc(var(--card, 0) * -70ms);
+}
+
+@keyframes waiting {
+	to {
+		background-color: var(--white);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.skeleton {
+		animation: none;
+	}
+}
+
 .foot {
 	clear: both;
 	width: 90%;
 	min-height: 48px;
 	margin: 0 auto 48px;
 	text-align: center;
-}
-
-.foot .spinner {
-	margin: 16px auto;
-	color: var(--ink-soft);
 }
 
 .state {
