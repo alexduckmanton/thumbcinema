@@ -430,6 +430,21 @@ it's one of these. Each is deliberate:
 - **Undo is fifty steps deep and covers everything**, including transforms, which 2013
   could not undo at all. See above. ⌘Z and ⇧⌘Z (and ⌘Y), plus two buttons on the phone
   layout.
+- **Duplicating a page keeps hold of what was selected.** 2013 let go, and so did this
+  until now: a selected stroke lives in the selection layer rather than on the page, so
+  the page has to be put down before it can be copied. But duplicating is *how* you move
+  something across a run of frames, and reaching for the same stroke again on every one
+  of them is most of that job — so `Selection.clear()` hands back what it put down and
+  `hold()` picks the same items up on the other side. Nothing is recorded: `capture`
+  reads the page and the selection layer as one drawing, so a stroke in hand serialises
+  exactly as it does lying down. Not in push mode, which dresses a selection its own way
+  and would need re-dressing rather than restoring — and which bends a stroke where it
+  lies, so there is nothing to carry.
+- **The transform tool's three arrows fan out centred on it**, rather than spanning a
+  quarter-turn from straight-down to flat-right — rotate down the middle, translate and
+  push a corner either side. Each arrow pivots about the top of its own box, so the two
+  narrower ones are inset 7px to put all three hubs on the same pixel; 2013's 15 and 10
+  placed them by eye for a fan that opened to one side.
 - **The pointer over the drawing is a ring the size of the stroke**, and on a finger it
   brings a loupe. Neither existed.
 - **You can draw on a phone.** 2013 asked `Mobile_Detect.php` and sent phones back to
@@ -503,18 +518,25 @@ finger rather than a pointer.
   it and onto its top edge. **Both arrows stop playback**, as taking hold of the handle
   does, and so do the arrow keys — they go through the same `step()`. A page you asked
   for that shows for 83ms and is then left behind isn't a page turn.
-- **The handle has a top speed: `MIN_PLAYBACK_STOPS`, 24.** A two-page flipbook plays
+- **While a flipbook plays, the bar is a rate rather than a page indicator — at every
+  length.** One step per frame the engine turns, wrapping at the end, so the handle
+  slides instead of standing on each page in turn. The step is the flipbook's own: a lap
+  of the bar takes as many frames as a lap of the flipbook, `TRANSIT_STEPS` of them
+  spent in the tunnel, so the handle arrives back at the near end exactly as page one
+  comes up and the two can't drift apart over a minute of playing. Hence dividing by
+  `pages - TRANSIT_STEPS` rather than by the page count.
+- **And it has a top speed: `MIN_CROSSING_FRAMES`, 23.** A two-page flipbook plays
   twelve frames a second, and a handle on the page went end to end six times a second —
   not motion, a flicker at the two ends of the bar, and the shorter the flipbook the
-  worse it got. Below that many pages the bar stops being a page indicator during
-  `play` and becomes a rate: one step of `1 / (stops - 1)` per frame the engine turns,
-  wrapping at the end, so it crosses in two seconds while the flipbook loops underneath
-  it however many times it likes. At 24 pages and above `stops` is the page count and
-  nothing changes at all. It is `play` only — circleplay is a scrub, where the pointer
-  is driving the pages and the handle has to say which one it landed on — and
-  `aria-valuenow` is the real page throughout. The steps are joined up by a `left`
-  transition of exactly one frame, linear, off the engine's own `FPS` so it can't fall
-  out of step: it arrives as the next frame is published.
+  worse it got. So the bar is never crossed in fewer than 23 frames, a hair under two
+  seconds, and below 26 pages the flipbook simply laps underneath it however many times
+  it likes. It binds under 26 and does nothing at all above, which is what makes it a
+  floor rather than a threshold: the sweep either side of it is the same sweep. It is
+  `play` only — circleplay is a scrub, where the pointer is driving the pages and the
+  handle has to say which one it landed on — and `aria-valuenow` is the real page
+  throughout. The steps are joined up by a `left` transition of exactly one frame,
+  linear, off the engine's own `FPS` so it can't fall out of step: it arrives as the
+  next frame is published.
 - **The lap doesn't end, it goes round.** The handle's travel is the bar less its own
   width, so at either end it sits inside the bar — which leaves exactly one
   handle-width of bar past the far end, and a sweep walks into it: `TRANSIT_STEPS`
@@ -525,7 +547,11 @@ finger rather than a pointer.
   round rather than one being thrown backwards, which is what the flipbook has just
   done too. Three transit steps because that makes the two speeds nearly the same one
   (16px a frame against a page-step's 13.5) without measuring the bar to find out how
-  many of its steps go into a handle.
+  many of its steps go into a handle. A long flipbook takes smaller steps, so the tunnel
+  is faster than the bar it just came down rather than a fifth quicker — three times at
+  54 pages. Spending frames in proportion to the handle's share of the bar would fix it
+  and needs that measurement; what it buys is a quarter of a second, at the one moment
+  in the lap when the handle is half eaten by a doorway.
 - **There are three copies, keyed by lap, and none of them is ever repositioned.** The
   handle is `calc(var(--at) + var(--lap) * 100%)` and `--at` runs 0 to `100%` over a
   lap, so the copies sit a whole bar-length apart: the one on the bar, the one waiting
@@ -548,10 +574,12 @@ finger rather than a pointer.
   read the same `--at` off it, so they can't disagree about where the handle is, and
   the component sets the two numbers in one place. Verified rather than assumed: a
   custom property changed on the parent does start the child's `left` transition.
-- **Longer flipbooks still snap at the loop.** The tunnel costs frames, and a handle
-  that is the real page indicator can't spend any — it would drift a tunnel's worth
-  behind per lap. For 24 pages and up the handle is on the page and the jump back is
-  honest.
+- **Nothing snaps at the loop any more, at any length.** Long flipbooks used to: the
+  handle stood on the page above 24, so the tunnel's frames were frames it couldn't
+  spend, and the lap ended with the jump the pages had just made. Paying for the tunnel
+  out of the lap rather than on top of it is what bought the wraparound for everything —
+  the cost is that during `play` the handle is never the page it is showing, which of a
+  flipbook turning over twelve times a second it never usefully was.
 - **The strip doesn't ease at all. Turning a page is a cut.** It used to slide from page
   to page over 0.3s, matched to the page animations' travel time — every keyframe set
   that throws a page into the next slot arrives at offset 0.35–0.4 of its 750ms, and the
@@ -643,6 +671,12 @@ finger rather than a pointer.
   puts it under the hand it exists to see past — a thumb comes from below. Hanging off
   costs nothing, because it paints its own paper. The ring is drawn inside it, magnified
   with everything else, because that is where the aiming happens.
+
+  Hanging off the top is also why it carries `z-index: 101` — one above the header,
+  which at 100 is the highest thing on the page and the only thing the loupe ever
+  reaches. Drawing near the top of a phone's canvas put it behind the wordmark, and a
+  magnifier that goes behind something is not showing you what is under your finger. The
+  ring needs none of that: it is on the paper by definition.
 - **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
   which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
   Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on

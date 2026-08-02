@@ -103,14 +103,22 @@ export class Selection {
 		}
 	}
 
-	/** Puts everything back on the page and takes the box down. */
-	clear(): void {
+	/**
+	 * Puts everything back on the page and takes the box down.
+	 *
+	 * Hands back what it put there, because one caller wants it again: duplicating a
+	 * page has to let go of the selection while the page is copied, and takes hold of
+	 * the same strokes on the other side of it. See `hold`.
+	 */
+	clear(): paper.Item[] {
 		this.removeMarquee()
 		this.removeBounds()
 
+		const dropped: paper.Item[] = []
 		for (const child of this.layer.children) {
 			const copy = child.copyTo(this.scene.activeLayer)
 			copy.strokeColor = new this.scene.scope.Color(PENCIL_COLOR)
+			dropped.push(copy)
 		}
 		this.layer.removeChildren()
 
@@ -120,6 +128,26 @@ export class Selection {
 		this.type = 'none'
 		this.setCursor('auto')
 		this.scene.redraw()
+
+		return dropped
+	}
+
+	/**
+	 * Picks a set of strokes back up, and draws the box round them.
+	 *
+	 * Only ever the ones `clear` has just put down, and only from the page they are
+	 * standing on — anything that has since left the page is skipped rather than dragged
+	 * back into the selection layer from nowhere.
+	 */
+	hold(items: paper.Item[]): void {
+		for (const item of items) {
+			if (item.parent !== this.scene.activeLayer) continue
+
+			this.layer.addChild(item)
+			item.strokeColor = new this.scene.scope.Color(HIGHLIGHT_COLOR)
+		}
+
+		this.reset()
 	}
 
 	deleteSelected(): void {

@@ -284,11 +284,41 @@ describe('PageNav', () => {
 		expect(bar().handle.className).toContain('eased')
 	})
 
-	it('leaves a long flipbook on the page it is showing', () => {
-		render(<PageNav engine={fakeEngine()} activePage={6} pages={24} playback="play" />)
+	it('sweeps a long flipbook too, one lap of the bar per lap of the flipbook', () => {
+		const engine = fakeEngine()
+		// 27 pages: past the floor, so the step is the flipbook's own — 24 frames down
+		// the bar and three through the tunnel, which is the 27 the pages take to loop.
+		const play = (activePage: number) => (
+			<PageNav engine={engine} activePage={activePage} pages={27} playback="play" />
+		)
+		const { rerender } = render(play(0))
 
-		// At the floor and above, the handle is the page and playback changes nothing.
-		expect(fraction()).toBeCloseTo(6 / 23)
+		let frame = 0
+		const tick = () => rerender(play(++frame % 27))
+
+		for (let i = 0; i < 24; i++) tick()
+		expect(fraction()).toBeCloseTo(1)
+		expect(over()).toBe(0)
+
+		// Into the tunnel and round, arriving at the near end on the frame page one
+		// comes back up. The two laps are the same length, so they can't drift apart.
+		for (let i = 0; i < 3; i++) tick()
+		expect(frame % 27).toBe(0)
+		expect(fraction()).toBe(0)
+		expect(over()).toBe(0)
+	})
+
+	it('holds the floor speed rather than following a short flipbook down', () => {
+		const engine = fakeEngine()
+		const play = (activePage: number) => (
+			<PageNav engine={engine} activePage={activePage} pages={12} playback="play" />
+		)
+		const { rerender } = render(play(0))
+
+		// Twelve pages would be a lap of the bar every second. The floor holds it to a
+		// twenty-third of the bar a frame, and the flipbook laps underneath it twice.
+		rerender(play(1))
+		expect(fraction()).toBeCloseTo(1 / 23)
 	})
 
 	it('says where in the flipbook it is', () => {

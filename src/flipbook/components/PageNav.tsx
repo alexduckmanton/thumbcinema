@@ -179,18 +179,23 @@ export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
 	const rest = pages > 1 ? current / (pages - 1) : 1
 
 	/*
-	 * A flipbook too short to be watched by the handle sweeps it instead, at one
-	 * `MIN_PLAYBACK_STOPS`th of the bar per frame.
+	 * A flipbook playing itself sweeps the handle rather than standing it on each page
+	 * in turn, at every length.
+	 *
+	 * The step is the flipbook's own: a lap of the bar takes as many frames as a lap of
+	 * the flipbook, of which `TRANSIT_STEPS` are spent in the tunnel — so the two go
+	 * round together and the handle arrives back at the near end as page one comes up.
+	 * The floor is what stops a short one flickering; see `MIN_CROSSING_FRAMES`.
 	 *
 	 * Only `play`. Circleplay is a scrub: the pointer is driving the pages and the
 	 * handle has to say which one it landed on, the same as a drag does.
 	 */
-	const sweeping = playback === 'play' && pages > 1 && pages < MIN_PLAYBACK_STOPS
+	const sweeping = playback === 'play' && pages > 1
 	const { at, transit, lap, snap } = usePlaybackSweep(
 		current,
 		rest,
 		sweeping,
-		1 / (MIN_PLAYBACK_STOPS - 1),
+		1 / Math.max(pages - TRANSIT_STEPS, MIN_CROSSING_FRAMES),
 	)
 
 	// Wherever the pointer is holding the handle, and back on the page as soon as it
@@ -335,24 +340,26 @@ function stopScrub(event: React.PointerEvent<HTMLButtonElement>) {
 }
 
 /**
- * The fewest positions the handle will use while a flipbook plays itself, and so the
- * fastest it will ever cross the bar: `MIN_PLAYBACK_STOPS / FRAME_RATE` seconds, which
- * at 24 and 12 is two.
+ * The fewest frames the handle will take to cross the bar, and so the fastest it will
+ * ever go: 23 of them at twelve frames a second is a hair under two seconds.
  *
- * A two-page flipbook plays twelve frames a second and its handle was going end to end
- * six times a second — not motion at all, a flicker at the two ends of the bar, and the
- * shorter the flipbook the worse it got. So below this length the bar stops being a
- * page indicator and becomes a rate: the handle takes one step of `1 / (stops - 1)` per
- * frame the engine turns and goes round at the end, so it crosses smoothly while the
- * flipbook loops underneath it however many times it likes.
+ * A two-page flipbook plays twelve frames a second, and a handle standing on the page
+ * went end to end six times a second — not motion at all, a flicker at the two ends of
+ * the bar, and the shorter the flipbook the worse it got. So while a flipbook plays,
+ * the bar stops being a page indicator and becomes a rate: the handle takes one step
+ * per frame the engine turns and goes round at the end, and below this many pages the
+ * flipbook simply laps underneath it however many times it likes.
  *
- * What that costs is that the handle no longer says which page is showing during
- * playback — of a flipbook whose every page is showing twelve times a second, which is
- * not a thing anybody was reading off it. `aria-valuenow` is still the real page. At
- * this length and above nothing changes at all: `stops` is the page count and the
- * handle is on the page, exactly as it is at rest.
+ * Above it the two are locked together — a lap of the bar is `pages` frames, the tunnel
+ * included — so the handle arrives back at the near end exactly as page one comes up.
+ * That is what makes the floor a floor rather than a threshold: it binds under 26 pages
+ * and does nothing at all above, and the sweep either side of that is the same sweep.
+ *
+ * What it costs is that the handle no longer says which page is showing during playback
+ * — of a flipbook whose every page is showing twelve times a second, which is not a
+ * thing anybody was reading off it. `aria-valuenow` is still the real page throughout.
  */
-const MIN_PLAYBACK_STOPS = 24
+const MIN_CROSSING_FRAMES = 23
 
 /**
  * How many frames the handle spends in the tunnel at the end of a lap.
@@ -369,6 +376,16 @@ const MIN_PLAYBACK_STOPS = 24
  * 10 in a short window. Exact would mean measuring the bar to find out how many of its
  * steps go into a handle — a ResizeObserver and a number that changes under you — for
  * a difference of one pixel a frame over a quarter of a second.
+ *
+ * A long flipbook takes smaller steps, so the tunnel is faster than the bar it just
+ * came down rather than a fifth quicker — three times at 54 pages. Fixing that would
+ * mean spending frames in proportion to the handle's share of the bar, which is the
+ * measurement above that isn't worth taking; what it buys is a quarter of a second, at
+ * the one moment in the lap when the handle is half eaten by a doorway.
+ *
+ * It is three frames *of* the lap rather than three on top of it, which is why the step
+ * above divides by `pages - TRANSIT_STEPS`: the handle's lap and the flipbook's are the
+ * same length, so the two can't drift apart over a minute of playback.
  *
  * The last of the three is the lap turning over, so only the first two are positions the
  * handle stands in. Counted in whole steps rather than accumulated as a fraction: three

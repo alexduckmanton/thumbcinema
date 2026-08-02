@@ -52,10 +52,16 @@
  * area that mattered. The hairline is the same one the ring wears; the shadow is the
  * card's, because this is a small sheet of paper held over a larger one and every
  * other sheet on this site is lit that way.
+ *
+ * Above the site header, which is the highest thing on the page at 100 and the only
+ * thing this ever reaches. The loupe is allowed to hang off the top of the paper to stay
+ * above the finger — see `liftAbove`, which is the whole reason it gets that far up the
+ * window — and drawing near the top of a phone's canvas put it behind the wordmark. A
+ * magnifier that goes behind something is not showing you what is under your finger.
  */
 .loupe {
 	position: absolute;
-	z-index: 18;
+	z-index: 101;
 	width: 80px;
 	height: 80px;
 	transform: translate(-50%, -50%);

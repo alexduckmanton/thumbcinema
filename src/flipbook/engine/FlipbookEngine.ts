@@ -535,7 +535,23 @@ export class FlipbookEngine {
 	async duplicatePage(): Promise<void> {
 		if (!this.beginPageChange()) return
 
-		this.selection.clear()
+		/*
+		 * Put down while the page is copied, and picked up again on the other side.
+		 *
+		 * A selected stroke isn't on the page — it has been moved into the selection
+		 * layer — so the copy has to be made with everything back where it belongs. But
+		 * duplicating a page is how you move something across a run of frames, and having
+		 * to reach for the same stroke again on every one of them is most of that job. So
+		 * the same strokes are taken hold of again once the copy is in, on the page you
+		 * are standing on, ready to be moved.
+		 *
+		 * Not in push mode, which dresses a selection its own way — no box, blue strokes,
+		 * a grid of weighting dots — and would need re-dressing rather than restoring.
+		 * Push bends a stroke where it lies, which is something you do to a frame rather
+		 * than across a run of them.
+		 */
+		const carrying = this.store.snapshot.transformIndex === 0
+		const held = this.selection.clear()
 		this.captureActivePage()
 
 		const from = this.scene.activePage
@@ -553,6 +569,11 @@ export class FlipbookEngine {
 			back: original?.id ?? id,
 		})
 		this.refreshOnion()
+
+		// After the step is recorded, and it makes no difference to it: `capture` reads
+		// the page and the selection layer as one drawing, so a stroke in hand serialises
+		// exactly as it does lying down. Selecting has never been an edit.
+		if (carrying && held.length > 0) this.selection.hold(held)
 
 		await this.animateInsert(from, 'nudge')
 	}

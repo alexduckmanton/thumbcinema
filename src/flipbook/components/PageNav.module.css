@@ -239,7 +239,7 @@
 }
 
 /*
- * The sweep, during playback of a flipbook too short to fill the bar.
+ * The sweep, during playback — of any flipbook, at any length.
  *
  * One frame of the flipbook, linear, and `--frame` is the engine's own number rather
  * than 83ms written down twice: the handle arrives exactly as the next frame is

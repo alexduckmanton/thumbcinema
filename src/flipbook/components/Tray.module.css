@@ -103,29 +103,48 @@
 	opacity: 1;
 }
 
-.layer:nth-child(3) {
-	bottom: -45px;
-	left: 15px;
-}
-
+/*
+ * The two narrower arrows, hung from the same point as the wide one.
+ *
+ * Each layer pivots about the top centre of its own box, so where a box starts decides
+ * where its spoke starts — and these two are 26px wide against the first one's 40, so
+ * `left: 0` would hang them 7px left of it. Centred instead, which puts all three hubs
+ * on the same pixel and makes the fan below symmetrical rather than nearly so. They had
+ * 15 and 10, from when the fan opened sideways and each arrow was placed by eye.
+ */
+.layer:nth-child(3),
 .layer:nth-child(4) {
-	left: 10px;
+	left: 7px;
 }
 
 .transformActive .layer {
 	opacity: 1;
 }
 
+/*
+ * The fan, centred on the hand it opens from.
+ *
+ * Each arrow pivots about the top of its own box, so 0deg hangs straight down and
+ * clockwise from there swings to the left. The three used to run down, down-right and
+ * flat right — a quarter-turn hinged at the left-hand end, which put the whole of the
+ * fan on one side of the tool it belongs to. The same three, forty-five degrees round,
+ * are a fan: rotate straight down the middle with translate and push a corner either
+ * side of it.
+ *
+ * They still fold to -180deg, straight up behind the hand, so the opening is one sweep
+ * in one direction. It is a longer sweep for the left-hand arrow than the right-hand
+ * one, which is what a fan opening looks like.
+ */
 .transformActive .layer:nth-child(2) {
-	transform: rotate(0deg);
+	transform: rotate(45deg);
 }
 
 .transformActive .layer:nth-child(3) {
-	transform: rotate(-45deg);
+	transform: rotate(0deg);
 }
 
 .transformActive .layer:nth-child(4) {
-	transform: rotate(-90deg);
+	transform: rotate(-45deg);
 }
 
 /* The right-hand group: one-shot actions and the playback toggles. */
