@@ -58,6 +58,7 @@ src/
       geometry.ts     pure maths — resampling, angles, circleplay
       scene.ts        paper.js project + layers
       selection.ts    selecting and transforming
+      history.ts      undo and redo, as a stack of pages-as-strings
       formats.ts      the two artwork formats, in and out
       pages.ts        the page list as data, and how to count it
       print.ts        the printable booklet
@@ -65,7 +66,8 @@ src/
       constants.ts    canvas size, frame rate, the ink colours
       tools/          pencil, eraser, transform, push
       FlipbookEngine.ts  the façade React drives
-    components/       canvas, page strip, page arrows, trays, save form
+    components/       canvas, page strip, page arrows, trays, save form,
+                      the cursor ring and the loupe
   styles/             tokens, element defaults, the icon sprite
 public/               fonts, images, favicons, sadbrowser.html
 ```
@@ -211,6 +213,18 @@ documented at the point they matter:
   loop in a drawing renders as a blob. Cleared explicitly on import.
 - **A hidpi canvas's backing store is 2× its CSS size**, so `drawImage` without an
   explicit size copies the top-left quarter at double scale.
+- **`Project#importJSON` imports into the active layer if that layer is empty**, and
+  makes a new one otherwise. Both branches are documented as "imports into the
+  project", and the obvious way to replace a page's contents — clear the layer, ask
+  the project to import, move the children across, remove what it made — hands paper
+  an empty active layer, gets *the page itself* back, and then removes it. The
+  flipbook comes back one page shorter and the exception surfaces somewhere else
+  entirely. `Item#importJSON` has no such heuristic; `History.write` uses it.
+- **`item.name` is uniquified within its parent on every insert.** A stroke named
+  `4_5` that is picked up and put down comes back `4_5 1`, then `4_5 1 1`. Nothing
+  reads a stroke's name — the pencil writes it and `exportSVG` turns it into an `id` —
+  but anything comparing two serialisations of a page has to strip it, or *clicking on
+  a drawing* looks like an edit. See `History.capture`.
 
 ### The project is 640×360 whatever the canvas is shown at
 
@@ -263,13 +277,86 @@ load-bearing:
   set behind an early return is a flipbook that plays once and stops dead. That is
   what the `finally` in `replay()` is for.
 
+### Undo and redo
+
+`history.ts`. Fifty steps deep, one stack for the whole flipbook, and it covers
+everything: strokes, erases, moves, scales, rotations, flips, pushes, deleting a
+selection, and adding, duplicating or deleting a page. What that replaces is 2013's
+single snapshot, taken on mouse-down by whichever tool was about to change something
+and spent by the next ⌘Z. Four things about it are load-bearing:
+
+- **A step is a whole gesture, and the engine records it, not the tools.** Every edit
+  on the canvas begins with a pointer going down on it and ends with the pointer coming
+  up, so that is where the before and after are taken — `handlePointerDown` and
+  `handlePointerUp`, which were already there for the thumbnails. The transform tool
+  never took a snapshot at all, which is why moving something used to be permanent; it
+  is undoable now without a line in it changing. The tools' own `scene.snapshot()`
+  calls are gone.
+- **A page is held as a state, not a diff** — `Layer#exportJSON`, one string per page
+  per step — and applying a step *swaps* that string with what is on the page, so the
+  step on one stack describes the journey back and becomes the step on the other. That
+  is the one-step version's trick, kept. Deltas would be smaller and would have to be
+  right about every operation four tools perform; a string that is simply the page
+  cannot be subtly wrong.
+- **`capture` normalises hard, and that is what makes selecting free.** A selected
+  stroke is physically moved into the selection layer (see `Selection`), so a page's
+  contents live in two layers whenever anything is picked up — both are read, sorted by
+  paper's own item ids, repainted the ink colour, set back to full opacity, and stripped
+  of their names. Without every one of those, clicking on a drawing serialises
+  differently from not clicking on it and each click costs a step that undoes nothing
+  visible. The same normalisation is why restoring a step *deselects*: what goes back
+  on the page is a drawing, with nothing held.
+- **Steps are keyed by page id, and a step knows where to leave you.** Inserting a page
+  renumbers every index after it, so a history holding indices starts pointing at the
+  wrong pages the moment it is any use. `forward` and `back` are page ids and differ
+  more often than not — undoing a blank page puts you back where you asked for it,
+  redoing it puts you on the blank one — and a step that names the page it has just
+  taken away simply doesn't find it, which is the signal to stand in the slot it left.
+
+Also worth knowing:
+
+- **Page structure lands instantly.** Undoing a delete puts the page back on one frame
+  rather than replaying the 750ms throw. `animations.ts` is untouched — nothing calls
+  it from here.
+- **A restored page's thumbnail is drawn from `registerThumbnail`, not from a timer.**
+  Its `<canvas>` doesn't exist until React renders it, and a background tab runs no
+  animation frames at all — so waiting a frame or two works exactly while somebody is
+  watching and fails when nobody is, and the page comes back blank.
+- **`Op.index` is safe where `pageId` wouldn't be**, because the stack is spent
+  last-in-first-out: when a step is applied the flipbook is in exactly the shape it was
+  in when the step was recorded.
+- **Deleting the only page is one step with two ops** — the page leaves and a blank one
+  takes its place. Split into two steps, the first undo leaves a flipbook with no pages
+  in it at all, which is a state React must never be shown. The store is written once,
+  at the end of `applyStep`, for the same reason.
+- **The page actions clear the selection first.** They used to hide its chrome and carry
+  it across, which left strokes belonging to page A sitting in the selection layer while
+  page B was active — and the next Escape pasted them onto page B. Fixed here because
+  the history has to be able to say what is on a page; it is a small correctness fix
+  either way.
+- **Loading clears it.** The crash recovery replays into a tool that has been drawn on,
+  and that history is about a flipbook that no longer exists.
+- **Depth is capped twice**: `MAX_STEPS` at 50 and `BUDGET` at ~12 MB of JSON, because
+  fifty copies of a dense page is the case worth guarding. `history.test.ts` covers the
+  stack; the reading and writing of pages is verified in the browser, since it needs
+  paper and a canvas.
+- **A round trip is not bit-identical, and is stable.** A stroke put back through
+  export/import renders within one device pixel of where it was drawn, with the total
+  ink within 0.2% — sub-pixel anti-aliasing, measured. It settles after the first round
+  trip and does not accumulate: undo/redo repeated eight times gives byte-identical
+  canvases.
+
 ### Invariants
 
 - **`SYSTEM_LAYERS === 3`, and `LEADING_SYSTEM_GROUPS === 3` with it.** paper exports
   one `<g>` per layer, and every one of the 585 archive flipbooks was written by a
   project with three scaffolding layers under the pages. Change one without the other
   and every page in the archive shifts by one, silently. `assertLeadingGroups()`
-  refuses to save an export that doesn't match, and there are tests either side.
+  refuses to save an export that doesn't match, and there are tests either side. Layer
+  2 was the one-step undo's snapshot and is now `stagingLayer`, which the history
+  serialises through — **and it has to be left empty between uses**, because
+  `exportSVG` writes every layer in the project and a page's worth of ink parked there
+  would be saved with the flipbook.
 - **The canvas has a z-index, the page bar has a lower one, and the tools have
   neither.** The pencil and eraser in the tray are 304px-tall images anchored by their
   tips; most of each one sits *behind* the canvas and selecting a tool slides more of
@@ -339,10 +426,12 @@ it's one of these. Each is deliberate:
   (Drawing is *not* held: you can put a stroke down mid-animation, as you could then.)
 - **The eraser's recursion is a loop**, with a bound.
 - **The pencil-width control is a real slider** to assistive technology, and works
-  from the keyboard. The 2013 one was three divs.
-- **Undo is one step deep**, which is a port rather than an oversight: 2013 takes a
-  snapshot on mouse-down and spends it on the next Cmd-Z, and `Scene.snapshot` does
-  the same. A stack would be a change to what the tool does, not a fix.
+  from the keyboard. The 2013 one was three divs. It is desktop-only now.
+- **Undo is fifty steps deep and covers everything**, including transforms, which 2013
+  could not undo at all. See above. ⌘Z and ⇧⌘Z (and ⌘Y), plus two buttons on the phone
+  layout.
+- **The pointer over the drawing is a ring the size of the stroke**, and on a finger it
+  brings a loupe. Neither existed.
 - **You can draw on a phone.** 2013 asked `Mobile_Detect.php` and sent phones back to
   the gallery, and the revival kept that. See below.
 
@@ -484,32 +573,107 @@ finger rather than a pointer.
   than `mousemove`, puts `.scrubbing` on `<html>` so the browser doesn't take the
   gesture for a scroll, and — on touch only — covers the canvas with `.scrub` so the
   first movement doesn't draw a line across the flipbook.
-- **The width slider stands up, at every width.** A 40px capsule hanging 5px under the
-  pencil's tip, exactly as wide as the tool and centred on it — the shape of the thing
-  it sets. 2013 laid it on its side because it had 640px of column and no reason not
-  to. It lies down again in a window too short to stand it up in, which is the one
-  layout difference left in that file, and the component reads which of the two it got
-  from the shape of its own track rather than from a second copy of the breakpoint.
-- **The window is full, and the width popover is what fills it.** Held sideways the
-  column is header, canvas, bar, tray and 8px of air in 390 points, and the popover
-  hangs 93px below the tool on top of that. It is the bottom of that box that
-  `--book-reserve` is set from — 250 in a short window, which is what leaves the
-  drawing 249×140 rather than a page that scrolls under the hand drawing on it.
-- **The save button is fixed 8px off the bottom of the window**, because the column
-  ends wherever the tools happen to end and the rest of a phone screen is air. It is a
-  full-width box inset by `calc((100% - var(--book-width)) / 2)` rather than a
-  `--book-width` box, so it is pinned to the viewport and still measured against the
-  paper: sideways, "the right" is the right-hand edge of a 249px flipbook and not of an
-  844px screen. It is over to the right in a short window and centred everywhere else,
-  because that is the one layout where the width popover lies down and takes 160px
-  through the middle of the same band. `transform`, not `top`, does the fly-away when
-  the form goes up — a box pinned by `bottom` can't use `top` without being stretched
-  between the two — and the desktop's fly-away moved to `transform` with it, so the two
-  differ by the direction and nothing else.
+- **There is no width slider on a phone.** The layout is down to the controls that are
+  the drawing — six in the tray, a page bar, undo, redo and save — and a popover hanging
+  off the pencil to set a number between one and ten was the first thing that could go.
+  What it leaves is the width you get, which is the three the tool starts on; the
+  keyboard shortcuts still work if there is a keyboard. **It took the lying-down layout
+  with it**: the slider stood up everywhere except a window too short to stand it up in,
+  which is inside the phone breakpoint, so there is nowhere left for it to lie down. The
+  component's shape-detection went too — there is one orientation now, and no `vertical`
+  state to derive.
+- **The bottom of the window is a footer bar: undo and redo at one end, save at the
+  other.** It was the save button alone, floating in the middle; a bar is what lets a
+  second and a third control stand next to it without either looking like an
+  afterthought. Fixed 8px off the bottom, because the column ends wherever the tools
+  happen to end and the rest of a phone screen is air. `transform`, not `top`, does the
+  fly-away when the form goes up — a box pinned by `bottom` can't use `top` without
+  being stretched between the two — and the desktop's fly-away moved to `transform` with
+  it, so the two differ by the direction and nothing else.
+- **Undo and redo are phone-only, and that is about the keyboard rather than the
+  layout.** A desktop has ⌘Z and a hand already on one; a phone has neither, and a
+  history nobody can ask for is no history. Each is a white disc exactly as tall as the
+  save button and as wide as it is tall, wearing a Pecita glyph — ↺ and ↻, which that
+  face has, set as live text for the same reason the wordmark is: the icon sheet is
+  drawings of *things*, and these two aren't. Dimmed rather than hidden when there is
+  nothing to spend, because which of the two is available changes with every stroke and
+  a button that comes and goes under a resting thumb is a button pressed by accident.
+- **The footer's ends are the paper's ends, and that needs a `max()`.** `--book-width`
+  is a `min(100%, …)` and the bar is `position: fixed`, so its `100%` is the window
+  where the column's is the column — upright, where the width binds, the difference
+  comes out as zero and the bar ran to the edges of the screen with the paper inset by a
+  gutter above it. Hence `--column-gutter`, declared on `.center` in `base.css`
+  alongside `--book-width` and used as the floor. Sideways, where the height binds,
+  nothing changes: "the right" is the right-hand edge of a 316px flipbook and not of an
+  844px screen.
+- **Held sideways, all three controls go to the right.** The left end of that band is
+  where the pencil is: each tool is a 304px picture anchored by its tip, the picked-up
+  one hangs 60px lower than the rest, and the tip lands squarely on an undo button
+  sitting at the paper's left-hand edge. There is nothing under the page actions at the
+  other end. The rule this replaces did the same thing for the save button alone, to
+  keep it off the width popover — same band, same problem, one answer now instead of a
+  special case. `--book-reserve` is 212 in a short window rather than 250, because what
+  it used to be set from was the bottom of that popover and the popover is gone.
+- **The pointer over the drawing is a ring, and a finger brings a loupe.**
+  `InkCursor`, and both are drawn from the live canvas rather than from the scene — so
+  what they show is what is on the paper, stroke-in-progress and onion skin and all,
+  and nothing in that file knows anything about paper.js.
+
+  The ring replaces the arrow outright, on every layout: it is the diameter of the mark
+  about to be made — the pencil's width, or the eraser's bite, which is `ERASE_TOLERANCE`
+  doubled — stated in project units and turned into a percentage of `.book`, which is
+  exactly the size the canvas is shown at. So it needs no measuring and no JavaScript
+  scale. Two things to keep straight there: a percentage *height* resolves against the
+  height of the box, and this box is 16:9, so the same expression on both axes drew an
+  ellipse nearly twice as wide as it was tall (`aspect-ratio: 1` instead); and there is
+  a 10px floor, because a width-1 stroke on a phone is half a pixel across and a ring
+  that small has stopped previewing anything and gone back to being a cursor. The
+  native cursor is turned off by writing `cursor: none` on the element rather than in
+  the stylesheet, because the transform tool writes its own cursors there and an inline
+  style is the only thing sure of beating one.
+
+  The loupe is 80px, shows the drawing at twice the size it is on screen, and exists
+  because a finger is opaque: the thing you are aiming at is under the thing you are
+  aiming with, and joining a line you drew a moment ago is guesswork. It is asked of
+  the **pointer** rather than of the device — `event.pointerType === 'touch'`, not
+  `isTouch`, which answers for the whole machine including while somebody is using a
+  trackpad. It is **always above the finger and is allowed to hang off the top of the
+  paper to stay there**: a phone's drawing is 193px tall and the loupe needs 116 of them
+  to clear a finger, so the obvious fallback of dropping below when the room runs out
+  puts it under the hand it exists to see past — a thumb comes from below. Hanging off
+  costs nothing, because it paints its own paper. The ring is drawn inside it, magnified
+  with everything else, because that is where the aiming happens.
 - **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
   which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
   Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
   the body, and the canvas takes `touch-action: none` so a stroke is never a scroll.
+
+## The playback page
+
+The same flipbook, the same page bar, and much less around it than there used to be.
+
+- **The share links and the view count are gone, at every width.** Twitter and Facebook
+  were 2013's — one of those networks no longer exists under that name and neither has
+  been how anybody sends a link for a decade, and both were an intent URL wrapped round
+  a page that already has a perfectly good address bar. The view count was a number
+  about the flipbook that said nothing about the flipbook. The server still counts them;
+  `views` is still in the API and the column is untouched.
+- **The rules around the title are gone with them.** Two hairlines a title's height
+  apart draw a box, and what was inside it was the one thing on the page that didn't
+  need marking off — the flipbook is a sheet of paper with a shadow under it, and the
+  writing below is plainly about the sheet of paper. 2013 ruled it because the page also
+  carried a byline, an avatar, a view count and two share buttons. `.ruled` had no users
+  left and is gone from `Tray.module.css`.
+- **`PageNav` is here now**, the create page's bar, on phones only exactly as it is
+  there — and so the tray's play and circleplay come out on that layout, because the
+  handle is the play button. Both are still on the desktop tray along with print.
+  `--book-reserve` in a short window went 170 → 226 to pay for the bar.
+- **What is left on the left of the tray is the admin toggles**, which render nothing
+  at all unless you are in admin mode. They stay because moderation happens where you
+  notice something needs it, which is looking at the thing.
+
+Desktop is otherwise untouched — the flipbook, print, circleplay, play. The phone
+layout is the one that was rebuilt.
 
 ## Styling
 
@@ -535,9 +699,15 @@ properties, element defaults, and two utility classes.
   neither. There's a note in `base.css` saying so.
 - **Where a page has two layouts, the phone's is the base and the desktop's is the
   breakpoint** — the create page, the canvas. The shared files aren't, and say why: the
-  tray is half the playback page's, which has one layout at every width. The width
-  slider has no desktop breakpoint at all any more; the only query in it is the short
-  window that lays it down.
+  tray is half the playback page's, which has most of one layout at every width. The
+  width slider's only query is now the phone breakpoint that hides it outright.
+- **`.center` carries two custom properties, and both are there because something
+  outside the column needs them.** `--book-width` is the one the page bar is sized off,
+  so the bar and the drawing are resolved against the same box; `--column-gutter` is the
+  air either side, and it exists because the create page's footer is `position: fixed`
+  and so measures `100%` against the window. Both are declared on `.center` rather than
+  `:root`, because a `var()` inside a custom property is substituted where the property
+  is *declared* and `--book-reserve` is set below that, per page.
 - **There is one shadow and one radius, and every flipbook takes both.** A gallery card,
   the flipbook on the playback page, the canvas you draw on and the page thumbnails
   either side of it are all the same object, so they all take `--shadow-card` and

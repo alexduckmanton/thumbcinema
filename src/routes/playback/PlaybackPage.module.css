@@ -17,18 +17,30 @@
  * it: this is a page for watching something, and scrolling to read about it
  * afterwards is no hardship. Sized against the whole of a sideways phone, the
  * flipbook itself would be about 130px across.
+ *
+ * Up from 170 by the page bar, which is new here and is 48px of control and 8px of
+ * air. It is the create page's bar and it is counted the same way there.
  */
 @media screen and (max-height: 560px) {
 	.content {
-		--book-reserve: 170px;
+		--book-reserve: 226px;
 	}
 }
 
+/*
+ * The title and description.
+ *
+ * No rule under them, and none under the tray above either — that one was `.ruled` in
+ * `Tray.module.css` and has gone with this. Two hairlines a title's height apart draw
+ * a box, and what was inside it was the one thing here that didn't need marking off: the flipbook is a sheet of paper with a shadow under it, and the writing below
+ * is plainly about the sheet of paper. 2013 ruled it because the page also carried a
+ * byline, an avatar, a view count and two share buttons, and something had to keep
+ * them apart.
+ */
 .info {
 	width: 100%;
 	margin: 0 0 20px;
 	padding: 0 10px 15px;
-	border-bottom: 1px solid var(--line);
 }
 
 /*

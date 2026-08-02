@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { CreateButton } from '../../components/CreateButton'
 import { SiteHeader } from '../../components/SiteHeader'
+import { PageNav } from '../../flipbook/components/PageNav'
 import { PlaybackTray } from '../../flipbook/components/PlaybackTray'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
@@ -142,13 +143,23 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 						{ready ? '' : 'Loading flipbook'}
 					</p>
 
+					{/* The create page's page bar, on the flipbook you are watching. Phones
+					    only — see `PageNav` — where it is also the play button, which is why
+					    the tray's two playback controls come out down there. */}
+					{engine && state ? (
+						<PageNav
+							engine={engine}
+							activePage={state.activePage}
+							pages={state.pages.length}
+							playback={state.playback}
+						/>
+					) : null}
+
 					{engine && state && flipbook ? (
 						<PlaybackTray
 							engine={engine}
 							state={state}
 							id={flipbook.id}
-							title={flipbook.title ?? ''}
-							views={flipbook.views}
 							flags={flags}
 							onFlagsChange={setFlags}
 							onPrint={print}

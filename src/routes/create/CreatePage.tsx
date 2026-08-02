@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
+import { InkCursor } from '../../flipbook/components/InkCursor'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
@@ -23,10 +24,6 @@ type Phase = 'drawing' | 'naming' | 'sending'
 export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
-
-	// While the page bar is under a finger. It belongs to neither component and both
-	// need it — the bar knows when the drag starts and stops, and the strip is what
-	// has to stop easing between pages while it lasts.
 
 	const crash = useCrashRecovery(engine)
 
@@ -134,6 +131,13 @@ export function CreatePage() {
 							</div>
 						) : null}
 
+						{/* The ring that says what the stroke will be, and the loupe that
+						    shows what is under a finger. Inside `.book` because both are
+						    measured against the drawing rather than the window. */}
+						{state && phase === 'drawing' ? (
+							<InkCursor canvasRef={canvasRef} tool={state.tool} pencilWidth={state.pencilWidth} />
+						) : null}
+
 						{/* Somewhere to circle that isn't the drawing. See `.scrub`. */}
 						{isTouch && state?.playback === 'circleplay' ? (
 							<div className={canvasStyles.scrub} aria-hidden="true" />
@@ -163,21 +167,80 @@ export function CreatePage() {
 						<CreateTray engine={engine} state={state} stowed={phase !== 'drawing'} />
 					) : null}
 
-					<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
-						<button
-							type="button"
-							className={styles.saveButton}
-							onClick={() => setPhase('naming')}
-							disabled={pages < 2}
-						>
-							<span className={styles.saveLabel}>Save</span>
-						</button>
+					<div className={styles.footer}>
+						{/* Phones only — see `.history`. On a desktop these are ⌘Z and ⇧⌘Z,
+						    which is where a hand already is when it is holding a mouse. */}
+						<div className={styles.history}>
+							<StepButton
+								label="Undo"
+								glyph="↺"
+								hint="Undo (⌘Z)"
+								enabled={state?.canUndo ?? false}
+								onPress={() => engine?.undo()}
+							/>
+							<StepButton
+								label="Redo"
+								glyph="↻"
+								hint="Redo (⇧⌘Z)"
+								enabled={state?.canRedo ?? false}
+								onPress={() => engine?.redo()}
+							/>
+						</div>
+
+						<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
+							<button
+								type="button"
+								className={styles.saveButton}
+								onClick={() => setPhase('naming')}
+								disabled={pages < 2}
+							>
+								<span className={styles.saveLabel}>Save</span>
+							</button>
+						</div>
 					</div>
 				</div>
 			</main>
 
 			{crash.crashed ? <Recovery saved={crash.saved} /> : null}
 		</>
+	)
+}
+
+/**
+ * One step back or forward: a white disc the height of the save button, wearing a
+ * Pecita glyph.
+ *
+ * Written in the wordmark's hand rather than taken from the icon sheet, because the
+ * sheet is drawings of *things* — a pencil, an eraser, a page — and these two are not
+ * things. ↺ and ↻ are letters as far as this font is concerned, so they are set as
+ * text: one face, one weight, and nothing to redraw at 2×.
+ */
+function StepButton({
+	label,
+	glyph,
+	hint,
+	enabled,
+	onPress,
+}: {
+	label: string
+	glyph: string
+	hint: string
+	enabled: boolean
+	onPress: () => void
+}) {
+	return (
+		<button
+			type="button"
+			className={styles.step}
+			title={hint}
+			disabled={!enabled}
+			onClick={onPress}
+		>
+			<span className={styles.stepGlyph} aria-hidden="true">
+				{glyph}
+			</span>
+			<span className="visuallyHidden">{label}</span>
+		</button>
 	)
 }
 

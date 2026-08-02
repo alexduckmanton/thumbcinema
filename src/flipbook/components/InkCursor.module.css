@@ -1,0 +1,67 @@
+/*
+ * The pointer, over the drawing: a ring the size of the stroke, and the loupe that
+ * comes with a finger.
+ *
+ * Both are positioned against `.book`, which is exactly the size the canvas is being
+ * shown at — so a percentage here is a percentage of the artwork, and the ring can be
+ * stated in the units the tool thinks in without anything having to measure the canvas
+ * and hand the number over.
+ */
+
+/*
+ * The ring: no fill, one hairline, and the diameter of the mark about to be made.
+ *
+ * `--ink` is in project units, of which there are always 640 across the drawing
+ * however wide it is drawn — so the width is that fraction of the box, and a 3px
+ * pencil is a 3px ring on a desktop and a 1.6px one on a phone, which is what the
+ * line will actually be.
+ *
+ * The floor is what stops that being useless at the thin end. At width 1 the ring
+ * would be a single pixel with a one-pixel border round it, which is not a preview of
+ * anything — it is a smudge where the cursor used to be. Below this it stops describing
+ * the stroke and goes back to being a cursor, which is the job it still has to do.
+ *
+ * Six, and the number matters: the pencil only goes up to 10, so a floor anywhere near
+ * that swallows the whole range and every width draws the same ring. At six, more than
+ * half the range is the true size on a desktop — and on a phone it is always the floor,
+ * which costs nothing, because the width can't be changed there anyway.
+ */
+.ring {
+	position: absolute;
+	z-index: 17;
+	width: max(6px, calc(var(--ink) * 100% / 640));
+	/* From the width, and it has to be said this way round: a percentage height
+	   resolves against the *height* of the box it is in, and this box is 16:9 — so the
+	   same expression on both axes drew an ellipse nearly twice as wide as it was tall.
+	   The ring is a picture of a round nib. */
+	aspect-ratio: 1;
+	/* Its own centre on the pointer, not its top left. */
+	transform: translate(-50%, -50%);
+	border: 1px solid rgba(34, 34, 34, 0.55);
+	border-radius: 50%;
+	/* It is a picture of where the pointer is; it must never be something the pointer
+	   lands on. */
+	pointer-events: none;
+}
+
+/*
+ * The loupe: the drawing under the finger, repeated above it at twice the size.
+ *
+ * A circle rather than a rectangle because what it shows is centred rather than
+ * framed — the middle of it is the thing being aimed at, and corners would suggest an
+ * area that mattered. The hairline is the same one the ring wears; the shadow is the
+ * card's, because this is a small sheet of paper held over a larger one and every
+ * other sheet on this site is lit that way.
+ */
+.loupe {
+	position: absolute;
+	z-index: 18;
+	width: 80px;
+	height: 80px;
+	transform: translate(-50%, -50%);
+	border: 1px solid rgba(34, 34, 34, 0.12);
+	border-radius: 50%;
+	background: var(--white);
+	box-shadow: var(--shadow-card);
+	pointer-events: none;
+}

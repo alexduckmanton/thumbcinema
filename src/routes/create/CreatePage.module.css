@@ -28,32 +28,128 @@
 }
 
 /*
- * The save button, held against the bottom of the window.
+ * The footer bar, held against the bottom of the window: undo and redo at one end,
+ * save at the other.
  *
  * On a phone the column ends wherever the tools happen to end and the rest of the
- * screen is air, so a button in the flow sits in the middle of nothing and moves
+ * screen is air, so a control in the flow sits in the middle of nothing and moves
  * about as the drawing is resized. Down here it is where a thumb already is and it
- * doesn't move.
+ * doesn't move. It was the save button alone, floating in the middle; a bar is what
+ * lets a second and a third thing stand next to it without either of them looking
+ * like an afterthought.
  *
  * The padding is what keeps it on the flipbook's ruler rather than the window's: the
- * box runs the full width and is inset to the width of the drawing, so "centred" and
- * "right" below both mean centred and right *on the paper*. Sideways that is the
- * difference between the right-hand edge of a 249px flipbook and the right-hand edge
- * of an 844px screen, which is nowhere near the thing it saves.
+ * box runs the full width and is inset to the width of the drawing, so both ends of
+ * it are the ends of the *paper*. Sideways that is the difference between the
+ * right-hand edge of a 249px flipbook and the right-hand edge of an 844px screen,
+ * which is nowhere near the thing it saves.
+ *
+ * The `max` is what makes that true upright as well. `--book-width` is a `min(100%, …)`
+ * and this box is fixed, so its `100%` is the window where the column's is the column —
+ * upright, where the width is what binds, the difference comes out as zero and the bar
+ * ran to the edges of the screen with the paper inset by a gutter above it. Below that
+ * gutter there is nothing to calculate: the drawing is as wide as the column gets.
  */
-.save {
+.footer {
 	position: fixed;
 	right: 0;
 	/* Clear of the home indicator as well as of the edge. */
 	bottom: calc(8px + env(safe-area-inset-bottom));
 	left: 0;
 	z-index: 16;
-	padding: 0 calc((100% - var(--book-width)) / 2);
-	text-align: center;
+	display: flex;
+	/* The two ends of the paper, and nothing claiming the middle. */
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 max(var(--column-gutter), calc((100% - var(--book-width)) / 2));
 	/* `transform` rather than `top`, which a box pinned by `bottom` can't use without
 	   being stretched between the two. The desktop's fly-away uses it as well, so the
 	   two layouts differ by the direction and nothing else. */
 	transition: opacity 0.4s ease-in, transform 0.4s ease-in;
+}
+
+/*
+ * Undo and redo. Phones only, for now.
+ *
+ * A desktop has ⌘Z and ⇧⌘Z and a hand on a keyboard already; a phone has neither, and
+ * the history is no use at all if there is no way to ask for it. That asymmetry is
+ * the whole reason this is here — not a decision that the buttons don't belong on a
+ * desktop, only that they aren't needed there yet.
+ */
+.history {
+	display: flex;
+	gap: 8px;
+}
+
+/*
+ * One step, either direction: a white disc exactly as tall as the save button and as
+ * wide as it is tall.
+ *
+ * The same white and the same shadow as the page bar above it and the paper above
+ * that — this is a control lying on the page, and the ones it sits in a row with are
+ * the ones it should be lit like.
+ */
+.step {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+	padding: 0;
+
+	border: none;
+	border-radius: var(--radius-pill);
+	background: var(--white);
+	color: var(--ink-strong);
+	cursor: pointer;
+	box-shadow: var(--shadow-card);
+
+	transition: opacity 0.15s linear, background 0.12s ease-out, transform 0.12s ease-out;
+}
+
+/*
+ * Nothing to undo, or nothing to redo.
+ *
+ * Dimmed rather than hidden: which of the two is available changes with every stroke,
+ * and a button that comes and goes under a thumb resting near it is a button you press
+ * by accident. Kept at a legible weight — this says "not now", not "gone".
+ */
+.step:disabled {
+	opacity: 0.3;
+	cursor: default;
+	box-shadow: none;
+}
+
+.step:not(:disabled):hover {
+	background: var(--page);
+	transform: translateY(-1px);
+}
+
+.step:not(:disabled):active {
+	transform: translateY(0) scale(0.94);
+}
+
+.step:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 3px;
+}
+
+/*
+ * The glyph, set in Pecita like the wordmark and the save button beside it.
+ *
+ * 26px because these are single characters in a face with a shallow x-height, and at
+ * the save button's 30 they read as an ornament rather than an arrow. The 1px is the
+ * same correction the save label carries and for the same reason: Pecita's ascent and
+ * descent are lopsided against where the ink actually sits, so a centred box leaves
+ * the glyph high. Smaller here than the label's 3px because a ring has no baseline to
+ * speak of — it is measured, not inherited.
+ */
+.stepGlyph {
+	position: relative;
+	top: 1px;
+	font-family: 'Pecita', cursive;
+	font-size: 26px;
+	line-height: 1;
 }
 
 /* One page isn't a flipbook. The button stays in the layout so nothing jumps when
@@ -145,15 +241,15 @@
 }
 
 /*
- * Naming the flipbook: the save button leaves the same way the tools do, which on a
- * phone is downwards and off the bottom of the window.
+ * Naming the flipbook: the footer leaves the same way the tools do, which on a phone
+ * is downwards and off the bottom of the window.
  */
-.naming .save {
+.naming .footer {
 	transform: translateY(120px);
 	opacity: 0;
 	/* Gone as far as a press is concerned the moment it starts leaving, rather than
-	   after the 0.4s: it is transparent all the way down and a transparent button held
-	   over the page is a dead spot on it. */
+	   after the 0.4s: it is transparent all the way down and a transparent bar held
+	   over the page is a dead strip across it. */
 	pointer-events: none;
 }
 
@@ -174,19 +270,33 @@
 @media screen and (max-height: 560px) {
 	.content {
 		padding-top: 8px;
-		--book-reserve: 250px;
+		/*
+		 * Down from 250. The pencil's width popover used to hang 93px below the tool and
+		 * lie down through the middle of this band, and the bottom of *that* box was what
+		 * the reserve had to clear. It isn't shown on a phone at all any more, so what is
+		 * left to count is the footer, and the footer is 40px here.
+		 */
+		--book-reserve: 212px;
 	}
 
 	/*
-	 * Over to the right, and only here.
+	 * Everything over to the right, and only here.
 	 *
-	 * This is the one layout where the pencil's width popover lies down, and lying down
-	 * it is 160px through the middle of this band — permanently, because the pencil is
-	 * the tool you start with. Centred, the two overlap by 46px. Standing up it is 40px
-	 * hard against the left and the button goes back to the middle.
+	 * Held sideways there is no room to put the drawing above the controls, so the tray
+	 * comes up to meet the footer — and the left end of this band is where the pencil
+	 * is. Each tool is a 304px picture anchored by its tip, the picked-up one hangs
+	 * 60px lower than the rest, and the tip lands squarely on an undo button sitting at
+	 * the paper's left-hand edge. There is nothing under the page actions at the other
+	 * end, so that is where the three of these go.
+	 *
+	 * This layout has always done something of the kind: the rule it replaces put the
+	 * save button on the right to keep it off the width popover, which used to lie down
+	 * across the middle here. Same band, same problem, and now one answer for all three
+	 * controls rather than a special case for one.
 	 */
-	.save {
-		text-align: right;
+	.footer {
+		justify-content: flex-end;
+		gap: 12px;
 	}
 
 	.saveButton {
@@ -198,15 +308,26 @@
 	.saveLabel {
 		top: 2px;
 	}
+
+	/* The save button's height, still — they stand in a row and a disc taller than the
+	   thing beside it reads as the more important of the two. */
+	.step {
+		width: 40px;
+		height: 40px;
+	}
+
+	.stepGlyph {
+		font-size: 22px;
+	}
 }
 
 /*
  * Desktop: a window with room for the page strip. See the note in base.css.
  *
- * Only three things differ, and all three are about there being room: the save button
- * goes back into the column, where there is somewhere for it to be that isn't the
- * bottom edge of the window; the column has air under it; and the button flies *up*
- * with the tools rather than down past them.
+ * Four things differ, and all four are about there being room: the save button goes
+ * back into the column, where there is somewhere for it to be that isn't the bottom
+ * edge of the window; the column has air under it; the button flies *up* with the
+ * tools rather than down past them; and undo and redo aren't offered, because ⌘Z is.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
@@ -216,21 +337,30 @@
 	/* `static` undoes the four properties that pinned it, and the padding goes with
 	   them: this column is 640px and so is the drawing, so the inset is zero anyway —
 	   but only until the window is short enough for `--book-width` to be the height's
-	   answer rather than the width's, and by then the canvas has stopped shrinking. */
-	.save {
+	   answer rather than the width's, and by then the canvas has stopped shrinking.
+	   `block` with it, so the save button is centred by the column rather than pushed
+	   to one end of a flex row with nothing at the other. */
+	.footer {
 		position: static;
+		display: block;
 		padding: 0;
 		margin: 15px 0 50px;
+		text-align: center;
 	}
 
-	.naming .save {
+	.history {
+		display: none;
+	}
+
+	.naming .footer {
 		transform: translateY(-200px);
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.save,
-	.saveButton {
+	.footer,
+	.saveButton,
+	.step {
 		transition: none;
 	}
 }

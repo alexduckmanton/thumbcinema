@@ -34,14 +34,27 @@ export function useKeyboardShortcuts(
 
 			if (!enabled || isTyping(event.target)) return
 
-			// Undo first: it's the one shortcut with a modifier, and the plain-letter
-			// checks below would otherwise swallow ⌘Z as a "z".
-			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-				event.preventDefault()
-				engine.undo()
+			// Undo and redo first: they're the shortcuts with a modifier, and the
+			// plain-letter checks below would otherwise swallow ⌘Z as a "z".
+			//
+			// Both spellings of redo, because both are in use: ⇧⌘Z is the Mac's and
+			// ⌘Y/Ctrl-Y is what Windows software has always used, and neither is worth
+			// making anyone look up.
+			if (event.metaKey || event.ctrlKey) {
+				const key = event.key.toLowerCase()
+
+				if (key === 'z') {
+					event.preventDefault()
+					if (event.shiftKey) engine.redo()
+					else engine.undo()
+					return
+				}
+				if (key === 'y') {
+					event.preventDefault()
+					engine.redo()
+				}
 				return
 			}
-			if (event.metaKey || event.ctrlKey) return
 
 			switch (event.key) {
 				case 'ArrowLeft':

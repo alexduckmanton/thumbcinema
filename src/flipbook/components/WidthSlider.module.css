@@ -6,17 +6,13 @@
  * It is a real slider as far as assistive technology is concerned — see the ARIA
  * roles in the component — which the 2013 version was not.
  *
- * Upright, and the same upright control at every width: a 40px capsule hanging under
- * the pencil, exactly as wide as the tool it belongs to and centred on it. 2013 laid
- * it on its side because it had 640px of column and no reason not to; standing up it
- * is the shape of the thing it sets — a stroke getting thicker as it goes up — and it
- * doesn't reach across a phone's whole column to say so.
+ * Upright, and there is only the one of it now: a 40px capsule hanging under the
+ * pencil, exactly as wide as the tool it belongs to and centred on it. 2013 laid it on
+ * its side because it had 640px of column and no reason not to; standing up it is the
+ * shape of the thing it sets — a stroke getting thicker as it goes up.
  *
- * It lies down again in a window too short to stand it up in, which is a phone held
- * sideways: 165px of popover under a tray that already ends 36px from the bottom of a
- * 375-point screen. That is the only layout difference, and the component reads which
- * of the two it got from the shape of its own track rather than from a second copy of
- * the breakpoint.
+ * Desktop only. See the breakpoint at the foot of this file, which is also where the
+ * lying-down layout went.
  *
  * The little arrow that used to point back up at the tool is gone. It was drawn with
  * borders on a `::before`, it had to be repositioned for every anchor the popover has,
@@ -129,45 +125,21 @@
 }
 
 /*
- * Lying down: a phone held sideways, where the window is 375 points tall in total and
- * the tray it hangs off ends 36 points from the bottom of it. There is suddenly plenty
- * of width to lay it along instead. See the note in base.css.
+ * Not on a phone at all.
+ *
+ * The width is a setting, and the phone layout is down to the controls that are the
+ * drawing: six in the tray, a page bar, undo, redo and save. A popover hanging off the
+ * pencil to set a number between one and ten is the first thing that can go, and what
+ * it leaves is the width you get, which is the three the tool starts on.
+ *
+ * This is also what took the lying-down layout with it. It stood up everywhere except a
+ * window too short to stand it up in — a phone held sideways — and that window is inside
+ * this breakpoint, so there is nowhere left for it to lie down. The component's
+ * shape-detection went with it; there is one orientation now.
  */
-@media screen and (max-height: 560px) {
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.settings {
-		width: 160px;
-		margin-left: -80px;
-		padding: 10px;
-	}
-
-	.slider {
-		flex-direction: row;
-		justify-content: space-between;
-	}
-
-	.smaller {
-		margin: 0 6px;
-	}
-
-	.track {
-		width: 80px;
-		height: 20px;
-		margin: 0 10px;
-	}
-
-	.track::after {
-		top: 9px;
-		left: 0;
-		width: 100%;
-		height: 1px;
-	}
-
-	.handle {
-		top: 0;
-		bottom: auto;
-		left: calc(var(--fraction) * (100% - 10px));
-		width: 10px;
-		height: 100%;
+		display: none;
 	}
 }
 

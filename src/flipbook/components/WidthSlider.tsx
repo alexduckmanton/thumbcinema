@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { MAX_PENCIL_WIDTH, MIN_PENCIL_WIDTH } from '../engine/tools/pencil'
 import styles from './WidthSlider.module.css'
@@ -10,55 +10,36 @@ export interface WidthSliderProps {
 
 export function WidthSlider({ value, onChange }: WidthSliderProps) {
 	const track = useRef<HTMLDivElement | null>(null)
-	const [vertical, setVertical] = useState(true)
-
-	/*
-	 * Which way the track runs is a layout decision, and the layout has already made
-	 * it: the control stands up everywhere except a window too short to stand it up
-	 * in. Rather than write that breakpoint out a second time in JavaScript, the
-	 * element is asked what shape it ended up — taller than it is wide is an upright
-	 * one — and the stylesheet stays the only place the number lives.
-	 */
-	useLayoutEffect(() => {
-		const element = track.current
-		if (!element || typeof ResizeObserver === 'undefined') return
-
-		const measure = () => setVertical(element.offsetHeight > element.offsetWidth)
-		measure()
-
-		const observer = new ResizeObserver(measure)
-		observer.observe(element)
-		return () => observer.disconnect()
-	}, [])
 
 	const setFromPointer = useCallback(
-		(clientX: number, clientY: number) => {
+		(clientY: number) => {
 			const element = track.current
 			if (!element) return
 
 			const box = element.getBoundingClientRect()
-			// An upright track runs bottom to top, matching the two dots stacked either
-			// end of it — the big one is the one at the top.
-			const fraction = vertical
-				? (box.bottom - clientY) / box.height
-				: (clientX - box.left) / box.width
+			// The track runs bottom to top, matching the two dots stacked either end of
+			// it — the big one is the one at the top. It used to lie down in a short
+			// window, and asked its own box which way round it was; there is nowhere left
+			// for it to do that, because a short window is a phone and it isn't shown
+			// there at all.
+			const fraction = (box.bottom - clientY) / box.height
 			const span = MAX_PENCIL_WIDTH - MIN_PENCIL_WIDTH
 
 			onChange(Math.round(MIN_PENCIL_WIDTH + span * Math.min(1, Math.max(0, fraction))))
 		},
-		[onChange, vertical],
+		[onChange],
 	)
 
 	// Pointer capture rather than document-level listeners: the drag follows the
 	// pointer off the end of the track and releases cleanly wherever it ends up.
 	const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
 		event.currentTarget.setPointerCapture(event.pointerId)
-		setFromPointer(event.clientX, event.clientY)
+		setFromPointer(event.clientY)
 	}
 
 	const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
 		if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
-		setFromPointer(event.clientX, event.clientY)
+		setFromPointer(event.clientY)
 	}
 
 	const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -93,7 +74,7 @@ export function WidthSlider({ value, onChange }: WidthSliderProps) {
 					role="slider"
 					tabIndex={0}
 					aria-label="Pencil width"
-					aria-orientation={vertical ? 'vertical' : 'horizontal'}
+					aria-orientation="vertical"
 					aria-valuemin={MIN_PENCIL_WIDTH}
 					aria-valuemax={MAX_PENCIL_WIDTH}
 					aria-valuenow={value}

@@ -2,7 +2,11 @@
  * The tray under the canvas: tools on the left, page actions on the right.
  *
  * Shared by both pages — the create page fills it with the pencil, eraser and
- * transform, the playback page with a view count and the playback controls.
+ * transform, the playback page with print and the playback controls.
+ *
+ * It used to carry a rule along its bottom edge on the playback page, separating the
+ * controls from the flipbook's title below. That page has stopped drawing lines around
+ * things; see `.info` there.
  */
 
 .tray {
@@ -13,17 +17,6 @@
 	width: 100%;
 	padding: 20px 0;
 	margin: 0 auto 15px;
-}
-
-/*
- * A rule under it, which only the playback page wants.
- *
- * There it separates the controls from the flipbook's title and description below.
- * The create page has nothing under the tray but the save button and a lot of air,
- * so the line was drawing a box round the drawing for no reason.
- */
-.ruled {
-	border-bottom: 1px solid var(--line);
 }
 
 .group {
@@ -214,7 +207,8 @@
 	}
 }
 
-/* The playback page's left-hand group: view count and the admin toggles. */
+/* The playback page's left-hand group, which is the admin toggles and, unless you
+   are in admin mode, nothing at all. */
 .meta {
 	align-items: center;
 	margin-top: 4px;

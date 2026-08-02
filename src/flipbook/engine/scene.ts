@@ -31,7 +31,10 @@ export type PaperCore = Pick<paper.PaperScope, Exclude<keyof paper.PaperScope, '
  *                  correctly only because the page fades to 20% whenever anything
  *                  is selected.
  *   1  guide       the marquee and the transform box.
- *   2  undo        never visible; holds the one-step undo snapshot.
+ *   2  staging     never visible, and empty except for the instant a page is being
+ *                  read into the undo history or written back out of it. It was the
+ *                  one-step undo's snapshot; `History` keeps its steps as strings
+ *                  instead, and borrows this to serialise through.
  *   3+ pages       one per page, in page order, exactly one of them visible (plus
  *                  the onion skin of the one before it).
  *
@@ -46,7 +49,17 @@ export class Scene {
 
 	readonly selectionLayer: paper.Layer
 	readonly guideLayer: paper.Layer
-	readonly undoLayer: paper.Layer
+
+	/**
+	 * Scratch space for the history, and the third of the three system layers.
+	 *
+	 * It has to exist whether or not anything is using it: every one of the 585
+	 * archive flipbooks was written by a project with three scaffolding layers under
+	 * the pages, and `SYSTEM_LAYERS` is what reads them back. Left empty between uses,
+	 * because `exportSVG` writes every layer and a page's worth of ink parked in here
+	 * would be saved along with the flipbook.
+	 */
+	readonly stagingLayer: paper.Layer
 
 	/** The page currently being drawn on. Always `project.layers[page + SYSTEM_LAYERS]`. */
 	activeLayer: paper.Layer
@@ -83,8 +96,8 @@ export class Scene {
 
 		this.guideLayer = new this.scope.Layer()
 
-		this.undoLayer = new this.scope.Layer()
-		this.undoLayer.visible = false
+		this.stagingLayer = new this.scope.Layer()
+		this.stagingLayer.visible = false
 
 		this.activeLayer = new this.scope.Layer()
 		this.activeLayer.activate()
@@ -249,6 +262,31 @@ export class Scene {
 		return index
 	}
 
+	/**
+	 * Puts an empty page *at* `index`, pushing whatever was there along, and leaves the
+	 * page on screen where it is.
+	 *
+	 * The history's version of `insertBlankPage`, which can only insert after a page
+	 * and always moves you onto the result. Undoing a delete has to be able to put a
+	 * page back at the front of the flipbook, and has its own opinion about where you
+	 * should be standing afterwards.
+	 */
+	insertPageAt(index: number): paper.Layer {
+		const layer = new this.scope.Layer()
+		layer.visible = false
+
+		// Page zero goes directly above the last of the system layers; anything else
+		// goes above the page it follows. The new layer is at the end of the project
+		// until this line, so the lookup is against the old numbering — which is the
+		// numbering `index` was measured in.
+		layer.insertAbove(index === 0 ? this.stagingLayer : this.pageLayer(index - 1))
+
+		// A new layer activates itself, and the page being drawn on has not changed.
+		this.activeLayer.activate()
+
+		return layer
+	}
+
 	removePage(index: number): void {
 		this.pageLayer(index).remove()
 		if (this.activeIndex > index) this.activeIndex--
@@ -304,48 +342,6 @@ export class Scene {
 		this.onionLayer = null
 	}
 
-	// --- one-step undo -------------------------------------------------------
-
-	/**
-	 * Snapshots a layer into the hidden undo layer.
-	 *
-	 * One step deep, as it has been since 2013: taken on mouse-down by whichever
-	 * tool is about to change something, and spent by the next Cmd-Z. Depth is the
-	 * only thing standing between this and a real history — the snapshot itself is
-	 * a full copy of the layer, so a stack of them would be straightforward, but it
-	 * would also be a change in behaviour rather than a port of it.
-	 */
-	snapshot(layer: paper.Layer): void {
-		this.snapshotKind = layer === this.selectionLayer ? 'transform' : 'draw'
-		copyChildren(layer, this.undoLayer)
-	}
-
-	/**
-	 * What the pending snapshot is of, or null when there's nothing to undo.
-	 *
-	 * `draw` covers the pencil and the eraser and restores the page; `transform`
-	 * covers push and restores the selection. Transforms proper have never been
-	 * undoable — 2013 took the snapshot and then cleared it again on mouse-up, and
-	 * making it work is a change in behaviour rather than a port of one.
-	 */
-	snapshotKind: 'draw' | 'transform' | null = null
-
-	clearSnapshot(): void {
-		this.snapshotKind = null
-		this.undoLayer.removeChildren()
-	}
-
-	/** Exchanges a layer's contents with the snapshot, so undo is its own redo. */
-	swapWithSnapshot(layer: paper.Layer): void {
-		const temp = new this.scope.Layer()
-
-		copyChildren(layer, temp)
-		copyChildren(this.undoLayer, layer)
-		copyChildren(temp, this.undoLayer)
-
-		temp.remove()
-	}
-
 	/**
 	 * Detaches paper from the canvas.
 	 *
@@ -363,10 +359,4 @@ export class Scene {
 		view?.remove()
 		project?.remove()
 	}
-}
-
-export function copyChildren(from: paper.Layer, to: paper.Layer, clear = true): void {
-	if (clear) to.removeChildren()
-	// copyTo() mutates neither side's child list order, so a plain forward walk is safe.
-	for (const child of from.children) child.copyTo(to)
 }

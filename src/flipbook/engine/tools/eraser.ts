@@ -3,6 +3,15 @@ import type { Selection } from '../selection'
 import type { ModalTool } from './types'
 
 /**
+ * How far from the pointer a point on a stroke gets rubbed out, in project units.
+ *
+ * Exported because it is also the size of the eraser's cursor: the ring under the
+ * pointer is the mark the tool is about to make, and for this tool that is a bite of
+ * this radius rather than a line of the pencil's width.
+ */
+export const ERASE_TOLERANCE = 10
+
+/**
  * Grabs the nearest *point* on a stroke, not the stroke itself. That's why the
  * eraser feels like rubbing rather than deleting: it takes a bite out of a line
  * where you touched it, and leaves the rest.
@@ -11,7 +20,7 @@ const HIT_ERASE: Parameters<paper.Item['hitTest']>[1] = {
 	segments: true,
 	fill: false,
 	stroke: false,
-	tolerance: 10,
+	tolerance: ERASE_TOLERANCE,
 }
 
 /** A safety net on the recursive erase below, not a design limit. */
@@ -28,10 +37,7 @@ export class EraserTool implements ModalTool {
 		this.selection = selection
 
 		this.tool = new scene.scope.Tool()
-		this.tool.onMouseDown = (event: paper.ToolEvent) => {
-			this.scene.snapshot(this.scene.activeLayer)
-			this.eraseAt(event.point)
-		}
+		this.tool.onMouseDown = (event: paper.ToolEvent) => this.eraseAt(event.point)
 		this.tool.onMouseDrag = (event: paper.ToolEvent) => this.eraseAt(event.point)
 	}
 

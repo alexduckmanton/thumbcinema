@@ -110,7 +110,6 @@ export class PushTool implements ModalTool {
 
 	private handleDown(event: paper.ToolEvent): void {
 		this.pointer = event.point
-		this.scene.snapshot(this.selection.layer)
 		this.update()
 	}
 

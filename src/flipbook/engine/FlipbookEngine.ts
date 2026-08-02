@@ -14,6 +14,7 @@ import {
 	circleplayPage,
 	type CircleplayState,
 } from './geometry'
+import { History, type Op, type Step } from './history'
 import type { PageState } from './pages'
 import { type PaperCore, Scene } from './scene'
 import { Selection } from './selection'
@@ -58,6 +59,10 @@ export interface FlipbookState {
 	pencilWidth: number
 	playback: PlaybackMode
 
+	/** Whether there is anything on either stack. See `History`. */
+	canUndo: boolean
+	canRedo: boolean
+
 	loading: boolean
 	/** 0–1 while a saved flipbook is being replayed into the tool. */
 	loadProgress: number
@@ -89,6 +94,7 @@ export class FlipbookEngine {
 
 	private readonly scene: Scene
 	private readonly selection: Selection
+	private readonly history: History
 
 	private readonly pencil: PencilTool
 	private readonly eraser: EraserTool | null
@@ -115,6 +121,7 @@ export class FlipbookEngine {
 
 		this.scene = new Scene(canvas, paperCore)
 		this.selection = new Selection(this.scene)
+		this.history = new History(this.scene)
 
 		this.store = new Store<FlipbookState>({
 			pages: [{ id: this.nextPageId++, segments: 0 }],
@@ -124,9 +131,15 @@ export class FlipbookEngine {
 			transformIndex: 0,
 			pencilWidth: DEFAULT_PENCIL_WIDTH,
 			playback: 'none',
+			canUndo: false,
+			canRedo: false,
 			loading: false,
 			loadProgress: 0,
 			busy: false,
+		})
+
+		this.history.onChange(() => {
+			this.store.set({ canUndo: this.history.canUndo, canRedo: this.history.canRedo })
 		})
 
 		// The playback page keeps a pencil — it's what redraws 2012 flipbooks stroke
@@ -206,7 +219,26 @@ export class FlipbookEngine {
 			element.getContext('2d')?.drawImage(this.seedNext.source, 0, 0, element.width, element.height)
 			this.seedNext = null
 		}
+
+		/*
+		 * A page the history has just put back, drawn the moment it has something to be
+		 * drawn on.
+		 *
+		 * Undoing a delete restores a page whose `<canvas>` does not exist yet — React
+		 * makes it on the next render — so the capture can't happen where the undo does.
+		 * Waiting a frame or two would work while anyone is watching and fail exactly
+		 * when nobody is: a background tab runs no animation frames at all, and the page
+		 * would come back blank. This is the moment the element exists, and there is no
+		 * waiting in it.
+		 */
+		if (this.captureOnMount === pageId) {
+			this.captureOnMount = null
+			this.captureActivePage()
+		}
 	}
+
+	/** The page whose thumbnail is owed a drawing as soon as React renders one. */
+	private captureOnMount: number | null = null
 
 	/**
 	 * How far it is from one page to the next, measured off the strip.
@@ -321,43 +353,130 @@ export class FlipbookEngine {
 		if (modifiers.shift !== undefined) this.modifiers.shift = modifiers.shift
 	}
 
+	/**
+	 * Deleting what's selected, which the pointer never does — it's the Delete key and
+	 * nothing else, so it can't be caught by the down-and-up that records every other
+	 * edit and has to say so itself.
+	 */
 	deleteSelection(): void {
+		const index = this.scene.activePage
+		const page = this.store.snapshot.pages[index]
+		if (!page || this.selection.isEmpty) return
+
+		this.history.begin(index, page.id)
 		this.selection.deleteSelected()
+		this.history.commit(index)
+
 		this.captureActivePage()
 	}
 
+	/** Puts everything back on the page. Nothing has changed; nothing is recorded. */
 	clearSelection(): void {
 		this.selection.clear()
 		this.captureActivePage()
 	}
 
-	/**
-	 * One step back, as it has been since 2013.
-	 *
-	 * `draw` restores the page, `transform` restores the selection after a push.
-	 * Swapping rather than replacing means undo is its own redo.
-	 */
+	// --- undo ----------------------------------------------------------------
+
 	undo(): void {
-		const kind = this.scene.snapshotKind
-		if (!kind) return
+		if (this.store.snapshot.busy) return
+		this.spend(this.history.takeUndo(), 'undo')
+	}
 
-		if (kind === 'draw') {
-			this.scene.swapWithSnapshot(this.scene.activeLayer)
-			this.scene.activeLayer.activate()
-		} else {
-			this.scene.swapWithSnapshot(this.selection.layer)
+	redo(): void {
+		if (this.store.snapshot.busy) return
+		this.spend(this.history.takeRedo(), 'redo')
+	}
 
-			if (this.store.snapshot.transformIndex === 1) {
-				// Push holds live references to the segments it was moving; rebuild it.
-				this.push?.deactivate()
-				this.push?.init()
-				this.push?.activate()
-			} else {
-				this.selection.reset()
+	private spend(step: Step | null, direction: 'undo' | 'redo'): void {
+		if (!step) return
+
+		// Stopped rather than refused, the same bargain the page buttons make: a
+		// flipbook changing page twelve times a second is no place to be putting a
+		// drawing back, and the press that stops it is not wasted — the step is still
+		// on the stack for the next one.
+		this.pause()
+		this.applyStep(step, direction)
+	}
+
+	/**
+	 * Puts a step's ops into effect, and turns the step into its own opposite on the
+	 * way through.
+	 *
+	 * Ops run in reverse for an undo, because a step that removed a page and then
+	 * added another has to be unwound in the order it was wound. Each one hands back
+	 * what it replaced and that goes straight into the op, so the step now sitting on
+	 * the other stack describes the journey home. Nothing is diffed and nothing is
+	 * recomputed: the two directions are the same code reading the same fields.
+	 *
+	 * The store is written once, at the end. Deleting the only page in a flipbook is
+	 * two ops, and between them there are no pages at all — a state React must never
+	 * be shown.
+	 */
+	private applyStep(step: Step, direction: 'undo' | 'redo'): void {
+		// Held strokes belong to the page they were picked up from, and a step may be
+		// about to take that page away. Putting them down first also means the drawing
+		// this restores is a drawing, with nothing selected on it.
+		this.selection.clear()
+
+		const ops = direction === 'undo' ? [...step.ops].reverse() : step.ops
+		const pages = [...this.store.snapshot.pages]
+
+		/** Where to stand if the page the step names has gone. See below. */
+		let vacated: number | null = null
+
+		for (const op of ops) {
+			if (op.kind === 'content') {
+				const index = pages.findIndex((page) => page.id === op.pageId)
+				if (index < 0) continue
+
+				op.ink = this.history.swap(index, op.ink)
+				pages[index] = { id: op.pageId, segments: countSegments(this.scene.pageLayer(index)) }
+				continue
 			}
+
+			// `added` is what the step did going forwards, so undo does the opposite.
+			if (direction === 'redo' ? op.added : !op.added) {
+				this.scene.insertPageAt(op.index)
+				this.history.write(op.index, op.ink)
+				pages.splice(op.index, 0, {
+					id: op.pageId,
+					segments: countSegments(this.scene.pageLayer(op.index)),
+				})
+				continue
+			}
+
+			const index = pages.findIndex((page) => page.id === op.pageId)
+			if (index < 0) continue
+
+			// Read before it goes, so the journey back has something to put there.
+			op.ink = this.history.inkOf(index)
+			this.scene.removePage(index)
+			this.thumbnails.delete(op.pageId)
+			pages.splice(index, 1)
+			vacated = index
 		}
 
+		// The step says which page it is about, one id for each direction. When that
+		// page is the one it just took away — undoing a blank page, redoing a delete —
+		// the slot it left is the next best thing, which is also where `deletePage`
+		// puts you.
+		const wanted = direction === 'undo' ? step.back : step.forward
+		const named = pages.findIndex((page) => page.id === wanted)
+		const landing = clamp(named >= 0 ? named : (vacated ?? this.scene.activePage), pages.length - 1)
+
+		this.scene.setActivePage(landing)
+		this.refreshOnion()
 		this.scene.redraw()
+
+		// Two ways for the page we land on to get its thumbnail back, and which applies
+		// depends on whether it was here a moment ago. A page whose contents changed
+		// already has a canvas in the strip and is drawn now; a page the step has just
+		// restored has none until React renders it, and is drawn on arrival.
+		const landed = pages[landing]
+		if (landed && !this.thumbnails.has(landed.id)) this.captureOnMount = landed.id
+
+		this.store.set({ pages, activePage: landing, arriving: false })
 		this.captureActivePage()
 	}
 
@@ -391,14 +510,23 @@ export class FlipbookEngine {
 	async addBlankPage(): Promise<void> {
 		if (!this.beginPageChange()) return
 
+		// Put down before the page changes under it, not hidden and carried across:
+		// selected strokes live in the selection layer rather than on the page, so a
+		// selection held through a page change is a set of strokes belonging to a page
+		// you are no longer on — and the next Escape pastes them onto this one.
+		this.selection.clear()
 		this.captureActivePage()
 
 		const from = this.scene.activePage
-		this.selection.hideChrome()
+		const source = this.store.snapshot.pages[from]
 		const index = this.scene.insertBlankPage(from)
-		this.selection.showChrome()
 
-		this.insertPageState(index, 0)
+		const id = this.insertPageState(index, 0)
+		this.history.record({
+			ops: [{ kind: 'page', added: true, pageId: id, index, ink: this.history.inkOf(index) }],
+			forward: id,
+			back: source?.id ?? id,
+		})
 		this.refreshOnion()
 
 		await this.animateInsert(from, 'newPage')
@@ -407,16 +535,23 @@ export class FlipbookEngine {
 	async duplicatePage(): Promise<void> {
 		if (!this.beginPageChange()) return
 
+		this.selection.clear()
 		this.captureActivePage()
 
 		const from = this.scene.activePage
-		this.selection.hideChrome()
+		const original = this.store.snapshot.pages[from]
 		this.scene.duplicatePage(from)
-		this.selection.showChrome()
 
 		// The copy takes the current page's place; you carry on drawing on the original.
 		const source = this.thumbnailFor(from)
-		this.insertPageState(from, this.store.snapshot.pages[from]?.segments ?? 0, source)
+		const id = this.insertPageState(from, original?.segments ?? 0, source)
+		this.history.record({
+			ops: [{ kind: 'page', added: true, pageId: id, index: from, ink: this.history.inkOf(from) }],
+			// The active page doesn't move: the copy went in underneath it. So both
+			// directions land on the page you were drawing on, which is still this one.
+			forward: original?.id ?? id,
+			back: original?.id ?? id,
+		})
 		this.refreshOnion()
 
 		await this.animateInsert(from, 'nudge')
@@ -424,6 +559,8 @@ export class FlipbookEngine {
 
 	async deletePage(): Promise<void> {
 		if (!this.beginPageChange()) return
+
+		this.selection.clear()
 
 		// The thumbnail is about to stand in for the canvas, in the same place and at
 		// the same size, so any drift between the two would show as a jump the moment
@@ -435,6 +572,11 @@ export class FlipbookEngine {
 		const doomed = pages[index]
 		if (!doomed) return
 
+		// Read while it is still here. Everything below is 750ms of animation, and by
+		// the time the page is actually removed the drawing on it is the only part of
+		// this the history can't reconstruct.
+		const ink = this.history.inkOf(index)
+
 		// Marked from the moment it starts to fall. It has to stay in the list to be
 		// rendered on its way out, but it stops counting towards the flipbook now —
 		// otherwise deleting the only page leaves two in the list for 750ms and the
@@ -443,6 +585,8 @@ export class FlipbookEngine {
 
 		// The strip is never empty: deleting the only page leaves a fresh one behind.
 		const replacing = pages.length === 1
+		const replacementId = this.nextPageId
+
 		if (replacing) {
 			this.scene.insertBlankPage(0)
 			this.store.set({
@@ -456,6 +600,7 @@ export class FlipbookEngine {
 		const canvas = this.thumbnails.get(doomed.id)
 		const atEnd = index === this.store.snapshot.pages.length - 1
 		const sibling = atEnd ? index - 1 : index + 1
+		const siblingId = this.store.snapshot.pages[sibling]?.id ?? doomed.id
 
 		this.setBusy(true)
 
@@ -519,6 +664,27 @@ export class FlipbookEngine {
 		for (const undo of pinned) undo()
 		this.setBusy(false)
 
+		/*
+		 * Recorded now the flipbook has settled, rather than on the way in, so that a
+		 * ⌘Z arriving mid-animation finds the step it expects — the one before this —
+		 * and not a half-applied delete. Both ops carry the index the page ended up at.
+		 *
+		 * Deleting the only page is two ops travelling together: the page leaves and a
+		 * blank one takes its place. Split into two steps, the first undo would leave a
+		 * flipbook with no pages in it at all.
+		 */
+		const ops: Op[] = [{ kind: 'page', added: false, pageId: doomed.id, index, ink }]
+		if (replacing) {
+			ops.push({
+				kind: 'page',
+				added: true,
+				pageId: replacementId,
+				index,
+				ink: this.history.inkOf(index),
+			})
+		}
+		this.history.record({ ops, forward: replacing ? replacementId : siblingId, back: doomed.id })
+
 		this.refreshOnion()
 		this.scene.redraw()
 	}
@@ -530,7 +696,10 @@ export class FlipbookEngine {
 
 		this.selection.clear()
 		this.scene.setActivePage(index, { playing: this.store.snapshot.playback !== 'none' })
-		this.scene.clearSnapshot()
+		// The history is not reset here, as the one-step snapshot was: it belongs to the
+		// flipbook rather than to the page, and a step knows which page it is about and
+		// takes you there. Turning a page and pressing undo undoes the last thing you
+		// did, wherever you did it.
 		this.store.set({ activePage: index })
 
 		this.refreshOnion()
@@ -872,6 +1041,12 @@ export class FlipbookEngine {
 				loadProgress: 1,
 			})
 
+			// A restored flipbook is where the session starts, not something to be
+			// undone back out of. Nothing has recorded a step here — the loaders don't
+			// go through the pointer — but the crash recovery replays into a tool that
+			// has been drawn on, and that history is about a flipbook that is gone.
+			this.history.clear()
+
 			// Page one has been the active page throughout, so there is nothing to go
 			// back to — and going back would be wrong: playback may already be running
 			// and several pages in, and yanking it to the start is the one thing a
@@ -894,9 +1069,25 @@ export class FlipbookEngine {
 
 	private drawing = false
 
+	/**
+	 * Every edit starts here.
+	 *
+	 * A gesture on this canvas is the only way anything gets drawn, rubbed out, moved,
+	 * scaled, rotated or pushed, so the history is taken at the two ends of it rather
+	 * than inside the four tools. That is why the transform tool is undoable now
+	 * without a line in it changing: it never took a snapshot, and it doesn't have to.
+	 *
+	 * What is *not* an edit goes through here too — a click that selects a stroke, a
+	 * marquee that catches nothing, a tap that leaves no path — and none of them
+	 * records a step. See `History.commit`, which compares the two ends.
+	 */
 	private handlePointerDown = (): void => {
 		this.drawing = true
 		this.pause()
+
+		const index = this.scene.activePage
+		const page = this.store.snapshot.pages[index]
+		if (page) this.history.begin(index, page.id)
 	}
 
 	private handlePointerUp = (): void => {
@@ -907,6 +1098,7 @@ export class FlipbookEngine {
 		// first, in which case the stroke isn't finished yet. One tick later it is.
 		window.setTimeout(() => {
 			if (this.destroyed) return
+			this.history.commit(this.scene.activePage)
 			this.recountActivePage()
 			this.captureActivePage()
 		}, 0)
@@ -932,8 +1124,16 @@ export class FlipbookEngine {
 	 * `seed` is the canvas the new page was copied from: a duplicate's thumbnail
 	 * has to show the drawing immediately, because it is a copy of a page you are
 	 * looking at and a blank frame would read as having lost it.
+	 *
+	 * Returns the id it gave the page, which is what the history holds on to — indices
+	 * move as pages come and go, and a step that named one would start pointing at the
+	 * wrong page the moment it was any use.
 	 */
-	private insertPageState(index: number, segments: number, seed?: HTMLCanvasElement | null): void {
+	private insertPageState(
+		index: number,
+		segments: number,
+		seed?: HTMLCanvasElement | null,
+	): number {
 		const id = this.nextPageId++
 		const pages = [...this.store.snapshot.pages]
 		pages.splice(index, 0, { id, segments })
@@ -941,7 +1141,7 @@ export class FlipbookEngine {
 		if (seed) this.seedNext = { pageId: id, source: seed }
 
 		this.store.set({ pages, activePage: this.scene.activePage })
-		this.scene.clearSnapshot()
+		return id
 	}
 
 	/** Set by `duplicatePage` so the copy's thumbnail is right from its first frame. */
@@ -1002,6 +1202,10 @@ export class FlipbookEngine {
 		}
 		this.scene.showOnion()
 	}
+}
+
+function clamp(index: number, last: number): number {
+	return Math.max(0, Math.min(index, last))
 }
 
 /** How much is drawn on a layer. Feeds the choice of which page becomes the cover. */

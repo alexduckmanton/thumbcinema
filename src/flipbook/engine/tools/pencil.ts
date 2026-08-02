@@ -10,9 +10,8 @@ export const DEFAULT_PENCIL_WIDTH = 3
 
 export interface PencilOptions {
 	/**
-	 * Off for the pencil that redraws 2012 flipbooks on the playback page: it isn't
-	 * a tool anyone is holding, so it mustn't spend the undo snapshot or ask the UI
-	 * to redraw thumbnails between strokes.
+	 * Off for the pencil that redraws 2012 flipbooks on the playback page: it isn't a
+	 * tool anyone is holding, so it mustn't be listening for the pointer.
 	 */
 	interactive?: boolean
 	width?: number
@@ -75,8 +74,6 @@ export class PencilTool implements ModalTool {
 	// --- drawing -------------------------------------------------------------
 
 	begin(): void {
-		if (this.interactive) this.scene.snapshot(this.scene.activeLayer)
-
 		this.path = new this.scene.scope.Path()
 		this.path.strokeColor = new this.scene.scope.Color(PENCIL_COLOR)
 		this.path.strokeWidth = this.strokeWidth

@@ -259,8 +259,18 @@ label {
  */
 .center {
 	width: 100%;
-	padding: 0 20px;
+	padding: 0 var(--column-gutter);
 	margin: 0 auto;
+
+	/*
+	 * The air either side of the column, named because one thing outside the column
+	 * needs it: the create page's footer bar is `position: fixed`, so it is measured
+	 * against the window rather than against this box — and `--book-width` below is a
+	 * `min(100%, …)`, whose `100%` therefore comes out 32px wider down there than it
+	 * does up here. A bar inset by the difference between the two ended up flush with
+	 * the edges of the screen while the paper above it was inset by this.
+	 */
+	--column-gutter: 20px;
 
 	/*
 	 * How wide the sheet of paper is: as much as this column will give it, but never
@@ -278,14 +288,14 @@ label {
 
 @media screen and (max-width: 460px) {
 	.center {
-		padding: 0 16px;
+		--column-gutter: 16px;
 	}
 }
 
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.center {
 		width: 640px;
-		padding: 0;
+		--column-gutter: 0px;
 	}
 }
 
