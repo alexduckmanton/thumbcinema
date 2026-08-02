@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { CANVAS_WIDTH, PENCIL_COLOR } from '../engine/constants'
 import { ERASE_TOLERANCE } from '../engine/tools/eraser'
+import { DEFAULT_PENCIL_WIDTH } from '../engine/tools/pencil'
 import type { ModalToolId } from '../engine/tools/types'
 import styles from './InkCursor.module.css'
 
@@ -9,8 +10,6 @@ export interface InkCursorProps {
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Null on the playback page, and while a page animation holds the tools. */
 	tool: ModalToolId | null
-	/** What the pencil is set to, in project units. */
-	pencilWidth: number
 }
 
 /**
@@ -18,9 +17,9 @@ export interface InkCursorProps {
  * about to make, and — on a finger — a loupe showing what is underneath it.
  *
  * The ring replaces the arrow outright. A pencil whose cursor is an arrow tells you
- * where the line will start and nothing about what it will be, and the width control
- * is a popover on a different part of the screen that isn't shown on a phone at all.
- * A circle the width of the stroke says it where you are looking.
+ * where the line will start and nothing about what it will be. A circle the size of
+ * the mark says it where you are looking, which is also the last thing the width
+ * popover was doing before it was taken out.
  *
  * The loupe is the phone's, and it is there for one reason: a finger is opaque. On a
  * desktop the pointer is a few pixels of arrow over a drawing you can see all of;
@@ -33,7 +32,7 @@ export interface InkCursorProps {
  * is exactly what is on the paper: the stroke in progress, the onion skin, the
  * selection, all of it. Nothing here knows anything about paper.js.
  */
-export function InkCursor({ canvasRef, tool, pencilWidth }: InkCursorProps) {
+export function InkCursor({ canvasRef, tool }: InkCursorProps) {
 	const loupe = useRef<HTMLCanvasElement | null>(null)
 	const [at, setAt] = useState<Point | null>(null)
 	/** What is holding the canvas down, if anything. `touch` is what brings the loupe. */
@@ -123,8 +122,14 @@ export function InkCursor({ canvasRef, tool, pencilWidth }: InkCursorProps) {
 		}
 	}, [canvasRef, marking])
 
-	/** What the tool is about to put down, in project units — 640 of them across. */
-	const ink = tool === 'eraser' ? ERASE_TOLERANCE * 2 : pencilWidth
+	/**
+	 * What the tool is about to put down, in project units — 640 of them across.
+	 *
+	 * The pencil is one width now, so what this still says is which of the two marking
+	 * tools is in hand: an eraser's bite is 20 units against a stroke's 3, and the ring
+	 * changing size is the clearest statement either makes about itself.
+	 */
+	const ink = tool === 'eraser' ? ERASE_TOLERANCE * 2 : DEFAULT_PENCIL_WIDTH
 
 	/*
 	 * The loupe is a finger's, and it is asked of the *pointer* rather than of the

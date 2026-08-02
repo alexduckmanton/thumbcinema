@@ -1,12 +1,11 @@
 /*
- * The tray under the canvas: tools on the left, page actions on the right.
+ * The tray under the canvas: the three drawing tools on the left, the three page
+ * actions on the right.
  *
- * Shared by both pages — the create page fills it with the pencil, eraser and
- * transform, the playback page with print and the playback controls.
- *
- * It used to carry a rule along its bottom edge on the playback page, separating the
- * controls from the flipbook's title below. That page has stopped drawing lines around
- * things; see `.info` there.
+ * The create page's, and now only the create page's. The playback page used to share
+ * it — print, the two playback controls, and the admin toggles on the left — and has
+ * none of those left to put in a row of its own: the page bar plays, and print and the
+ * toggles stand beside the title instead. See `.info` there.
  */
 
 .tray {
@@ -36,6 +35,25 @@
  * which is why the canvas has a z-index and these don't. Selecting a tool slides it
  * down another 50px and more of it comes out from behind the paper.
  */
+
+/*
+ * Cut off at the tray's own top edge, on both layouts.
+ *
+ * This was the phone's, where the paper is 200px tall and the pencil is not scaled with
+ * it, so the top of the pencil came out of the drawing and stood in the air above it. A
+ * desktop never needed it while the canvas was the only thing above this row: the whole
+ * 304px run is behind 360px of paper. The page bar changed that — it sits 8px below the
+ * canvas, and the two tools showed through the gap as a row of coloured slivers.
+ *
+ * 20px, because that is the tray's top padding and the list starts at the bottom of it,
+ * which puts the cut on the line the bar's own bottom edge runs along — where the eye
+ * already reads the tools as going under something. The other three sides are pushed out
+ * of the way: the fan of arrows on the transform tool opens sideways and below.
+ */
+.tools {
+	clip-path: inset(-20px -500px -500px -500px);
+}
+
 .tools li {
 	position: relative;
 	width: 40px;
@@ -180,30 +198,9 @@
 	cursor: default;
 }
 
-/*
- * Playback is different: it is off until there is a second page to play, which can
- * be the whole time you are drawing the first one. That is a state worth showing, so
- * these do fade — and go grey with it, because two of the three are coloured icons
- * and colour alone still reads as available.
- */
-.playback:disabled {
-	opacity: 0.35;
-	filter: grayscale(1);
-}
-
-/* Two icons that don't sit on the same baseline as the rest of the sheet. */
+/* One icon that doesn't sit on the same baseline as the rest of the sheet. */
 .duplicate {
 	margin: -4px -4px 0 0;
-}
-
-.circleplay {
-	margin-top: -8px;
-	bottom: -4px;
-}
-
-.circleplayOn {
-	margin-top: 0;
-	bottom: 0;
 }
 
 /*
@@ -226,20 +223,6 @@
 	}
 }
 
-/* The playback page's left-hand group, which is the admin toggles and, unless you
-   are in admin mode, nothing at all. */
-.meta {
-	align-items: center;
-	margin-top: 4px;
-	color: var(--ink-soft);
-}
-
-.meta li {
-	margin: 0 16px 0 0;
-	font-size: 20px;
-	line-height: 1;
-}
-
 /* ---------------------------------------------------------------------------
  * Phones, and any window too small for the layout above.
  *
@@ -260,37 +243,5 @@
 
 	.tools li {
 		margin: 0 10px;
-	}
-
-	/*
-	 * The tools, cut off at the tray's own top edge.
-	 *
-	 * Each one is a 304px picture anchored by its tip, and on a desktop the whole of
-	 * that run is behind the canvas — the top of the pencil still comes 91px below the
-	 * top of the paper, so nothing is ever seen of one but the last few centimetres.
-	 * Scaled to a phone the paper is 200px tall and the pencil is not scaled with it,
-	 * so it comes out of the top of the drawing and stands in the air above it.
-	 *
-	 * The line it's cut at is the one the page bar's bottom edge runs along, which is
-	 * where the eye already reads the tools as going under something. 20px, because
-	 * that is the tray's top padding and the list starts at the bottom of it. The other
-	 * three sides are pushed out of the way: the fan of arrows on the transform tool
-	 * opens sideways and below.
-	 */
-	.tools {
-		clip-path: inset(-20px -500px -500px -500px);
-	}
-
-	/*
-	 * No play and no circleplay on the create page's tray.
-	 *
-	 * Six controls is what a 335px column holds at this size — three 40px tools and
-	 * three icons, with 20px between each — and the drawing tools are what a tray is
-	 * for. Play is a tap on the page bar's handle instead; see PageNav. Circleplay has
-	 * nowhere left to be asked for on this layout, which is what that costs. The
-	 * playback page passes no class here and keeps both of its own.
-	 */
-	.actions li.playbackKey {
-		display: none;
 	}
 }

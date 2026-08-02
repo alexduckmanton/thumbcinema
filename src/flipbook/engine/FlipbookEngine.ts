@@ -8,12 +8,6 @@ import {
 	strokeGeometry,
 	strokeWidthFor,
 } from './formats'
-import {
-	advanceCircleplay,
-	circleplayInitial,
-	circleplayPage,
-	type CircleplayState,
-} from './geometry'
 import { History, type Op, type Step } from './history'
 import type { PageState } from './pages'
 import { type PaperCore, Scene } from './scene'
@@ -24,16 +18,14 @@ import { PushTool } from './tools/push'
 import { TransformTool } from './tools/transform'
 import type { ModalTool, ModalToolId } from './tools/types'
 
-export type PlaybackMode = 'none' | 'play' | 'circleplay'
-export type EngineMode = 'create' | 'playback'
-
 /**
- * Set on `<html>` for as long as circleplay is scrubbing, and defined in
- * `styles/base.css`: it turns off the browser's own touch gestures for the whole
- * document. A class rather than an inline style because what it does — including
- * whether it needs to say anything about overscroll — belongs with the stylesheet.
+ * There used to be a third: `circleplay`, which scrubbed the flipbook by drawing
+ * circles with the pointer. It was 2013's cleverest control and it has gone — the page
+ * bar under the drawing does the same job with a handle you can see, at every width,
+ * and having two scrubbers meant one of them was always the wrong one to reach for.
  */
-const SCRUBBING = 'scrubbing'
+export type PlaybackMode = 'none' | 'play'
+export type EngineMode = 'create' | 'playback'
 
 export interface FlipbookState {
 	pages: PageState[]
@@ -56,7 +48,6 @@ export interface FlipbookState {
 	/** Which of the transform button's two modes is showing: 0 transform, 1 push. */
 	transformIndex: 0 | 1
 
-	pencilWidth: number
 	playback: PlaybackMode
 
 	/** Whether there is anything on either stack. See `History`. */
@@ -109,7 +100,6 @@ export class FlipbookEngine {
 
 	private nextPageId = 1
 	private playTimer: number | null = null
-	private circleplay: CircleplayState | null = null
 	private destroyed = false
 
 	/** Held while alt or shift is down; the transform tool reads them on every event. */
@@ -129,7 +119,6 @@ export class FlipbookEngine {
 			arriving: false,
 			tool: options.mode === 'create' ? 'pencil' : null,
 			transformIndex: 0,
-			pencilWidth: DEFAULT_PENCIL_WIDTH,
 			playback: 'none',
 			canUndo: false,
 			canRedo: false,
@@ -335,11 +324,6 @@ export class FlipbookEngine {
 		previous?.deactivate()
 		next.activate()
 		this.scene.redraw()
-	}
-
-	setPencilWidth(width: number): void {
-		this.pencil.setWidth(width)
-		this.store.set({ pencilWidth: this.pencil.width })
 	}
 
 	setModifiers(modifiers: { alt?: boolean; shift?: boolean }): void {
@@ -754,26 +738,6 @@ export class FlipbookEngine {
 		this.scheduleFrame()
 	}
 
-	toggleCircleplay(): void {
-		if (this.store.snapshot.playback === 'circleplay') {
-			this.pause()
-			return
-		}
-		if (this.pageCount < 2) return
-
-		this.stopPlayback()
-		this.store.set({ playback: 'circleplay' })
-		this.scene.clearOnion()
-
-		this.circleplay = circleplayInitial(this.scene.activePage)
-		document.addEventListener('pointermove', this.handleCircleplayMove)
-
-		// A circle drawn with a finger is a scroll as far as the browser is concerned,
-		// and a scrolling page stops sending pointer moves the moment it decides that.
-		// For as long as the gesture *is* the control, nothing else may claim it.
-		document.documentElement.classList.add(SCRUBBING)
-	}
-
 	pause(): void {
 		if (this.store.snapshot.playback === 'none') return
 
@@ -787,11 +751,6 @@ export class FlipbookEngine {
 		if (this.playTimer !== null) {
 			window.clearTimeout(this.playTimer)
 			this.playTimer = null
-		}
-		if (this.circleplay) {
-			document.removeEventListener('pointermove', this.handleCircleplayMove)
-			document.documentElement.classList.remove(SCRUBBING)
-			this.circleplay = null
 		}
 	}
 
@@ -812,19 +771,6 @@ export class FlipbookEngine {
 
 			this.scheduleFrame()
 		}, 1000 / FPS)
-	}
-
-	private handleCircleplayMove = (event: PointerEvent): void => {
-		if (!this.circleplay) return
-
-		this.circleplay = advanceCircleplay(
-			this.circleplay,
-			{ x: event.pageX, y: event.pageY },
-			this.pageCount,
-		)
-
-		const page = circleplayPage(this.circleplay.timeline)
-		if (page !== null && page < this.pageCount) this.jumpTo(page)
 	}
 
 	/** Page change during playback: no selection handling, no onion, no undo reset. */

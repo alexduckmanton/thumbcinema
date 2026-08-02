@@ -55,7 +55,7 @@ src/
     playback/         one flipbook, playing
   flipbook/
     engine/           the drawing tool. No React in this directory.
-      geometry.ts     pure maths — resampling, angles, circleplay
+      geometry.ts     pure maths — resampling, angles, handle indices
       scene.ts        paper.js project + layers
       selection.ts    selecting and transforming
       history.ts      undo and redo, as a stack of pages-as-strings
@@ -450,27 +450,31 @@ it's one of these. Each is deliberate:
 - **You can draw on a phone.** 2013 asked `Mobile_Detect.php` and sent phones back to
   the gallery, and the revival kept that. See below.
 
-## Drawing on a phone
+## The create page
 
-The one place this is deliberately no longer a port. The tool is the same tool — same
-canvas, same tools, same save — laid out for a screen a third of the width and for a
-finger rather than a pointer.
+The one place this is deliberately no longer a port. It started as the phone layout —
+the same tool laid out for a screen a third of the width and for a finger rather than a
+pointer — and the desktop has since been brought up to meet it, so most of what follows
+is now true at both widths and the differences are called out where they exist.
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
-- **The tray is the desktop's tray, and the order of the column with it**: strip,
-  canvas, page bar, tools, save. The tools were turned over and stood in a floating
-  white box along the bottom edge for a while, on the reasoning that the bottom of the
-  window is where a thumb is; it went back because the picture the tool makes is a
-  pencil hanging off the bottom of the paper with its length running up behind the
-  drawing, and that survives being scaled down but not being flipped. What a phone
-  hasn't the width for is the last two buttons — play and circleplay come out
-  (`.playbackKey`), which leaves six controls in a 335px column at 20px apart.
-- **The tools are cut off at the tray's top edge.** Each is a 304px picture anchored by
-  its tip, and on a desktop the whole of that run is behind a 360px canvas. Scaled to a
-  phone the paper is 200px tall and the pencil is not scaled with it, so it came out of
-  the top of the drawing and stood in the air above it. `clip-path: inset(-20px …)` on
-  the list cuts them along the line the page bar's bottom edge runs on, which is where
-  the eye already reads them as going under something.
+- **The order of the column is 2013's**: strip, canvas, page bar, tools, save. The
+  tools were turned over and stood in a floating white box along the bottom edge for a
+  while, on the reasoning that the bottom of the window is where a thumb is; it went
+  back because the picture the tool makes is a pencil hanging off the bottom of the
+  paper with its length running up behind the drawing, and that survives being scaled
+  down but not being flipped.
+- **The tray is six controls at every width** — three tools, three page actions. It
+  ended in play and circleplay in 2013; the page bar's handle is both of those now, and
+  the width popover that hung off the pencil is gone as well. See below for each.
+- **The tools are cut off at the tray's top edge, on both layouts.** Each is a 304px
+  picture anchored by its tip. On a phone the paper is 200px tall and the pencil is not
+  scaled with it, so it came out of the top of the drawing and stood in the air above
+  it; on a desktop the whole 304px run used to be behind 360px of canvas, until the page
+  bar arrived 8px below the canvas and the two tools showed through the gap as a row of
+  coloured slivers. `clip-path: inset(-20px …)` on the list cuts them along the line the
+  page bar's bottom edge runs on, which is where the eye already reads them as going
+  under something.
 - **The page strip stays, scaled, and `PageNav` is added under it.** The strip was
   hidden on a phone at first, and everything about that was wrong: the page animations
   are two pages moving — one thrown out as another arrives — and half of each one was
@@ -531,10 +535,10 @@ finger rather than a pointer.
   worse it got. So the bar is never crossed in fewer than 23 frames, a hair under two
   seconds, and below 26 pages the flipbook simply laps underneath it however many times
   it likes. It binds under 26 and does nothing at all above, which is what makes it a
-  floor rather than a threshold: the sweep either side of it is the same sweep. It is
-  `play` only — circleplay is a scrub, where the pointer is driving the pages and the
-  handle has to say which one it landed on — and `aria-valuenow` is the real page
-  throughout. The steps are joined up by a `left` transition of exactly one frame,
+  floor rather than a threshold: the sweep either side of it is the same sweep. A drag
+  is not a sweep — there the pointer is driving the pages and the handle has to say which
+  one it landed on — and `aria-valuenow` is the real page throughout, sweeping or not.
+  The steps are joined up by a `left` transition of exactly one frame,
   linear, off the engine's own `FPS` so it can't fall out of step: it arrives as the
   next frame is published.
 - **The lap doesn't end, it goes round.** The handle's travel is the bar less its own
@@ -594,38 +598,62 @@ finger rather than a pointer.
   genuinely travelling. Gone with the transition: `scrubbing` (create page → `PageStrip`,
   and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both of which existed only to
   switch it off.
-- **There is no circleplay on the create page's phone layout.** It is the one thing
-  that comes off. Six controls is what the tray holds, play is a tap on the handle, and
-  circleplay has nowhere left to be asked for. It is still on the playback page at
-  every width, and still works with a finger there: it listens for `pointermove` rather
-  than `mousemove`, puts `.scrubbing` on `<html>` so the browser doesn't take the
-  gesture for a scroll, and — on touch only — covers the canvas with `.scrub` so the
-  first movement doesn't draw a line across the flipbook.
-- **There is no width slider on a phone.** The layout is down to the controls that are
-  the drawing — six in the tray, a page bar, undo, redo and save — and a popover hanging
-  off the pencil to set a number between one and ten was the first thing that could go.
-  What it leaves is the width you get, which is the three the tool starts on; the
-  keyboard shortcuts still work if there is a keyboard. **It took the lying-down layout
-  with it**: the slider stood up everywhere except a window too short to stand it up in,
-  which is inside the phone breakpoint, so there is nowhere left for it to lie down. The
-  component's shape-detection went too — there is one orientation now, and no `vertical`
-  state to derive.
-- **The bottom of the window is a footer bar: undo and redo at one end, save at the
-  other.** It was the save button alone, floating in the middle; a bar is what lets a
-  second and a third control stand next to it without either looking like an
+- **Circleplay is gone, at every width and out of the codebase.** It scrubbed the
+  flipbook by drawing circles with the pointer, and it was 2013's cleverest control —
+  three consecutive pointer positions making a triangle whose winding gave the direction
+  and whose sides gave the speed, constants and all. What killed it is that the page bar
+  does the same job with a handle you can see: two scrubbers means one of them is always
+  the wrong one to reach for, and the one you can't see is the wrong one. Deleted rather
+  than hidden, so `PlaybackMode` is two values, `geometry.ts` has no playhead in it, the
+  `.scrubbing` class and the `.scrub` overlay are out of the stylesheets, and the sprite
+  offsets for its arrow are a comment in `icons.module.css`. It is not coming back; if it
+  ever does, the maths is four small pure functions in the history of that file.
+- **There is no width slider, at every width, and its code is gone with it.** A popover
+  hanging off the pencil to set a number between one and ten was the first thing that
+  could go on a phone, and once the desktop layout was down to the controls that are the
+  drawing it was the first thing there too. In ten years of the original nobody has asked
+  for a thicker line. What it leaves is `DEFAULT_PENCIL_WIDTH`, the three the tool has
+  always started on: `PencilTool.strokeWidth` is `readonly`, `MIN_`/`MAX_PENCIL_WIDTH`
+  and `engine.setPencilWidth` are gone, `pencilWidth` is out of `FlipbookState`, and the
+  `[` and `]` shortcuts went with the control rather than outliving it. **It took the
+  lying-down layout with it** — the slider stood up everywhere except a window too short
+  to stand it up in — and the `InkCursor` ring with it: the ring is still the size of the
+  mark, but the pencil is one size now, so what it says is which of the two marking tools
+  is in hand.
+- **On a phone the bottom of the window is a footer bar: undo and redo at one end, save
+  at the other.** It was the save button alone, floating in the middle; a bar is what
+  lets a second and a third control stand next to it without either looking like an
   afterthought. Fixed 8px off the bottom, because the column ends wherever the tools
   happen to end and the rest of a phone screen is air. `transform`, not `top`, does the
   fly-away when the form goes up — a box pinned by `bottom` can't use `top` without
   being stretched between the two — and the desktop's fly-away moved to `transform` with
   it, so the two differ by the direction and nothing else.
-- **Undo and redo are phone-only, and that is about the keyboard rather than the
-  layout.** A desktop has ⌘Z and a hand already on one; a phone has neither, and a
-  history nobody can ask for is no history. Each is a white disc exactly as tall as the
-  save button and as wide as it is tall, wearing a Pecita glyph — ↺ and ↻, which that
-  face has, set as live text for the same reason the wordmark is: the icon sheet is
-  drawings of *things*, and these two aren't. Dimmed rather than hidden when there is
-  nothing to spend, because which of the two is available changes with every stroke and
-  a button that comes and goes under a resting thumb is a button pressed by accident.
+- **Undo and redo are on both layouts, in different corners, and are in the markup
+  twice.** Each is a white disc exactly as tall as the save button and as wide as it is
+  tall, wearing a Pecita glyph — ↺ and ↻, which that face has, set as live text for the
+  same reason the wordmark is: the icon sheet is drawings of *things*, and these two
+  aren't. Dimmed rather than hidden when there is nothing to spend, because which of the
+  two is available changes with every stroke and a button that comes and goes under a
+  resting thumb is a button pressed by accident.
+
+  On a phone they are the left-hand end of the footer. On a desktop they are the header's
+  actions slot, beside the wordmark — which on this page is `narrow`, so its right-hand
+  edge is the right-hand edge of the 640px column and the discs land above the corner of
+  the paper. They were phone-only at first, on the reasoning that ⌘Z is what a hand on a
+  keyboard reaches for. It is, and a fifty-step history that nothing on the screen
+  mentions is still a feature people find out about by accident. They are at the *top*
+  because the bottom of that column is the save button's, and undo standing next to save
+  is the pair you least want to confuse.
+
+  **Two copies with `display: none` on the wrong one**, rather than one box moved: the
+  two corners are in different parts of the tree — one is inside `<SiteHeader>`, the
+  other is a bar pinned to the bottom of the window — and no arrangement of CSS carries a
+  box between them. It costs a few elements and leaves exactly one pair in the
+  accessibility tree at any width. The desktop copy is **disabled while the save form is
+  up**, because the footer's copy leaves with the footer and this one has nowhere to go —
+  a live undo button in the corner is otherwise the one control still able to change a
+  drawing that is under the wash. `RouteShell` draws a disabled pair too, so nothing
+  appears in the header at the handover.
 - **The footer's ends are the paper's ends, and that needs a `max()`.** `--book-width`
   is a `min(100%, …)` and the bar is `position: fixed`, so its `100%` is the window
   where the column's is the column — upright, where the width binds, the difference
@@ -642,6 +670,17 @@ finger rather than a pointer.
   keep it off the width popover — same band, same problem, one answer now instead of a
   special case. `--book-reserve` is 212 in a short window rather than 250, because what
   it used to be set from was the bottom of that popover and the popover is gone.
+- **The page bar is on the desktop layout too, and its width there is stated rather than
+  derived.** It was hidden above the breakpoint on the grounds that up there you can
+  click straight onto a page thumbnail. You can, and it is still the fastest way to a
+  particular page — but the strip cannot show a flipbook *playing*, and the handle
+  running along the bar is the only thing on either page that says how far through you
+  are while it moves. What the desktop block contains is one line: `width: 656px`. The
+  canvas is pinned to 640 up here while `--book-width` stays a `min(100%, …)` derived
+  from the window height, so between 561 and about 680px of height the formula answers a
+  few hundred pixels while the paper above stays 640 — and a bar visibly narrower than
+  the drawing is worse than no bar. 656 is 640 and the same 8px of overhang either side
+  the formula means everywhere else.
 - **The pointer over the drawing is a ring, and a finger brings a loupe.**
   `InkCursor`, and both are drawn from the live canvas rather than from the scene — so
   what they show is what is on the paper, stroke-in-progress and onion skin and all,
@@ -698,16 +737,25 @@ The same flipbook, the same page bar, and much less around it than there used to
   writing below is plainly about the sheet of paper. 2013 ruled it because the page also
   carried a byline, an avatar, a view count and two share buttons. `.ruled` had no users
   left and is gone from `Tray.module.css`.
-- **`PageNav` is here now**, the create page's bar, on phones only exactly as it is
-  there — and so the tray's play and circleplay come out on that layout, because the
-  handle is the play button. Both are still on the desktop tray along with print.
-  `--book-reserve` in a short window went 170 → 226 to pay for the bar.
-- **What is left on the left of the tray is the admin toggles**, which render nothing
-  at all unless you are in admin mode. They stay because moderation happens where you
-  notice something needs it, which is looking at the thing.
-
-Desktop is otherwise untouched — the flipbook, print, circleplay, play. The phone
-layout is the one that was rebuilt.
+- **`PageNav` is here**, the create page's bar, at every width and full width under the
+  flipbook. It is the only play button this page has: the handle is tapped to play and
+  dragged to scrub, which is what took circleplay's job as well as play's.
+- **There is no tray here at all any more, at any width.** It was the create page's row
+  of controls carrying print, play, circleplay and the admin toggles; play became the
+  handle above and circleplay was deleted, which left a full-width bar of chrome holding
+  one printer icon. `PlaybackTray.tsx` is gone and `Tray.module.css` is the create page's
+  alone — hence `.meta`, `.playback` and `.playbackKey` leaving it with the component.
+- **Print and the admin toggles stand at the other end of the title's row.** `.info` is
+  a flex row: the title, byline and description on the left, those two on the right,
+  aligned to `flex-start` so print sits beside the title rather than beside the middle of
+  the description. Both usually render nothing — the toggles unless you hold the admin
+  token, print unless there is a pointer worth offering it to — and an empty box simply
+  gives its width back to the title. The toggles stay on the page because moderation
+  happens where you notice something needs it, which is looking at the thing.
+- **`--book-reserve` came down twice.** 300 → 240 tall, 226 → 146 in a short window: the
+  tray was 25px of icon inside 40px of padding and 15px of margin, and what replaced it
+  is in the title's row, which is below the fold on this page and costs the flipbook
+  nothing. Sideways the flipbook now fills the window down to the bar.
 
 ## Styling
 
@@ -733,8 +781,8 @@ properties, element defaults, and two utility classes.
   neither. There's a note in `base.css` saying so.
 - **Where a page has two layouts, the phone's is the base and the desktop's is the
   breakpoint** — the create page, the canvas. The shared files aren't, and say why: the
-  tray is half the playback page's, which has most of one layout at every width. The
-  width slider's only query is now the phone breakpoint that hides it outright.
+  tray and the page bar are near enough one layout at every width, and what their desktop
+  block holds is the one thing that genuinely differs — the bar's stated 656px.
 - **`.center` carries two custom properties, and both are there because something
   outside the column needs them.** `--book-width` is the one the page bar is sized off,
   so the bar and the drawing are resolved against the same box; `--column-gutter` is the
@@ -781,11 +829,26 @@ properties, element defaults, and two utility classes.
   for three seconds. If the preload goes, `block` has to go back to `swap`.
 - **No `letter-spacing` on the wordmark.** Pecita is a joining script; spacing it
   apart pulls the letters off each other's entry and exit strokes.
-- **Pecita doesn't centre itself.** Its ascent and descent are lopsided against where
-  the letters actually sit, so centring the text box leaves the word high — 3.25px of
-  it at 30px, against Inter's 0.13px. Anything setting Pecita inside a control needs
-  the offset measured (`measureText`, `actualBoundingBox*` vs `fontBoundingBox*`) and
-  written down: the save button and the create button's dingbat both carry one.
+- **Pecita signs the three buttons that are about making a flipbook**: create on the
+  gallery, save on the create page, and undo and redo beside them. All three are set at
+  30px, because Pecita runs small — a handwriting face with a shallow x-height, which at
+  a UI size reads as a caption rather than a label. The create button's label was Inter
+  at 16/500 until it was the last thing on that button not in the same hand as the
+  writing-hand dingbat next to it.
+- **Pecita doesn't centre itself, and every one of those needs a measured offset.** Its
+  ascent and descent are lopsided against where the letters actually sit, so centring the
+  text box leaves the word high — at 30px it reports an ascent of 20 and a descent of 10,
+  putting the box centre 5px above the baseline, while a word with no descender runs
+  16.5px up from it and none below and so has its own centre 8.25px up. 3.25px of drift,
+  against Inter's 0.13. So "Save" and "New" both carry `top: 3px`, and the ↺/↻ glyphs
+  carry 1px, which is smaller because a ring has no baseline to speak of.
+
+  **The create button's dingbat carries none, and used to carry 2px.** That 2px was
+  measured against an Inter label sitting differently in the row; with both in Pecita at
+  the same size, the glyph's own ink centres itself to within 0.16px — and it puts the
+  hand's writing line on the label's baseline, so the hand is drawing on the line the
+  word is written on. Measure with `measureText` and `actualBoundingBox*` against
+  `fontBoundingBox*`; don't guess, and don't carry a number over from a different pairing.
 
 ## Data
 
@@ -904,11 +967,14 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   which is the constraint that shapes it — it may not import anything a route is lazy
   about, or it would be waiting on the download it exists to cover. That is also why it
   applies the *pages'* own CSS modules rather than carrying copies: `--book-reserve` is
-  318px on create, 300px on playback and different again in a short window, and a
+  318px on create, 240px on playback and different again in a short window, and a
   hand-written approximation would be the wrong size in three layouts and drift from
-  there. Applying another module's class to your own markup is not the cross-module
-  *selector* the rest of the tree avoids. Cost: those stylesheets move into the entry,
-  so every route carries ~4 kB gzipped for layouts it isn't.
+  there. It is why the create shell also draws a disabled undo/redo pair out of
+  `CreatePage.module.css` — those are in the header on a desktop, and a header that
+  gains two buttons at the handover is exactly the move this exists to prevent. Applying
+  another module's class to your own markup is not the cross-module *selector* the rest
+  of the tree avoids. Cost: those stylesheets move into the entry, so every route carries
+  ~4 kB gzipped for layouts it isn't.
 
 - **A flipbook loads behind the gallery's placeholder, not behind a blue screen.** The
   playback page used to put a spinner on `rgba(74, 125, 244, 0.95)` over the canvas,

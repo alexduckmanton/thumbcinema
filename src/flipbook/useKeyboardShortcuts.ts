@@ -86,12 +86,6 @@ export function useKeyboardShortcuts(
 				case 'd':
 					void engine.duplicatePage()
 					break
-				case '[':
-					engine.setPencilWidth(engine.store.snapshot.pencilWidth - 1)
-					break
-				case ']':
-					engine.setPencilWidth(engine.store.snapshot.pencilWidth + 1)
-					break
 				case 'escape':
 					engine.clearSelection()
 					break

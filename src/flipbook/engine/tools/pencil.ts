@@ -4,8 +4,16 @@ import type { Scene } from './../scene'
 import type { Selection } from './../selection'
 import type { ModalTool } from './types'
 
-export const MIN_PENCIL_WIDTH = 1
-export const MAX_PENCIL_WIDTH = 10
+/**
+ * The width of every stroke this tool draws, and now the only one.
+ *
+ * It used to be one of ten, set from a popover hanging off the pencil in the tray —
+ * three divs in 2013, a real slider here. That control is gone at every width. On a
+ * phone there was never room for it; on a desktop it was a settings panel for a
+ * drawing tool whose whole proposition is that you pick it up and draw, and in ten
+ * years of the original nobody has ever asked for a thicker line. What it leaves is
+ * the width the tool always started on.
+ */
 export const DEFAULT_PENCIL_WIDTH = 3
 
 export interface PencilOptions {
@@ -14,6 +22,7 @@ export interface PencilOptions {
 	 * tool anyone is holding, so it mustn't be listening for the pointer.
 	 */
 	interactive?: boolean
+	/** Only the playback page passes one: 2012 artwork was drawn at 2. */
 	width?: number
 }
 
@@ -32,7 +41,7 @@ export class PencilTool implements ModalTool {
 	private readonly interactive: boolean
 
 	private path: paper.Path | null = null
-	private strokeWidth: number
+	private readonly strokeWidth: number
 
 	constructor(scene: Scene, selection: Selection, options: PencilOptions = {}) {
 		this.scene = scene
@@ -47,14 +56,6 @@ export class PencilTool implements ModalTool {
 			this.tool.onMouseDrag = (event: paper.ToolEvent) => this.extend(event.point)
 			this.tool.onMouseUp = () => this.end()
 		}
-	}
-
-	get width(): number {
-		return this.strokeWidth
-	}
-
-	setWidth(width: number): void {
-		this.strokeWidth = Math.min(MAX_PENCIL_WIDTH, Math.max(MIN_PENCIL_WIDTH, Math.round(width)))
 	}
 
 	init(): boolean {

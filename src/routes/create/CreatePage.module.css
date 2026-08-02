@@ -69,16 +69,21 @@
 }
 
 /*
- * Undo and redo. Phones only, for now.
+ * Undo and redo, in the bottom left of the window: the other end of the footer from
+ * save, which is the end a right hand isn't resting on.
  *
- * A desktop has ⌘Z and ⇧⌘Z and a hand on a keyboard already; a phone has neither, and
- * the history is no use at all if there is no way to ask for it. That asymmetry is
- * the whole reason this is here — not a decision that the buttons don't belong on a
- * desktop, only that they aren't needed there yet.
+ * The pair is in the markup twice and shown once — this is the phone's copy, and
+ * `.historyTop` below is the desktop's. See `UndoRedo` for why it is done that way
+ * round.
  */
 .history {
 	display: flex;
 	gap: 8px;
+}
+
+/* The desktop's copy, up in the header's actions. Off here, where the footer has it. */
+.historyTop {
+	display: none;
 }
 
 /*
@@ -327,7 +332,9 @@
  * Four things differ, and all four are about there being room: the save button goes
  * back into the column, where there is somewhere for it to be that isn't the bottom
  * edge of the window; the column has air under it; the button flies *up* with the
- * tools rather than down past them; and undo and redo aren't offered, because ⌘Z is.
+ * tools rather than down past them; and undo and redo move from the bottom of the
+ * window to the top of it, where there is a header with an empty right-hand side and
+ * nothing under the drawing but the save button.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
@@ -350,6 +357,19 @@
 
 	.history {
 		display: none;
+	}
+
+	/*
+	 * Up beside the wordmark. The header is `narrow` on this page, so its right-hand
+	 * edge is the right-hand edge of the 640px column — which puts these two discs
+	 * squarely above the corner of the paper rather than out at the edge of the window.
+	 *
+	 * Centred against a 70px wordmark by the header's own `align-items`, so nothing here
+	 * has to know how tall that is.
+	 */
+	.historyTop {
+		display: flex;
+		gap: 8px;
 	}
 
 	.naming .footer {

@@ -1,8 +1,6 @@
 import type { FlipbookEngine, FlipbookState } from '../engine/FlipbookEngine'
-import { settledPageCount } from '../engine/pages'
 import type { ModalToolId } from '../engine/tools/types'
 import icons from '../../styles/icons.module.css'
-import { WidthSlider } from './WidthSlider'
 import styles from './Tray.module.css'
 
 export interface CreateTrayProps {
@@ -13,19 +11,21 @@ export interface CreateTrayProps {
 }
 
 /**
- * The create page's tray.
+ * The create page's tray: three modal tools on the left, three page actions on the
+ * right.
  *
- * Three modal tools on the left, page actions and playback on the right — the same
- * split as 2013. The transform button is one button with two modes: pressing it
- * again cycles into push, and push refuses to switch on when nothing is selected, so
- * it cycles straight back.
+ * The transform button is one button with two modes: pressing it again cycles into
+ * push, and push refuses to switch on when nothing is selected, so it cycles straight
+ * back.
  *
- * One layout at every width, bar the two playback buttons: on a phone the row is only
- * as wide as the column, and they are the two controls with somewhere else to be.
+ * One layout at every width, and shorter than it was. 2013 ended this row with play and
+ * circleplay; the page bar under the drawing is both of those now — a tap on its handle
+ * plays, and dragging it is the scrub — so the tray is the six controls that are the
+ * drawing and nothing else. The pencil's width popover went the same way: see
+ * `DEFAULT_PENCIL_WIDTH`.
  */
 export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
-	const { tool, transformIndex, playback, pages } = state
-	const canPlay = settledPageCount(pages) > 1
+	const { tool, transformIndex } = state
 
 	// Only while a page is actually arriving or leaving. Playing doesn't disable
 	// these — the press stops playback instead, and the next one goes through.
@@ -50,12 +50,6 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						<span className={`${styles.blade} ${icons.pencil}`} aria-hidden="true" />
 						<span className="visuallyHidden">Draw</span>
 					</button>
-
-					{/* Not while the form is up: the tools have flown away and a settings
-					    popover with nothing above it is just a floating box. */}
-					{tool === 'pencil' && !stowed ? (
-						<WidthSlider value={state.pencilWidth} onChange={(w) => engine.setPencilWidth(w)} />
-					) : null}
 				</li>
 
 				<li>
@@ -154,92 +148,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						<span className="visuallyHidden">Duplicate page</span>
 					</button>
 				</li>
-
-				{/* Hidden on the phone, where the row hasn't the width for eight controls
-				    and the page bar's handle plays instead. See `.playbackKey`. */}
-				<CirclePlayButton
-					engine={engine}
-					playback={playback}
-					enabled={canPlay}
-					className={styles.playbackKey}
-				/>
-				<PlayButton
-					engine={engine}
-					playback={playback}
-					enabled={canPlay}
-					className={styles.playbackKey}
-				/>
 			</ul>
 		</div>
-	)
-}
-
-export function PlayButton({
-	engine,
-	playback,
-	enabled,
-	className,
-}: {
-	engine: FlipbookEngine
-	playback: FlipbookState['playback']
-	enabled: boolean
-	/** On the `<li>`, for a caller that has to lay these out differently. */
-	className?: string
-}) {
-	const on = playback === 'play'
-
-	return (
-		<li className={className}>
-			<button
-				type="button"
-				className={`${styles.action} ${styles.playback}`}
-				title={on ? 'Pause' : 'Play'}
-				aria-pressed={on}
-				disabled={!enabled}
-				onClick={() => engine.togglePlay()}
-			>
-				<span className={on ? icons.pause : icons.play} aria-hidden="true" />
-				<span className="visuallyHidden">{on ? 'Pause' : 'Play'}</span>
-			</button>
-		</li>
-	)
-}
-
-/**
- * Circleplay: scrub the flipbook by drawing circles with the pointer.
- *
- * Offered on touch as well, where it was previously held back on the grounds that a
- * hand covers the thing it's scrubbing. It does, and it is still the best control on
- * the site — winding a flipbook back and forth with a finger is what the gesture was
- * always an imitation of. Circling in the corner leaves plenty of it visible.
- */
-export function CirclePlayButton({
-	engine,
-	playback,
-	enabled,
-	className,
-}: {
-	engine: FlipbookEngine
-	playback: FlipbookState['playback']
-	enabled: boolean
-	/** On the `<li>`, for a caller that has to lay these out differently. */
-	className?: string
-}) {
-	const on = playback === 'circleplay'
-
-	return (
-		<li className={className}>
-			<button
-				type="button"
-				className={`${styles.action} ${styles.playback} ${on ? styles.circleplayOn : styles.circleplay}`}
-				title={on ? 'Stop circleplay' : 'Circleplay'}
-				aria-pressed={on}
-				disabled={!enabled}
-				onClick={() => engine.toggleCircleplay()}
-			>
-				<span className={on ? icons.pause : icons.circleplay} aria-hidden="true" />
-				<span className="visuallyHidden">Circleplay</span>
-			</button>
-		</li>
 	)
 }

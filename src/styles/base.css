@@ -64,10 +64,9 @@
 	--blue-dark: #0e4ee4;
 	--blue-deep: #07256b;
 	/* Not the blue above: this one is out of the 2013 icon sheet, where it is the play
-	   and circleplay arrows, and it is `HIGHLIGHT_COLOR` in the engine, where it is a
-	   selected stroke. The page scrubber's handle borrows it, because it is the other
-	   control on that page that says where in the flipbook you are — sampled from the
-	   sprite rather than nearly matched by eye. */
+	   arrow, and it is `HIGHLIGHT_COLOR` in the engine, where it is a selected stroke.
+	   The page bar's handle wears it because the handle *is* the play button now —
+	   sampled from the sprite rather than nearly matched by eye. */
 	--blue-playback: #2299ff;
 	--green: #d5ff71;
 	--red: #f54958;
@@ -156,19 +155,6 @@ body {
 	 */
 	touch-action: manipulation;
 	-webkit-tap-highlight-color: transparent;
-}
-
-/*
- * While circleplay has the pointer.
- *
- * Scrubbing is a drag that means something, and a drag the browser has decided is a
- * scroll stops being reported at all — so for the length of the gesture the document
- * hands its own gestures over. Set on `<html>` by the engine; see `SCRUBBING`.
- */
-.scrubbing,
-.scrubbing body {
-	touch-action: none;
-	overscroll-behavior: none;
 }
 
 /*

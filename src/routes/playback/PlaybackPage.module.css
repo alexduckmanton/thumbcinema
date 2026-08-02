@@ -5,42 +5,98 @@
 	/* Room for the create button to float over. */
 	padding-bottom: 100px;
 
-	/* Header, tray and title, which is what the canvas is sized around when the
+	/* Header, page bar and title, which is what the canvas is sized around when the
 	   window is too short to give it the full width. See FlipbookCanvas. */
-	--book-reserve: 300px;
+	--book-reserve: 240px;
 }
 
 /*
- * A short window counts the header and the controls, and stops there.
+ * A short window counts the header and the bar, and stops there.
  *
  * The title and description are below the flipbook and can be below the fold with
  * it: this is a page for watching something, and scrolling to read about it
  * afterwards is no hardship. Sized against the whole of a sideways phone, the
  * flipbook itself would be about 130px across.
  *
- * Up from 170 by the page bar, which is new here and is 48px of control and 8px of
- * air. It is the create page's bar and it is counted the same way there.
+ * Down from 226 by the tray, which used to sit between the bar and the title and was
+ * 25px of icon in 40px of padding. Print and the admin toggles are in the title's own
+ * row now, which is below the fold and costs this nothing.
  */
 @media screen and (max-height: 560px) {
 	.content {
-		--book-reserve: 226px;
+		--book-reserve: 146px;
 	}
 }
 
 /*
- * The title and description.
+ * The title and description, and the two things you can do to a flipbook standing at
+ * the other end of the same row.
  *
  * No rule under them, and none under the tray above either — that one was `.ruled` in
  * `Tray.module.css` and has gone with this. Two hairlines a title's height apart draw
- * a box, and what was inside it was the one thing here that didn't need marking off: the flipbook is a sheet of paper with a shadow under it, and the writing below
- * is plainly about the sheet of paper. 2013 ruled it because the page also carried a
+ * a box, and what was inside it was the one thing here that didn't need marking off:
+ * the flipbook is a sheet of paper with a shadow under it, and the writing below is
+ * plainly about the sheet of paper. 2013 ruled it because the page also carried a
  * byline, an avatar, a view count and two share buttons, and something had to keep
  * them apart.
+ *
+ * `flex-start` rather than centred: the title is the top line of a block that may run
+ * to several, and print belongs beside the title rather than beside the middle of the
+ * description.
  */
 .info {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 20px;
 	width: 100%;
 	margin: 0 0 20px;
 	padding: 0 10px 15px;
+}
+
+/* `min-width: 0` because a flex item's floor is its content, and a title with no
+   spaces in it would otherwise push print off the end of the row. */
+.text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Print and the admin toggles. Both are usually nothing at all, and an empty box here
+   simply gives its width back to the title. */
+.aside {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	/*
+	 * Onto the title's line rather than the top of its box.
+	 *
+	 * Measured: the title is 25px in a 30px line, so its ink runs from 5.2px below the
+	 * top of the box down to the baseline, and the middle of the writing is 14.6px down.
+	 * A 25px icon hung from the same top would centre at 12.5. Two pixels puts the two
+	 * within a tenth of each other. The title's descenders are left out of it — one `p`
+	 * shouldn't drag the printer down the page.
+	 */
+	padding-top: 2px;
+}
+
+.print {
+	display: inline-flex;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: pointer;
+	opacity: 0.55;
+	transition: opacity 0.1s linear;
+}
+
+.print:hover {
+	opacity: 1;
+}
+
+.print:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 3px;
 }
 
 /*

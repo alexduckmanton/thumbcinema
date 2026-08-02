@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-	advanceCircleplay,
-	circleplayInitial,
-	circleplayPage,
 	cornerIndex,
 	distance,
 	edgeIndex,
@@ -116,62 +113,6 @@ describe('sweepAngle', () => {
 	it('stays finite for a hair-thin triangle, where acos would drift out of domain', () => {
 		const angle = sweepAngle({ x: 100, y: 0 }, { x: 100, y: 1e-12 }, centre)
 		expect(Number.isNaN(angle)).toBe(false)
-	})
-})
-
-describe('circleplay', () => {
-	const pages = 10
-
-	it('needs three points before it moves at all', () => {
-		let state = circleplayInitial(0)
-		state = advanceCircleplay(state, { x: 0, y: 0 }, pages)
-		state = advanceCircleplay(state, { x: 10, y: 0 }, pages)
-
-		expect(state.timeline).toBe(0)
-	})
-
-	it('ignores a repeated position — Safari fires mousemove twice', () => {
-		let state = circleplayInitial(0)
-		state = advanceCircleplay(state, { x: 0, y: 0 }, pages)
-		const before = advanceCircleplay(state, { x: 10, y: 0 }, pages)
-		const after = advanceCircleplay(before, { x: 10, y: 0 }, pages)
-
-		expect(after).toBe(before)
-	})
-
-	it('advances one way for a clockwise arc and the other way for its mirror', () => {
-		const clockwise = [
-			{ x: 0, y: -100 },
-			{ x: 100, y: 0 },
-			{ x: 0, y: 100 },
-		]
-
-		let forward = circleplayInitial(5)
-		for (const point of clockwise) forward = advanceCircleplay(forward, point, pages)
-
-		let backward = circleplayInitial(5)
-		for (const point of [...clockwise].reverse()) {
-			backward = advanceCircleplay(backward, point, pages)
-		}
-
-		expect(Math.sign(forward.timeline - 5)).toBe(-Math.sign(backward.timeline - 5))
-	})
-
-	it('wraps at both ends rather than running off', () => {
-		let state = circleplayInitial(pages + 1)
-		state = advanceCircleplay(state, { x: 0, y: -100 }, pages)
-		state = advanceCircleplay(state, { x: 100, y: 0 }, pages)
-		state = advanceCircleplay(state, { x: 0, y: 100 }, pages)
-
-		expect(state.timeline).toBeGreaterThanOrEqual(0)
-		expect(state.timeline).toBeLessThanOrEqual(pages)
-	})
-
-	it('has a dead zone either side of a page boundary', () => {
-		// Without it the playhead flickers between two pages on the join.
-		expect(circleplayPage(3.5)).toBe(3)
-		expect(circleplayPage(3.01)).toBeNull()
-		expect(circleplayPage(3.99)).toBeNull()
 	})
 })
 

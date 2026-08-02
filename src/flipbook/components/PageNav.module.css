@@ -1,6 +1,6 @@
 /*
  * The page bar: one white pill under the canvas, with a back arrow at one end, a
- * forward arrow at the other and a handle that runs between them. Phones only.
+ * forward arrow at the other and a handle that runs between them. Every width.
  *
  * Three things in one control rather than three controls in a row, because the row
  * spent 88px of a 335px window on two arrows that are only ever one page's worth of
@@ -276,12 +276,23 @@
 }
 
 /*
- * Gone wherever there is room to see and click the page thumbnails themselves: they do
- * all of this and more, the arrow keys do the rest, and play and circleplay are in the
- * tray up there. See the note in base.css.
+ * Desktop, where the only thing that changes is how the width is arrived at.
+ *
+ * It used to be hidden here, on the reasoning that the page thumbnails do all of this
+ * and more and the tray had play and circleplay in it. Both halves of that have gone:
+ * the tray's playback buttons are this bar's handle now, and a strip you can click a
+ * page in is not a thing that shows you a flipbook playing. It is the same control at
+ * the same size — 48px of bar under a drawing that is only ever the one width up here.
+ *
+ * Stated rather than taken from `--book-width`, and that is the whole of this block.
+ * The canvas is pinned to 640px on this layout while `--book-width` stays a
+ * `min(100%, height-derived)`, and between 561 and about 680px of window height the
+ * height is what binds — so the formula answers a few hundred pixels while the drawing
+ * above it stays 640, and a bar visibly narrower than the paper is worse than no bar.
+ * 640 and 8px past it either side, which is what the formula means everywhere else.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.track {
-		display: none;
+		width: 656px;
 	}
 }

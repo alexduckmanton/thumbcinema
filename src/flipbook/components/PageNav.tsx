@@ -17,19 +17,20 @@ export interface PageNavProps {
 /**
  * Back a page, forward a page, and a scrubber for everything in between.
  *
- * Phones only. The strip of thumbnails is on both layouts, but on a phone the drawing
- * takes nearly the whole window and all that shows of the pages either side is a few
- * millimetres — enough to say the flipbook carries on, nowhere near enough to reach
- * for. Above the breakpoint there is room to see them and click straight onto one, and
- * the arrow keys have always been the keyboard route.
+ * On both layouts now. It was the phone's answer to a strip of thumbnails you can see
+ * but not reach — the drawing takes nearly the whole window down there and all that
+ * shows of the pages either side is a few millimetres — and it was hidden on a desktop
+ * on the grounds that up here you can click straight onto a thumbnail. You can, and it
+ * is still the fastest way to a particular page. What the strip cannot do is show a
+ * flipbook *playing*: it is a row of pages that happens to change which one is behind
+ * the canvas, and the handle running along the bar is the only thing on either page
+ * that says how far through you are while it moves.
  *
- * So the pages you can't reach become a bar you can drag. The handle is on a page, not
- * between pages: it follows the pointer while you're holding it and settles onto the
- * nearest of `pages` positions when you let go, the two ends included, so a two-page
- * flipbook has a handle that is either hard left or hard right and nothing in
- * between. It follows playback as well as leading it — the engine publishes every
- * page change, including the twelve a second that `play` makes and the ones
- * circleplay scrubs to, so the handle runs along on its own while a flipbook plays.
+ * The handle is on a page, not between pages: it follows the pointer while you're
+ * holding it and settles onto the nearest of `pages` positions when you let go, the two
+ * ends included, so a two-page flipbook has a handle that is either hard left or hard
+ * right and nothing in between. It follows playback as well as leading it — the engine
+ * publishes every page change, including the twelve a second that `play` makes.
  *
  * The arrows wrap. Playback loops, so the page after the last one is page one
  * wherever else you look at this, and an arrow that greys out at the end of a
@@ -41,12 +42,11 @@ export interface PageNavProps {
  * an end it covers the arrow underneath, which is the right way round — the thing
  * you are holding should not be something you can miss.
  *
- * And a tap on the handle plays. It is the one control on the phone layout that
- * starts and stops playback — the tray's play and circleplay buttons are hidden down
- * there, because six controls is what a phone's width holds — so the thing you take
- * hold of to move through the flipbook by hand is also the thing you let go of to
- * have it moved for you. A press on the handle therefore waits: it is a tap until it
- * has travelled `TAP_SLOP`, and a drag from then on.
+ * And a tap on the handle plays. It is the only thing that starts and stops playback on
+ * either page — the tray's play and circleplay buttons are gone, one hidden and one
+ * deleted — so the thing you take hold of to move through the flipbook by hand is also
+ * the thing you let go of to have it moved for you. A press on the handle therefore
+ * waits: it is a tap until it has travelled `TAP_SLOP`, and a drag from then on.
  */
 export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
 	const track = useRef<HTMLDivElement | null>(null)
@@ -119,8 +119,7 @@ export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
 		}
 		if (press.current.tap) return
 
-		// Taking hold of the bar is taking over from whatever was playing — not least
-		// because circleplay is reading the same pointer.
+		// Taking hold of the bar is taking over from whatever was playing.
 		engine.pause()
 		scrubTo(event.clientX)
 	}
@@ -186,9 +185,6 @@ export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
 	 * the flipbook, of which `TRANSIT_STEPS` are spent in the tunnel — so the two go
 	 * round together and the handle arrives back at the near end as page one comes up.
 	 * The floor is what stops a short one flickering; see `MIN_CROSSING_FRAMES`.
-	 *
-	 * Only `play`. Circleplay is a scrub: the pointer is driving the pages and the
-	 * handle has to say which one it landed on, the same as a drag does.
 	 */
 	const sweeping = playback === 'play' && pages > 1
 	const { at, transit, lap, snap } = usePlaybackSweep(

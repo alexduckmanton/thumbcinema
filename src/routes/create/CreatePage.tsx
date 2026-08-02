@@ -7,6 +7,7 @@ import { InkCursor } from '../../flipbook/components/InkCursor'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
+import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
@@ -93,7 +94,21 @@ export function CreatePage() {
 
 	return (
 		<>
-			<SiteHeader width="narrow" />
+			{/* No create button — you are already here. What goes up there instead is
+			    undo and redo, on the desktop layout only; see `UndoRedo`.
+
+			    Not offered while the save form is up: everything else on the page has
+			    either flown away or gone under the wash, and a live undo button up in the
+			    corner is the one control still able to change a drawing nobody can see.
+			    The footer's copy leaves with the footer; this one has nowhere to go, so it
+			    dims instead — which is what `.step:disabled` already says. */}
+			<SiteHeader width="narrow">
+				<UndoRedo
+					engine={engine}
+					state={phase === 'drawing' ? state : null}
+					className={styles.historyTop}
+				/>
+			</SiteHeader>
 
 			<main className={contentClass}>
 				{engine && state ? (
@@ -135,12 +150,7 @@ export function CreatePage() {
 						    shows what is under a finger. Inside `.book` because both are
 						    measured against the drawing rather than the window. */}
 						{state && phase === 'drawing' ? (
-							<InkCursor canvasRef={canvasRef} tool={state.tool} pencilWidth={state.pencilWidth} />
-						) : null}
-
-						{/* Somewhere to circle that isn't the drawing. See `.scrub`. */}
-						{isTouch && state?.playback === 'circleplay' ? (
-							<div className={canvasStyles.scrub} aria-hidden="true" />
+							<InkCursor canvasRef={canvasRef} tool={state.tool} />
 						) : null}
 
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
@@ -168,24 +178,8 @@ export function CreatePage() {
 					) : null}
 
 					<div className={styles.footer}>
-						{/* Phones only — see `.history`. On a desktop these are ⌘Z and ⇧⌘Z,
-						    which is where a hand already is when it is holding a mouse. */}
-						<div className={styles.history}>
-							<StepButton
-								label="Undo"
-								glyph="↺"
-								hint="Undo (⌘Z)"
-								enabled={state?.canUndo ?? false}
-								onPress={() => engine?.undo()}
-							/>
-							<StepButton
-								label="Redo"
-								glyph="↻"
-								hint="Redo (⇧⌘Z)"
-								enabled={state?.canRedo ?? false}
-								onPress={() => engine?.redo()}
-							/>
-						</div>
+						{/* The phone's copy, at the far end of the bar from save. */}
+						<UndoRedo engine={engine} state={state} className={styles.history} />
 
 						<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
 							<button
@@ -203,6 +197,53 @@ export function CreatePage() {
 
 			{crash.crashed ? <Recovery saved={crash.saved} /> : null}
 		</>
+	)
+}
+
+/**
+ * Undo and redo, as a pair, in whichever of the page's two corners this layout keeps
+ * them: the bottom left on a phone, next to the wordmark on a desktop.
+ *
+ * Rendered in both places and hidden in one, which is the whole of how it moves. The
+ * two corners are in different parts of the tree — one is the site header's actions
+ * slot, the other is a bar pinned to the bottom of the window — and there is no
+ * arrangement of CSS that carries one box between them. Two copies with `display: none`
+ * on the wrong one costs a few elements and leaves exactly one pair in the
+ * accessibility tree at any width, which is the thing that actually matters.
+ *
+ * Why it is up there at all on a desktop, when 2013 offered no undo and this page's
+ * first version offered it only on a phone: ⌘Z is genuinely the shortcut a hand on a
+ * keyboard reaches for, but a fifty-step history that nothing on the screen mentions is
+ * a feature people find out about by accident. The buttons say it exists. They go at the
+ * top because the bottom of this column is the save button's, and undo standing next to
+ * save is the pair of buttons you least want to confuse.
+ */
+function UndoRedo({
+	engine,
+	state,
+	className,
+}: {
+	engine: FlipbookEngine | null
+	state: FlipbookState | null
+	className: string | undefined
+}) {
+	return (
+		<div className={className}>
+			<StepButton
+				label="Undo"
+				glyph="↺"
+				hint="Undo (⌘Z)"
+				enabled={state?.canUndo ?? false}
+				onPress={() => engine?.undo()}
+			/>
+			<StepButton
+				label="Redo"
+				glyph="↻"
+				hint="Redo (⇧⌘Z)"
+				enabled={state?.canRedo ?? false}
+				onPress={() => engine?.redo()}
+			/>
+		</div>
 	)
 }
 

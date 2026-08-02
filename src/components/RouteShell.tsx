@@ -56,10 +56,11 @@ export function RouteShell({ route }: RouteShellProps) {
 		case 'gallery':
 			return <GalleryShell />
 		case 'playback':
-			return <BookShell content={playbackStyles.content} action />
+			return <BookShell content={playbackStyles.content} action history={false} />
 		case 'create':
-			// No create button in the header: you are already here. Matches `CreatePage`.
-			return <BookShell content={createStyles.content} action={false} />
+			// No create button in the header: you are already here. What is up there
+			// instead is undo and redo, so the shell draws those. Matches `CreatePage`.
+			return <BookShell content={createStyles.content} action={false} history />
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
 			// placeholder in the shape of an apology is worse than a beat of nothing.
@@ -79,10 +80,40 @@ export function RouteShell({ route }: RouteShellProps) {
  * possibly undefined because that is what a CSS module's lookup is under
  * `noUncheckedIndexedAccess`, and `className` takes it either way.
  */
-function BookShell({ content, action }: { content: string | undefined; action: boolean }) {
+function BookShell({
+	content,
+	action,
+	history,
+}: {
+	content: string | undefined
+	action: boolean
+	history: boolean
+}) {
 	return (
 		<>
-			<SiteHeader width="narrow">{action ? <CreateButton /> : null}</SiteHeader>
+			<SiteHeader width="narrow">
+				{action ? <CreateButton /> : null}
+				{/*
+				 * Undo and redo, as the create page has them on a desktop: two discs at the
+				 * right-hand end of the header, and there is nothing to undo yet, so they
+				 * are drawn in the state they will actually land in. Pictures of buttons —
+				 * they are `disabled`, so they are out of the tab order and take no presses,
+				 * which is the whole difference between this and the real pair.
+				 *
+				 * Hidden on a phone by `.historyTop`, exactly as the page's own are, so the
+				 * shell is the right shape at both widths from one piece of markup.
+				 */}
+				{history ? (
+					<div className={createStyles.historyTop} aria-hidden="true">
+						<button type="button" className={createStyles.step} disabled>
+							<span className={createStyles.stepGlyph}>↺</span>
+						</button>
+						<button type="button" className={createStyles.step} disabled>
+							<span className={createStyles.stepGlyph}>↻</span>
+						</button>
+					</div>
+				) : null}
+			</SiteHeader>
 
 			<main className={content}>
 				<div className="center">

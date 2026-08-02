@@ -219,7 +219,7 @@ describe('PageNav', () => {
 
 	it('keeps a copy either side of the handle while a sweep is running', () => {
 		const engine = fakeEngine()
-		const at = (playback: 'none' | 'play' | 'circleplay') => (
+		const at = (playback: 'none' | 'play') => (
 			<PageNav engine={engine} activePage={1} pages={2} playback={playback} />
 		)
 		const { rerender } = render(at('none'))
@@ -234,24 +234,21 @@ describe('PageNav', () => {
 		// starting a sweep puts two either side of it rather than replacing it.
 		expect(bar().handle).toBe(resting)
 
-		// Circleplay is a scrub rather than a sweep: the pointer is driving the pages,
-		// the handle is saying which one it landed on, and it never leaves the bar.
-		rerender(at('circleplay'))
+		// Stopping takes the two away again, and the one left is still the same element.
+		rerender(at('none'))
 		expect(bar().copies).toHaveLength(1)
+		expect(bar().handle).toBe(resting)
 	})
 
-	it('puts the arrows away while it plays, and both kinds of playing count', () => {
+	it('puts the arrows away while it plays', () => {
 		const engine = fakeEngine()
-		const at = (playback: 'none' | 'play' | 'circleplay') => (
+		const at = (playback: 'none' | 'play') => (
 			<PageNav engine={engine} activePage={1} pages={5} playback={playback} />
 		)
 		const { rerender } = render(at('none'))
 		expect(bar().track.className).not.toContain('playing')
 
 		rerender(at('play'))
-		expect(bar().track.className).toContain('playing')
-
-		rerender(at('circleplay'))
 		expect(bar().track.className).toContain('playing')
 
 		rerender(at('none'))

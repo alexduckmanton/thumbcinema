@@ -35,12 +35,13 @@
 	background-position: 0 0;
 }
 
-.circleplay {
-	composes: icon;
-	width: 25px;
-	height: 33px;
-	background-position: -26px 0;
-}
+/*
+ * The sheet still carries a circleplay arrow at -26px, a play triangle at -308px and a
+ * pause bar at -241px, and nothing names them any more: circleplay is gone from the
+ * tool altogether, and play and pause are the page bar's handle now, which is drawn in
+ * CSS. The offsets are left written down here because the sheet is a fixed image and
+ * the next thing that wants one of them will want it at exactly these coordinates.
+ */
 
 .delete {
 	composes: icon;
@@ -84,25 +85,11 @@
 	background-position: -225px 0;
 }
 
-.pause {
-	composes: icon;
-	width: 25px;
-	height: 25px;
-	background-position: -241px 0;
-}
-
 .pencil {
 	composes: icon;
 	width: 40px;
 	height: 304px;
 	background-position: -267px 0;
-}
-
-.play {
-	composes: icon;
-	width: 25px;
-	height: 25px;
-	background-position: -308px 0;
 }
 
 .print {

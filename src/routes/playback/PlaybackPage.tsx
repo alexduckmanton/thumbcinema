@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { AdminToggles } from '../../components/AdminToggles'
 import { CreateButton } from '../../components/CreateButton'
 import { SiteHeader } from '../../components/SiteHeader'
 import { PageNav } from '../../flipbook/components/PageNav'
-import { PlaybackTray } from '../../flipbook/components/PlaybackTray'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { getFlipbook, getFlipbookData, type Flipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import { Link } from '../../router/Router'
+import icons from '../../styles/icons.module.css'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
 import styles from './PlaybackPage.module.css'
 import { usePrint } from './usePrint'
@@ -127,11 +128,6 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 					<div className={canvasStyles.book}>
 						<canvas ref={canvasRef} className={canvasStyles.canvas} />
 
-						{/* Somewhere to circle that isn't the flipbook. See `.scrub`. */}
-						{isTouch && state?.playback === 'circleplay' ? (
-							<div className={canvasStyles.scrub} aria-hidden="true" />
-						) : null}
-
 						{/* The flipbook, before it is one. Nothing to say to a screen reader —
 						    it's a picture of an absence — so the announcement is text, in a
 						    region that is always mounted: one that appears at the same moment
@@ -143,9 +139,8 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 						{ready ? '' : 'Loading flipbook'}
 					</p>
 
-					{/* The create page's page bar, on the flipbook you are watching. Phones
-					    only — see `PageNav` — where it is also the play button, which is why
-					    the tray's two playback controls come out down there. */}
+					{/* The create page's page bar, on the flipbook you are watching, at every
+					    width — and the only play button either page has left. */}
 					{engine && state ? (
 						<PageNav
 							engine={engine}
@@ -155,24 +150,41 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 						/>
 					) : null}
 
-					{engine && state && flipbook ? (
-						<PlaybackTray
-							engine={engine}
-							state={state}
-							id={flipbook.id}
-							flags={flags}
-							onFlagsChange={setFlags}
-							onPrint={print}
-						/>
-					) : null}
-
+					{/*
+					 * What this page has to say about the flipbook, and the two things you
+					 * can do to it, in one row under the bar.
+					 *
+					 * There was a tray here — the create page's row of controls, carrying
+					 * print, play, circleplay and the admin toggles. Play is the handle above
+					 * and circleplay is gone, which left a full-width bar of chrome holding
+					 * one printer icon. Print stands next to the title instead, which is
+					 * where the rest of what this page can do already was.
+					 */}
 					{flipbook ? (
 						<div className={styles.info}>
-							<div className={styles.heading}>
-								<h2>{flipbook.title}</h2>
-								<h3 className={styles.byline}>{flipbook.byline}</h3>
+							<div className={styles.text}>
+								<div className={styles.heading}>
+									<h2>{flipbook.title}</h2>
+									<h3 className={styles.byline}>{flipbook.byline}</h3>
+								</div>
+								<p className={styles.description}>{flipbook.description}</p>
 							</div>
-							<p className={styles.description}>{flipbook.description}</p>
+
+							{/* Both of these render nothing most of the time — the toggles unless
+							    you hold the admin token, print unless there is a printer worth
+							    offering. An empty box, and the title takes the width. */}
+							<div className={styles.aside}>
+								<AdminToggles id={flipbook.id} flags={flags} onChange={setFlags} />
+
+								{/* Printing lays the flipbook out as a cut-and-staple booklet.
+								    There is no useful touch equivalent, so it isn't offered there. */}
+								{isTouch ? null : (
+									<button type="button" className={styles.print} title="Print" onClick={print}>
+										<span className={icons.print} aria-hidden="true" />
+										<span className="visuallyHidden">Print</span>
+									</button>
+								)}
+							</div>
 						</div>
 					) : null}
 				</div>

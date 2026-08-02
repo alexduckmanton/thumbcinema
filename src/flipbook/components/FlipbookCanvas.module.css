@@ -73,22 +73,6 @@
 }
 
 /*
- * What a finger circles on to scrub.
- *
- * Circleplay reads the pointer wherever it is on the page, and on a phone the canvas
- * *is* the page — so without this the first movement of the gesture lands on the
- * drawing canvas and draws a line across the flipbook you were watching. Only on
- * touch: with a mouse, clicking the canvas to stop scrubbing and carry on drawing is
- * the behaviour the tool has always had, and there's nothing in the way of it.
- */
-.scrub {
-	position: absolute;
-	inset: 0;
-	z-index: 16;
-	touch-action: none;
-}
-
-/*
  * A flipbook that hasn't arrived.
  *
  * It replaced a blue screen with a spinner on it, which hid the flipbook behind a

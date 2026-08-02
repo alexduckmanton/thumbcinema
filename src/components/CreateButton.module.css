@@ -33,8 +33,6 @@
 	border: none;
 	border-radius: var(--radius-pill);
 	background: var(--yellow);
-	font-size: 16px;
-	font-weight: 500;
 	color: var(--ink-strong);
 	text-decoration: none;
 
@@ -58,26 +56,58 @@
  * "writing hand" instead would be worse than silence. If the glyph ever moves into
  * the markup, the label has to move with it.
  */
+/*
+ * No nudge, and it used to carry 2px. That was measured against an Inter label at
+ * 16px, whose box sat differently in the row; with the label in Pecita at the same
+ * 30px as this, the two are the same face on the same baseline and the glyph's own ink
+ * centres itself. Measured: its ink runs 14.16px above the baseline and 3.84 below, so
+ * against a box centred on the button the middle of the drawing lands 0.16px high —
+ * which is as close as this gets, and 0.36px from where the label's ink sits.
+ *
+ * What that also buys: the glyph's writing line ends up on the label's baseline, so the
+ * hand is drawing on the same line the word is written on. The 2px broke it by exactly
+ * itself.
+ */
 .fab::before {
 	content: '\270D';
 	flex: 0 0 auto;
-	position: relative;
-	/* The glyph sits high in its em box, so the optical centre isn't the geometric one. */
-	top: 2px;
 	font-family: 'Pecita', cursive;
 	font-size: 30px;
 	line-height: 1;
 	color: var(--ink-strong);
 }
 
-/* Collapsed by max-width rather than removed, so the label stays in the DOM and in
-   the accessibility tree the whole time. This is a visual state, not a change of
-   content. */
+/*
+ * "New", in the hand the glyph beside it is drawn in.
+ *
+ * It was Inter at 16/500, which put a UI label next to a hand-drawn writing hand and
+ * asked them to read as one button. They are the same object as the save button on the
+ * create page — the two ends of the same errand — and that one is set in Pecita, so
+ * this one is too. 30px for the reason given there: Pecita is a handwriting face with a
+ * shallow x-height and at a UI size it reads as a caption.
+ *
+ * The 3px is the same correction the save label carries, and is a property of the face
+ * rather than of the button: at 30px Pecita reports an ascent of 20 and a descent of
+ * 10, so the browser centres a box whose middle sits 5px above the baseline — while the
+ * ink of a word with no descender runs 16.5px up from it and none below, putting its
+ * own middle at 8.25. The letters therefore sit 3.25px high in a box that is itself
+ * perfectly centred. Measured against the glyph beside it, which needs 2px the other
+ * way because it hangs high in its em box.
+ *
+ * Collapsed by max-width rather than removed, so the label stays in the DOM and in
+ * the accessibility tree the whole time. This is a visual state, not a change of
+ * content.
+ */
 .label {
+	position: relative;
+	top: 3px;
 	max-width: 120px;
 	margin-left: 8px;
 	overflow: hidden;
 	opacity: 1;
+	font-family: 'Pecita', cursive;
+	font-size: 30px;
+	line-height: 1;
 	transition: max-width 0.24s ease, opacity 0.16s ease-out, margin-left 0.24s ease;
 }
 

@@ -12,19 +12,17 @@
  * The ring: no fill, one hairline, and the diameter of the mark about to be made.
  *
  * `--ink` is in project units, of which there are always 640 across the drawing
- * however wide it is drawn — so the width is that fraction of the box, and a 3px
- * pencil is a 3px ring on a desktop and a 1.6px one on a phone, which is what the
- * line will actually be.
+ * however wide it is drawn — so the width is that fraction of the box, and the
+ * eraser's 20-unit bite is a 20px ring on a desktop and an 11px one on a phone, which
+ * is what it will actually take out.
  *
- * The floor is what stops that being useless at the thin end. At width 1 the ring
- * would be a single pixel with a one-pixel border round it, which is not a preview of
- * anything — it is a smudge where the cursor used to be. Below this it stops describing
- * the stroke and goes back to being a cursor, which is the job it still has to do.
- *
- * Six, and the number matters: the pencil only goes up to 10, so a floor anywhere near
- * that swallows the whole range and every width draws the same ring. At six, more than
- * half the range is the true size on a desktop — and on a phone it is always the floor,
- * which costs nothing, because the width can't be changed there anyway.
+ * The floor is what stops that being useless at the thin end. The pencil is three
+ * units, which is three pixels on a desktop and under two on a phone: a ring that
+ * small is not a preview of anything, it is a smudge where the cursor used to be.
+ * Below six it stops describing the mark and goes back to being a cursor, which is the
+ * job it still has to do. So the pencil always draws the floor and the eraser never
+ * does, and the two are told apart by size — which, now that the pencil has one width,
+ * is the whole of what this has left to say.
  */
 .ring {
 	position: absolute;
