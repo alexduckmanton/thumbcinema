@@ -48,6 +48,7 @@ src/
   router/             matchRoute(), useLocation(), <Link>
   lib/                api client, admin token, device, messages, store, zoom
   components/         header, buttons, spinner, messages, admin toggles
+    RouteShell.tsx    the page before the page — the Suspense fallback, per route
   routes/
     gallery/          the grid, the Featured/All toggle, infinite scroll
     create/           the drawing tool's page, save flow, crash recovery
@@ -164,6 +165,21 @@ paper.js is ~210 KB and only two of the four routes need it, so the routes are l
 and paper is a manual chunk. The gallery — the page most visits land on — downloads
 neither. Check this hasn't regressed after touching imports: `npm run build` prints
 the chunk table.
+
+**A lazy route waits for everything its chunk statically imports, and that used to
+include paper.** `scene.ts` imported it at the top, so `import('./routes/playback/…')`
+did not resolve — and the metadata and artwork fetches *inside* that route did not
+start — until 71 kB gzipped of paper had downloaded and evaluated. It was 77% of the
+playback route's second wave and the whole of the wait people were watching. paper is
+now fetched by `useFlipbookEngine` and passed down (see `PaperCore` in `scene.ts`), so
+it is in no route's preload set and downloads alongside the artwork rather than in
+front of it. The route's second wave went from 93 kB to 18 kB; from the gallery, where
+the shared chunks are already in memory, from 88 kB to 15 kB.
+
+The trap is that a plain `import` of anything large, anywhere under a route, silently
+puts it back. The chunk table won't say so — paper is still its own chunk either way.
+What to check is the entry bundle's dependency list for each route: nothing that only
+the drawing tool needs belongs in it.
 
 ## The drawing tool
 
@@ -291,6 +307,18 @@ load-bearing:
 - **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and
   React re-runs inline ref callbacks on every render. Page thumbnails take their size
   from JSX attributes.
+
+- **The engine is built asynchronously, and `paperCore` is not what the types say.**
+  paper arrives by `import()` now, so `useFlipbookEngine` is an ordinary effect rather
+  than a layout effect and `engine` is null for a beat after mount — both pages already
+  guard on that. Two things bite here. paper's `.d.ts` declares `paper-core` with
+  `export =`, so TypeScript types the dynamic import as the scope object and
+  `module.PaperScope` typechecks — but it is a UMD bundle and Vite's interop puts the
+  whole of it on `default`. Following the types compiles cleanly and builds a Scene
+  whose `PaperScope` is undefined, which is a page that pulses for ever. And the
+  failure has to be `.catch`ed rather than passed as `.then`'s second argument, or
+  anything thrown while *constructing* the engine is an unhandled rejection nobody
+  sees — which is exactly how the first version of this hid that bug.
 
 ### Where it differs from `time-capsule`
 
@@ -634,13 +662,47 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   sees a duplicate.
 - **A tab switch aborts the fetch in flight.** Otherwise a page of Featured results
   lands in a freshly emptied All grid and the two lists get spliced together.
-- **The gallery's skeleton is twelve cards because the grid is one to four columns
-  wide.** `auto-fill` at a 320px minimum inside a 1440px maximum can't produce any other
-  count, and twelve divides by all four — so the placeholder is always a whole number of
-  rows. Move either end of that formula and it goes ragged at some width. `useGallery`
-  starts `loading` at `true` rather than `false` with it: the first page is asked for in
-  an effect, which runs *after* the first paint, so the alternative is a frame of
-  "Nothing here yet." before the skeleton appears.
+- **The gallery's skeleton is twenty cards against a grid one to four columns wide.**
+  `auto-fill` at a 320px minimum inside a 1440px maximum can't produce any other count,
+  and a placeholder that stops halfway along a row reads as a page that has finished
+  arriving badly — so the count wants to divide by all four. Twenty divides by three of
+  them; at three columns it is six rows and a pair. That is a knowing trade for filling
+  a tall window, and 12 and 24 are the neighbouring numbers that come out even if it
+  ever stops being worth it. The stagger is set from the count and not the other way
+  round: the twenty of them spread over ~760ms of a 1400ms swing, so the far end of the
+  grid is always going the same way as the near end and never quite with it — at the
+  old 70ms step twenty cards reach 1330ms and the last is back in phase with the first,
+  which is no wave at all. `useGallery` starts `loading` at `true` rather than `false`:
+  the first page is asked for in an effect, which runs *after* the first paint, so the
+  alternative is a frame of "Nothing here yet." before the skeleton appears.
+
+- **There is no boot spinner. The Suspense fallback is the page.** `RouteShell` draws
+  the route's real header and the same placeholder that route uses — a pulsing sheet
+  for create and playback, the twenty-card grid for the gallery — so the wait for a
+  route's chunk looks like the wait for its contents, and nothing moves at the
+  handover. Verified rather than assumed: the frame of the click and the frame the page
+  lands both put `.book` at exactly `[105, 130, 640, 360]` on a desktop and
+  `[16, 84, 343, 193]` on a phone, on both pages. It lives in the **entry bundle**,
+  which is the constraint that shapes it — it may not import anything a route is lazy
+  about, or it would be waiting on the download it exists to cover. That is also why it
+  applies the *pages'* own CSS modules rather than carrying copies: `--book-reserve` is
+  318px on create, 300px on playback and different again in a short window, and a
+  hand-written approximation would be the wrong size in three layouts and drift from
+  there. Applying another module's class to your own markup is not the cross-module
+  *selector* the rest of the tree avoids. Cost: those stylesheets move into the entry,
+  so every route carries ~4 kB gzipped for layouts it isn't.
+
+- **A flipbook loads behind the gallery's placeholder, not behind a blue screen.** The
+  playback page used to put a spinner on `rgba(74, 125, 244, 0.95)` over the canvas,
+  which hid the flipbook behind a different thing rather than standing in for it; it is
+  now `.skeleton` in `FlipbookCanvas.module.css`, pulsing #e6e6e6 to white on the same
+  1.4s swing as a gallery card. The two are the same object at either end of a tap. It
+  sits *over* the canvas rather than instead of it, because the canvas is live from the
+  first frame — page one is drawn into it while the placeholder is still up — and it
+  leaves the canvas's shadow showing, where the gallery's drops it: there the card is a
+  flipbook that isn't there yet, here it is one that is, blank. The blue is still what
+  a save in flight puts over the drawing; that is `.overlay` and `.wash`, and only the
+  create page uses them now.
 - **An unsaved drawing holds a spare history entry.** 2013 left the page for real on
   every navigation, so `beforeunload` covered the logo and the back button along with
   everything else; here neither one is a page load. `<Link>` goes through the router's

@@ -113,11 +113,13 @@
 	 * strobe.
 	 *
 	 * Negative, so they are already spread across the cycle on the first frame instead
-	 * of starting together and drifting apart. 70ms each puts the twelve of them across
-	 * 770ms of a 1400ms swing — a little over half of one, so the far end of the grid is
-	 * always going the same way as the near end and never quite with it.
+	 * of starting together and drifting apart. 40ms each puts the twenty of them across
+	 * 760ms of a 1400ms swing — a little over half of one, so the far end of the grid is
+	 * always going the same way as the near end and never quite with it. The spread is
+	 * what matters rather than the step: at the old 70ms, twenty cards reach 1330ms and
+	 * the last one is back in step with the first, which is no wave at all.
 	 */
-	animation-delay: calc(var(--card, 0) * -70ms);
+	animation-delay: calc(var(--card, 0) * -40ms);
 }
 
 @keyframes waiting {

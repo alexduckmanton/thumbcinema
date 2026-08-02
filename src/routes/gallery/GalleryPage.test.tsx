@@ -69,7 +69,7 @@ describe('GalleryPage', () => {
 		// From the first paint, rather than from whenever the effect gets round to
 		// asking: an empty grid with nothing in it is the one thing this is here to
 		// prevent.
-		expect(skeletons()).toHaveLength(12)
+		expect(skeletons()).toHaveLength(20)
 		expect(screen.queryByRole('heading', { name: 'Nothing here yet.' })).not.toBeInTheDocument()
 
 		land(page([flipbook('aaa')]))

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 
 import { CreateButton } from '../../components/CreateButton'
 import { SiteHeader } from '../../components/SiteHeader'
-import { Spinner } from '../../components/Spinner'
 import { PlaybackTray } from '../../flipbook/components/PlaybackTray'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
@@ -132,12 +131,16 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 							<div className={canvasStyles.scrub} aria-hidden="true" />
 						) : null}
 
-						{ready ? null : (
-							<div className={canvasStyles.overlay}>
-								<Spinner label="Loading flipbook" />
-							</div>
-						)}
+						{/* The flipbook, before it is one. Nothing to say to a screen reader —
+						    it's a picture of an absence — so the announcement is text, in a
+						    region that is always mounted: one that appears at the same moment
+						    as its own contents is one a reader may never announce. */}
+						{ready ? null : <div className={canvasStyles.skeleton} aria-hidden="true" />}
 					</div>
+
+					<p role="status" className="visuallyHidden">
+						{ready ? '' : 'Loading flipbook'}
+					</p>
 
 					{engine && state && flipbook ? (
 						<PlaybackTray

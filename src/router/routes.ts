@@ -6,6 +6,8 @@
  * anything.
  */
 
+import type { GalleryView } from '../lib/api'
+
 export type Route =
 	| { name: 'gallery' }
 	| { name: 'create' }
@@ -37,4 +39,20 @@ export function matchRoute(pathname: string): Route {
 /** The permalink for a flipbook. The one place its shape is written down. */
 export function flipbookPath(id: string): string {
 	return `/f/${encodeURIComponent(id)}`
+}
+
+/**
+ * Which tab the gallery is on, and the URL for each.
+ *
+ * Here rather than in the gallery because the boot placeholder draws the toggle too —
+ * it stands in for the header while the route is still downloading, and a placeholder
+ * that reads the tab from the URL differently to the page it stands in for is a
+ * toggle that jumps sides as the page lands.
+ */
+export function galleryView(search: string): GalleryView {
+	return new URLSearchParams(search).get('view') === 'all' ? 'all' : 'featured'
+}
+
+export function galleryPath(view: GalleryView): string {
+	return view === 'all' ? '/?view=all' : '/'
 }

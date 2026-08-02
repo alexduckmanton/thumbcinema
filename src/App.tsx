@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo } from 'react'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { Spinner } from './components/Spinner'
+import { RouteShell } from './components/RouteShell'
 import { Link, useLocation } from './router/Router'
 import { matchRoute } from './router/routes'
 
@@ -29,7 +29,9 @@ export function App() {
 
 	return (
 		<ErrorBoundary fallback={<Broken />}>
-			<Suspense fallback={<BootSpinner />}>
+			{/* Keyed on the route, so switching pages mid-load swaps one placeholder for
+			    the other rather than leaving the old page's shape up. */}
+			<Suspense fallback={<RouteShell key={route.name} route={route} />}>
 				{route.name === 'gallery' ? <GalleryPage /> : null}
 				{route.name === 'create' ? <CreatePage /> : null}
 				{/* Keyed on the id so navigating between two flipbooks tears the engine
@@ -50,13 +52,5 @@ function Broken() {
 				Something broke on the way in. <Link to="/">Start again</Link>?
 			</p>
 		</main>
-	)
-}
-
-function BootSpinner() {
-	return (
-		<div style={{ padding: '80px 0', textAlign: 'center', color: 'var(--ink-soft)' }}>
-			<Spinner label="Loading" />
-		</div>
 	)
 }

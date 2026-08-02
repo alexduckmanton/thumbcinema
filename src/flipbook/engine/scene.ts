@@ -1,9 +1,24 @@
-// paper-core rather than paper: the full build bundles PaperScript and its Acorn
-// parser, which compile `.pjs` sources at runtime. Nothing here uses that, and it is
-// most of the difference between a 240 KB chunk and a 150 KB one.
-import paper from 'paper/dist/paper-core'
-
 import { CANVAS_HEIGHT, CANVAS_WIDTH, ONION_OPACITY } from './constants'
+
+/**
+ * paper-core's exports: paper's scope object, minus PaperScript.
+ *
+ * paper-core rather than paper because the full build bundles PaperScript and its
+ * Acorn parser, which compile `.pjs` sources at runtime. Nothing here uses that, and
+ * it is most of the difference between a 240 KB chunk and a 150 KB one.
+ *
+ * **Handed in rather than imported, and that is load-bearing.** A static
+ * `import paper from 'paper/dist/paper-core'` here put 71 kB gzipped into whichever
+ * route chunk reached this file, so `lazy(() => import('./routes/…'))` did not
+ * resolve — and the artwork fetch inside that route did not *start* — until paper had
+ * downloaded and been evaluated. It was 77% of the playback route's second wave and
+ * the whole of the boot spinner. `useFlipbookEngine` fetches it and passes it down.
+ *
+ * The shape is paper's own declaration of what `paper-core` exports. Only the type is
+ * named here; `paper` is an ambient global namespace in paper's `.d.ts`, so every
+ * `paper.Layer` below needs no import at all.
+ */
+export type PaperCore = Pick<paper.PaperScope, Exclude<keyof paper.PaperScope, 'PaperScript'>>
 
 /**
  * The paper.js side of a flipbook: one project, one layer per page, and three
@@ -44,7 +59,7 @@ export class Scene {
 	private displayScale = 1
 	private readonly resizeObserver: ResizeObserver | null = null
 
-	constructor(canvas: HTMLCanvasElement) {
+	constructor(canvas: HTMLCanvasElement, paperCore: PaperCore) {
 		this.canvas = canvas
 		canvas.width = CANVAS_WIDTH
 		canvas.height = CANVAS_HEIGHT
@@ -52,7 +67,10 @@ export class Scene {
 		// A scope of our own rather than the global singleton: two engines can exist
 		// briefly during a route change (and always do under React's StrictMode
 		// double-mount), and sharing paper's default project makes that a mess.
-		this.scope = new paper.PaperScope()
+		//
+		// Only `paperCore` is needed after this line — everything else goes through
+		// the scope — so nothing holds on to the module.
+		this.scope = new paperCore.PaperScope()
 		this.scope.setup(canvas)
 
 		this.resizeObserver = this.pinCoordinates()

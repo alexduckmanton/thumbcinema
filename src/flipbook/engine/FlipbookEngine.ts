@@ -15,7 +15,7 @@ import {
 	type CircleplayState,
 } from './geometry'
 import type { PageState } from './pages'
-import { Scene } from './scene'
+import { type PaperCore, Scene } from './scene'
 import { Selection } from './selection'
 import { EraserTool } from './tools/eraser'
 import { DEFAULT_PENCIL_WIDTH, PencilTool } from './tools/pencil'
@@ -109,10 +109,11 @@ export class FlipbookEngine {
 	/** Held while alt or shift is down; the transform tool reads them on every event. */
 	private modifiers = { alt: false, shift: false }
 
-	constructor(canvas: HTMLCanvasElement, options: EngineOptions) {
+	/** `paperCore` is passed in rather than imported — see the note on `PaperCore`. */
+	constructor(canvas: HTMLCanvasElement, options: EngineOptions, paperCore: PaperCore) {
 		this.mode = options.mode
 
-		this.scene = new Scene(canvas)
+		this.scene = new Scene(canvas, paperCore)
 		this.selection = new Selection(this.scene)
 
 		this.store = new Store<FlipbookState>({

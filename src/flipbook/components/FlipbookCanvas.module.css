@@ -1,8 +1,9 @@
 /*
  * The canvas you draw on, and the sheet of paper it's pretending to be.
  *
- * `.book` is the frame; everything that overlays the canvas — the loading screen, the
- * save form, the blue wash while a save is in flight — is positioned against it.
+ * `.book` is the frame; everything that overlays the canvas — the placeholder a
+ * flipbook loads behind, the save form, the blue wash while a save is in flight — is
+ * positioned against it.
  *
  * The frame is 640×360 *in project coordinates* and always will be: every flipbook
  * ever saved is that shape, and they all have to stay interchangeable. What it is
@@ -84,7 +85,42 @@
 	touch-action: none;
 }
 
-/* The loading screen, and the wash a save puts over the drawing. */
+/*
+ * A flipbook that hasn't arrived.
+ *
+ * It replaced a blue screen with a spinner on it, which hid the flipbook behind a
+ * different thing rather than standing in for it. This is the same placeholder the
+ * gallery lays its grid out with — the sheet of paper is here and pulsing, and what
+ * lands on it is the drawing. The two are the same object at the two ends of a tap,
+ * so they wait in the same way.
+ *
+ * Over the canvas rather than instead of it, because the canvas is what the engine
+ * builds against and it is live from the first frame — page one is drawn into it while
+ * this is still up. `.canvas` keeps its shadow underneath: the gallery's skeleton drops
+ * the shadow because there is no flipbook there yet, and here there is one, blank.
+ */
+.skeleton {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	border-radius: 2px;
+	background-color: #e6e6e6;
+	animation: waiting 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes waiting {
+	to {
+		background-color: var(--white);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.skeleton {
+		animation: none;
+	}
+}
+
+/* The wash a save puts over the drawing. */
 .overlay {
 	position: absolute;
 	inset: 0;

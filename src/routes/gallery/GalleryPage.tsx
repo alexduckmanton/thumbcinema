@@ -3,10 +3,11 @@ import { useCallback, useEffect, useRef } from 'react'
 import { Button } from '../../components/Button'
 import { AdminToggles } from '../../components/AdminToggles'
 import { CreateButton } from '../../components/CreateButton'
+import { GALLERY_SKELETON } from '../../components/RouteShell'
 import { SiteHeader } from '../../components/SiteHeader'
 import type { GalleryView } from '../../lib/api'
 import { Link, navigate, useLocation } from '../../router/Router'
-import { flipbookPath } from '../../router/routes'
+import { flipbookPath, galleryPath, galleryView } from '../../router/routes'
 import { useGallery } from './useGallery'
 import { ViewToggle } from './ViewToggle'
 import styles from './GalleryPage.module.css'
@@ -17,23 +18,26 @@ const PREFETCH_PX = 1200
 /**
  * The placeholder cards, standing in for a page that's on its way.
  *
- * Twelve, because the grid is `auto-fill` at a 320px minimum inside a 1440px maximum
- * and so is never more than four columns wide or fewer than one — and twelve is a whole
- * number of rows at all four counts. Any of the smaller numbers that fill a screen is
- * ragged at one width or another, and a placeholder that stops halfway along a row
- * reads as a page that has finished arriving badly.
+ * Twenty. The grid is `auto-fill` at a 320px minimum inside a 1440px maximum, so it is
+ * never more than four columns wide or fewer than one, and twenty is a whole number of
+ * rows at three of those four — at three columns it is six rows and a pair, which is
+ * the one width where the placeholder ends mid-row. Twelve divided by all four and
+ * twenty-four does too; twenty is between them because filling the taller screens
+ * matters more here than the ragged edge at one width does.
  *
  * Still short of the page size, deliberately. Twenty-four empty cards is a claim about
  * how long the page will be, and the fetch may well come back with three.
  *
  * A list of numbers rather than a count, so each one is keyed by something that is its
- * own rather than by where it happens to sit.
+ * own rather than by where it happens to sit — and shared with the boot placeholder,
+ * which draws this same grid while this file is still downloading. Two counts would
+ * mean the cards reshuffle at the handover.
  */
-const SKELETON = Array.from({ length: 12 }, (_, index) => index)
+const SKELETON = GALLERY_SKELETON
 
 export function GalleryPage() {
 	const { search } = useLocation()
-	const view = viewFromSearch(search)
+	const view = galleryView(search)
 
 	const { items, loading, exhausted, failed, loadMore, retry, updateItem } = useGallery(view)
 
@@ -44,7 +48,7 @@ export function GalleryPage() {
 	const changeView = useCallback((next: GalleryView) => {
 		// Keep the URL honest so the tab survives a refresh or a shared link.
 		// Replace rather than push: the toggle is a filter, not a place.
-		navigate(next === 'featured' ? '/' : '/?view=all', { replace: true, preserveScroll: true })
+		navigate(galleryPath(next), { replace: true, preserveScroll: true })
 	}, [])
 
 	const sentinel = useInfiniteScroll(loadMore, !loading && !exhausted)
@@ -168,8 +172,4 @@ function useInfiniteScroll(onReach: () => void, enabled: boolean) {
 	}, [enabled])
 
 	return target
-}
-
-function viewFromSearch(search: string): GalleryView {
-	return new URLSearchParams(search).get('view') === 'all' ? 'all' : 'featured'
 }
