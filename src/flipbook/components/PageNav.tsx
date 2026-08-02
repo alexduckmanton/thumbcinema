@@ -12,7 +12,6 @@ export interface PageNavProps {
 	/** Which way the flipbook is playing, if it is. See `.eased`. */
 	playback: PlaybackMode
 	/** True while the bar is being dragged, for whoever else has to stop easing. */
-	onScrubbing: (scrubbing: boolean) => void
 }
 
 /**
@@ -49,7 +48,7 @@ export interface PageNavProps {
  * have it moved for you. A press on the handle therefore waits: it is a tap until it
  * has travelled `TAP_SLOP`, and a drag from then on.
  */
-export function PageNav({ engine, activePage, pages, playback, onScrubbing }: PageNavProps) {
+export function PageNav({ engine, activePage, pages, playback }: PageNavProps) {
 	const track = useRef<HTMLDivElement | null>(null)
 	const handle = useRef<HTMLSpanElement | null>(null)
 
@@ -123,7 +122,6 @@ export function PageNav({ engine, activePage, pages, playback, onScrubbing }: Pa
 		// Taking hold of the bar is taking over from whatever was playing — not least
 		// because circleplay is reading the same pointer.
 		engine.pause()
-		onScrubbing(true)
 		scrubTo(event.clientX)
 	}
 
@@ -141,7 +139,6 @@ export function PageNav({ engine, activePage, pages, playback, onScrubbing }: Pa
 
 			current.tap = false
 			engine.pause()
-			onScrubbing(true)
 		}
 
 		scrubTo(event.clientX)
@@ -154,7 +151,6 @@ export function PageNav({ engine, activePage, pages, playback, onScrubbing }: Pa
 		const finished = press.current
 		press.current = null
 		setHeld(null)
-		onScrubbing(false)
 
 		if (finished?.tap) engine.togglePlay()
 	}

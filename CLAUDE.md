@@ -463,12 +463,20 @@ finger rather than a pointer.
   that is the real page indicator can't spend any — it would drift a tunnel's worth
   behind per lap. For 24 pages and up the handle is on the page and the jump back is
   honest.
-- **The strip stops easing while the bar is dragged.** It slides from page to page over
-  0.3s, and under a finger sweeping the bar that is a second flipbook arriving half a
-  second behind the first — it reads as the drawing being dragged about rather than the
-  pages being turned. `scrubbing` lives on the create page rather than in the engine or
-  in either component: the bar knows when a drag starts and stops, the strip is what
-  has to stop easing, and it is nothing to do with the drawing.
+- **The strip doesn't ease at all. Turning a page is a cut.** It used to slide from page
+  to page over 0.3s, matched to the page animations' travel time — every keyframe set
+  that throws a page into the next slot arrives at offset 0.35–0.4 of its 750ms, and the
+  strip carries every page that *isn't* individually animated, so the two had to cover
+  the same ground in the same time. But it also eased on an ordinary page turn, where
+  nothing is being thrown, and half a second of the whole flipbook sliding under the
+  drawing every time you step a page reads as the pages being dragged about rather than
+  turned. It was already switched off under a finger on the page bar; if it was wrong
+  there it was wrong everywhere. **Add and delete still animate** — those are
+  `animations.ts`, on the individual page, and they are a throw rather than a step;
+  verified by freezing one mid-flight, two 750ms animations and the neighbouring page
+  genuinely travelling. Gone with the transition: `scrubbing` (create page → `PageStrip`,
+  and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both of which existed only to
+  switch it off.
 - **There is no circleplay on the create page's phone layout.** It is the one thing
   that comes off. Six controls is what the tray holds, play is a tap on the handle, and
   circleplay has nowhere left to be asked for. It is still on the playback page at
@@ -530,12 +538,18 @@ properties, element defaults, and two utility classes.
   tray is half the playback page's, which has one layout at every width. The width
   slider has no desktop breakpoint at all any more; the only query in it is the short
   window that lays it down.
-- **The flipbook has one shadow and the page strip has another.** A gallery card, the
-  flipbook on the playback page and the canvas you draw on are all the same object and
-  all take `--shadow-card`; the page bar under the canvas takes it too, because a
-  control lying flat under paper that is lifted off the page separates two things meant
-  to be read together. `--shadow-page` — wide, offset down, no blur — is now the strip's
-  alone, where it says "a sheet lying on the one behind it".
+- **There is one shadow and one radius, and every flipbook takes both.** A gallery card,
+  the flipbook on the playback page, the canvas you draw on and the page thumbnails
+  either side of it are all the same object, so they all take `--shadow-card` and
+  `--radius-card`; the page bar under the canvas takes the shadow too, because a control
+  lying flat under paper that is lifted off the page separates two things meant to be
+  read together. The strip used to be the exception, with `--shadow-page` — wide, offset
+  straight down, no blur — and square corners, which is 2013's "a sheet lying on the one
+  behind it". But a thumbnail there is a full-size copy of the drawing standing directly
+  behind the drawing, and lighting the two differently is what made the strip read as a
+  separate object sliding under the canvas. `--shadow-page` had no users left and is
+  gone from `base.css`. The canvas's own radius was 2px, from before the gallery cards
+  were rounded.
 - **Colours are the 2013 palette**, including the computed ones: the button's border
   and pressed states came out of a Sass mixin that darkened the base by fixed amounts,
   and those are the values that shipped.
@@ -695,14 +709,27 @@ carry an **Ignored Build Step** so neither builds the other's branch.
 - **A flipbook loads behind the gallery's placeholder, not behind a blue screen.** The
   playback page used to put a spinner on `rgba(74, 125, 244, 0.95)` over the canvas,
   which hid the flipbook behind a different thing rather than standing in for it; it is
-  now `.skeleton` in `FlipbookCanvas.module.css`, pulsing #e6e6e6 to white on the same
-  1.4s swing as a gallery card. The two are the same object at either end of a tap. It
-  sits *over* the canvas rather than instead of it, because the canvas is live from the
-  first frame — page one is drawn into it while the placeholder is still up — and it
-  leaves the canvas's shadow showing, where the gallery's drops it: there the card is a
-  flipbook that isn't there yet, here it is one that is, blank. The blue is still what
-  a save in flight puts over the drawing; that is `.overlay` and `.wash`, and only the
-  create page uses them now.
+  now `.skeleton` in `FlipbookCanvas.module.css`, the same white-fading-to-`--page`
+  swing as a gallery card. The two are the same object at either end of a tap. It sits
+  *over* the canvas rather than instead of it, because the canvas is live from the first
+  frame — page one is drawn into it while the placeholder is still up. The blue is still
+  what a save in flight puts over the drawing; that is `.overlay` and `.wash`, and only
+  the create page uses them now.
+
+- **The placeholder is a white card fading out and back, not a grey one lighting up,
+  and that is why it needs a shadow.** It was #e6e6e6 → white: a wide swing that
+  *starts* dark, so switching Featured for All swapped a grid of white cards for a grid
+  of grey ones on one frame and the page flashed. Starting where the cards already are
+  makes the swap a drawing leaving rather than the page changing colour. What that costs
+  is depth — white to `--page` is 14 levels where the old swing was 25, because that is
+  the entire distance between a card and the page behind it — and at that range a
+  shadowless rectangle is invisible. So the placeholder now carries `--shadow-card`,
+  reversing the note that used to be in `GalleryPage.module.css`. Two consequences to
+  keep straight: it fades to an opaque `--page` rather than fading *out*, because the
+  same rule covers the flipbook placeholder, which lies over a white canvas where an
+  opacity fade would do nothing; and the shadow is a separate `.sheet` class applied
+  only by `RouteShell`, because on the playback page the canvas underneath is already
+  casting it and two coincident shadows are darker than one.
 - **An unsaved drawing holds a spare history entry.** 2013 left the page for real on
   every navigation, so `beforeunload` covered the logo and the back button along with
   everything else; here neither one is a page load. `<Link>` goes through the router's

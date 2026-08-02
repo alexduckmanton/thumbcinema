@@ -37,7 +37,10 @@
 	width: 100%;
 	height: 100%;
 	background: var(--white);
-	border-radius: 2px;
+	/* The gallery card's corners, as well as its shadow. It was 2px — 2013's number,
+	   from before the cards were rounded — and a flipbook you are drawing on with
+	   squarer corners than the same flipbook in the grid is the same object twice. */
+	border-radius: var(--radius-card);
 	/* The gallery card's shadow, not the strip's. A thumbnail in the strip is one of a
 	   stack of sheets and takes the flat drop that says so; this is the flipbook
 	   itself, and it is the same object the gallery is full of. */
@@ -103,14 +106,32 @@
 	position: absolute;
 	inset: 0;
 	z-index: 20;
-	border-radius: 2px;
-	background-color: #e6e6e6;
+	/* The canvas's corners, because it lies exactly on top of it. */
+	border-radius: var(--radius-card);
+	/* A white sheet that fades out and back, matched to the gallery card's — see the
+	   longer note there. Opaque rather than an opacity fade, because on the playback
+	   page this lies over the canvas, which is already white. */
+	background-color: var(--white);
 	animation: waiting 1.4s ease-in-out infinite alternate;
+}
+
+/*
+ * The placeholder with nothing underneath it, which is the boot shell — there is no
+ * engine yet, so there is no canvas either.
+ *
+ * On the playback page this same rectangle lies over the canvas and takes its shadow
+ * from there. Standing alone it has to bring its own, or the sheet gains an edge on
+ * the frame the route lands — which is the one thing the shell exists to prevent. Not
+ * folded into `.skeleton`, because there the canvas is already casting it and two
+ * coincident shadows are darker than one.
+ */
+.sheet {
+	box-shadow: var(--shadow-card);
 }
 
 @keyframes waiting {
 	to {
-		background-color: var(--white);
+		background-color: var(--page);
 	}
 }
 

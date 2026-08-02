@@ -99,7 +99,6 @@
 	   reads as a sheet lying on the one behind it rather than as a card lifted off the
 	   page. The flipbook itself — in the gallery, on the playback page and on the
 	   canvas you draw on — takes the card shadow above. */
-	--shadow-page: rgba(0, 0, 0, 0.05) 0 10px 0 -5px;
 
 	--control-height: 44px;
 }

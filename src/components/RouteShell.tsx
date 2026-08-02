@@ -87,7 +87,9 @@ function BookShell({ content, action }: { content: string | undefined; action: b
 			<main className={content}>
 				<div className="center">
 					<div className={canvasStyles.book}>
-						<div className={canvasStyles.skeleton} aria-hidden="true" />
+						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
+						    cast the shadow the page's own placeholder borrows. */}
+						<div className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`} aria-hidden="true" />
 					</div>
 				</div>
 			</main>

@@ -27,7 +27,6 @@ export function CreatePage() {
 	// While the page bar is under a finger. It belongs to neither component and both
 	// need it — the bar knows when the drag starts and stops, and the strip is what
 	// has to stop easing between pages while it lasts.
-	const [scrubbing, setScrubbing] = useState(false)
 
 	const crash = useCrashRecovery(engine)
 
@@ -107,7 +106,6 @@ export function CreatePage() {
 						activePage={state.activePage}
 						playing={state.playback !== 'none'}
 						arriving={state.arriving}
-						scrubbing={scrubbing}
 						canvasRef={canvasRef}
 					/>
 				) : null}
@@ -158,7 +156,6 @@ export function CreatePage() {
 							activePage={state.activePage}
 							pages={pages}
 							playback={state.playback}
-							onScrubbing={setScrubbing}
 						/>
 					) : null}
 

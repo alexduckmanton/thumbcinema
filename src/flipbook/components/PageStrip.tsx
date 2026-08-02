@@ -12,8 +12,6 @@ export interface PageStripProps {
 	playing: boolean
 	/** True while a page is still on its way into the canvas's slot. */
 	arriving: boolean
-	/** True while the page bar is being dragged. See below. */
-	scrubbing: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 }
@@ -24,7 +22,6 @@ export function PageStrip({
 	activePage,
 	playing,
 	arriving,
-	scrubbing,
 	canvasRef,
 }: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
@@ -88,7 +85,6 @@ export function PageStrip({
 	}, [engine, step])
 
 	const left = metrics.offset - metrics.gutter - activePage * step
-	const snap = useSnapOnRemoval(pages.length)
 
 	// Which thumbnail the canvas is standing in front of, and so which one to hide.
 	// Nothing, while a page is still travelling into that slot.
@@ -101,13 +97,6 @@ export function PageStrip({
 				style={
 					{
 						left: `${left}px`,
-						// Instant, in both of the cases where easing would be a lie. One
-						// is a removal, below. The other is a finger on the page bar: it
-						// is already on the page it is asking for, and a row of thumbnails
-						// still arriving half a second later is a second flipbook running
-						// alongside the first — which reads as the drawing being dragged
-						// about rather than the pages being turned.
-						transitionDuration: snap || scrubbing ? '0s' : undefined,
 						// How wide a page is drawn. The stylesheet adds its own gutters to it
 						// and this file reads those back, so neither has to state the other's
 						// number. See `measure`.
@@ -140,36 +129,4 @@ export function PageStrip({
 			</div>
 		</div>
 	)
-}
-
-/**
- * True for the one render in which a page has just left the strip.
- *
- * A deleted page takes every page after it one step to the left, and at that same
- * moment the strip's own `left` moves one step to the right to compensate. The
- * reflow is instant and the transition is not, so left to itself the strip jumps a
- * page and then glides back over 0.3s. Killing the transition for that render lands
- * both together — which is what 2013 did by zeroing `#pages`' transition-duration
- * and putting it back a tick later.
- *
- * Set during render rather than in an effect: React re-renders immediately without
- * painting the discarded one, so the transition is never briefly live.
- */
-function useSnapOnRemoval(count: number): boolean {
-	const [previous, setPrevious] = useState(count)
-	const [snap, setSnap] = useState(false)
-
-	if (previous !== count) {
-		setPrevious(count)
-		setSnap(count < previous)
-	}
-
-	useEffect(() => {
-		if (!snap) return
-
-		const frame = requestAnimationFrame(() => setSnap(false))
-		return () => cancelAnimationFrame(frame)
-	}, [snap])
-
-	return snap
 }

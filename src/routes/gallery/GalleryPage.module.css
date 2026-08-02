@@ -96,17 +96,46 @@
  * take, so a page arriving is drawings appearing on cards that were already there
  * rather than the page being built underneath the reader.
  *
- * No shadow, unlike the card it stands in for. The shadow is what lifts a flipbook off
- * the page and there is no flipbook here yet — it arrives with the drawing, which is
- * the one moment in all this where something should visibly change.
+ * It is the card it stands in for, minus the drawing — same white, same corners, same
+ * shadow — and the only thing that arrives is the artwork. It went without the shadow
+ * while it was grey, on the reasoning that the shadow lifts a flipbook off the page and
+ * there was no flipbook here yet. That held while the rectangle was dark enough to read
+ * on its own; a white one is 14 levels from the page, and a shadowless grid of them is
+ * a blank screen.
  */
 .skeleton {
 	aspect-ratio: 16 / 9;
 	border-radius: var(--radius-card);
-	/* Between the page behind it and the white of a real card, and pulsing across most
-	   of that distance: dark enough to read as a gap in the grid rather than as a
-	   flipbook that happens to be blank. */
-	background-color: #e6e6e6;
+	/*
+	 * A white card that fades out and back, not a grey one that lights up.
+	 *
+	 * It used to sit at #e6e6e6 and pulse towards white — a wider swing, and one that
+	 * *starts* dark. Switching Featured for All replaces a grid of white cards with a
+	 * grid of grey ones on the same frame, and the whole page flashed. Starting where
+	 * the cards already are means the swap is a drawing leaving rather than the page
+	 * changing colour underneath it.
+	 *
+	 * Fading to `--page` rather than to `transparent`: this same rule covers the
+	 * flipbook placeholder, which lies over a white canvas, and an opacity fade of
+	 * white over white is no fade at all. An opaque colour reads the same wherever it
+	 * is put.
+	 *
+	 * The cost is a shallower pulse — 14 levels of grey where there were 25, because
+	 * that is the whole distance between the page and a card. Which is the point: what
+	 * a placeholder has to do is breathe, not announce itself.
+	 */
+	background-color: var(--white);
+	/*
+	 * The card's own shadow, which the grey version deliberately did without.
+	 *
+	 * That reasoning inverts here. A grey rectangle is legible against the page on its
+	 * own and the shadow would have been claiming a flipbook had arrived; a white one
+	 * is 14 levels from the page and, without an edge, a grid of them reads as a blank
+	 * screen. The shadow is what says "a card, empty" rather than "nothing". It also
+	 * makes the Featured/All swap what it should be — cards staying put and losing
+	 * their drawings, not the page emptying and refilling.
+	 */
+	box-shadow: var(--shadow-card);
 	animation: waiting 1.4s ease-in-out infinite alternate;
 	/*
 	 * A wave rather than a dozen cards blinking in unison, which at this size is a
@@ -124,7 +153,7 @@
 
 @keyframes waiting {
 	to {
-		background-color: var(--white);
+		background-color: var(--page);
 	}
 }
 
