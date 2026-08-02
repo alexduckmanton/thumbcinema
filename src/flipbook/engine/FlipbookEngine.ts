@@ -1,7 +1,13 @@
 import { Store } from '../../lib/store'
 import { DEFAULT_PAGE_STEP, freeze, play } from './animations'
 import { CANVAS_HEIGHT, CANVAS_WIDTH, FPS, PENCIL_COLOR } from './constants'
-import { assertLeadingGroups, parseLegacyPages, parseSvgPages, strokeWidthFor } from './formats'
+import {
+	assertLeadingGroups,
+	parseLegacyPages,
+	parseSvgPages,
+	strokeGeometry,
+	strokeWidthFor,
+} from './formats'
 import {
 	advanceCircleplay,
 	circleplayInitial,
@@ -603,7 +609,16 @@ export class FlipbookEngine {
 			if (this.destroyed || this.store.snapshot.playback !== 'play') return
 
 			const next = this.scene.activePage + 1
-			this.jumpTo(next >= this.pageCount ? 0 : next)
+
+			if (next < this.pageCount) this.jumpTo(next)
+			// A flipbook that is still arriving doesn't lap. Playback begins as soon
+			// as there are two pages to flip between, and looping those two while the
+			// other forty land would read as a stutter rather than as a flipbook — so
+			// the last page it has is held until the rest catch up. The loader runs
+			// hundreds of pages a second against playback's twelve, so this only ever
+			// has anything to do on the first frame or two.
+			else if (!this.store.snapshot.loading) this.jumpTo(0)
+
 			this.scheduleFrame()
 		}, 1000 / FPS)
 	}
@@ -733,12 +748,12 @@ export class FlipbookEngine {
 		const pages = parseSvgPages(text)
 		this.store.set({ loading: true, loadProgress: 0 })
 
-		await this.replay(pages.length, signal, (index) => {
+		await this.replay(pages.length, signal, (index, layer) => {
 			const page = pages[index]
 			if (!page) return
 
 			for (const stroke of page.strokes) {
-				const item = this.scene.activeLayer.importSVG(stroke as SVGElement, { insert: true })
+				const item = this.buildStroke(stroke, layer)
 				if (!item) continue
 
 				item.strokeWidth = strokeWidthFor(stroke, page.groupStrokeWidth)
@@ -752,10 +767,43 @@ export class FlipbookEngine {
 			// Imported children lose the presentation attributes their group carried
 			// — stroke and stroke-width live on the `<g>`, not on each polyline — so
 			// the ink colour and cap style are reapplied per page.
-			this.scene.activeLayer.strokeCap = 'round'
-			this.scene.activeLayer.strokeJoin = 'round'
-			this.scene.activeLayer.strokeColor = new this.scene.scope.Color(PENCIL_COLOR)
+			layer.strokeCap = 'round'
+			layer.strokeJoin = 'round'
+			layer.strokeColor = new this.scene.scope.Color(PENCIL_COLOR)
 		})
+	}
+
+	/**
+	 * One saved stroke, as a paper item in `layer`.
+	 *
+	 * This used to be `importSVG` per stroke, and that was most of what a load cost:
+	 * it resolves styles, attributes, transforms and a matrix for every element, and
+	 * a saved flipbook is nothing but open strokes. Handing the geometry straight
+	 * to the constructors paper's own importer ends up calling skips all of it —
+	 * four to eight times faster on the archive, and on the files the tool writes now.
+	 *
+	 * The geometry is not parsed differently, only reached differently: `strokeGeometry`
+	 * uses the importer's own number regex, `Path.create` is what `importPath` calls,
+	 * and a two-point path is what `Path.Line` builds. What's skipped is the work the
+	 * lines below undo anyway — every stroke's colour and cap are restated per page.
+	 */
+	private buildStroke(stroke: Element, layer: paper.Layer): paper.Item | null {
+		const geometry = strokeGeometry(stroke)
+
+		// Never seen in either format, so never hit — but a stroke that loads slowly
+		// is a bug where a stroke that silently disappears is a lost drawing.
+		if (!geometry) return layer.importSVG(stroke as SVGElement, { insert: true })
+
+		if (geometry.kind === 'data') {
+			// `Path.create`, not `new Path`: path data holding more than one subpath
+			// is a CompoundPath, and that is the choice paper's importer makes too.
+			return this.scene.scope.PathItem.create(geometry.data)
+		}
+
+		if (geometry.points.length === 0) return null
+		return new this.scene.scope.Path(
+			geometry.points.map((point) => new this.scene.scope.Point(point.x, point.y)),
+		)
 	}
 
 	async loadLegacy(text: string, signal?: AbortSignal): Promise<void> {
@@ -776,7 +824,7 @@ export class FlipbookEngine {
 	private async replay(
 		total: number,
 		signal: AbortSignal | undefined,
-		drawPage: (index: number) => void,
+		drawPage: (index: number, layer: paper.Layer) => void,
 	): Promise<void> {
 		/** Long enough to get real work done, short enough to leave the frame time. */
 		const BUDGET_MS = 8
@@ -784,37 +832,61 @@ export class FlipbookEngine {
 		const pages: PageState[] = []
 		let deadline = performance.now() + BUDGET_MS
 
-		for (let index = 0; index < total; index++) {
+		try {
+			for (let index = 0; index < total; index++) {
+				if (signal?.aborted || this.destroyed) return
+
+				// Page one is the layer the scene was built with; the rest are appended
+				// behind whatever is on screen. This used to insert each page *and show
+				// it*, which is why a loading flipbook visibly drew itself — and why it
+				// couldn't start playing until the last page had landed.
+				const layer = index === 0 ? this.scene.activeLayer : this.scene.appendPage()
+
+				// paper puts new items in the active layer, and the legacy loader draws
+				// through the pencil, which has no other way to say where its strokes go.
+				layer.activate()
+				drawPage(index, layer)
+				this.scene.activeLayer.activate()
+
+				pages.push({ id: this.nextPageId++, segments: countSegments(layer) })
+
+				// Yield when the budget is spent, not once per page. The 2013 loader did
+				// one page per setTimeout(0), so a 200-page flipbook cost 200 trips
+				// through the task queue with the main thread idle for most of each.
+				if (performance.now() >= deadline) {
+					// Published as they arrive rather than all at the end, so the playback
+					// page can start flipping through what it has. A copy each time: the
+					// store hands this array to React, which must not see it change under it.
+					this.store.set({ pages: [...pages], loadProgress: (index + 1) / total })
+					await nextFrame()
+					deadline = performance.now() + BUDGET_MS
+				}
+			}
+
 			if (signal?.aborted || this.destroyed) return
 
-			if (index > 0) this.scene.insertBlankPage(index - 1)
-			drawPage(index)
+			this.store.set({
+				pages: pages.length ? pages : [{ id: this.nextPageId++, segments: 0 }],
+				loading: false,
+				loadProgress: 1,
+			})
 
-			pages.push({ id: this.nextPageId++, segments: countSegments(this.scene.activeLayer) })
-
-			// Yield when the budget is spent, not once per page. The 2013 loader did
-			// one page per setTimeout(0), so a 200-page flipbook cost 200 trips
-			// through the task queue with the main thread idle for most of each.
-			if (performance.now() >= deadline) {
-				this.store.set({ loadProgress: (index + 1) / total })
-				await nextFrame()
-				deadline = performance.now() + BUDGET_MS
+			// Page one has been the active page throughout, so there is nothing to go
+			// back to — and going back would be wrong: playback may already be running
+			// and several pages in, and yanking it to the start is the one thing a
+			// flipbook that has begun must not do.
+			if (this.store.snapshot.playback === 'none') {
+				this.refreshOnion()
+				this.captureActivePage()
 			}
+			this.scene.redraw()
+		} finally {
+			// A load that is given up on — the reader left mid-flight — still has to
+			// say it is no longer in progress. `scheduleFrame` holds the last page it
+			// has for as long as a flipbook is arriving, so a flag left set behind an
+			// early return is a flipbook that plays once and then stops dead.
+			if (this.store.snapshot.loading) this.store.set({ loading: false })
 		}
-
-		if (signal?.aborted || this.destroyed) return
-
-		this.store.set({
-			pages: pages.length ? pages : [{ id: this.nextPageId++, segments: 0 }],
-			loading: false,
-			loadProgress: 1,
-		})
-
-		this.scene.setActivePage(0, { playing: true })
-		this.store.set({ activePage: 0 })
-		this.refreshOnion()
-		this.scene.redraw()
-		this.captureActivePage()
 	}
 
 	// --- internals -----------------------------------------------------------

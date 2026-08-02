@@ -88,8 +88,10 @@ The original format, before the SVG export existed. Raw paper.js layer/segment J
 Same three leading system layers. There are no paths, only point lists — so
 there is nothing to import, so it is **replayed stroke by stroke through the pencil**
 — `begin()`, `extend(point)` per segment, `end()`. It is genuinely re-drawing the
-animation as you watch. The replay yields in frame-sized slices rather than one page
-per `setTimeout(0)`, which is what the 2013 loader did.
+animation, though you no longer watch it happen: pages after the first are built on
+layers that aren't showing, so playback can start on the pages that have landed while
+the rest are still arriving. The replay yields in frame-sized slices rather than one
+page per `setTimeout(0)`, which is what the 2013 loader did.
 
 147 of the 585 archive pieces are in this format.
 

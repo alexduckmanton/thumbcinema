@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { CreateButton } from '../../components/CreateButton'
 import { SiteHeader } from '../../components/SiteHeader'
@@ -17,6 +17,18 @@ export interface PlaybackPageProps {
 	id: string
 }
 
+/**
+ * How many pages have to have arrived before it starts playing.
+ *
+ * Two — the fewest that can flip. The wait people were sitting through was a whole
+ * flipbook being rebuilt behind a blue screen before a single frame of it moved, and
+ * on the longest in the archive that is most of a second on a phone. It is decoded
+ * in frame-sized slices either way, so the rest of it lands behind the first few
+ * frames instead of in front of them. `scheduleFrame` holds the last page it has
+ * rather than lapping, so a flipbook can't briefly play as a two-page loop.
+ */
+const PAGES_BEFORE_PLAY = 2
+
 export function PlaybackPage({ id }: PlaybackPageProps) {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'playback', isTouch })
 
@@ -24,6 +36,9 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 	const [ready, setReady] = useState(false)
 	const [missing, setMissing] = useState(false)
 	const [flags, setFlags] = useState({ featured: false, nsfw: false })
+
+	/** True once the artwork is in hand and pages have started landing in the store. */
+	const replaying = useRef(false)
 
 	const { print, container } = usePrint(engine)
 
@@ -59,14 +74,13 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 			.then(async (text) => {
 				if (controller.signal.aborted) return
 
+				// Armed before the load rather than after it: what starts playback is
+				// the pages arriving in the store, and the first of them land inside
+				// this call.
+				replaying.current = true
+
 				if (flipbook.format === 'legacy-json') await engine.loadLegacy(text, controller.signal)
 				else await engine.loadSvg(text, controller.signal)
-
-				if (controller.signal.aborted) return
-
-				setReady(true)
-				// A flipbook page plays on arrival. It's an animation; that's the point.
-				engine.togglePlay()
 			})
 			.catch(() => {
 				if (!controller.signal.aborted) setMissing(true)
@@ -74,6 +88,17 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 
 		return () => controller.abort()
 	}, [engine, flipbook])
+
+	// A flipbook page plays on arrival — and now on partial arrival. It's an
+	// animation; that's the point, and waiting for the last page of a two-hundred
+	// page one before showing any of it never was.
+	useEffect(() => {
+		if (!engine || !state || ready || !replaying.current) return
+		if (state.loading && state.pages.length < PAGES_BEFORE_PLAY) return
+
+		setReady(true)
+		engine.togglePlay()
+	}, [engine, state, ready])
 
 	if (missing) {
 		return (

@@ -70,6 +70,75 @@ export function strokeWidthFor(stroke: Element, groupStrokeWidth: number | null)
 	return readStrokeWidth(stroke) ?? groupStrokeWidth ?? DEFAULT_STROKE_WIDTH
 }
 
+/**
+ * The shape of one stroke, in whichever of the two ways it was written down.
+ *
+ * There are two, and both are live in the same way the two file formats are:
+ * paper 0.8 exported `<polyline points>` and `<line>`, which is all 585 archive
+ * flipbooks; paper 0.12 exports `<path d>`, which is everything saved since the
+ * rewrite. A loader that knows only the archive renders nothing at all for a
+ * flipbook made this year, and only finds out when someone plays one back.
+ *
+ * Null for anything else — there has never been anything else, but a stroke that
+ * loads slowly is a bug where a stroke that silently vanishes is a lost drawing,
+ * so the caller falls back to `importSVG` rather than dropping it.
+ */
+export type StrokeGeometry =
+	| { readonly kind: 'points'; readonly points: Vec2[] }
+	| { readonly kind: 'data'; readonly data: string }
+
+/**
+ * The same numbers paper's own SVG importer would read.
+ *
+ * Deliberately its regular expression, from `importPoly` — the point of going round
+ * `importSVG` is to skip the style, attribute and matrix resolution it does for
+ * every element, not to parse the geometry differently. Anything that changed how
+ * these coordinates are read would change the artwork.
+ */
+const SVG_NUMBER = /[+-]?(?:\d*\.\d+|\d+\.?)(?:[eE][+-]?\d+)?/g
+
+export function strokeGeometry(stroke: Element): StrokeGeometry | null {
+	switch (stroke.tagName.toLowerCase()) {
+		case 'path': {
+			const data = stroke.getAttribute('d')
+			return data ? { kind: 'data', data } : null
+		}
+		case 'polyline':
+			return { kind: 'points', points: parsePoints(stroke.getAttribute('points')) }
+		case 'line':
+			return {
+				kind: 'points',
+				points: [
+					{ x: readNumber(stroke, 'x1'), y: readNumber(stroke, 'y1') },
+					{ x: readNumber(stroke, 'x2'), y: readNumber(stroke, 'y2') },
+				],
+			}
+		default:
+			return null
+	}
+}
+
+/** Trailing odd number dropped: a coordinate needs both halves to mean anything. */
+function parsePoints(raw: string | null): Vec2[] {
+	const coordinates = raw?.match(SVG_NUMBER)
+	if (!coordinates) return []
+
+	const points: Vec2[] = []
+	for (let i = 0; i + 1 < coordinates.length; i += 2) {
+		points.push({
+			x: Number.parseFloat(coordinates[i] as string),
+			y: Number.parseFloat(coordinates[i + 1] as string),
+		})
+	}
+	return points
+}
+
+/** Zero when absent or unreadable, which is what SVG says an omitted x1 means. */
+function readNumber(element: Element, name: string): number {
+	const value = Number.parseFloat(element.getAttribute(name) ?? '')
+	return Number.isFinite(value) ? value : 0
+}
+
 function readStrokeWidth(element: Element): number | null {
 	const raw = element.getAttribute('stroke-width')
 	if (raw === null) return null

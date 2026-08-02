@@ -187,6 +187,27 @@ export class Scene {
 	}
 
 	/**
+	 * Adds an empty page at the end of the book and hands it back, leaving the page
+	 * on screen exactly where it is.
+	 *
+	 * `insertBlankPage` is the drawing tool's version and does the opposite: it hides
+	 * the page you were on and moves you to the new one. A load wants neither. Pages
+	 * arrive behind whatever the canvas is already showing, which is what lets
+	 * playback run over the ones that have landed while the rest are still being
+	 * built — and is also why a flipbook no longer visibly draws itself as it loads.
+	 */
+	appendPage(): paper.Layer {
+		const layer = new this.scope.Layer()
+		layer.visible = false
+
+		// A new layer activates itself, and paper puts new items in whichever layer
+		// is active. The page being shown hasn't changed, so hand activation back.
+		this.activeLayer.activate()
+
+		return layer
+	}
+
+	/**
 	 * Copies page `index` in *before* itself, so the copy takes the current page's
 	 * place in the sequence and the original becomes the page after it. That's what
 	 * makes "duplicate" feel like continuing to draw rather than starting again.

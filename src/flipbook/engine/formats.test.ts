@@ -6,6 +6,7 @@ import {
 	LEADING_SYSTEM_GROUPS,
 	parseLegacyPages,
 	parseSvgPages,
+	strokeGeometry,
 	strokeWidthFor,
 } from './formats'
 
@@ -67,6 +68,90 @@ describe('strokeWidthFor', () => {
 
 	it('falls through a width that is not a number', () => {
 		expect(strokeWidthFor(stroke('none'), 3)).toBe(3)
+	})
+})
+
+describe('strokeGeometry', () => {
+	const element = (tag: string, attributes: Record<string, string> = {}): Element => {
+		const el = document.createElementNS('http://www.w3.org/2000/svg', tag)
+		for (const [name, value] of Object.entries(attributes)) el.setAttribute(name, value)
+		return el
+	}
+
+	it('reads a polyline, which is every flipbook in the archive', () => {
+		const geometry = strokeGeometry(element('polyline', { points: '355,88 350.5,88 345,90.25' }))
+
+		expect(geometry).toEqual({
+			kind: 'points',
+			points: [
+				{ x: 355, y: 88 },
+				{ x: 350.5, y: 88 },
+				{ x: 345, y: 90.25 },
+			],
+		})
+	})
+
+	it('reads path data, which is every flipbook saved since the rewrite', () => {
+		const geometry = strokeGeometry(element('path', { d: 'M203,152l4,2.875l4,2.875' }))
+		expect(geometry).toEqual({ kind: 'data', data: 'M203,152l4,2.875l4,2.875' })
+	})
+
+	it('reads a line as the two-point path it is', () => {
+		const geometry = strokeGeometry(element('line', { x1: '1', y1: '2', x2: '3', y2: '4' }))
+
+		expect(geometry).toEqual({
+			kind: 'points',
+			points: [
+				{ x: 1, y: 2 },
+				{ x: 3, y: 4 },
+			],
+		})
+	})
+
+	it('takes a missing line coordinate as zero, as SVG does', () => {
+		expect(strokeGeometry(element('line', { x2: '3', y2: '4' }))).toEqual({
+			kind: 'points',
+			points: [
+				{ x: 0, y: 0 },
+				{ x: 3, y: 4 },
+			],
+		})
+	})
+
+	it('separates coordinates on whitespace as readily as on commas', () => {
+		expect(strokeGeometry(element('polyline', { points: '1 2 3 4' }))).toEqual({
+			kind: 'points',
+			points: [
+				{ x: 1, y: 2 },
+				{ x: 3, y: 4 },
+			],
+		})
+	})
+
+	it('drops a trailing coordinate with no partner', () => {
+		expect(strokeGeometry(element('polyline', { points: '1,2 3' }))).toEqual({
+			kind: 'points',
+			points: [{ x: 1, y: 2 }],
+		})
+	})
+
+	it('has nothing to say about an empty or absent points list', () => {
+		expect(strokeGeometry(element('polyline', { points: '' }))).toEqual({
+			kind: 'points',
+			points: [],
+		})
+		expect(strokeGeometry(element('polyline'))).toEqual({ kind: 'points', points: [] })
+	})
+
+	/**
+	 * The loader falls back to `importSVG` on a null, so an element neither format
+	 * has ever contained still renders — slowly, rather than not at all.
+	 */
+	it('declines anything that is not one of the three, rather than guessing', () => {
+		expect(strokeGeometry(element('rect', { width: '10', height: '10' }))).toBeNull()
+		expect(strokeGeometry(element('circle'))).toBeNull()
+		expect(strokeGeometry(element('g'))).toBeNull()
+		expect(strokeGeometry(element('path'))).toBeNull()
 	})
 })
 

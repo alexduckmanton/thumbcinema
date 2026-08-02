@@ -215,6 +215,38 @@ that shape. The view size is stated instead of measured, and three things follow
   scale *and* wrap it in an extra `<g>`, which is the `LEADING_SYSTEM_GROUPS` invariant
   below.
 
+### Loading a saved flipbook
+
+`FlipbookEngine.replay()`, and the two loaders that feed it. Four things about it are
+load-bearing:
+
+- **There are two stroke vocabularies and both are live.** paper 0.8 exported
+  `<polyline points>` and `<line>`, which is all 585 archive flipbooks; paper 0.12
+  exports `<path d>`, which is everything saved since the rewrite. A loader written
+  against the archive alone renders *nothing at all* for a flipbook made this year,
+  and nothing says so — the archive goes on working. `strokeGeometry()` handles all
+  three elements, and returns null for anything else so the caller can fall back to
+  `importSVG`: a stroke that loads slowly is a bug, a stroke that silently vanishes
+  is a lost drawing.
+- **`importSVG` is not used per stroke, and the reason isn't speed alone.** It
+  resolves styles, attributes, transforms and a matrix for every element — all of
+  which the loader then overrides, because the ink colour and cap are restated per
+  page. Going straight to the constructors paper's own importer ends up calling is
+  4–8× faster on the whole corpus. The geometry is *not* parsed differently, only
+  reached differently: `SVG_NUMBER` is `importPoly`'s own regex, and `PathItem.create`
+  is what `importPath` calls. Verified rather than assumed — 310 pages of both
+  formats, 6.8M ink pixels, zero differing pixels against the old loader.
+- **Pages arrive behind whatever is on screen.** Page one is the layer the scene was
+  built with; the rest are `Scene.appendPage()`, hidden. The loader used to insert
+  each page *and show it*, which is why a loading flipbook visibly drew itself — and
+  why it couldn't play until the last page landed. That effect is gone deliberately;
+  it is what paid for the load starting to play at once.
+- **Playback starts at two pages and won't lap while `loading` is set.** `scheduleFrame`
+  holds the last page it has rather than looping three pages while the other forty
+  arrive. So `loading` has to be cleared even when a load is abandoned — a flag left
+  set behind an early return is a flipbook that plays once and stops dead. That is
+  what the `finally` in `replay()` is for.
+
 ### Invariants
 
 - **`SYSTEM_LAYERS === 3`, and `LEADING_SYSTEM_GROUPS === 3` with it.** paper exports
@@ -520,7 +552,9 @@ There are **two artwork formats** and both are still live:
 - `svg` — paper.js `exportSVG()` output. Everything from 2013 onward.
 - `legacy-json` — paper.js layer/segment JSON, the 2012 format; 147 of the archive
   pieces. There are no paths in it, only point lists, so it's replayed stroke by
-  stroke through the pencil — a 2012 flipbook genuinely redraws itself as you watch.
+  stroke through the pencil — a 2012 flipbook is genuinely redrawn rather than
+  imported. It used to be redrawn *in front of you*, and isn't any more: see
+  **Loading a saved flipbook** below.
 
 `/api/flipbooks/:id/data` **must serve `legacy-json` as `text/plain`**, and the client
 must not parse it by content type — which format it is comes from the flipbook's
