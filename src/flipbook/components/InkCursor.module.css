@@ -47,57 +47,28 @@
  * rather than from a fingertip.
  *
  * Not a ring: a ring is a picture of a nib and says how wide the mark will be, and
- * this tool makes no mark. A crosshair is a picture of a point, which is what
- * selecting a stroke, grabbing a handle and starting a marquee all need — and the
- * gap in the middle is the whole reason to draw one, because the thing being aimed
- * at must not be underneath the aim.
+ * this tool makes no mark. What it draws instead is one of four shapes saying what a
+ * drag from here would do — a crosshair for nothing, and a move, scale or rotate
+ * arrow for the handle under the cursor. See `TransformCursor`.
  *
- * The arms are gradients with hard stops rather than four boxes or a mask: one
- * element, two pseudo-elements, and nothing to go wrong in a browser that treats
- * masks differently.
+ * The crosshair's gap in the middle is the reason to draw one at all: the thing being
+ * aimed at must not be underneath the aim. The others are drawn with the same hairline
+ * so the set reads as one cursor changing rather than four cursors swapping.
  */
-.crosshair {
+.grip {
 	position: absolute;
 	z-index: 17;
-	width: 22px;
-	height: 22px;
+	width: 24px;
+	height: 24px;
+	/* Overridden inline on the shapes that also rotate — see `TransformCursor`. */
 	transform: translate(-50%, -50%);
 	color: rgba(34, 34, 34, 0.55);
+	fill: none;
+	stroke: currentcolor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 1.5;
 	pointer-events: none;
-}
-
-.crosshair::before,
-.crosshair::after {
-	position: absolute;
-	content: '';
-}
-
-.crosshair::before {
-	top: 50%;
-	left: 0;
-	width: 100%;
-	height: 1px;
-	margin-top: -0.5px;
-	background: linear-gradient(
-		to right,
-		currentcolor 0 7px,
-		transparent 7px 15px,
-		currentcolor 15px 22px
-	);
-}
-
-.crosshair::after {
-	top: 0;
-	left: 50%;
-	width: 1px;
-	height: 100%;
-	margin-left: -0.5px;
-	background: linear-gradient(
-		to bottom,
-		currentcolor 0 7px,
-		transparent 7px 15px,
-		currentcolor 15px 22px
-	);
 }
 
 /*

@@ -415,6 +415,26 @@ it's one of these. Each is deliberate:
 - **The saved thumbnail is the busiest page**, which is what 2013 meant to do. It
   counted segments by reading `.length` off a paper `Layer`, which is undefined, so
   every page scored zero and the cover was always page one.
+- **A tap on the canvas puts the selection down.** `updateTransformType` claims
+  everything inside the box for translate and everything within 100px of it for
+  rotate, so a tap almost anywhere near your work used to grab a handle, rotate by
+  zero degrees and change nothing — and the only way to deselect was to find a patch
+  of canvas more than 100px clear of the selection. A press that grabbed a handle and
+  moved is a transform; one that grabbed a handle and didn't is a tap, told apart by
+  `TAP_SLOP` rather than by whether drag events arrived, because a finger resting on
+  glass sends a few of those without going anywhere.
+- **Push is a tool, not a mode of one.** It used to refuse to switch on unless
+  something was already selected — `init()` returned false and the transform button
+  cycled straight back — so reaching it meant selecting with the other tool first, and
+  a click on empty space dropped you out of it again. It selects for itself now, the
+  same way transform does: tap a stroke, tap nothing to let go, drag a marquee. What
+  decides between bending and selecting is whether there are points within reach of
+  the cursor, which is the same question the dots on screen are already answering.
+  `onExit` is gone with the old behaviour.
+- **The push dots are drawn at every width.** They were desktop-only, on the reasoning
+  that a finger sits where the cursor would be and would cover them — true while the
+  cursor *was* the fingertip, and the whole thing `holdTool` changed. They are the only
+  statement the tool makes about what a drag would bend.
 - **Horizontal flips work.** 2013's `scale.js` reaches for `selection.layer` in a file
   where the variable is `selection_layer`, so dragging a handle past its pivot throws
   instead of mirroring.
@@ -770,9 +790,16 @@ Three things about them are worth knowing before touching anything nearby:
   the mechanism rather than being a decision: a held button *is* a mouse button, and a
   mouse button is what selecting, marqueeing, moving, scaling and rotating are made
   of, where the other modes gate ink and there is no way to half-press a rotation. Two
-  consequences. The transform tool gets a cursor of its own up there — a crosshair
-  rather than a ring, because it makes no mark and what it needs to show is a point —
-  and **one tray button has to do two jobs**, which is settled on the way back *up*:
+  consequences. The transform tool gets **four cursors** of its own up there — a
+  crosshair over nothing, and a move, scale or rotate arrow over whatever the press
+  would grab, the scale one turned to the axis the handle actually moves along. Those
+  are what `Selection.updateTransformType` has always written onto `canvas.style.cursor`
+  for a mouse; they are drawn rather than named here because a phone has no cursor to
+  name one on, and because the cursor is no longer the fingertip so the native ones
+  would be describing the wrong point. They are fed by `engine.toolHover`, which is
+  also **the only reason hovering exists on a phone at all** — the same dispatch is
+  what puts push's dots under the cursor before you commit to bending anything.
+  And **one tray button has to do two jobs**, which is settled on the way back *up*:
   a press that did some work was the tool being used, and a press that did none was an
   ordinary tap and selects (or, for transform, cycles into push). It cannot be decided
   on the press, because at that moment there is no way to know whether a finger is

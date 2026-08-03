@@ -19,9 +19,9 @@ export interface CreateTrayProps {
  * The create page's tray: three modal tools on the left, three page actions on the
  * right.
  *
- * The transform button is one button with two modes: pressing it again cycles into
- * push, and push refuses to switch on when nothing is selected, so it cycles straight
- * back.
+ * The transform button is one button with two tools: pressing it again cycles into
+ * push and back. Push used to refuse to switch on unless something was selected — it
+ * selects for itself now, so the cycle always goes round.
  *
  * One layout at every width, and shorter than it was. 2013 ended this row with play and
  * circleplay; the page bar under the drawing is both of those now — a tap on its handle

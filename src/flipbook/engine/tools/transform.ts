@@ -18,6 +18,9 @@ interface DragHandler {
 	end(): void
 }
 
+/** How far a press has to travel before it stops being a tap. See `handleUp`. */
+const TAP_SLOP = 3
+
 export interface TransformCallbacks {
 	/** True while alt is held — a drag would leave a copy behind. */
 	isDuplicating(): boolean
@@ -34,6 +37,9 @@ export class TransformTool implements ModalTool {
 	private readonly callbacks: TransformCallbacks
 
 	private drag: DragHandler | null = null
+
+	/** Whether the press in flight has travelled far enough to be a drag. */
+	private moved = false
 
 	constructor(scene: Scene, selection: Selection, callbacks: TransformCallbacks) {
 		this.selection = selection
@@ -69,6 +75,8 @@ export class TransformTool implements ModalTool {
 			this.selection.duplicate()
 		}
 
+		this.moved = false
+
 		const type = this.selection.updateTransformType(event.point, this.callbacks.isExtending())
 
 		if (type !== 'none') {
@@ -87,6 +95,8 @@ export class TransformTool implements ModalTool {
 	}
 
 	private handleDrag(event: paper.ToolEvent): void {
+		if (event.point.getDistance(event.downPoint) > TAP_SLOP) this.moved = true
+
 		if (this.drag) {
 			this.drag.drag(event)
 			return
@@ -100,11 +110,29 @@ export class TransformTool implements ModalTool {
 		this.selection.selectWithin(rectangle)
 	}
 
+	/**
+	 * A tap on the canvas puts the selection down.
+	 *
+	 * "On the canvas" includes the selection itself and the ring around it, which is
+	 * the whole point: `updateTransformType` claims everything within 100px of the box
+	 * for rotate and everything inside it for translate, so before this a tap almost
+	 * anywhere near your work grabbed a handle, rotated by zero degrees and left the
+	 * selection exactly where it was. There was no way to let go of something except
+	 * by finding a patch of canvas more than 100px clear of it.
+	 *
+	 * A drag that grabbed a handle and moved is a transform and keeps the selection; a
+	 * press that grabbed one and didn't is a tap. The two are told apart by `TAP_SLOP`
+	 * rather than by whether any drag events arrived at all, because a finger resting
+	 * on glass sends a few of them without going anywhere.
+	 */
 	private handleUp(): void {
+		const grabbed = this.drag !== null
+
 		this.drag?.end()
 		this.drag = null
 
-		this.selection.reset()
+		if (grabbed && !this.moved) this.selection.clear()
+		else this.selection.reset()
 	}
 
 	private createHandler(

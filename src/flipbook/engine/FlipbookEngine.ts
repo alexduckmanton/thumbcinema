@@ -146,9 +146,7 @@ export class FlipbookEngine {
 				respace: (path) => this.pencil.finish(path),
 			})
 			this.push = new PushTool(this.scene, this.selection, {
-				showDots: !options.isTouch,
 				respace: (path) => this.pencil.finish(path),
-				onExit: () => this.setTransformIndex(0),
 			})
 
 			this.pencil.init()
@@ -308,7 +306,14 @@ export class FlipbookEngine {
 		this.scene.redraw()
 	}
 
-	/** Transform ⇄ push. Push refuses when there's no selection, so it flips back. */
+	/**
+	 * Transform ⇄ push.
+	 *
+	 * Neither refuses any more — push selects for itself, so it no longer needs a
+	 * selection to exist before it can switch on — but the refusal path stays, because
+	 * `init()` returning false is part of the `ModalTool` contract and a tool that
+	 * cannot start must not leave the button pointing at it.
+	 */
 	private setTransformIndex(index: 0 | 1): void {
 		const previous = this.activeTool
 		this.store.set({ transformIndex: index })
@@ -1109,6 +1114,52 @@ export class FlipbookEngine {
 		else this.dispatch('onMouseDrag', point)
 	}
 
+	/**
+	 * The cursor moving with nothing pressed — a hover, which on a phone otherwise
+	 * doesn't exist.
+	 *
+	 * The transform tool works out what a drag from here would do; push recomputes
+	 * which points are in range and redraws its dots over them. Both of those are
+	 * feedback you get for free with a mouse and could not get at all with a finger
+	 * until the cursor stopped being the fingertip. The marking tools have no
+	 * `onMouseMove` and quietly ignore it.
+	 */
+	toolHover(point: paper.Point): void {
+		this.dispatch('onMouseMove', point)
+	}
+
+	/**
+	 * What a drag from the cursor would do to the selection, and along which axis.
+	 *
+	 * Read straight off the selection, which `toolHover` has just updated. `angle` is
+	 * degrees clockwise from horizontal and is only meaningful for `scale`: the arrows
+	 * have to point along the axis the handle actually moves, or a cursor that says
+	 * "you can resize this" is still not saying which way.
+	 */
+	transformAffordance(): { kind: 'none' | 'move' | 'scale' | 'rotate'; angle: number } {
+		// `selection.type` outlives the tool that set it, so ask whose it is first.
+		if (this.store.snapshot.tool !== 'transform') return NOTHING_TO_GRAB
+
+		switch (this.selection.type) {
+			case 'translate':
+				return { kind: 'move', angle: 0 }
+			case 'rotate':
+				return { kind: 'rotate', angle: 0 }
+			case 'scale': {
+				// Corners: top-left and bottom-right are the ↖↘ diagonal, the other two ↗↙.
+				const corner = this.selection.draggedCorner()
+				return { kind: 'scale', angle: corner !== null && corner % 2 === 1 ? 45 : -45 }
+			}
+			case 'stretch': {
+				// Edges: left and right are even, and stretch horizontally.
+				const edge = this.selection.draggedEdge()
+				return { kind: 'scale', angle: edge !== null && edge % 2 === 1 ? 90 : 0 }
+			}
+			default:
+				return NOTHING_TO_GRAB
+		}
+	}
+
 	toolUp(): void {
 		const tool = this.store.snapshot.tool
 
@@ -1133,7 +1184,10 @@ export class FlipbookEngine {
 	 * gesture was a click — and a synthetic mouse-up that answered "no" every time
 	 * would drop you out of push mode at the end of every push.
 	 */
-	private dispatch(kind: 'onMouseDown' | 'onMouseDrag' | 'onMouseUp', point: paper.Point): void {
+	private dispatch(
+		kind: 'onMouseDown' | 'onMouseDrag' | 'onMouseUp' | 'onMouseMove',
+		point: paper.Point,
+	): void {
 		const tool = this.activeTool?.tool
 		if (!tool) return
 
@@ -1304,3 +1358,6 @@ function nextFrame(): Promise<void> {
 		requestAnimationFrame(() => resolve())
 	})
 }
+
+/** The common answer, shared rather than rebuilt on every pointer move. */
+const NOTHING_TO_GRAB = { kind: 'none', angle: 0 } as const

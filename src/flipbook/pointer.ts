@@ -41,6 +41,16 @@ export interface Cursor {
 	touching: boolean
 	/** True while ink is being laid down. In the hold modes this is what colours the ring. */
 	marking: boolean
+	/**
+	 * What a drag from here would do to a selection, and along which axis.
+	 *
+	 * Only ever anything but `none` for the transform tool in `holdTool`, which is the
+	 * one place the cursor is doing the pointing rather than a fingertip — so it is
+	 * also the one place the tool's own hover cursors describe the wrong thing and
+	 * something has to be drawn here instead. `angle` is degrees clockwise from
+	 * horizontal, and matters for `scale`.
+	 */
+	affordance: { kind: 'none' | 'move' | 'scale' | 'rotate'; angle: number }
 }
 
 /**
@@ -360,9 +370,14 @@ export class PointerLayer {
 				gesture.inkY = gesture.y
 			}
 
-			if (gesture.engaged) {
-				this.engine.toolDrag(this.engine.toProject(gesture.inkX, gesture.inkY))
-			}
+			const point = this.engine.toProject(gesture.inkX, gesture.inkY)
+
+			if (gesture.engaged) this.engine.toolDrag(point)
+			// A cursor moving with nothing held down is a *hover*, and on a phone there
+			// has never been such a thing. It is what shows the transform tool's handles
+			// before you commit to one and what puts push's dots under the cursor, both
+			// of which a mouse has always got for free.
+			else if (this.relative) this.engine.toolHover(point)
 		} else if (this.relative) {
 			// A relative mode with a tool this layer doesn't intercept — the transform
 			// tool, or a page animation holding everything. paper is driving, but the
@@ -634,6 +649,7 @@ export class PointerLayer {
 				top: box.top,
 				touching: false,
 				marking: this.held,
+				affordance: this.engine.transformAffordance(),
 			},
 		})
 	}
@@ -657,6 +673,7 @@ export class PointerLayer {
 							top: rect.top,
 							touching: false,
 							marking: false,
+							affordance: this.engine.transformAffordance(),
 						}
 					: null,
 			})
@@ -676,6 +693,7 @@ export class PointerLayer {
 				top: rect.top,
 				touching: true,
 				marking: gesture.engaged,
+				affordance: this.engine.transformAffordance(),
 			},
 		})
 	}

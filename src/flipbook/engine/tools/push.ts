@@ -11,9 +11,14 @@ import type { ModalTool } from './types'
  * travels. The blue dots are the weighting made visible: dot size *is* the
  * influence each point will feel.
  *
- * It only exists while something is selected, which is what `init()` returning
- * false is for — the transform button then cycles back to plain transform rather
- * than switching to a mode with nothing to act on.
+ * **It is a tool in its own right, and used to be a mode of one.** It refused to
+ * switch on unless something was already selected — `init()` returned false and the
+ * transform button cycled straight back — so reaching it meant selecting with the
+ * other tool first, and a click on empty space dropped you back out of it again.
+ * Neither is true now: it selects the same way transform does (tap a stroke, or drag
+ * a marquee) and stays switched on until you switch away. What decides between
+ * pushing and selecting is simply whether there are points within reach of the
+ * cursor, which is the same question the dots are already answering on screen.
  */
 
 /** The square of influence around the cursor, in canvas pixels. */
@@ -30,9 +35,7 @@ export class PushTool implements ModalTool {
 
 	private readonly scene: Scene
 	private readonly selection: Selection
-	private readonly showDots: boolean
 	private readonly respace: (path: paper.Path) => void
-	private readonly onExit: () => void
 
 	private radius: paper.Path | null = null
 	private dots: paper.Group | null = null
@@ -42,32 +45,43 @@ export class PushTool implements ModalTool {
 
 	private pointer: paper.Point | null = null
 
+	/** Whether the press in flight is bending points or drawing a marquee. */
+	private pushing = false
+
 	constructor(
 		scene: Scene,
 		selection: Selection,
 		options: {
-			/** Dots are pointless on touch — there's a finger where the cursor would be. */
-			showDots: boolean
 			respace: (path: paper.Path) => void
-			/** Called when a click on empty space should drop out of push mode. */
-			onExit: () => void
 		},
 	) {
 		this.scene = scene
 		this.selection = selection
-		this.showDots = options.showDots
 		this.respace = options.respace
-		this.onExit = options.onExit
 
 		this.tool = new scene.scope.Tool()
 		this.tool.onMouseDown = (event: paper.ToolEvent) => this.handleDown(event)
 		this.tool.onMouseMove = (event: paper.ToolEvent) => this.handleMove(event)
 		this.tool.onMouseDrag = (event: paper.ToolEvent) => this.handleDrag(event)
-		this.tool.onMouseUp = (event: paper.ToolEvent) => this.handleUp(event)
+		this.tool.onMouseUp = () => this.handleUp()
 	}
 
+	/** Always. There is nothing left for this tool to need before it can switch on. */
 	init(): boolean {
-		if (this.selection.isEmpty) return false
+		this.refresh()
+		return true
+	}
+
+	/**
+	 * The selection as this tool dresses it, and the two guides it works through.
+	 *
+	 * Called on the way in and after every change to what is selected. The rebuild is
+	 * not optional: `Selection.reset` empties the guide layer, and the radius and the
+	 * dot group live in it — so a marquee that went through `reset` would leave this
+	 * tool holding two detached objects and drawing its dots into nothing.
+	 */
+	private refresh(): void {
+		this.selection.reset()
 
 		this.selection.type = 'push'
 		if (this.selection.bounds) this.selection.bounds.visible = false
@@ -84,8 +98,8 @@ export class PushTool implements ModalTool {
 
 		this.dots = new this.scene.scope.Group()
 
+		this.selection.layer.activate()
 		this.scene.redraw()
-		return true
 	}
 
 	activate(): void {
@@ -93,6 +107,7 @@ export class PushTool implements ModalTool {
 	}
 
 	deactivate(): void {
+		this.pushing = false
 		this.selection.type = 'none'
 		this.selection.layer.strokeColor = new this.scene.scope.Color(PENCIL_COLOR)
 
@@ -108,9 +123,25 @@ export class PushTool implements ModalTool {
 
 	// --- pointer -------------------------------------------------------------
 
+	/**
+	 * Bend what is under the cursor, or — when nothing is — select.
+	 *
+	 * The test is the one already on screen: `update` has just worked out which points
+	 * are in reach and drawn a dot over each, so "are there any dots" and "would a
+	 * drag bend anything" are the same question, and the answer is visible before you
+	 * press. Out of reach, this behaves exactly as the transform tool does — tap a
+	 * stroke to take it, tap nothing to let go, drag to marquee.
+	 */
 	private handleDown(event: paper.ToolEvent): void {
 		this.pointer = event.point
 		this.update()
+
+		this.pushing = this.segments.length > 0
+		if (this.pushing) return
+
+		this.selection.clear()
+		this.selection.addAt(event.point)
+		this.selection.startMarquee(event.point)
 	}
 
 	private handleMove(event: paper.ToolEvent): void {
@@ -120,6 +151,13 @@ export class PushTool implements ModalTool {
 	}
 
 	private handleDrag(event: paper.ToolEvent): void {
+		if (!this.pushing) {
+			this.selection.clear()
+			const rectangle = this.selection.dragMarquee(event.downPoint, event.point)
+			this.selection.selectWithin(rectangle)
+			return
+		}
+
 		if (!this.dots) return
 
 		// The dots are the *before* picture; hide them while the points are moving.
@@ -137,19 +175,27 @@ export class PushTool implements ModalTool {
 		}
 	}
 
-	private handleUp(event: paper.ToolEvent): void {
+	/**
+	 * Respace what was bent, or settle what was selected.
+	 *
+	 * A press that never pushed has changed what is selected, and everything this tool
+	 * draws is derived from that — so it goes back through `refresh` rather than
+	 * `update`, which would recompute the dots against a guide layer the marquee has
+	 * left behind.
+	 */
+	private handleUp(): void {
+		if (!this.pushing) {
+			this.refresh()
+			// The dots belong under the cursor, and the cursor hasn't moved since.
+			this.update()
+			return
+		}
+
 		for (const child of this.selection.layer.children) {
 			if ('segments' in child) this.respace(child as paper.Path)
 		}
 
 		this.update()
-
-		// A click that didn't move, with nothing under the cursor, means "done".
-		const moved = !event.lastPoint.equals(event.point)
-		if (!moved && this.dots?.children.length === 0) {
-			this.selection.clear()
-			this.onExit()
-		}
 	}
 
 	/**
@@ -183,7 +229,12 @@ export class PushTool implements ModalTool {
 	private update(): void {
 		if (!this.radius || !this.dots || !this.pointer) return
 
-		this.dots.opacity = this.showDots ? 1 : 0
+		// Shown at every width now. They used to be desktop-only, on the reasoning that
+		// a finger is sitting where the cursor would be and would cover them — which was
+		// true while the cursor *was* the fingertip, and is the whole thing `holdTool`
+		// changed. The dots are the only statement this tool makes about what a drag
+		// would bend, and on a phone they were the statement being withheld.
+		this.dots.opacity = 1
 		this.radius.visible = false
 		this.radius.position = this.pointer
 

@@ -53,8 +53,8 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	 * Up there the gesture is driven from the cursor rather than from the fingertip,
 	 * so the tool's own cursors are describing a pointer that isn't the one doing the
 	 * work — and on a phone there is no pointer to put a cursor on in the first place.
-	 * Something has to stand where the click is going to land. It is a crosshair
-	 * rather than a ring because this tool makes no mark: see the stylesheet.
+	 * Something has to stand where the press would land, and say what it would grab
+	 * when it got there. See `TransformCursor`, which is four shapes rather than one.
 	 */
 	const aiming = tool === 'transform' && mode === 'holdTool'
 	const shown = marking || aiming
@@ -166,12 +166,21 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	 * something it doesn't mean.
 	 */
 	const state = isRelativeMode(mode) ? (cursor.marking ? styles.inking : styles.waiting) : ''
-	const shape = aiming ? styles.crosshair : styles.ring
+
+	if (aiming) {
+		return (
+			<TransformCursor
+				at={cursor}
+				affordance={cursor.affordance}
+				className={state ? `${styles.grip} ${state}` : styles.grip}
+			/>
+		)
+	}
 
 	return (
 		<>
 			<span
-				className={state ? `${shape} ${state}` : shape}
+				className={state ? `${styles.ring} ${state}` : styles.ring}
 				aria-hidden="true"
 				style={{ left: cursor.inkX, top: cursor.inkY, '--ink': ink } as React.CSSProperties}
 			/>
@@ -190,6 +199,78 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 				/>
 			) : null}
 		</>
+	)
+}
+
+/**
+ * The transform tool's cursor: four shapes, one per thing a drag would do.
+ *
+ * A mouse has had this since 2013 — `Selection.updateTransformType` writes `move`,
+ * `alias`, `nwse-resize` and the rest onto the canvas as the pointer crosses the box,
+ * and it is most of how the tool explains itself. On a phone none of it existed, and
+ * once the cursor stopped being the fingertip the native cursors stopped describing
+ * the right point anyway. These are the same four statements, drawn where the cursor
+ * actually is.
+ *
+ * Inline SVG rather than the 2013 sprite, and that is a deliberate exception to
+ * "icons come from the sheet": the sheet is drawings of *things* at fixed sizes, and
+ * these are neither things nor fixed — the scale arrows have to point along whichever
+ * axis the handle moves, which is a rotation applied per frame. Everything is
+ * `currentColor`, so the same two classes that grey and blacken the ring drive these.
+ */
+function TransformCursor({
+	at,
+	affordance,
+	className,
+}: {
+	at: Cursor
+	affordance: Cursor['affordance']
+	className: string | undefined
+}) {
+	// Nothing under the cursor: the crosshair, which says where a press would land
+	// without promising it would grab anything.
+	if (affordance.kind === 'none') {
+		return (
+			<svg
+				className={className}
+				style={{ left: at.inkX, top: at.inkY }}
+				viewBox="0 0 24 24"
+				aria-hidden="true"
+			>
+				<path d="M12 3v6M12 15v6M3 12h6M15 12h6" />
+			</svg>
+		)
+	}
+
+	return (
+		<svg
+			className={className}
+			style={{
+				left: at.inkX,
+				top: at.inkY,
+				// The rotation has to come *after* the centring translate, or the box is
+				// swung about its own top-left corner and the cursor orbits the point it
+				// is meant to be standing on.
+				transform: `translate(-50%, -50%) rotate(${affordance.angle}deg)`,
+			}}
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+		>
+			{affordance.kind === 'move' ? (
+				<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3" />
+			) : null}
+
+			{affordance.kind === 'scale' ? (
+				<path d="M3 12h18M3 12l4-3.5M3 12l4 3.5M21 12l-4-3.5M21 12l-4 3.5" />
+			) : null}
+
+			{/* Not rotated with anything: a ring reads the same at every angle, and the
+			    only honest thing to point it at would be the selection's centre — which
+			    is where it already is. */}
+			{affordance.kind === 'rotate' ? (
+				<path d="M12 4.5A7.5 7.5 0 1 0 19.5 12M19.5 12l-3-2.5M19.5 12l3-2.5" />
+			) : null}
+		</svg>
 	)
 }
 
