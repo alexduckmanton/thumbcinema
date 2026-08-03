@@ -2,30 +2,54 @@
  * The touch readout: a debugging instrument, dressed as one.
  *
  * Top left, under the header, over the page strip — the one part of the create page
- * you are not looking at while you test a drag. Never a target: it is pinned over the
- * canvas's neighbourhood and a stray tap on it would be a stroke you didn't make.
+ * you are not looking at while you test a drag.
+ *
+ * It *is* a target, which it deliberately wasn't at first: a tap copies the numbers,
+ * because reading them off a phone and typing them somewhere else is how a measurement
+ * stops being worth taking. The cost is that a tap in this corner is the panel's
+ * rather than the strip's, and that is a fair trade for something that only exists
+ * when it has been asked for by name.
  */
 .log {
 	position: fixed;
 	top: calc(56px + env(safe-area-inset-top));
 	left: calc(8px + env(safe-area-inset-left));
 	z-index: 120;
+	display: flex;
 	max-width: min(260px, 70vw);
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 1px;
 	padding: 6px 8px;
+	border: none;
 	border-radius: 6px;
 	background: rgba(34, 34, 34, 0.88);
 	color: var(--white);
+	cursor: pointer;
+	font-family: inherit;
 	font-size: 10px;
 	line-height: 1.45;
-	pointer-events: none;
+	text-align: left;
+}
+
+.log:active {
+	background: rgba(34, 34, 34, 0.96);
+}
+
+.log:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 2px;
 }
 
 .verdict {
-	margin-bottom: 2px;
 	font-weight: 600;
 }
 
-/* Tabular figures, so a column of numbers doesn't shuffle sideways between gestures. */
+.line {
+	opacity: 0.85;
+}
+
+/* Monospaced, so a column of numbers doesn't shuffle sideways between gestures. */
 .numbers {
 	font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 	font-size: 9px;
