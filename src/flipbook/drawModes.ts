@@ -50,9 +50,10 @@ import type { ModalToolId } from './engine/tools/types'
  *    Two fingers down means the tool is working; one means you are only aiming. They
  *    differ in who steers: `secondFinger` keeps the cursor on the first finger and
  *    treats every other one as a button, `twoFinger` lets either finger steer and
- *    follows whichever is actually moving. Both are only possible because this layer
- *    takes the touch stream away from paper — paper has one drag in flight and reads
- *    `targetTouches[0]`, so a second finger is invisible to it.
+ *    averages whichever ones the browser reports as having moved. Both are only
+ *    possible because this layer takes the touch stream away from paper — paper has
+ *    one drag in flight and reads `targetTouches[0]`, so a second finger is invisible
+ *    to it.
  *  - `steady` is Autodesk Sketchbook's Steady Stroke, whose documentation names
  *    finger drawing as the case it was built for: the ink is dragged along behind
  *    the finger like a brush with long bristles, which both smooths the line and
@@ -177,16 +178,6 @@ export const HOLD_SLOP = 8
  * makes the trailing distance constant rather than a function of how fast you moved.
  */
 export const TRAIL_DISTANCE = 32
-
-/**
- * How far a finger has to travel in one event to count as steering, in CSS pixels.
- *
- * `twoFinger` follows whichever finger is moving and averages them when both are, so
- * it has to be able to tell "resting" from "moving" — and a finger resting on glass
- * is never quite still. Without a floor, a stationary thumb contributing a jittery
- * zero to the average would halve every deliberate movement of the other hand.
- */
-export const MOVE_FLOOR = 0.5
 
 /**
  * Whether every tool is driven from the cursor, rather than just the two that mark.

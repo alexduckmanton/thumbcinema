@@ -776,8 +776,8 @@ Three things about them are worth knowing before touching anything nearby:
   plainest case: paper cannot see a second contact at all. Inside this layer the whole
   `TouchList` is available, identifiers and all, so per-finger deltas are ordinary
   arithmetic — `secondFinger` treats every finger after the first as a button, and
-  `twoFinger` lets any of them steer and averages whichever are moving, dropping
-  anything under `MOVE_FLOOR` first so a resting thumb can't halve a deliberate move. `PointerLayer` listens on `.book` in the
+  `twoFinger` lets any of them steer and averages whichever ones the browser reports
+  as having moved. `PointerLayer` listens on `.book` in the
   **capture** phase, which runs before the canvas's own listeners and before anything
   can bubble as far as the document, and drives whichever tool is in hand through
   `engine.toolDown`/`toolDrag`/`toolUp`. It is *touch* events that are intercepted and

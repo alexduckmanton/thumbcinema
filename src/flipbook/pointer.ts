@@ -8,7 +8,6 @@ import {
 	isMultiTouchMode,
 	isRelativeMode,
 	isTimedMode,
-	MOVE_FLOOR,
 	pressedTool,
 	subscribeToolPressed,
 	TRAIL_DISTANCE,
@@ -366,10 +365,16 @@ export class PointerLayer {
 		 * How far the cursor should travel, from however many fingers moved.
 		 *
 		 * The steering finger always counts. In `twoFinger` so does every other one,
-		 * and the answer is their *average* — which does the right thing without any
-		 * special cases, because a finger that is only resting contributes nothing:
-		 * anything under `MOVE_FLOOR` is dropped before the division, so one finger
-		 * moving gives its own delta and two moving give the mean of the pair.
+		 * and the answer is their *average*: one finger moving gives its own delta and
+		 * two moving give the mean of the pair.
+		 *
+		 * "Moved" is whatever the browser says moved. `changedTouches` carries only the
+		 * contacts that actually changed in this event, so a resting finger is usually
+		 * absent from it and drops out of the average on its own. There was a floor
+		 * here for the case where it isn't — a contact that jitters a fraction of a
+		 * pixel and halves the mean — and it did more harm than good: a slow, careful
+		 * drag is *made* of sub-pixel deltas, so the floor swallowed exactly the
+		 * movement this mode exists to make possible.
 		 */
 		let sumX = 0
 		let sumY = 0
@@ -386,11 +391,9 @@ export class PointerLayer {
 				gesture.x = x
 				gesture.y = y
 				sawSteering = true
-				if (Math.hypot(dx, dy) > MOVE_FLOOR) {
-					sumX += dx
-					sumY += dy
-					movers++
-				}
+				sumX += dx
+				sumY += dy
+				movers++
 				continue
 			}
 
@@ -403,7 +406,7 @@ export class PointerLayer {
 			other.y = y
 
 			// Only one mode lets a finger that isn't the steering one steer.
-			if (this.mode === 'twoFinger' && Math.hypot(dx, dy) > MOVE_FLOOR) {
+			if (this.mode === 'twoFinger') {
 				sumX += dx
 				sumY += dy
 				movers++
