@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+
+import { type DrawMode, setToolPressed } from '../drawModes'
 import type { FlipbookEngine, FlipbookState } from '../engine/FlipbookEngine'
 import type { ModalToolId } from '../engine/tools/types'
 import icons from '../../styles/icons.module.css'
@@ -8,6 +11,8 @@ export interface CreateTrayProps {
 	state: FlipbookState
 	/** True while the save form is up: the controls fly away and leave it alone. */
 	stowed?: boolean
+	/** Scaffolding: in `holdTool` the two marking tools are held down to draw. */
+	mode: DrawMode
 }
 
 /**
@@ -24,7 +29,7 @@ export interface CreateTrayProps {
  * drawing and nothing else. The pencil's width popover went the same way: see
  * `DEFAULT_PENCIL_WIDTH`.
  */
-export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
+export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayProps) {
 	const { tool, transformIndex } = state
 
 	// Only while a page is actually arriving or leaving. Playing doesn't disable
@@ -33,6 +38,38 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 
 	const toolClass = (id: ModalToolId) =>
 		tool === id ? `${styles.tool} ${styles.toolActive}` : styles.tool
+
+	const holdToMark = mode === 'holdTool'
+
+	// A held button that outlives the mode, the page or the tray would leave the
+	// drawing marking for ever with nothing on screen saying so.
+	useEffect(() => {
+		if (!holdToMark) setToolPressed(false)
+		return () => setToolPressed(false)
+	}, [holdToMark])
+
+	/**
+	 * Press and hold to draw, in `holdTool` and nowhere else.
+	 *
+	 * Two things here are load-bearing. **The tool is selected on the way down**,
+	 * rather than left to `onClick` — which doesn't run until the finger comes up, so
+	 * holding the pencil while the eraser was on would have rubbed out a line instead
+	 * of drawing one. And **the pointer is captured**, so the release is heard even
+	 * if the thumb has slid off the button by then; a missed release is a drawing
+	 * that never stops.
+	 */
+	const holdProps = (id: ModalToolId) =>
+		holdToMark
+			? {
+					onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+						engine.selectTool(id)
+						setToolPressed(true)
+						event.currentTarget.setPointerCapture(event.pointerId)
+					},
+					onPointerUp: () => setToolPressed(false),
+					onPointerCancel: () => setToolPressed(false),
+				}
+			: null
 
 	const trayClass = [styles.tray, stowed ? styles.stowed : ''].filter(Boolean)
 
@@ -43,9 +80,10 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 					<button
 						type="button"
 						className={toolClass('pencil')}
-						title="Draw (b)"
+						title={holdToMark ? 'Draw (b) — hold to mark' : 'Draw (b)'}
 						aria-pressed={tool === 'pencil'}
 						onClick={() => engine.selectTool('pencil')}
+						{...holdProps('pencil')}
 					>
 						<span className={`${styles.blade} ${icons.pencil}`} aria-hidden="true" />
 						<span className="visuallyHidden">Draw</span>
@@ -56,9 +94,10 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 					<button
 						type="button"
 						className={toolClass('eraser')}
-						title="Erase (e)"
+						title={holdToMark ? 'Erase (e) — hold to rub out' : 'Erase (e)'}
 						aria-pressed={tool === 'eraser'}
 						onClick={() => engine.selectTool('eraser')}
+						{...holdProps('eraser')}
 					>
 						<span className={`${styles.blade} ${icons.eraser}`} aria-hidden="true" />
 						<span className="visuallyHidden">Erase</span>

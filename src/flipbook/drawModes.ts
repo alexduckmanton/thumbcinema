@@ -29,10 +29,16 @@ import { Store, useStore } from '../lib/store'
  *    worked around. Half a second of stillness changes the gesture over, as often as
  *    you like, so one finger that never leaves the glass can aim, draw, re-aim and
  *    draw again — and the *only* thing that differs between the two is which of the
- *    two states a gesture opens in. Nothing
- *    shipping does this on a canvas; the nearest relative is a phone keyboard's
- *    trackpad mode, which places a text cursor exactly this way and is the reason
- *    iOS's magnifier was arguably never the better answer.
+ *    two states a gesture opens in. Nothing shipping does this on a canvas; the
+ *    nearest relative is a phone keyboard's trackpad mode, which places a text cursor
+ *    exactly this way and is the reason iOS's magnifier was arguably never the
+ *    better answer.
+ *  - `holdTool` is the same relative cursor with the timer taken out and a second
+ *    hand put in: you press and hold the pencil in the tray, and the ring marks for
+ *    exactly as long as you hold it. Two hands, and nothing to wait for. This is the
+ *    family Adobe Fresco's Touch Shortcut belongs to — a modifier held somewhere
+ *    other than the canvas, by the hand that isn't drawing — and it is the only mode
+ *    here where starting and stopping are a decision rather than an inference.
  *  - `steady` is Autodesk Sketchbook's Steady Stroke, whose documentation names
  *    finger drawing as the case it was built for: the ink is dragged along behind
  *    the finger like a brush with long bristles, which both smooths the line and
@@ -47,6 +53,7 @@ export type DrawMode =
 	| 'offset'
 	| 'holdToDraw'
 	| 'holdToMove'
+	| 'holdTool'
 	| 'steady'
 	| 'zoom'
 
@@ -88,6 +95,11 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 		id: 'holdToMove',
 		label: 'Draw, hold to move',
 		hint: 'Your finger nudges the ring from anywhere on the page, and it draws straight away. Hold still for half a second to stop and reposition, and again to carry on.',
+	},
+	{
+		id: 'holdTool',
+		label: 'Move, hold the tool to draw',
+		hint: 'Your finger nudges the ring from anywhere on the page. Press and hold the pencil in the tray with your other hand, and it draws for as long as you hold it.',
 	},
 	{
 		id: 'steady',
@@ -132,6 +144,48 @@ export const HOLD_SLOP = 8
  * makes the trailing distance constant rather than a function of how fast you moved.
  */
 export const TRAIL_DISTANCE = 32
+
+/**
+ * Whether the cursor moves by the finger's delta rather than standing under it.
+ *
+ * Three of the nine. Named here rather than in `pointer.ts` because the ring is
+ * drawn differently in these — it says which state the gesture is in, and it is on
+ * the page whether anything is touching the glass or not — so `InkCursor` has to ask
+ * the same question, and two lists of mode ids would drift.
+ *
+ * `steady` is not one of them: it puts the ink somewhere other than the fingertip,
+ * but it still takes its lead from where the finger actually is.
+ */
+export function isRelativeMode(mode: DrawMode): boolean {
+	return mode === 'holdToDraw' || mode === 'holdToMove' || mode === 'holdTool'
+}
+
+/** Whether a still finger changes the gesture over. The two with a timer in them. */
+export function isTimedMode(mode: DrawMode): boolean {
+	return mode === 'holdToDraw' || mode === 'holdToMove'
+}
+
+/**
+ * Whether a marking tool's button in the tray is being held down right now.
+ *
+ * `holdTool`'s whole mechanism, and it is a module-level signal rather than a prop
+ * because of where its two ends are: the button is in `CreateTray` and the thing
+ * that acts on it is a `PointerLayer` built inside `InkCursor`, two branches of the
+ * tree apart with the page between them. Threading a callback through both to carry
+ * one boolean, for a mode that is scheduled for deletion, would leave more behind it
+ * than it is worth.
+ */
+const pressed = new Store<{ tool: boolean }>({ tool: false })
+
+export function setToolPressed(held: boolean): void {
+	pressed.set({ tool: held })
+}
+
+export function isToolPressed(): boolean {
+	return pressed.snapshot.tool
+}
+
+export const subscribeToolPressed = pressed.subscribe
 
 const KEY = 'tc:drawMode'
 
@@ -185,7 +239,7 @@ export function zoomAllowed(): boolean {
  * The viewport tag, rewritten to match the mode.
  *
  * `index.html` ships the locked-down version, because that is right for seven modes
- * out of eight and for every other page on the site. Android and desktop honour it;
+ * out of nine and for every other page on the site. Android and desktop honour it;
  * relaxing it is the whole of what `zoom` needs from them.
  *
  * Applied globally rather than per page, and left applied when you leave the create

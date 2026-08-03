@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
-import type { DrawMode } from '../drawModes'
+import { type DrawMode, isRelativeMode } from '../drawModes'
 import { CANVAS_WIDTH, PENCIL_COLOR } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { ERASE_TOLERANCE } from '../engine/tools/eraser'
@@ -14,7 +14,7 @@ export interface InkCursorProps {
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Null on the playback page, and while a page animation holds the tools. */
 	tool: ModalToolId | null
-	/** Which of the eight answers to "a finger is opaque" is being tried. */
+	/** Which of the nine answers to "a finger is opaque" is being tried. */
 	mode: DrawMode
 }
 
@@ -143,17 +143,17 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	if (!marking || !cursor) return null
 
 	/*
-	 * In the two hold modes the ring is also a state: light grey while the gesture is
+	 * In the relative modes the ring is also a state: light grey while the gesture is
 	 * only aiming, black the moment it starts marking. That is the whole feedback for
 	 * a changeover you can't otherwise see — half a second is long enough to wonder
-	 * whether it happened.
+	 * whether it happened, and a tool button held by the other hand is not something
+	 * you are looking at.
 	 *
-	 * Only those two. Everywhere else a ring means the same thing whether the pointer
-	 * is down or not, and one that changed colour under a resting mouse would be
-	 * saying something it doesn't mean.
+	 * Only those. Everywhere else a ring means the same thing whether the pointer is
+	 * down or not, and one that changed colour under a resting mouse would be saying
+	 * something it doesn't mean.
 	 */
-	const holding = mode === 'holdToDraw' || mode === 'holdToMove'
-	const state = holding ? (cursor.marking ? styles.inking : styles.waiting) : ''
+	const state = isRelativeMode(mode) ? (cursor.marking ? styles.inking : styles.waiting) : ''
 
 	return (
 		<>

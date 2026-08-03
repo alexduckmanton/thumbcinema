@@ -739,7 +739,7 @@ is now true at both widths and the differences are called out where they exist.
 ### The drawing modes, which are scaffolding
 
 There is a switch in the top right of the create page — an icon button with a native
-`<select>` over it — offering eight answers to "a finger is opaque, so the thing you
+`<select>` over it — offering nine answers to "a finger is opaque, so the thing you
 are aiming at is under the thing you are aiming with". They exist to be compared, and
 **seven of them will be deleted**: `drawModes.ts` lists what each one is and where it
 came from, and the switch, that file and most of `pointer.ts` go when one wins. The
@@ -757,11 +757,16 @@ Two things about them are worth knowing before touching anything nearby:
   `markEnd`. It is *touch* events that are intercepted and not pointer events: the two
   are separate streams, and stopping a `pointerdown` does nothing at all to the
   `touchstart` paper is listening for.
-- **The two hold modes are relative, not direct.** The ring stands on the page and a
-  finger anywhere on the glass nudges it by however far the finger moved — it never
-  travels to the contact point, which is the whole idea, and it survives the gesture
-  that moved it. So in those two the ring is the pointer as far as anything downstream
-  is concerned, and `Cursor.x` is the ring rather than the fingertip.
+- **Three modes are relative, not direct.** The ring stands on the page and a finger
+  anywhere on the glass nudges it by however far the finger moved — it never travels
+  to the contact point, which is the whole idea, and it survives the gesture that
+  moved it. So in those three the ring is the pointer as far as anything downstream is
+  concerned, and `Cursor.x` is the ring rather than the fingertip. What differs
+  between them is only what starts and stops the marking: half a second of stillness
+  in two of them, and in `holdTool` the pencil in the tray being physically held down
+  by the other hand — which is why `CreateTray` has pointer handlers on the two
+  marking tools, and why the tool is selected on the way *down* rather than by
+  `onClick`, which doesn't run until the finger comes up.
 
 An intercepted stroke goes through the same `handlePointerDown`/`handlePointerUp` as
 an ordinary one, so it is one history step and updates its page and thumbnail the same

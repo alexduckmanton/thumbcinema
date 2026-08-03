@@ -70,6 +70,11 @@
 	border: none;
 	background: none;
 	cursor: pointer;
+	/* One of the drawing modes being tried has you press and hold the pencil with your
+	   other hand while you draw. A long press on an image is a callout and a selection
+	   on a phone otherwise, and either one lands in the middle of a stroke. */
+	user-select: none;
+	-webkit-touch-callout: none;
 	transition: bottom 0.1s ease-in-out, left 0.1s ease-in-out;
 }
 
