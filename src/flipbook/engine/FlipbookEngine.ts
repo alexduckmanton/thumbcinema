@@ -1059,6 +1059,16 @@ export class FlipbookEngine {
 		this.scene.touchOffsetY = pixels
 	}
 
+	/**
+	 * Opens a stroke *at* `point`, which paper's own path does not.
+	 *
+	 * `PencilTool.begin` only makes the path; the first segment arrives on the first
+	 * `onMouseDrag`, so a paper-driven stroke starts a pointer-event's travel after
+	 * the place it was started from. Measured: about 7px on a phone at a normal
+	 * drawing speed. Here the down point is put in explicitly, because in these modes
+	 * it is not "where the finger landed" but "where the cursor was standing when it
+	 * was told to draw", and dropping it would move the start of the line.
+	 */
 	markBegin(point: paper.Point): void {
 		const tool = this.store.snapshot.tool
 		if (tool !== 'pencil' && tool !== 'eraser') return

@@ -734,6 +734,39 @@ is now true at both widths and the differences are called out where they exist.
   which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
   Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
   the body, and the canvas takes `touch-action: none` so a stroke is never a scroll.
+  **Both halves are conditional now**, on the drawing mode below.
+
+### The drawing modes, which are scaffolding
+
+There is a switch in the top right of the create page — an icon button with a native
+`<select>` over it — offering eight answers to "a finger is opaque, so the thing you
+are aiming at is under the thing you are aiming with". They exist to be compared, and
+**seven of them will be deleted**: `drawModes.ts` lists what each one is and where it
+came from, and the switch, that file and most of `pointer.ts` go when one wins. The
+choice lives in `localStorage` under `tc:drawMode`.
+
+Two things about them are worth knowing before touching anything nearby:
+
+- **Three modes take the gesture away from paper entirely.** paper 0.12 is
+  single-pointer by construction — it reads `targetTouches[0]`, has one drag in flight
+  and no notion of a pointer id — so a gesture that starts without drawing, stops
+  halfway through, or puts the ink somewhere other than under the finger has nowhere
+  to say so. `PointerLayer` listens on `.book` in the **capture** phase, which runs
+  before the canvas's own listeners and before anything can bubble as far as the
+  document, and drives the marking tool through `engine.markBegin`/`markExtend`/
+  `markEnd`. It is *touch* events that are intercepted and not pointer events: the two
+  are separate streams, and stopping a `pointerdown` does nothing at all to the
+  `touchstart` paper is listening for.
+- **The two hold modes are relative, not direct.** The ring stands on the page and a
+  finger anywhere on the glass nudges it by however far the finger moved — it never
+  travels to the contact point, which is the whole idea, and it survives the gesture
+  that moved it. So in those two the ring is the pointer as far as anything downstream
+  is concerned, and `Cursor.x` is the ring rather than the fingertip.
+
+An intercepted stroke goes through the same `handlePointerDown`/`handlePointerUp` as
+an ordinary one, so it is one history step and updates its page and thumbnail the same
+way. It differs in one measurable respect: it includes the point the gesture opened at,
+where a paper-driven stroke's first segment is the first `onMouseDrag` — about 7px in.
 
 ## The playback page
 

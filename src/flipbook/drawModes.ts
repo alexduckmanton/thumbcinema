@@ -21,10 +21,16 @@ import { Store, useStore } from '../lib/store'
  *    hand and never jumps, at the cost of having to look away from the mark.
  *  - `offset` is the oldest answer there is (Potter's "take-off", 1988): the mark
  *    lands a fixed distance from the contact point, so the finger is never on it.
- *  - `holdToDraw` and `holdToMove` are the two halves of the same idea — aim first
- *    and commit deliberately, or draw first and detach when you need to be careful.
- *    Nothing shipping does this on a canvas; it is closest to how a phone keyboard's
- *    trackpad mode places a text cursor.
+ *  - `holdToDraw` and `holdToMove` are the two halves of the same idea, and the two
+ *    that give up on direct manipulation altogether. The ring is a thing standing on
+ *    the page; a finger anywhere on the glass *nudges* it by however far the finger
+ *    moved, and never carries it to the contact point. So the hand and the mark are
+ *    never in the same place, which is the occlusion problem answered rather than
+ *    worked around. What differs between them is which state a gesture opens in —
+ *    aim first and commit with a hold, or draw first and hold to detach. Nothing
+ *    shipping does this on a canvas; the nearest relative is a phone keyboard's
+ *    trackpad mode, which places a text cursor exactly this way and is the reason
+ *    iOS's magnifier was arguably never the better answer.
  *  - `steady` is Autodesk Sketchbook's Steady Stroke, whose documentation names
  *    finger drawing as the case it was built for: the ink is dragged along behind
  *    the finger like a brush with long bristles, which both smooths the line and
@@ -74,12 +80,12 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 	{
 		id: 'holdToDraw',
 		label: 'Move, hold to draw',
-		hint: 'Drag to aim. Hold still for half a second and the ring goes black — then you are drawing.',
+		hint: 'The ring stays put and your finger nudges it, from anywhere on the page. Hold still for half a second and it goes black — then you are drawing.',
 	},
 	{
 		id: 'holdToMove',
 		label: 'Draw, hold to move',
-		hint: 'Draws straight away. Hold still for half a second to stop and move; hold again to carry on drawing.',
+		hint: 'Your finger nudges the ring from anywhere on the page, and it draws straight away. Hold still for half a second to stop and reposition; hold again to carry on.',
 	},
 	{
 		id: 'steady',

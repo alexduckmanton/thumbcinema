@@ -76,6 +76,24 @@ export class PointerLayer {
 	private over = false
 	private held = false
 
+	/**
+	 * Where the cursor is standing, in the two modes that have one of its own.
+	 *
+	 * `holdToDraw` and `holdToMove` are **relative**: a drag moves this by however far
+	 * the finger moved, from wherever it already was, and never to where the finger
+	 * is. That is the whole point of them — a cursor that jumped to the contact point
+	 * would put the mark back under the hand on the first touch of every gesture, and
+	 * the modes would be answering nothing. Drag near the left edge and draw in the
+	 * middle; the finger and the ink never have to be in the same place again.
+	 *
+	 * It survives the gesture that moved it, because a cursor you have carefully
+	 * placed and then lost by lifting your finger is worse than no cursor. So this is
+	 * the layer's state rather than the gesture's, and it is what gets published when
+	 * nothing is touching the glass at all.
+	 */
+	private cursorX = 0
+	private cursorY = 0
+
 	constructor(
 		surface: HTMLElement,
 		canvas: HTMLCanvasElement,
@@ -166,6 +184,28 @@ export class PointerLayer {
 		// one-finger ones, which is exactly the trade that mode is testing.
 		if (this.mode === 'zoom') this.canvas.style.touchAction = 'pinch-zoom'
 		else this.canvas.style.removeProperty('touch-action')
+
+		// The middle of the page, every time one of the relative modes is switched on.
+		// Somewhere known beats wherever it happened to be left the last time, and the
+		// middle is the one place on a 16:9 sheet that is a short drag from anywhere.
+		if (this.relative) {
+			const box = this.canvas.getBoundingClientRect()
+			this.cursorX = box.width / 2
+			this.cursorY = box.height / 2
+		}
+
+		this.publish()
+	}
+
+	/**
+	 * Whether the cursor moves by the finger's delta rather than standing under it.
+	 *
+	 * Two of the eight. Everything else — including `steady`, which puts the ink
+	 * somewhere else but still takes its lead from where the finger actually is — is
+	 * direct.
+	 */
+	private get relative(): boolean {
+		return this.mode === 'holdToDraw' || this.mode === 'holdToMove'
 	}
 
 	// --- touch ---------------------------------------------------------------
@@ -233,8 +273,19 @@ export class PointerLayer {
 		}
 
 		const box = this.canvas.getBoundingClientRect()
-		gesture.x = touch.clientX - box.left
-		gesture.y = touch.clientY - box.top
+		const x = touch.clientX - box.left
+		const y = touch.clientY - box.top
+
+		// The relative modes take the *difference* and leave the cursor where it was,
+		// which is what lets the finger work in one corner while the ink lands in
+		// another. Everywhere else the finger is the cursor and this is a no-op.
+		if (this.relative) {
+			this.cursorX = clamp(this.cursorX + (x - gesture.x), 0, box.width)
+			this.cursorY = clamp(this.cursorY + (y - gesture.y), 0, box.height)
+		}
+
+		gesture.x = x
+		gesture.y = y
 
 		if (gesture.intercepted) {
 			/*
@@ -260,7 +311,10 @@ export class PointerLayer {
 			}
 
 			if (gesture.drawing && this.mode === 'steady') this.trail(gesture)
-			else {
+			else if (this.relative) {
+				gesture.inkX = this.cursorX
+				gesture.inkY = this.cursorY
+			} else {
 				gesture.inkX = gesture.x
 				gesture.inkY = gesture.y
 			}
@@ -268,6 +322,12 @@ export class PointerLayer {
 			if (gesture.drawing) {
 				this.engine.markExtend(this.engine.toProject(gesture.inkX, gesture.inkY))
 			}
+		} else if (this.relative) {
+			// A relative mode with a tool this layer doesn't intercept — the transform
+			// tool, or a page animation holding everything. paper is driving, but the
+			// standing cursor still belongs to the finger, so it still moves with it.
+			gesture.inkX = this.cursorX
+			gesture.inkY = this.cursorY
 		} else {
 			gesture.inkX = gesture.x
 			gesture.inkY = this.mode === 'offset' ? gesture.y - CURSOR_OFFSET : gesture.y
@@ -350,8 +410,12 @@ export class PointerLayer {
 		if (!gesture || gesture.drawing) return
 
 		gesture.drawing = true
-		gesture.inkX = gesture.x
-		gesture.inkY = gesture.y
+		// The stroke starts wherever the *cursor* is standing in the relative modes,
+		// which is the one place it must start: the finger's position means nothing
+		// there, and a stroke that opened under the fingertip and then jumped to the
+		// ring would draw a line between the two.
+		gesture.inkX = this.relative ? this.cursorX : gesture.x
+		gesture.inkY = this.relative ? this.cursorY : gesture.y
 		this.engine.markBegin(this.engine.toProject(gesture.inkX, gesture.inkY))
 	}
 
@@ -370,7 +434,7 @@ export class PointerLayer {
 		this.gesture = null
 		this.over = false
 		this.held = false
-		this.store.set({ cursor: null })
+		this.publish()
 	}
 
 	private open(touch: Touch, intercepted: boolean, drawing: boolean): Gesture {
@@ -385,8 +449,15 @@ export class PointerLayer {
 			switched: false,
 			x,
 			y,
-			inkX: x,
-			inkY: !intercepted && this.mode === 'offset' ? y - CURSOR_OFFSET : y,
+			// Touching down does not move the cursor in the relative modes — that is
+			// the difference, and it has to hold from the very first event or the ring
+			// would jump to the finger and back on every gesture.
+			inkX: this.relative ? this.cursorX : x,
+			inkY: this.relative
+				? this.cursorY
+				: !intercepted && this.mode === 'offset'
+					? y - CURSOR_OFFSET
+					: y,
 			anchorX: x,
 			anchorY: y,
 		}
@@ -421,7 +492,7 @@ export class PointerLayer {
 		if (event.pointerType === 'touch') return
 		this.held = false
 		if (this.over) this.publishMouse(event)
-		else this.store.set({ cursor: null })
+		else this.publish()
 	}
 
 	private onPointerLeave = (event: PointerEvent): void => {
@@ -429,8 +500,10 @@ export class PointerLayer {
 		this.over = false
 		// A drag that runs off the edge of the canvas is still a stroke, so the ring
 		// goes with it. It only stops being drawn when the pointer is neither on the
-		// paper nor holding it.
-		if (!this.held) this.store.set({ cursor: null })
+		// paper nor holding it — and in the relative modes not even then, because
+		// there the ring is a thing standing on the page rather than a picture of
+		// where the pointer is.
+		if (!this.held) this.publish()
 	}
 
 	private publishMouse(event: PointerEvent): void {
@@ -441,6 +514,15 @@ export class PointerLayer {
 		const box = this.canvas.getBoundingClientRect()
 		const x = event.clientX - box.left
 		const y = event.clientY - box.top
+
+		// A mouse is absolute even in the relative modes: it has its own arrow, it is
+		// a pixel wide, and asking somebody to shove a cursor around with a device
+		// that already points at things would be testing a different idea. It picks
+		// the standing cursor up and carries it, rather than the two disagreeing.
+		if (this.relative) {
+			this.cursorX = x
+			this.cursorY = y
+		}
 
 		this.store.set({
 			cursor: {
@@ -457,17 +539,37 @@ export class PointerLayer {
 	}
 
 	private publish(box?: DOMRect): void {
+		const rect = box ?? this.canvas.getBoundingClientRect()
 		const gesture = this.gesture
+
 		if (!gesture) {
-			this.store.set({ cursor: null })
+			// Nothing is on the glass. In the relative modes there is still a cursor —
+			// it is standing where it was left, waiting to be nudged — and everywhere
+			// else the ring is a picture of a pointer that isn't there, so it goes.
+			this.store.set({
+				cursor: this.relative
+					? {
+							x: this.cursorX,
+							y: this.cursorY,
+							inkX: this.cursorX,
+							inkY: this.cursorY,
+							size: rect.width,
+							top: rect.top,
+							touching: false,
+							marking: false,
+						}
+					: null,
+			})
 			return
 		}
 
-		const rect = box ?? this.canvas.getBoundingClientRect()
 		this.store.set({
 			cursor: {
-				x: gesture.x,
-				y: gesture.y,
+				// In the relative modes the ring *is* the pointer as far as anything
+				// downstream is concerned: the fingertip is an input to it, not a place
+				// on the drawing, and nothing should be drawn at the fingertip.
+				x: this.relative ? this.cursorX : gesture.x,
+				y: this.relative ? this.cursorY : gesture.y,
 				inkX: gesture.inkX,
 				inkY: gesture.inkY,
 				size: rect.width,
@@ -477,6 +579,10 @@ export class PointerLayer {
 			},
 		})
 	}
+}
+
+function clamp(value: number, low: number, high: number): number {
+	return Math.min(Math.max(value, low), high)
 }
 
 interface Gesture {
