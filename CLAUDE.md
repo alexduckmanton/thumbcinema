@@ -743,35 +743,50 @@ There is a switch in the top right of the create page — an icon button with a 
 are aiming at is under the thing you are aiming with". They exist to be compared, and
 **seven of them will be deleted**: `drawModes.ts` lists what each one is and where it
 came from, and the switch, that file and most of `pointer.ts` go when one wins. The
-choice lives in `localStorage` under `tc:drawMode`.
+default is `holdTool`, which is the one leading. The choice lives in `localStorage`
+under `tc:drawMode`.
 
-Two things about them are worth knowing before touching anything nearby:
+Three things about them are worth knowing before touching anything nearby:
 
-- **Three modes take the gesture away from paper entirely.** paper 0.12 is
+- **Four modes take the gesture away from paper entirely.** paper 0.12 is
   single-pointer by construction — it reads `targetTouches[0]`, has one drag in flight
   and no notion of a pointer id — so a gesture that starts without drawing, stops
-  halfway through, or puts the ink somewhere other than under the finger has nowhere
-  to say so. `PointerLayer` listens on `.book` in the **capture** phase, which runs
-  before the canvas's own listeners and before anything can bubble as far as the
-  document, and drives the marking tool through `engine.markBegin`/`markExtend`/
-  `markEnd`. It is *touch* events that are intercepted and not pointer events: the two
-  are separate streams, and stopping a `pointerdown` does nothing at all to the
-  `touchstart` paper is listening for.
-- **Three modes are relative, not direct.** The ring stands on the page and a finger
+  halfway through, puts the ink somewhere other than under the finger, or waits for
+  the other hand has nowhere to say so. `PointerLayer` listens on `.book` in the
+  **capture** phase, which runs before the canvas's own listeners and before anything
+  can bubble as far as the document, and drives whichever tool is in hand through
+  `engine.toolDown`/`toolDrag`/`toolUp`. It is *touch* events that are intercepted and
+  not pointer events: the two are separate streams, and stopping a `pointerdown` does
+  nothing at all to the `touchstart` paper is listening for.
+- **Three modes are relative, not direct.** The cursor stands on the page and a finger
   anywhere on the glass nudges it by however far the finger moved — it never travels
   to the contact point, which is the whole idea, and it survives the gesture that
-  moved it. So in those three the ring is the pointer as far as anything downstream is
-  concerned, and `Cursor.x` is the ring rather than the fingertip. What differs
-  between them is only what starts and stops the marking: half a second of stillness
-  in two of them, and in `holdTool` the pencil in the tray being physically held down
-  by the other hand — which is why `CreateTray` has pointer handlers on the two
-  marking tools, and why the tool is selected on the way *down* rather than by
-  `onClick`, which doesn't run until the finger comes up.
+  moved it. So in those three the cursor is the pointer as far as anything downstream
+  is concerned, and `Cursor.x` is the cursor rather than the fingertip. What differs
+  between them is only what starts and stops the work: half a second of stillness in
+  two of them, and in `holdTool` a tool in the tray being physically held down by the
+  other hand.
+- **`holdTool` is the only one that covers the transform tool**, and that falls out of
+  the mechanism rather than being a decision: a held button *is* a mouse button, and a
+  mouse button is what selecting, marqueeing, moving, scaling and rotating are made
+  of, where the other modes gate ink and there is no way to half-press a rotation. Two
+  consequences. The transform tool gets a cursor of its own up there — a crosshair
+  rather than a ring, because it makes no mark and what it needs to show is a point —
+  and **one tray button has to do two jobs**, which is settled on the way back *up*:
+  a press that did some work was the tool being used, and a press that did none was an
+  ordinary tap and selects (or, for transform, cycles into push). It cannot be decided
+  on the press, because at that moment there is no way to know whether a finger is
+  about to land on the canvas — and deciding early meant reaching for transform a
+  second time, to move a selection you had just made, read as a second tap and dropped
+  you into push mode unasked. `CreateTray` therefore suppresses its own `onClick` for
+  pointer-driven presses in this mode; keyboard activation still goes through it, told
+  apart by `event.detail === 0`.
 
-An intercepted stroke goes through the same `handlePointerDown`/`handlePointerUp` as
+An intercepted gesture goes through the same `handlePointerDown`/`handlePointerUp` as
 an ordinary one, so it is one history step and updates its page and thumbnail the same
-way. It differs in one measurable respect: it includes the point the gesture opened at,
-where a paper-driven stroke's first segment is the first `onMouseDrag` — about 7px in.
+way. It differs in one measurable respect: a stroke includes the point the gesture
+opened at, where a paper-driven one's first segment is the first `onMouseDrag` — about
+7px in.
 
 ## The playback page
 

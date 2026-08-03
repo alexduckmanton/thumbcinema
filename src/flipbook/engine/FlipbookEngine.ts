@@ -1035,16 +1035,16 @@ export class FlipbookEngine {
 	// --- drawing without paper's help ----------------------------------------
 
 	/*
-	 * Three of the drawing modes have to take a gesture away from paper entirely,
+	 * Four of the drawing modes have to take a gesture away from paper entirely,
 	 * because paper 0.12 has one drag in flight and no way to say "not yet", "stop
 	 * here" or "put it over there instead". `PointerLayer` intercepts those gestures
-	 * and drives the marking tool through the four methods below.
+	 * and drives whichever tool is in hand through the three methods below.
 	 *
 	 * They are deliberately the *same* two ends the ordinary path uses —
-	 * `handlePointerDown` and `handlePointerUp` — so an intercepted stroke is one
+	 * `handlePointerDown` and `handlePointerUp` — so an intercepted gesture is one
 	 * history step, recounts its page and redraws its thumbnail exactly as a normal
 	 * one does. Nothing about undo, the page strip or the save button knows which
-	 * route a stroke arrived by, and nothing should.
+	 * route an edit arrived by, and nothing should.
 	 *
 	 * All of this goes when a mode is chosen. See `drawModes.ts`.
 	 */
@@ -1059,8 +1059,13 @@ export class FlipbookEngine {
 		this.scene.touchOffsetY = pixels
 	}
 
+	/** Where the intercepted gesture started, was, and is. See `synthesise`. */
+	private gestureDown: paper.Point | null = null
+	private gesturePrevious: paper.Point | null = null
+	private gestureLast: paper.Point | null = null
+
 	/**
-	 * Opens a stroke *at* `point`, which paper's own path does not.
+	 * Opens a gesture *at* `point`, which for the pencil paper's own path does not.
 	 *
 	 * `PencilTool.begin` only makes the path; the first segment arrives on the first
 	 * `onMouseDrag`, so a paper-driven stroke starts a pointer-event's travel after
@@ -1068,32 +1073,78 @@ export class FlipbookEngine {
 	 * drawing speed. Here the down point is put in explicitly, because in these modes
 	 * it is not "where the finger landed" but "where the cursor was standing when it
 	 * was told to draw", and dropping it would move the start of the line.
+	 *
+	 * The other two tools are handed the event they would have had. They read only
+	 * `point`, `downPoint` and `lastPoint` off it — no modifiers, no hit target, no
+	 * delta — which is what makes a three-field stand-in enough.
 	 */
-	markBegin(point: paper.Point): void {
+	toolDown(point: paper.Point): void {
 		const tool = this.store.snapshot.tool
-		if (tool !== 'pencil' && tool !== 'eraser') return
+		if (!tool) return
 
 		this.handlePointerDown()
 
-		if (tool === 'eraser') this.eraser?.eraseAt(point)
-		else {
+		this.gestureDown = point
+		this.gesturePrevious = point
+		this.gestureLast = point
+
+		if (tool === 'pencil') {
 			this.pencil.begin()
 			this.pencil.extend(point)
+		} else if (tool === 'eraser') {
+			this.eraser?.eraseAt(point)
+		} else {
+			this.dispatch('onMouseDown', point)
 		}
 	}
 
-	markExtend(point: paper.Point): void {
+	toolDrag(point: paper.Point): void {
 		const tool = this.store.snapshot.tool
-		if (tool === 'eraser') this.eraser?.eraseAt(point)
-		else if (tool === 'pencil') this.pencil.extend(point)
+
+		this.gesturePrevious = this.gestureLast
+		this.gestureLast = point
+
+		if (tool === 'pencil') this.pencil.extend(point)
+		else if (tool === 'eraser') this.eraser?.eraseAt(point)
+		else this.dispatch('onMouseDrag', point)
 	}
 
-	markEnd(): void {
-		// The eraser has no stroke to close — it takes its bite on every event and
-		// leaves nothing open — so only the pencil is finished here. Both still need
-		// the second half of the history step.
-		if (this.store.snapshot.tool === 'pencil') this.pencil.end()
+	toolUp(): void {
+		const tool = this.store.snapshot.tool
+
+		// The eraser has no gesture to close — it takes its bite on every event and
+		// leaves nothing open. Everything else does, and all of them need the second
+		// half of the history step.
+		if (tool === 'pencil') this.pencil.end()
+		else if (tool !== 'eraser' && this.gestureLast) this.dispatch('onMouseUp', this.gestureLast)
+
+		this.gestureDown = null
+		this.gesturePrevious = null
+		this.gestureLast = null
+
 		this.handlePointerUp()
+	}
+
+	/**
+	 * Hands the tool the event paper would have handed it.
+	 *
+	 * `lastPoint` is the point *before* the current one rather than the current one
+	 * repeated, because the push tool asks whether the two differ to decide whether a
+	 * gesture was a click — and a synthetic mouse-up that answered "no" every time
+	 * would drop you out of push mode at the end of every push.
+	 */
+	private dispatch(kind: 'onMouseDown' | 'onMouseDrag' | 'onMouseUp', point: paper.Point): void {
+		const tool = this.activeTool?.tool
+		if (!tool) return
+
+		const handler = tool[kind]
+		if (typeof handler !== 'function') return
+
+		handler.call(tool, {
+			point,
+			downPoint: this.gestureDown ?? point,
+			lastPoint: this.gesturePrevious ?? point,
+		} as unknown as paper.ToolEvent)
 	}
 
 	// --- internals -----------------------------------------------------------

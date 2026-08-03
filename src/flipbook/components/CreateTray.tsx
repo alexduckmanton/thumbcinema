@@ -11,7 +11,7 @@ export interface CreateTrayProps {
 	state: FlipbookState
 	/** True while the save form is up: the controls fly away and leave it alone. */
 	stowed?: boolean
-	/** Scaffolding: in `holdTool` the two marking tools are held down to draw. */
+	/** Scaffolding: in `holdTool` all three tools are held down to use them. */
 	mode: DrawMode
 }
 
@@ -39,37 +39,51 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 	const toolClass = (id: ModalToolId) =>
 		tool === id ? `${styles.tool} ${styles.toolActive}` : styles.tool
 
-	const holdToMark = mode === 'holdTool'
+	const holdToUse = mode === 'holdTool'
 
-	// A held button that outlives the mode, the page or the tray would leave the
-	// drawing marking for ever with nothing on screen saying so.
+	// A held button that outlives the mode, the page or the tray would leave the tool
+	// working for ever with nothing on screen saying so.
 	useEffect(() => {
-		if (!holdToMark) setToolPressed(false)
-		return () => setToolPressed(false)
-	}, [holdToMark])
+		if (!holdToUse) setToolPressed(null)
+		return () => setToolPressed(null)
+	}, [holdToUse])
 
 	/**
-	 * Press and hold to draw, in `holdTool` and nowhere else.
+	 * Press and hold to use the tool, in `holdTool` and nowhere else.
 	 *
-	 * Two things here are load-bearing. **The tool is selected on the way down**,
-	 * rather than left to `onClick` — which doesn't run until the finger comes up, so
-	 * holding the pencil while the eraser was on would have rubbed out a line instead
-	 * of drawing one. And **the pointer is captured**, so the release is heard even
-	 * if the thumb has slid off the button by then; a missed release is a drawing
-	 * that never stops.
+	 * All this does is report which button is down. What a press *means* — pick the
+	 * tool up, or use the one already in hand — depends on whether a finger is on the
+	 * canvas, which only `PointerLayer` knows, so it decides. See `onToolPressed`.
+	 *
+	 * **The pointer is captured** on the way down, so the release is heard even if the
+	 * thumb has slid off the button by then. A missed release is a tool that never
+	 * stops.
 	 */
 	const holdProps = (id: ModalToolId) =>
-		holdToMark
+		holdToUse
 			? {
 					onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
-						engine.selectTool(id)
-						setToolPressed(true)
+						setToolPressed(id)
 						event.currentTarget.setPointerCapture(event.pointerId)
 					},
-					onPointerUp: () => setToolPressed(false),
-					onPointerCancel: () => setToolPressed(false),
+					onPointerUp: () => setToolPressed(null),
+					onPointerCancel: () => setToolPressed(null),
 				}
 			: null
+
+	/**
+	 * The ordinary tap, and in `holdTool` only the keyboard's.
+	 *
+	 * A pointer-driven click in that mode has already been dealt with on the way down
+	 * — and letting this run as well would select twice, which for transform is not a
+	 * no-op: it is the cycle into push mode, arriving unasked at the end of every
+	 * hold. `detail` is the click count, and it is 0 for the synthetic click a
+	 * keyboard activation produces, which is exactly the one that still has to work.
+	 */
+	const press = (id: ModalToolId) => (event: React.MouseEvent<HTMLButtonElement>) => {
+		if (holdToUse && event.detail > 0) return
+		engine.selectTool(id)
+	}
 
 	const trayClass = [styles.tray, stowed ? styles.stowed : ''].filter(Boolean)
 
@@ -80,9 +94,9 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 					<button
 						type="button"
 						className={toolClass('pencil')}
-						title={holdToMark ? 'Draw (b) — hold to mark' : 'Draw (b)'}
+						title={holdToUse ? 'Draw (b) — hold to draw' : 'Draw (b)'}
 						aria-pressed={tool === 'pencil'}
-						onClick={() => engine.selectTool('pencil')}
+						onClick={press('pencil')}
 						{...holdProps('pencil')}
 					>
 						<span className={`${styles.blade} ${icons.pencil}`} aria-hidden="true" />
@@ -94,9 +108,9 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 					<button
 						type="button"
 						className={toolClass('eraser')}
-						title={holdToMark ? 'Erase (e) — hold to rub out' : 'Erase (e)'}
+						title={holdToUse ? 'Erase (e) — hold to rub out' : 'Erase (e)'}
 						aria-pressed={tool === 'eraser'}
-						onClick={() => engine.selectTool('eraser')}
+						onClick={press('eraser')}
 						{...holdProps('eraser')}
 					>
 						<span className={`${styles.blade} ${icons.eraser}`} aria-hidden="true" />
@@ -114,9 +128,10 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 						]
 							.filter(Boolean)
 							.join(' ')}
-						title="Transform (v)"
+						title={holdToUse ? 'Transform (v) — hold to select and move' : 'Transform (v)'}
 						aria-pressed={tool === 'transform'}
-						onClick={() => engine.selectTool('transform')}
+						onClick={press('transform')}
+						{...holdProps('transform')}
 					>
 						{/* Four stacked images: the hand, and three arrows that fan out
 						    from behind it when the tool is on. */}

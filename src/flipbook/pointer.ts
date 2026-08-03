@@ -6,11 +6,12 @@ import {
 	HOLD_SLOP,
 	isRelativeMode,
 	isTimedMode,
-	isToolPressed,
+	pressedTool,
 	subscribeToolPressed,
 	TRAIL_DISTANCE,
 } from './drawModes'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
+import type { ModalToolId } from './engine/tools/types'
 
 /**
  * Where the pointer is and what it is doing, in the terms the cursor is drawn in.
@@ -51,15 +52,15 @@ export interface Cursor {
  * it listens for `touchstart` on the canvas and `touchmove`/`touchend` on the
  * document, and `DomEvent.getPoint` reads `event.targetTouches[0]` — there is one
  * drag in flight and no notion of a pointer id anywhere in it. A gesture that has to
- * start without drawing (`holdToDraw`), stop drawing halfway through (`holdToMove`)
- * or put the ink somewhere other than under the finger (`steady`) has nowhere to say
- * so.
+ * start without drawing (`holdToDraw`), stop halfway through (`holdToMove`), put the
+ * ink somewhere other than under the finger (`steady`) or wait for the other hand
+ * (`holdTool`) has nowhere to say so.
  *
- * So those three are taken away from paper entirely. This layer listens on `.book`
+ * So those four are taken away from paper entirely. This layer listens on `.book`
  * in the **capture** phase, which runs before the canvas's own listeners and before
  * anything can bubble as far as the document, and calls `stopPropagation()` — paper
- * then sees no part of the gesture, and the marking tool is driven directly through
- * `engine.markBegin`/`markExtend`/`markEnd` instead. It is touch events that are
+ * then sees no part of the gesture, and the tool in hand is driven directly through
+ * `engine.toolDown`/`toolDrag`/`toolUp` instead. It is touch events that are
  * intercepted rather than pointer events, and that is not a detail: the two are
  * separate streams, and stopping a `pointerdown` does nothing at all to the
  * `touchstart` paper is actually listening for.
@@ -84,6 +85,13 @@ export class PointerLayer {
 
 	/** Drops the `holdTool` subscription. Assigned in the constructor. */
 	private releaseTool: (() => void) | null = null
+
+	/**
+	 * The tool button that is down in `holdTool`, and whether it has done any work.
+	 *
+	 * `used` is what tells a hold from a tap on the way back up. See `onToolPressed`.
+	 */
+	private pressed: { id: ModalToolId; used: boolean } | null = null
 
 	/** The mouse, which has states a finger doesn't: it can be over without being down. */
 	private over = false
@@ -230,22 +238,26 @@ export class PointerLayer {
 	/**
 	 * Whether this mode has to take the gesture away from paper.
 	 *
-	 * Only the marking tools. The transform tool has its own hit tests, its own
-	 * cursors and four handles to tell apart, and none of that is what these modes are
-	 * about, so it keeps paper's own event handling at every setting.
+	 * The marking tools everywhere, and in `holdTool` the transform tool as well. The
+	 * difference is what each mode's changeover *is*: the timed ones and `steady`
+	 * gate ink, and there is no sensible way to half-press a rotation — but a held
+	 * button is a mouse button, and a mouse button is what selecting, marqueeing,
+	 * moving, scaling and rotating have always been made of. So there it works, and
+	 * it works by handing the tool exactly the three events it would have had.
 	 *
-	 * That leaves it *almost* the same tool in all nine. The exception is `offset`,
-	 * which is applied inside the scene rather than here — so up there a transform
-	 * gesture grabs 40px above the fingertip too. Deliberate: that mode's claim is
-	 * that the contact point and the working point are different things, and a tool
-	 * that quietly disagreed would be the one place it stopped being true.
+	 * Where transform is *not* intercepted it keeps paper's own event handling, and
+	 * behaves as it always has — with one exception, `offset`, which is applied inside
+	 * the scene rather than here, so up there a transform gesture grabs 40px above the
+	 * fingertip too. Deliberate: that mode's claim is that the contact point and the
+	 * working point are different things, and a tool that quietly disagreed would be
+	 * the one place it stopped being true.
 	 */
 	private intercepts(): boolean {
 		if (!this.relative && this.mode !== 'steady') return false
 
 		const state = this.engine.store.snapshot
-		if (state.busy || state.loading) return false
-		return state.tool === 'pencil' || state.tool === 'eraser'
+		if (state.busy || state.loading || !state.tool) return false
+		return this.mode === 'holdTool' || state.tool === 'pencil' || state.tool === 'eraser'
 	}
 
 	private onTouchStart = (event: TouchEvent): void => {
@@ -253,8 +265,8 @@ export class PointerLayer {
 		if (!touch) return
 
 		if (!this.intercepts()) {
-			// Paper's gesture, watched rather than taken: `drawing` is true from the
-			// first frame because paper is already marking.
+			// Paper's gesture, watched rather than taken: `engaged` is true from the
+			// first frame because paper is already working.
 			this.gesture = this.open(touch, false, true)
 			this.publish()
 			return
@@ -264,7 +276,7 @@ export class PointerLayer {
 		event.preventDefault()
 
 		// A second finger during a gesture is swallowed rather than acted on. Two
-		// fingers mean something in exactly one mode and it isn't one of these three.
+		// fingers mean something in exactly one mode and it isn't one of these four.
 		if (this.gesture) return
 
 		this.gesture = this.open(touch, true, false)
@@ -275,8 +287,8 @@ export class PointerLayer {
 		 * `holdToDraw` opens with nothing but a cursor; `holdTool` asks the other
 		 * hand, and opens marking if the tool is already being held down.
 		 */
-		if (this.mode === 'steady' || this.mode === 'holdToMove') this.startInk()
-		else if (this.mode === 'holdTool' && isToolPressed()) this.startInk()
+		if (this.mode === 'steady' || this.mode === 'holdToMove') this.engage()
+		else if (this.mode === 'holdTool') this.engagePress()
 
 		// Only the two with a changeover on a timer. `steady` draws for the whole
 		// gesture and `holdTool` is told when to start, so neither has anything for a
@@ -339,7 +351,7 @@ export class PointerLayer {
 				this.armHold()
 			}
 
-			if (gesture.drawing && this.mode === 'steady') this.trail(gesture)
+			if (gesture.engaged && this.mode === 'steady') this.trail(gesture)
 			else if (this.relative) {
 				gesture.inkX = this.cursorX
 				gesture.inkY = this.cursorY
@@ -348,8 +360,8 @@ export class PointerLayer {
 				gesture.inkY = gesture.y
 			}
 
-			if (gesture.drawing) {
-				this.engine.markExtend(this.engine.toProject(gesture.inkX, gesture.inkY))
+			if (gesture.engaged) {
+				this.engine.toolDrag(this.engine.toProject(gesture.inkX, gesture.inkY))
 			}
 		} else if (this.relative) {
 			// A relative mode with a tool this layer doesn't intercept — the transform
@@ -373,7 +385,7 @@ export class PointerLayer {
 		if (!find(event.changedTouches, gesture.id)) return
 
 		this.clearHold()
-		this.stopInk()
+		this.disengage()
 		this.gesture = null
 		this.publish()
 	}
@@ -414,7 +426,7 @@ export class PointerLayer {
 	 * Half a second of stillness, and the gesture changes over.
 	 *
 	 * One rule for both hold modes, because there is only one: whatever it is doing,
-	 * stop doing that. `holdToDraw` opens aiming and `holdToMove` opens drawing, and
+	 * stop doing that. `holdToDraw` opens aiming and `holdToMove` opens marking, and
 	 * from there they are the same mode read from two different starting points.
 	 */
 	private onHold = (): void => {
@@ -423,69 +435,110 @@ export class PointerLayer {
 		const gesture = this.gesture
 		if (!gesture || !this.timed) return
 
-		if (gesture.drawing) this.stopInk()
-		else this.startInk()
+		if (gesture.engaged) this.disengage()
+		else this.engage()
 
 		this.publish()
 	}
 
 	/**
-	 * The pencil in the tray going down or coming up, in `holdTool`.
+	 * A tool's button in the tray going down or coming up, in `holdTool`.
 	 *
 	 * The same changeover the timer makes in the other two, decided by a second hand
 	 * instead of by half a second of stillness — so it can happen part-way through a
-	 * drag, which is the point: press to start marking where the ring already is,
-	 * release to stop, without the finger doing the drawing ever pausing or lifting.
+	 * drag, which is the point: press to start working where the cursor already is,
+	 * release to stop, without the finger positioning the cursor ever pausing or
+	 * lifting.
 	 *
-	 * Nothing to do when no finger is on the page. Holding the tool with nothing
-	 * moving marks nothing, and the press is still live when a drag does start —
-	 * `onTouchStart` asks.
+	 * **One button does two jobs, and which one is decided on the way back up.** A
+	 * press that did some work was the tool being used; a press that did none was an
+	 * ordinary tap on the tray, and gets what a tap has always got — including cycling
+	 * transform into push, which is the only way to reach it.
+	 *
+	 * It has to be settled on release rather than on the press, and that is not a
+	 * detail: at the moment a button goes down there is no way to know whether a
+	 * finger is about to land on the canvas. Deciding early meant that reaching for
+	 * transform a second time — to move a selection you had just made — read as a
+	 * second tap and dropped you into push mode without asking.
+	 *
+	 * The tray suppresses its own `onClick` for pointer-driven presses in this mode,
+	 * so the tap lands here and exactly once. Keyboard activation still goes through
+	 * the click.
 	 */
 	private onToolPressed = (): void => {
 		if (this.mode !== 'holdTool') return
 
-		const gesture = this.gesture
-		if (!gesture?.intercepted) return
+		const id = pressedTool()
+		if (id !== null) {
+			this.pressed = { id, used: false }
+			// Held before the finger arrived: `onTouchStart` will ask again.
+			if (this.gesture?.intercepted) this.engagePress()
+			return
+		}
 
-		if (isToolPressed()) this.startInk()
-		else this.stopInk()
+		const press = this.pressed
+		this.pressed = null
 
+		if (this.gesture?.engaged) {
+			this.disengage()
+			this.publish()
+			return
+		}
+
+		if (press && !press.used) this.engine.selectTool(press.id)
+	}
+
+	/**
+	 * Puts the pressed tool to work at the cursor.
+	 *
+	 * Picks it up if it isn't already in hand, and then leaves it alone: a hold must
+	 * never *cycle*, or holding transform twice in a row would land you in push mode.
+	 */
+	private engagePress(): void {
+		const press = this.pressed
+		if (!press) return
+
+		press.used = true
+		if (this.engine.store.snapshot.tool !== press.id) this.engine.selectTool(press.id)
+
+		this.engage()
 		this.publish()
 	}
 
-	private startInk(): void {
+	private engage(): void {
 		const gesture = this.gesture
-		if (!gesture || gesture.drawing) return
+		if (!gesture || gesture.engaged) return
 
-		gesture.drawing = true
+		gesture.engaged = true
 		// The stroke starts wherever the *cursor* is standing in the relative modes,
 		// which is the one place it must start: the finger's position means nothing
 		// there, and a stroke that opened under the fingertip and then jumped to the
 		// ring would draw a line between the two.
 		gesture.inkX = this.relative ? this.cursorX : gesture.x
 		gesture.inkY = this.relative ? this.cursorY : gesture.y
-		this.engine.markBegin(this.engine.toProject(gesture.inkX, gesture.inkY))
+		this.engine.toolDown(this.engine.toProject(gesture.inkX, gesture.inkY))
 	}
 
-	private stopInk(): void {
+	private disengage(): void {
 		const gesture = this.gesture
-		if (!gesture?.drawing) return
+		if (!gesture?.engaged) return
 
-		gesture.drawing = false
-		if (gesture.intercepted) this.engine.markEnd()
+		gesture.engaged = false
+		if (gesture.intercepted) this.engine.toolUp()
 	}
 
 	/** Ends whatever is in flight without leaving half a stroke on the page. */
 	private abandon(): void {
 		this.clearHold()
-		this.stopInk()
+		this.disengage()
 		this.gesture = null
+		this.pressed = null
 		this.over = false
 		this.held = false
 		this.publish()
 	}
 
-	private open(touch: Touch, intercepted: boolean, drawing: boolean): Gesture {
+	private open(touch: Touch, intercepted: boolean, engaged: boolean): Gesture {
 		const box = this.canvas.getBoundingClientRect()
 		const x = touch.clientX - box.left
 		const y = touch.clientY - box.top
@@ -493,7 +546,7 @@ export class PointerLayer {
 		return {
 			id: touch.identifier,
 			intercepted,
-			drawing,
+			engaged,
 			x,
 			y,
 			// Touching down does not move the cursor in the relative modes — that is
@@ -622,7 +675,7 @@ export class PointerLayer {
 				size: rect.width,
 				top: rect.top,
 				touching: true,
-				marking: gesture.drawing,
+				marking: gesture.engaged,
 			},
 		})
 	}
@@ -637,7 +690,7 @@ interface Gesture {
 	id: number
 	/** Whether paper was cut out of this gesture, or is drawing it as usual. */
 	intercepted: boolean
-	drawing: boolean
+	engaged: boolean
 	x: number
 	y: number
 	inkX: number

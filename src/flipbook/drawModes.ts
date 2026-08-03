@@ -1,4 +1,5 @@
 import { Store, useStore } from '../lib/store'
+import type { ModalToolId } from './engine/tools/types'
 
 /**
  * The drawing modes, which exist to be compared against each other.
@@ -34,11 +35,17 @@ import { Store, useStore } from '../lib/store'
  *    exactly this way and is the reason iOS's magnifier was arguably never the
  *    better answer.
  *  - `holdTool` is the same relative cursor with the timer taken out and a second
- *    hand put in: you press and hold the pencil in the tray, and the ring marks for
- *    exactly as long as you hold it. Two hands, and nothing to wait for. This is the
- *    family Adobe Fresco's Touch Shortcut belongs to — a modifier held somewhere
+ *    hand put in: you press and hold a tool in the tray, and it works at the cursor
+ *    for exactly as long as you hold it. Two hands, and nothing to wait for. This is
+ *    the family Adobe Fresco's Touch Shortcut belongs to — a modifier held somewhere
  *    other than the canvas, by the hand that isn't drawing — and it is the only mode
  *    here where starting and stopping are a decision rather than an inference.
+ *
+ *    It is also the only one that covers all three tools rather than the two that
+ *    mark, which falls out of the mechanism: a held button is a mouse button, and a
+ *    mouse button is what selecting, marqueeing, moving, scaling and rotating have
+ *    always been made of. The others gate *ink*, and there is no sensible way to
+ *    half-press a rotation.
  *  - `steady` is Autodesk Sketchbook's Steady Stroke, whose documentation names
  *    finger drawing as the case it was built for: the ink is dragged along behind
  *    the finger like a brush with long bristles, which both smooths the line and
@@ -98,8 +105,8 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 	},
 	{
 		id: 'holdTool',
-		label: 'Move, hold the tool to draw',
-		hint: 'Your finger nudges the ring from anywhere on the page. Press and hold the pencil in the tray with your other hand, and it draws for as long as you hold it.',
+		label: 'Move, hold the tool to use it',
+		hint: 'Your finger nudges the cursor from anywhere on the page. Hold a tool in the tray with your other hand and it works at the cursor — the pencil draws, the eraser rubs out, transform selects and moves.',
 	},
 	{
 		id: 'steady',
@@ -113,7 +120,14 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 	},
 ]
 
-export const DEFAULT_DRAW_MODE: DrawMode = 'loupe'
+/**
+ * `holdTool`, which is the one winning so far.
+ *
+ * The default matters more than it looks: it is what somebody arriving on the create
+ * page for the first time gets, and what every measurement of "is this any good" is
+ * taken against. `loupe` held it while it was the only thing that had shipped.
+ */
+export const DEFAULT_DRAW_MODE: DrawMode = 'holdTool'
 
 /**
  * How far above the fingertip the mark lands in `offset`, in CSS pixels.
@@ -166,22 +180,25 @@ export function isTimedMode(mode: DrawMode): boolean {
 }
 
 /**
- * Whether a marking tool's button in the tray is being held down right now.
+ * Which tool's button in the tray is being held down right now, if any.
  *
  * `holdTool`'s whole mechanism, and it is a module-level signal rather than a prop
  * because of where its two ends are: the button is in `CreateTray` and the thing
  * that acts on it is a `PointerLayer` built inside `InkCursor`, two branches of the
- * tree apart with the page between them. Threading a callback through both to carry
- * one boolean, for a mode that is scheduled for deletion, would leave more behind it
- * than it is worth.
+ * tree apart with the page between them. Threading a callback through both, for a
+ * mode that is scheduled for deletion, would leave more behind it than it is worth.
+ *
+ * The tool's *id* rather than a boolean, because the layer is what decides what a
+ * press means — whether it is picking a tool up or using one — and it cannot decide
+ * that without knowing which button went down. See `PointerLayer.onToolPressed`.
  */
-const pressed = new Store<{ tool: boolean }>({ tool: false })
+const pressed = new Store<{ tool: ModalToolId | null }>({ tool: null })
 
-export function setToolPressed(held: boolean): void {
-	pressed.set({ tool: held })
+export function setToolPressed(tool: ModalToolId | null): void {
+	pressed.set({ tool })
 }
 
-export function isToolPressed(): boolean {
+export function pressedTool(): ModalToolId | null {
 	return pressed.snapshot.tool
 }
 

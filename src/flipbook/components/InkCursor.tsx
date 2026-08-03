@@ -48,6 +48,18 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	const marking = tool === 'pencil' || tool === 'eraser'
 
 	/*
+	 * Except in `holdTool`, where transform needs one after all.
+	 *
+	 * Up there the gesture is driven from the cursor rather than from the fingertip,
+	 * so the tool's own cursors are describing a pointer that isn't the one doing the
+	 * work — and on a phone there is no pointer to put a cursor on in the first place.
+	 * Something has to stand where the click is going to land. It is a crosshair
+	 * rather than a ring because this tool makes no mark: see the stylesheet.
+	 */
+	const aiming = tool === 'transform' && mode === 'holdTool'
+	const shown = marking || aiming
+
+	/*
 	 * One layer for the life of the page, not one per tool.
 	 *
 	 * It has to outlive the ring it feeds: `offset` is applied inside the scene and
@@ -140,7 +152,7 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 		return () => cancelAnimationFrame(frame)
 	}, [magnifying, canvasRef, ink])
 
-	if (!marking || !cursor) return null
+	if (!shown || !cursor) return null
 
 	/*
 	 * In the relative modes the ring is also a state: light grey while the gesture is
@@ -154,11 +166,12 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	 * something it doesn't mean.
 	 */
 	const state = isRelativeMode(mode) ? (cursor.marking ? styles.inking : styles.waiting) : ''
+	const shape = aiming ? styles.crosshair : styles.ring
 
 	return (
 		<>
 			<span
-				className={state ? `${styles.ring} ${state}` : styles.ring}
+				className={state ? `${shape} ${state}` : shape}
 				aria-hidden="true"
 				style={{ left: cursor.inkX, top: cursor.inkY, '--ink': ink } as React.CSSProperties}
 			/>
