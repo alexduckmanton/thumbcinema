@@ -26,8 +26,10 @@ import { Store, useStore } from '../lib/store'
  *    the page; a finger anywhere on the glass *nudges* it by however far the finger
  *    moved, and never carries it to the contact point. So the hand and the mark are
  *    never in the same place, which is the occlusion problem answered rather than
- *    worked around. What differs between them is which state a gesture opens in —
- *    aim first and commit with a hold, or draw first and hold to detach. Nothing
+ *    worked around. Half a second of stillness changes the gesture over, as often as
+ *    you like, so one finger that never leaves the glass can aim, draw, re-aim and
+ *    draw again — and the *only* thing that differs between the two is which of the
+ *    two states a gesture opens in. Nothing
  *    shipping does this on a canvas; the nearest relative is a phone keyboard's
  *    trackpad mode, which places a text cursor exactly this way and is the reason
  *    iOS's magnifier was arguably never the better answer.
@@ -80,12 +82,12 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 	{
 		id: 'holdToDraw',
 		label: 'Move, hold to draw',
-		hint: 'The ring stays put and your finger nudges it, from anywhere on the page. Hold still for half a second and it goes black — then you are drawing.',
+		hint: 'The ring stays put and your finger nudges it, from anywhere on the page. Hold still for half a second to start drawing, and again to stop and reposition.',
 	},
 	{
 		id: 'holdToMove',
 		label: 'Draw, hold to move',
-		hint: 'Your finger nudges the ring from anywhere on the page, and it draws straight away. Hold still for half a second to stop and reposition; hold again to carry on.',
+		hint: 'Your finger nudges the ring from anywhere on the page, and it draws straight away. Hold still for half a second to stop and reposition, and again to carry on.',
 	},
 	{
 		id: 'steady',

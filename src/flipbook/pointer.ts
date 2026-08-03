@@ -256,7 +256,9 @@ export class PointerLayer {
 		// `holdToDraw` is the one that starts with nothing but a cursor.
 		this.gesture = this.open(touch, true, false)
 		if (this.mode !== 'holdToDraw') this.startInk()
-		this.armHold()
+		// `steady` is intercepted but has no changeover in it — it draws for the whole
+		// gesture — so there is nothing there for a timer to do.
+		if (this.relative) this.armHold()
 		this.publish()
 	}
 
@@ -293,16 +295,19 @@ export class PointerLayer {
 			 * way somewhere never trips the changeover, and one that has arrived and
 			 * settled always does.
 			 *
-			 * Whether it can trip twice is the difference between the two hold modes,
-			 * and it falls out of what each one is for. `holdToDraw` commits once —
-			 * having aimed and started drawing, pausing to think about the next bit of
-			 * the line must not silently lift the pencil off the page. `holdToMove` is
-			 * a toggle by definition: it stops to let you reposition, so it has to be
-			 * able to start again, and a gesture there can lay down several separate
-			 * strokes without the finger ever leaving the glass.
+			 * And it can trip any number of times, in both modes. A gesture is a run of
+			 * alternating states — aim, draw, aim, draw — and one finger that never
+			 * leaves the glass can place several separate strokes with the ring
+			 * repositioned between each. What the mode name says is only which state
+			 * the gesture opens in.
+			 *
+			 * The cost, and it is a real one: pausing mid-stroke to think about where
+			 * the line goes next lifts the pencil off the page. Half a second is not
+			 * long. Whether that is worse than having no way back once you have started
+			 * is the thing these two modes are here to find out.
 			 */
 			if (
-				(this.mode === 'holdToMove' || !gesture.switched) &&
+				this.relative &&
 				Math.hypot(gesture.x - gesture.anchorX, gesture.y - gesture.anchorY) > HOLD_SLOP
 			) {
 				gesture.anchorX = gesture.x
@@ -381,24 +386,19 @@ export class PointerLayer {
 		this.holdTimer = null
 	}
 
+	/**
+	 * Half a second of stillness, and the gesture changes over.
+	 *
+	 * One rule for both hold modes, because there is only one: whatever it is doing,
+	 * stop doing that. `holdToDraw` opens aiming and `holdToMove` opens drawing, and
+	 * from there they are the same mode read from two different starting points.
+	 */
 	private onHold = (): void => {
 		this.holdTimer = null
 
 		const gesture = this.gesture
-		if (!gesture) return
+		if (!gesture || !this.relative) return
 
-		if (this.mode === 'holdToDraw') {
-			// Once. See the note in `onTouchMove`.
-			if (gesture.switched) return
-			gesture.switched = true
-			this.startInk()
-			this.publish()
-			return
-		}
-
-		if (this.mode !== 'holdToMove') return
-
-		gesture.switched = true
 		if (gesture.drawing) this.stopInk()
 		else this.startInk()
 
@@ -446,7 +446,6 @@ export class PointerLayer {
 			id: touch.identifier,
 			intercepted,
 			drawing,
-			switched: false,
 			x,
 			y,
 			// Touching down does not move the cursor in the relative modes — that is
@@ -591,8 +590,6 @@ interface Gesture {
 	/** Whether paper was cut out of this gesture, or is drawing it as usual. */
 	intercepted: boolean
 	drawing: boolean
-	/** Whether the hold has already fired. It fires at most once per gesture. */
-	switched: boolean
 	x: number
 	y: number
 	inkX: number
