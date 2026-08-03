@@ -8,7 +8,6 @@ import { InkCursor } from '../../flipbook/components/InkCursor'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
-import { TouchLog } from '../../flipbook/components/TouchLog'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
 import { useDrawMode } from '../../flipbook/drawModes'
@@ -121,9 +120,6 @@ export function CreatePage() {
 			    modes — including the ones that park a magnifier under the top edge of
 			    the window. It goes when one of them wins. */}
 			<DrawModeSwitch mode={drawMode} />
-
-			{/* Off unless `?touchlog=1` has been visited. See `touchLog.ts`. */}
-			<TouchLog />
 
 			<main className={contentClass}>
 				{engine && state ? (

@@ -753,23 +753,20 @@ is now true at both widths and the differences are called out where they exist.
 - **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
   which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
   Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
-  the body; `.book` and the canvas inside it both take `touch-action: none`, so a
-  stroke is never a scroll and never a pinch. There was a drawing mode that gave pinch
-  zoom back for comparison and it is gone.
+  the body; the canvas takes `touch-action: none`, so a stroke is never a scroll and
+  never a pinch. There was a drawing mode that gave pinch zoom back for comparison and
+  it is gone.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then
   carries the whole distance at once — 10.7px against 0.3px for every event after it,
-  recorded on iOS 18.7 through the touch log. Because slop is a fixed *distance* the
-  delay scales inversely with speed, so aiming a cursor slowly is its worst case, which
-  is why it is the relative drawing modes that feel it. `touch-action: none` does not
-  turn it off, and neither does taking the `gesture*` listeners off the document —
-  measured, both, and the second one is written up in `lib/zoom.ts` so it isn't tried
-  again. What tracking there is afterwards is as fine as the hardware allows: a steady
-  0.3px on a 3× screen is one device pixel per event.
-- **`overscroll-behavior: contain` on the body**, for the same reason rather than for
-  scrolling's: a drag near the top of the window that might turn into a pull-to-refresh
-  is a drag the browser keeps to itself until it knows.
+  recorded on iOS 18.7. Because slop is a fixed *distance* the delay scales inversely
+  with speed, so aiming a cursor slowly is its worst case, which is why it is the
+  relative drawing modes that feel it. `touch-action: none` does not turn it off, and
+  neither does taking the `gesture*` listeners off the document — measured, both, and
+  the second one is written up in `lib/zoom.ts` so it isn't tried again. What tracking
+  there is afterwards is as fine as the hardware allows: a steady 0.3px on a 3× screen
+  is one device pixel per event.
 
 ### The drawing modes, which are scaffolding
 

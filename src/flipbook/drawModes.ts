@@ -251,10 +251,6 @@ function read(): DrawMode {
 
 const store = new Store<{ mode: DrawMode }>({ mode: read() })
 
-export function getDrawMode(): DrawMode {
-	return store.snapshot.mode
-}
-
 export function setDrawMode(mode: DrawMode): void {
 	store.set({ mode })
 

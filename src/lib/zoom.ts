@@ -15,25 +15,17 @@
  *  - **Two-finger `touchmove`** is left alone, because on the gallery that is
  *    someone scrolling with two fingers rather than pinching.
  *
- * **The create page went without these for a while and it changed nothing**, which is
- * worth recording so nobody tries it twice. The theory was that a registered gesture
- * listener is what makes Safari hold a single contact still while it watches for a
- * second one — which would explain the first `touchmove` of a slow drag arriving only
- * after the finger has travelled several pixels and then carrying the lot at once. It
- * doesn't: with the listeners off, the first delta was 10.7px against 0.3px for every
- * event after it, against 5.4px with them on. Thirty-five times the rest either way.
- * The slop is Safari's own and is not ours to switch off.
+ * **Taking these off does not speed up the first `touchmove`**, which is worth writing
+ * down because it looks as though it should. The theory was that a registered gesture
+ * listener makes Safari hold a single contact still while it watches for a second one
+ * that would make a pinch. It doesn't: measured on iOS 18.7 with the listeners off,
+ * the first move of a slow drag still arrived carrying 10.7px against 0.3px for every
+ * event after it. The slop is Safari's and is not ours to switch off.
  */
-
-const cancel = (event: Event) => event.preventDefault()
-
-let guarding = false
-
 export function preventPinchZoom(): void {
-	if (guarding) return
+	const cancel = (event: Event) => event.preventDefault()
 
 	document.addEventListener('gesturestart', cancel)
 	document.addEventListener('gesturechange', cancel)
 	document.addEventListener('gestureend', cancel)
-	guarding = true
 }

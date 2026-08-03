@@ -155,18 +155,6 @@ body {
 	 */
 	touch-action: manipulation;
 	-webkit-tap-highlight-color: transparent;
-
-	/*
-	 * No pull-to-refresh, and no rubber band that chains to the page behind.
-	 *
-	 * `contain` rather than `none`: scrolling still works and still bounces at the
-	 * ends, it just stops being *also* a possible browser gesture. That matters on the
-	 * create page for a reason that isn't about scrolling at all — a drag near the top
-	 * of the window that might turn into a refresh is a drag the browser holds on to
-	 * while it decides, which is one of the things that can delay the first `touchmove`
-	 * of a stroke.
-	 */
-	overscroll-behavior: contain;
 }
 
 /*

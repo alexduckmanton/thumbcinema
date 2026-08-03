@@ -22,18 +22,6 @@
 	aspect-ratio: 640 / 360;
 	margin: 0 auto;
 	line-height: 0;
-
-	/*
-	 * The same `none` the canvas takes, one level up.
-	 *
-	 * A browser works out what a touch is allowed to do by intersecting `touch-action`
-	 * down the ancestor chain, and this is the element the drawing modes listen on —
-	 * so anything that lands in the frame but misses the canvas (the overlays, the
-	 * gap left by a rounded corner) would otherwise be a candidate scroll, and a
-	 * candidate scroll is a gesture the browser has to disambiguate before it will
-	 * report the first move. Nothing here scrolls in any case.
-	 */
-	touch-action: none;
 }
 
 /*
