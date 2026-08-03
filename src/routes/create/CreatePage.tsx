@@ -17,6 +17,7 @@ import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import { registerMessage, showMessage } from '../../lib/messages'
+import { allowPinchZoom, preventPinchZoom } from '../../lib/zoom'
 import { guardNavigation, navigate } from '../../router/Router'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
 import styles from './CreatePage.module.css'
@@ -37,6 +38,19 @@ export function CreatePage() {
 
 	useEffect(() => {
 		document.title = 'create — thumbcinema'
+	}, [])
+
+	/*
+	 * The pinch guard, off for as long as this page is up.
+	 *
+	 * An experiment, and a measured one: see `allowPinchZoom` for the numbers it is
+	 * testing against and what each answer would mean. Re-armed on the way out, so it
+	 * is only ever this page that goes without — and a successful save leaves through
+	 * `window.location.href`, which re-arms it by loading the site again.
+	 */
+	useEffect(() => {
+		allowPinchZoom()
+		return () => preventPinchZoom()
 	}, [])
 
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools.

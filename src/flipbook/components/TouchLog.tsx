@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { pinchGuarded } from '../../lib/zoom'
 import { getDrawMode } from '../drawModes'
 import { type TouchSummary, useTouchLog, verdict } from '../touchLog'
 import styles from './TouchLog.module.css'
@@ -68,7 +69,13 @@ export function TouchLog() {
 
 /** Everything worth pasting somewhere else, including what the display leaves out. */
 function transcribe(last: TouchSummary | null): string {
-	const where = [`mode: ${getDrawMode()}`, `agent: ${navigator.userAgent}`]
+	const where = [
+		`mode: ${getDrawMode()}`,
+		// Which side of the pinch-guard experiment this gesture was recorded on. See
+		// `allowPinchZoom`; without it two logs are indistinguishable.
+		`guard: ${pinchGuarded() ? 'on' : 'off'}`,
+		`agent: ${navigator.userAgent}`,
+	]
 
 	if (!last) return ['touchlog — no gesture recorded yet', ...where].join('\n')
 

@@ -750,14 +750,25 @@ is now true at both widths and the differences are called out where they exist.
   reaches. Drawing near the top of a phone's canvas put it behind the wordmark, and a
   magnifier that goes behind something is not showing you what is under your finger. The
   ring needs none of that: it is on the paper by definition.
-- **Zoom is off site-wide, and unconditionally.** `maximum-scale=1, user-scalable=no`
-  in the viewport tag, which Android honours and iOS ignores, plus `preventPinchZoom()`
-  in `lib/zoom.ts` for Safari's gesture events. Double-tap zoom goes with
-  `touch-action: manipulation` on the body; `.book` and the canvas inside it both take
-  `touch-action: none`, so a stroke is never a scroll and never a pinch. There was a
-  drawing mode that gave pinch zoom back for comparison and it is gone — a page the
-  browser might still be about to zoom is a page whose first `touchmove` it can hold
-  on to while it decides, which is the opposite of what the relative modes need.
+- **Zoom is off site-wide — except on the create page, where it is an experiment.**
+  `maximum-scale=1, user-scalable=no` in the viewport tag, which Android honours and
+  iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for Safari's gesture events.
+  Double-tap zoom goes with `touch-action: manipulation` on the body; `.book` and the
+  canvas inside it both take `touch-action: none`, so a stroke is never a scroll and
+  never a pinch. There was a drawing mode that gave pinch zoom back for comparison and
+  it is gone.
+
+  What the create page does is take the gesture *listeners* off the document for as
+  long as it is mounted (`allowPinchZoom`), and that is a measurement rather than a
+  decision. On an iPhone the first `touchmove` of a slow drag arrives only once the
+  finger has travelled about five pixels and then carries the whole distance at once —
+  5.4px against 0.3px for every event after it, recorded on iOS 18.7 through the touch
+  log. Because slop is a fixed *distance* the delay scales inversely with speed, so
+  aiming a cursor slowly is its worst case, and the suspicion under test is that a
+  registered gesture listener is itself what makes Safari hold a single contact while
+  it watches for a second. The canvas doesn't need them either way — `touch-action:
+  none` is what stops a pinch that starts on the drawing. If the first delta stays five
+  times the rest, they come back.
 - **`overscroll-behavior: contain` on the body**, for the same reason rather than for
   scrolling's: a drag near the top of the window that might turn into a pull-to-refresh
   is a drag the browser keeps to itself until it knows.
