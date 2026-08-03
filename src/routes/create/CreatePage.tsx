@@ -29,7 +29,7 @@ export function CreatePage() {
 	const [phase, setPhase] = useState<Phase>('drawing')
 
 	// Which answer to "a finger is opaque" is switched on. Scaffolding: see
-	// `drawModes.ts` for the nine of them and for what happens when one wins.
+	// `drawModes.ts` for the eleven of them and for what happens when one wins.
 	const drawMode = useDrawMode()
 
 	const crash = useCrashRecovery(engine)
@@ -116,7 +116,7 @@ export function CreatePage() {
 				/>
 			</SiteHeader>
 
-			{/* Scaffolding, and above everything so it stays reachable in all nine
+			{/* Scaffolding, and above everything so it stays reachable in all eleven
 			    modes — including the ones that park a magnifier under the top edge of
 			    the window. It goes when one of them wins. */}
 			<DrawModeSwitch mode={drawMode} />

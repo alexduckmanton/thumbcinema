@@ -4,8 +4,11 @@ import {
 	type DrawMode,
 	HOLD_DELAY,
 	HOLD_SLOP,
+	drivesAllTools,
+	isMultiTouchMode,
 	isRelativeMode,
 	isTimedMode,
+	MOVE_FLOOR,
 	pressedTool,
 	subscribeToolPressed,
 	TRAIL_DISTANCE,
@@ -57,16 +60,18 @@ export interface Cursor {
  * The one place a pointer becomes a mark, for as long as there is more than one
  * candidate answer to how a finger should draw.
  *
- * Four of the nine modes cannot be built on top of paper.js, and it is worth being
+ * Six of the eleven modes cannot be built on top of paper.js, and it is worth being
  * precise about why. paper 0.12 is single-pointer by construction: on a touch device
  * it listens for `touchstart` on the canvas and `touchmove`/`touchend` on the
  * document, and `DomEvent.getPoint` reads `event.targetTouches[0]` — there is one
  * drag in flight and no notion of a pointer id anywhere in it. A gesture that has to
  * start without drawing (`holdToDraw`), stop halfway through (`holdToMove`), put the
- * ink somewhere other than under the finger (`steady`) or wait for the other hand
- * (`holdTool`) has nowhere to say so.
+ * ink somewhere other than under the finger (`steady`), wait for the other hand
+ * (`holdTool`) or watch a *second finger* (`secondFinger`, `twoFinger`) has nowhere
+ * to say so. The last two are the plainest case: paper cannot see a second contact
+ * at all, so a mode built on one cannot be built on paper.
  *
- * So those four are taken away from paper entirely. This layer listens on `.book`
+ * So those six are taken away from paper entirely. This layer listens on `.book`
  * in the **capture** phase, which runs before the canvas's own listeners and before
  * anything can bubble as far as the document, and calls `stopPropagation()` — paper
  * then sees no part of the gesture, and the tool in hand is driven directly through
@@ -89,8 +94,18 @@ export class PointerLayer {
 
 	private mode: DrawMode
 
-	/** The touch in flight, if any. At most one — a second finger is swallowed. */
+	/** The touch steering the cursor, if any. */
 	private gesture: Gesture | null = null
+
+	/**
+	 * Every other finger on the glass, by `Touch.identifier`.
+	 *
+	 * Empty in all but two modes, where these are the gesture's on-switch: two or more
+	 * fingers down means the tool is working. `twoFinger` also lets them steer, which
+	 * is why their positions are kept rather than merely counted — a delta needs
+	 * somewhere to be measured from.
+	 */
+	private readonly others = new Map<number, { x: number; y: number }>()
 	private holdTimer: number | null = null
 
 	/** Drops the `holdTool` subscription. Assigned in the constructor. */
@@ -243,17 +258,22 @@ export class PointerLayer {
 		return isTimedMode(this.mode)
 	}
 
+	/** Whether fingers other than the steering one open and close the gesture. */
+	private get multiTouch(): boolean {
+		return isMultiTouchMode(this.mode)
+	}
+
 	// --- touch ---------------------------------------------------------------
 
 	/**
 	 * Whether this mode has to take the gesture away from paper.
 	 *
-	 * The marking tools everywhere, and in `holdTool` the transform tool as well. The
-	 * difference is what each mode's changeover *is*: the timed ones and `steady`
-	 * gate ink, and there is no sensible way to half-press a rotation — but a held
-	 * button is a mouse button, and a mouse button is what selecting, marqueeing,
-	 * moving, scaling and rotating have always been made of. So there it works, and
-	 * it works by handing the tool exactly the three events it would have had.
+	 * The marking tools everywhere, and every tool in the three modes whose changeover
+	 * is a button press in all but name — a held tray button, or a second finger. The
+	 * difference is what each mode's changeover *is*: the timed ones and `steady` gate
+	 * ink, and there is no sensible way to half-press a rotation, but a press is
+	 * exactly what selecting, marqueeing, moving, scaling and rotating are made of. So
+	 * in those three it works, by handing the tool the three events it would have had.
 	 *
 	 * Where transform is *not* intercepted it keeps paper's own event handling, and
 	 * behaves as it always has — with one exception, `offset`, which is applied inside
@@ -267,7 +287,7 @@ export class PointerLayer {
 
 		const state = this.engine.store.snapshot
 		if (state.busy || state.loading || !state.tool) return false
-		return this.mode === 'holdTool' || state.tool === 'pencil' || state.tool === 'eraser'
+		return drivesAllTools(this.mode) || state.tool === 'pencil' || state.tool === 'eraser'
 	}
 
 	private onTouchStart = (event: TouchEvent): void => {
@@ -285,17 +305,40 @@ export class PointerLayer {
 		event.stopPropagation()
 		event.preventDefault()
 
-		// A second finger during a gesture is swallowed rather than acted on. Two
-		// fingers mean something in exactly one mode and it isn't one of these four.
-		if (this.gesture) return
+		/*
+		 * A finger arriving on top of a gesture already in flight.
+		 *
+		 * In two modes that is the control itself — the second finger is the button,
+		 * and putting it down is what sets the tool working at the cursor. Everywhere
+		 * else it is swallowed: one drag, one cursor, and nothing to say about a
+		 * second contact.
+		 */
+		if (this.gesture) {
+			if (!this.multiTouch) return
 
+			const box = this.canvas.getBoundingClientRect()
+			for (const touched of Array.from(event.changedTouches)) {
+				if (touched.identifier === this.gesture.id) continue
+				this.others.set(touched.identifier, {
+					x: touched.clientX - box.left,
+					y: touched.clientY - box.top,
+				})
+			}
+
+			if (this.others.size > 0) this.engage()
+			this.publish(box)
+			return
+		}
+
+		this.others.clear()
 		this.gesture = this.open(touch, true, false)
 
 		/*
-		 * Which state a gesture opens in is most of what separates these four.
+		 * Which state a gesture opens in is most of what separates these six.
 		 * `steady` and `holdToMove` are marking from the frame they are touched;
 		 * `holdToDraw` opens with nothing but a cursor; `holdTool` asks the other
-		 * hand, and opens marking if the tool is already being held down.
+		 * hand; and the two-finger modes open with one finger down, which by
+		 * definition is not yet two.
 		 */
 		if (this.mode === 'steady' || this.mode === 'holdToMove') this.engage()
 		else if (this.mode === 'holdTool') this.engagePress()
@@ -312,28 +355,70 @@ export class PointerLayer {
 		const gesture = this.gesture
 		if (!gesture) return
 
-		const touch = find(event.changedTouches, gesture.id)
-		if (!touch) return
-
 		if (gesture.intercepted) {
 			event.stopPropagation()
 			event.preventDefault()
 		}
 
 		const box = this.canvas.getBoundingClientRect()
-		const x = touch.clientX - box.left
-		const y = touch.clientY - box.top
+
+		/*
+		 * How far the cursor should travel, from however many fingers moved.
+		 *
+		 * The steering finger always counts. In `twoFinger` so does every other one,
+		 * and the answer is their *average* — which does the right thing without any
+		 * special cases, because a finger that is only resting contributes nothing:
+		 * anything under `MOVE_FLOOR` is dropped before the division, so one finger
+		 * moving gives its own delta and two moving give the mean of the pair.
+		 */
+		let sumX = 0
+		let sumY = 0
+		let movers = 0
+		let sawSteering = false
+
+		for (const touched of Array.from(event.changedTouches)) {
+			const x = touched.clientX - box.left
+			const y = touched.clientY - box.top
+
+			if (touched.identifier === gesture.id) {
+				const dx = x - gesture.x
+				const dy = y - gesture.y
+				gesture.x = x
+				gesture.y = y
+				sawSteering = true
+				if (Math.hypot(dx, dy) > MOVE_FLOOR) {
+					sumX += dx
+					sumY += dy
+					movers++
+				}
+				continue
+			}
+
+			const other = this.others.get(touched.identifier)
+			if (!other) continue
+
+			const dx = x - other.x
+			const dy = y - other.y
+			other.x = x
+			other.y = y
+
+			// Only one mode lets a finger that isn't the steering one steer.
+			if (this.mode === 'twoFinger' && Math.hypot(dx, dy) > MOVE_FLOOR) {
+				sumX += dx
+				sumY += dy
+				movers++
+			}
+		}
+
+		if (!sawSteering && movers === 0) return
 
 		// The relative modes take the *difference* and leave the cursor where it was,
 		// which is what lets the finger work in one corner while the ink lands in
 		// another. Everywhere else the finger is the cursor and this is a no-op.
-		if (this.relative) {
-			this.cursorX = clamp(this.cursorX + (x - gesture.x), 0, box.width)
-			this.cursorY = clamp(this.cursorY + (y - gesture.y), 0, box.height)
+		if (this.relative && movers > 0) {
+			this.cursorX = clamp(this.cursorX + sumX / movers, 0, box.width)
+			this.cursorY = clamp(this.cursorY + sumY / movers, 0, box.height)
 		}
-
-		gesture.x = x
-		gesture.y = y
 
 		if (gesture.intercepted) {
 			/*
@@ -392,16 +477,49 @@ export class PointerLayer {
 		this.publish(box)
 	}
 
+	/**
+	 * A finger leaving, which is three different events depending on which finger.
+	 *
+	 * One of the extras going is the tool being released. The steering finger going
+	 * *hands the cursor over* to whichever extra is still down rather than ending the
+	 * gesture — lifting the first of two fingers should not pull the rug out from
+	 * under the second — and only when nothing is left does the gesture end.
+	 */
 	private onTouchEnd = (event: TouchEvent): void => {
 		const gesture = this.gesture
 		if (!gesture) return
 
 		if (gesture.intercepted) event.stopPropagation()
-		if (!find(event.changedTouches, gesture.id)) return
 
-		this.clearHold()
-		this.disengage()
-		this.gesture = null
+		let steeringLeft = false
+		for (const touched of Array.from(event.changedTouches)) {
+			if (touched.identifier === gesture.id) steeringLeft = true
+			else this.others.delete(touched.identifier)
+		}
+
+		if (steeringLeft) {
+			const next = this.others.entries().next()
+			if (next.done) {
+				this.clearHold()
+				this.disengage()
+				this.gesture = null
+				this.others.clear()
+				this.publish()
+				return
+			}
+
+			const [id, at] = next.value
+			this.others.delete(id)
+			gesture.id = id
+			gesture.x = at.x
+			gesture.y = at.y
+			gesture.anchorX = at.x
+			gesture.anchorY = at.y
+		}
+
+		// Down to one finger: whatever the second one was switching on is over.
+		if (this.multiTouch && this.others.size === 0) this.disengage()
+
 		this.publish()
 	}
 
@@ -547,6 +665,7 @@ export class PointerLayer {
 		this.clearHold()
 		this.disengage()
 		this.gesture = null
+		this.others.clear()
 		this.pressed = null
 		this.over = false
 		this.held = false
@@ -716,12 +835,4 @@ interface Gesture {
 	/** Where the finger was when the current hold started counting. */
 	anchorX: number
 	anchorY: number
-}
-
-function find(touches: TouchList, id: number): Touch | null {
-	for (let i = 0; i < touches.length; i++) {
-		const touch = touches[i]
-		if (touch && touch.identifier === id) return touch
-	}
-	return null
 }

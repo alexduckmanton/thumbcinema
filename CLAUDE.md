@@ -759,20 +759,25 @@ is now true at both widths and the differences are called out where they exist.
 ### The drawing modes, which are scaffolding
 
 There is a switch in the top right of the create page — an icon button with a native
-`<select>` over it — offering nine answers to "a finger is opaque, so the thing you
+`<select>` over it — offering eleven answers to "a finger is opaque, so the thing you
 are aiming at is under the thing you are aiming with". They exist to be compared, and
-**seven of them will be deleted**: `drawModes.ts` lists what each one is and where it
+**nine of them will be deleted**: `drawModes.ts` lists what each one is and where it
 came from, and the switch, that file and most of `pointer.ts` go when one wins. The
 default is `holdTool`, which is the one leading. The choice lives in `localStorage`
 under `tc:drawMode`.
 
 Three things about them are worth knowing before touching anything nearby:
 
-- **Four modes take the gesture away from paper entirely.** paper 0.12 is
+- **Six modes take the gesture away from paper entirely.** paper 0.12 is
   single-pointer by construction — it reads `targetTouches[0]`, has one drag in flight
   and no notion of a pointer id — so a gesture that starts without drawing, stops
-  halfway through, puts the ink somewhere other than under the finger, or waits for
-  the other hand has nowhere to say so. `PointerLayer` listens on `.book` in the
+  halfway through, puts the ink somewhere other than under the finger, waits for the
+  other hand, or watches a *second finger* has nowhere to say so. The last is the
+  plainest case: paper cannot see a second contact at all. Inside this layer the whole
+  `TouchList` is available, identifiers and all, so per-finger deltas are ordinary
+  arithmetic — `secondFinger` treats every finger after the first as a button, and
+  `twoFinger` lets any of them steer and averages whichever are moving, dropping
+  anything under `MOVE_FLOOR` first so a resting thumb can't halve a deliberate move. `PointerLayer` listens on `.book` in the
   **capture** phase, which runs before the canvas's own listeners and before anything
   can bubble as far as the document, and drives whichever tool is in hand through
   `engine.toolDown`/`toolDrag`/`toolUp`. It is *touch* events that are intercepted and
@@ -784,12 +789,13 @@ Three things about them are worth knowing before touching anything nearby:
   moved it. So in those three the cursor is the pointer as far as anything downstream
   is concerned, and `Cursor.x` is the cursor rather than the fingertip. What differs
   between them is only what starts and stops the work: half a second of stillness in
-  two of them, and in `holdTool` a tool in the tray being physically held down by the
-  other hand.
-- **`holdTool` is the only one that covers the transform tool**, and that falls out of
-  the mechanism rather than being a decision: a held button *is* a mouse button, and a
+  two of them, a tool in the tray being physically held down by the other hand in
+  `holdTool`, and a second finger anywhere on the page in the other two.
+- **Three modes cover the transform tool** — the three whose changeover is a button
+  press in all but name (`drivesAllTools`). That falls out of the mechanism rather
+  than being a decision: a held button, or a second finger, *is* a mouse button, and a
   mouse button is what selecting, marqueeing, moving, scaling and rotating are made
-  of, where the other modes gate ink and there is no way to half-press a rotation. Two
+  of, where the timed modes gate ink and there is no way to half-press a rotation. Two
   consequences. The transform tool gets **four cursors** of its own up there — a
   crosshair over nothing, and a move, scale or rotate arrow over whatever the press
   would grab, the scale one turned to the axis the handle actually moves along. Those

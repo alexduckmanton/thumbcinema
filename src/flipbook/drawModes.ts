@@ -46,6 +46,13 @@ import type { ModalToolId } from './engine/tools/types'
  *    mouse button is what selecting, marqueeing, moving, scaling and rotating have
  *    always been made of. The others gate *ink*, and there is no sensible way to
  *    half-press a rotation.
+ *  - `secondFinger` and `twoFinger` move the modifier off the tray and onto the page.
+ *    Two fingers down means the tool is working; one means you are only aiming. They
+ *    differ in who steers: `secondFinger` keeps the cursor on the first finger and
+ *    treats every other one as a button, `twoFinger` lets either finger steer and
+ *    follows whichever is actually moving. Both are only possible because this layer
+ *    takes the touch stream away from paper — paper has one drag in flight and reads
+ *    `targetTouches[0]`, so a second finger is invisible to it.
  *  - `steady` is Autodesk Sketchbook's Steady Stroke, whose documentation names
  *    finger drawing as the case it was built for: the ink is dragged along behind
  *    the finger like a brush with long bristles, which both smooths the line and
@@ -61,6 +68,8 @@ export type DrawMode =
 	| 'holdToDraw'
 	| 'holdToMove'
 	| 'holdTool'
+	| 'secondFinger'
+	| 'twoFinger'
 	| 'steady'
 	| 'zoom'
 
@@ -107,6 +116,16 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 		id: 'holdTool',
 		label: 'Move, hold the tool to use it',
 		hint: 'Your finger nudges the cursor from anywhere on the page. Hold a tool in the tray with your other hand and it works at the cursor — the pencil draws, the eraser rubs out, transform selects and moves.',
+	},
+	{
+		id: 'secondFinger',
+		label: 'Move, second finger to use the tool',
+		hint: 'One finger nudges the cursor. Put a second finger anywhere on the page and the tool works at the cursor for as long as you keep it there.',
+	},
+	{
+		id: 'twoFinger',
+		label: 'Two fingers, either one steers',
+		hint: 'Two fingers down means the tool is working. Move either one and the cursor follows it; move both and it follows the average.',
 	},
 	{
 		id: 'steady',
@@ -160,9 +179,38 @@ export const HOLD_SLOP = 8
 export const TRAIL_DISTANCE = 32
 
 /**
+ * How far a finger has to travel in one event to count as steering, in CSS pixels.
+ *
+ * `twoFinger` follows whichever finger is moving and averages them when both are, so
+ * it has to be able to tell "resting" from "moving" — and a finger resting on glass
+ * is never quite still. Without a floor, a stationary thumb contributing a jittery
+ * zero to the average would halve every deliberate movement of the other hand.
+ */
+export const MOVE_FLOOR = 0.5
+
+/**
+ * Whether every tool is driven from the cursor, rather than just the two that mark.
+ *
+ * The three modes where a gesture is gated by something other than the ink itself —
+ * a held tool button, or a second finger — and where that gate is a *button press* in
+ * everything but name. A button press is what selecting, marqueeing, moving, scaling
+ * and rotating are made of, so in these three the transform tool comes along for the
+ * ride; in the timed modes there is no sensible way to half-press a rotation, and it
+ * is left to paper.
+ */
+export function drivesAllTools(mode: DrawMode): boolean {
+	return mode === 'holdTool' || mode === 'secondFinger' || mode === 'twoFinger'
+}
+
+/** Whether a gesture is opened and closed by fingers other than the steering one. */
+export function isMultiTouchMode(mode: DrawMode): boolean {
+	return mode === 'secondFinger' || mode === 'twoFinger'
+}
+
+/**
  * Whether the cursor moves by the finger's delta rather than standing under it.
  *
- * Three of the nine. Named here rather than in `pointer.ts` because the ring is
+ * Five of the eleven. Named here rather than in `pointer.ts` because the ring is
  * drawn differently in these — it says which state the gesture is in, and it is on
  * the page whether anything is touching the glass or not — so `InkCursor` has to ask
  * the same question, and two lists of mode ids would drift.
@@ -171,7 +219,7 @@ export const TRAIL_DISTANCE = 32
  * but it still takes its lead from where the finger actually is.
  */
 export function isRelativeMode(mode: DrawMode): boolean {
-	return mode === 'holdToDraw' || mode === 'holdToMove' || mode === 'holdTool'
+	return mode === 'holdToDraw' || mode === 'holdToMove' || drivesAllTools(mode)
 }
 
 /** Whether a still finger changes the gesture over. The two with a timer in them. */
@@ -256,7 +304,7 @@ export function zoomAllowed(): boolean {
  * The viewport tag, rewritten to match the mode.
  *
  * `index.html` ships the locked-down version, because that is right for seven modes
- * out of nine and for every other page on the site. Android and desktop honour it;
+ * out of eleven and for every other page on the site. Android and desktop honour it;
  * relaxing it is the whole of what `zoom` needs from them.
  *
  * Applied globally rather than per page, and left applied when you leave the create

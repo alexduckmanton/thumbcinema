@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
-import { type DrawMode, isRelativeMode } from '../drawModes'
+import { type DrawMode, drivesAllTools, isRelativeMode } from '../drawModes'
 import { CANVAS_WIDTH, PENCIL_COLOR } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { ERASE_TOLERANCE } from '../engine/tools/eraser'
@@ -14,7 +14,7 @@ export interface InkCursorProps {
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Null on the playback page, and while a page animation holds the tools. */
 	tool: ModalToolId | null
-	/** Which of the nine answers to "a finger is opaque" is being tried. */
+	/** Which of the eleven answers to "a finger is opaque" is being tried. */
 	mode: DrawMode
 }
 
@@ -48,7 +48,8 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	const marking = tool === 'pencil' || tool === 'eraser'
 
 	/*
-	 * Except in `holdTool`, where transform needs one after all.
+	 * Except in the three modes that drive every tool from the cursor, where the
+	 * transform tool needs one after all.
 	 *
 	 * Up there the gesture is driven from the cursor rather than from the fingertip,
 	 * so the tool's own cursors are describing a pointer that isn't the one doing the
@@ -56,7 +57,7 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	 * Something has to stand where the press would land, and say what it would grab
 	 * when it got there. See `TransformCursor`, which is four shapes rather than one.
 	 */
-	const aiming = tool === 'transform' && mode === 'holdTool'
+	const aiming = tool === 'transform' && drivesAllTools(mode)
 	const shown = marking || aiming
 
 	/*
