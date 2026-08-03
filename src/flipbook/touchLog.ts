@@ -138,10 +138,16 @@ function round(value: number): number {
 /**
  * What the numbers say, in one line.
  *
- * Deliberately blunt, and deliberately about the two causes worth telling apart. A
- * first delta several times the typical one is the browser having held the finger's
- * movement back and then handed it over in a lump; a long gap with an ordinary first
- * delta is the event itself arriving late.
+ * The **ratio between the first delta and the rest** is the signal, and it is the only
+ * one that can be trusted. A first delta several times the typical one is movement the
+ * browser held back and then handed over in a lump; nothing else produces that shape.
+ *
+ * `gap` cannot carry the weight it looks like it can, and this said so twice before
+ * being fixed. It measures contact to first *movement*, and a finger that has landed
+ * and not moved yet is indistinguishable from a browser that hasn't said so — press,
+ * settle, then start aiming, and half a second is perfectly ordinary. So a long gap is
+ * only worth reporting when the first delta is *not* lumpy: there the finger did move
+ * and the news took a while to arrive, which is the other thing worth knowing.
  */
 export function verdict(summary: TouchSummary): string {
 	const [first] = summary.deltas
@@ -150,12 +156,11 @@ export function verdict(summary: TouchSummary): string {
 	const rest = summary.deltas.slice(1)
 	const typical = rest.length ? median(rest) : first
 
-	const lumpy = typical > 0 && first > typical * 3
-	const late = summary.gap > 40
+	if (typical > 0 && first > typical * 3) {
+		return `slop: ${first}px at once, then ${typical}px (${Math.round(first / typical)}×)`
+	}
 
-	if (lumpy && late) return 'slop and a late first event'
-	if (lumpy) return `slop: first move ${summary.gap}ms in, ${first}px at once`
-	if (late) return `late first event: ${summary.gap}ms, and only ${first}px`
+	if (summary.gap > 250) return `no slop, but ${summary.gap}ms before the first move`
 	return 'clean start'
 }
 

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import { pinchGuarded } from '../../lib/zoom'
 import { getDrawMode } from '../drawModes'
 import { type TouchSummary, useTouchLog, verdict } from '../touchLog'
 import styles from './TouchLog.module.css'
@@ -71,9 +70,10 @@ export function TouchLog() {
 function transcribe(last: TouchSummary | null): string {
 	const where = [
 		`mode: ${getDrawMode()}`,
-		// Which side of the pinch-guard experiment this gesture was recorded on. See
-		// `allowPinchZoom`; without it two logs are indistinguishable.
-		`guard: ${pinchGuarded() ? 'on' : 'off'}`,
+		// The unit Safari is quantising in. A steady 0.3px delta on a 3× screen is one
+		// device pixel per event, which is what says the tracking is as fine as the
+		// hardware allows and the problem is only in getting started.
+		`dpr: ${window.devicePixelRatio}`,
 		`agent: ${navigator.userAgent}`,
 	]
 
