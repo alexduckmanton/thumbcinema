@@ -1032,6 +1032,60 @@ export class FlipbookEngine {
 		}
 	}
 
+	// --- drawing without paper's help ----------------------------------------
+
+	/*
+	 * Three of the drawing modes have to take a gesture away from paper entirely,
+	 * because paper 0.12 has one drag in flight and no way to say "not yet", "stop
+	 * here" or "put it over there instead". `PointerLayer` intercepts those gestures
+	 * and drives the marking tool through the four methods below.
+	 *
+	 * They are deliberately the *same* two ends the ordinary path uses —
+	 * `handlePointerDown` and `handlePointerUp` — so an intercepted stroke is one
+	 * history step, recounts its page and redraws its thumbnail exactly as a normal
+	 * one does. Nothing about undo, the page strip or the save button knows which
+	 * route a stroke arrived by, and nothing should.
+	 *
+	 * All of this goes when a mode is chosen. See `drawModes.ts`.
+	 */
+
+	/** A point on the canvas, in CSS pixels from its top left, in project units. */
+	toProject(x: number, y: number): paper.Point {
+		return this.scene.toProject(x, y)
+	}
+
+	/** Lifts a *touch* off the mark it makes. Zero except in the `offset` mode. */
+	setTouchOffset(pixels: number): void {
+		this.scene.touchOffsetY = pixels
+	}
+
+	markBegin(point: paper.Point): void {
+		const tool = this.store.snapshot.tool
+		if (tool !== 'pencil' && tool !== 'eraser') return
+
+		this.handlePointerDown()
+
+		if (tool === 'eraser') this.eraser?.eraseAt(point)
+		else {
+			this.pencil.begin()
+			this.pencil.extend(point)
+		}
+	}
+
+	markExtend(point: paper.Point): void {
+		const tool = this.store.snapshot.tool
+		if (tool === 'eraser') this.eraser?.eraseAt(point)
+		else if (tool === 'pencil') this.pencil.extend(point)
+	}
+
+	markEnd(): void {
+		// The eraser has no stroke to close — it takes its bite on every event and
+		// leaves nothing open — so only the pencil is finished here. Both still need
+		// the second half of the history step.
+		if (this.store.snapshot.tool === 'pencil') this.pencil.end()
+		this.handlePointerUp()
+	}
+
 	// --- internals -----------------------------------------------------------
 
 	private drawing = false

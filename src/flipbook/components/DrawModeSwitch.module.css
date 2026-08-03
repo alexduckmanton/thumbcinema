@@ -1,0 +1,134 @@
+/*
+ * The drawing-mode switch: scaffolding, and dressed as scaffolding.
+ *
+ * It sits above everything — the header is 100 and the loupe 101, which is the
+ * highest thing the page draws — because it has to be reachable in all eight modes,
+ * including the ones that put a magnifier under the top edge of the window.
+ */
+.switcher {
+	position: fixed;
+	top: calc(8px + env(safe-area-inset-top));
+	right: calc(8px + env(safe-area-inset-right));
+	z-index: 120;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 6px;
+	/* The caption below the button is a label, not a target; the button re-enables
+	   itself. Without this the whole column would be a hole in the drawing. */
+	pointer-events: none;
+}
+
+/*
+ * The disc, matched to the undo and redo buttons rather than to anything of its own:
+ * same white, same shadow, same rounding. Smaller than their 48, because this is not
+ * a control anybody is meant to reach for while drawing.
+ */
+.button {
+	position: relative;
+	display: flex;
+	width: 40px;
+	height: 40px;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-pill);
+	background: var(--white);
+	box-shadow: var(--shadow-card);
+	pointer-events: auto;
+}
+
+/*
+ * Three bars, shortest at the bottom.
+ *
+ * Drawn in CSS rather than taken from the icon sheet or set as a glyph. The sheet is
+ * 2013's hand and is drawings of *things* — a pencil, an eraser, a page — and a
+ * settings control is neither a thing nor part of that set; a font glyph would be a
+ * bet on Inter shipping the character. Three boxes always render.
+ */
+.icon {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+}
+
+.icon span {
+	height: 2px;
+	border-radius: 1px;
+	background: var(--ink-strong);
+}
+
+.icon span:nth-child(1) {
+	width: 16px;
+}
+
+.icon span:nth-child(2) {
+	width: 12px;
+}
+
+.icon span:nth-child(3) {
+	width: 8px;
+}
+
+/*
+ * The picker itself, laid over the disc and invisible.
+ *
+ * `opacity: 0` rather than `visuallyHidden`, because the point is that pressing the
+ * button *is* pressing the select — which is what opens the platform's own list
+ * rather than something built here that would have to be right about a thumb.
+ */
+.select {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: none;
+	opacity: 0;
+	appearance: none;
+	cursor: pointer;
+}
+
+.select:focus-visible + .icon,
+.button:focus-within {
+	outline: 2px solid var(--blue);
+	outline-offset: 3px;
+	border-radius: var(--radius-pill);
+}
+
+/*
+ * Which mode is on, in words, permanently.
+ *
+ * Worth the pixels: these differ from each other by a rule rather than by a picture,
+ * and half of them look identical until you touch the glass. Without this, testing
+ * is a stream of "which one is this again".
+ */
+.caption {
+	display: flex;
+	max-width: min(220px, 60vw);
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 4px;
+	text-align: right;
+}
+
+.label {
+	padding: 3px 8px;
+	border-radius: var(--radius-pill);
+	background: rgba(255, 255, 255, 0.92);
+	box-shadow: var(--shadow-card);
+	color: var(--ink-strong);
+	font-size: 11px;
+	line-height: 1.3;
+}
+
+/* The rules of the mode, for the few seconds after it is picked. */
+.hint {
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: rgba(34, 34, 34, 0.88);
+	color: var(--white);
+	font-size: 11px;
+	line-height: 1.35;
+}

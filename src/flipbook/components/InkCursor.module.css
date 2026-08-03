@@ -43,6 +43,23 @@
 }
 
 /*
+ * The two states the ring takes on in the hold modes, and only there.
+ *
+ * `waiting` is a gesture that is aiming but not yet marking; `inking` is one that is.
+ * The pair has to be readable at six pixels across on a phone, under a finger, at a
+ * glance — so it is stated as light-grey against black rather than as two shades of
+ * the hairline the ring wears the rest of the time. A changeover you cannot see is a
+ * changeover you have to test for by drawing and undoing.
+ */
+.waiting {
+	border-color: rgba(34, 34, 34, 0.3);
+}
+
+.inking {
+	border-color: rgba(34, 34, 34, 0.95);
+}
+
+/*
  * The loupe: the drawing under the finger, repeated above it at twice the size.
  *
  * A circle rather than a rectangle because what it shows is centred rather than

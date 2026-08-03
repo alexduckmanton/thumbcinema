@@ -3,12 +3,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
+import { DrawModeSwitch } from '../../flipbook/components/DrawModeSwitch'
 import { InkCursor } from '../../flipbook/components/InkCursor'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
+import { useDrawMode } from '../../flipbook/drawModes'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
@@ -25,6 +27,10 @@ type Phase = 'drawing' | 'naming' | 'sending'
 export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
+
+	// Which answer to "a finger is opaque" is switched on. Scaffolding: see
+	// `drawModes.ts` for the eight of them and for what happens when one wins.
+	const drawMode = useDrawMode()
 
 	const crash = useCrashRecovery(engine)
 
@@ -110,6 +116,11 @@ export function CreatePage() {
 				/>
 			</SiteHeader>
 
+			{/* Scaffolding, and above everything so it stays reachable in all eight
+			    modes — including the ones that park a magnifier under the top edge of
+			    the window. It goes when one of them wins. */}
+			<DrawModeSwitch mode={drawMode} />
+
 			<main className={contentClass}>
 				{engine && state ? (
 					<PageStrip
@@ -150,7 +161,7 @@ export function CreatePage() {
 						    shows what is under a finger. Inside `.book` because both are
 						    measured against the drawing rather than the window. */}
 						{state && phase === 'drawing' ? (
-							<InkCursor canvasRef={canvasRef} tool={state.tool} />
+							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} mode={drawMode} />
 						) : null}
 
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
