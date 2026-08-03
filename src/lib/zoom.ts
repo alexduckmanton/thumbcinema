@@ -1,5 +1,3 @@
-import { zoomAllowed } from '../flipbook/drawModes'
-
 /**
  * Turns off pinch zoom, which iOS does not let a viewport tag turn off.
  *
@@ -18,14 +16,7 @@ import { zoomAllowed } from '../flipbook/drawModes'
  *    someone scrolling with two fingers rather than pinching.
  */
 export function preventPinchZoom(): void {
-	// Asked of the mode on every gesture rather than at boot, because the answer
-	// changes: one of the drawing modes being tried is "give up on seeing past the
-	// finger and let people magnify the page instead", which is exactly this rule
-	// standing down. See `drawModes.ts`, which owns the viewport tag half of it.
-	const cancel = (event: Event) => {
-		if (zoomAllowed()) return
-		event.preventDefault()
-	}
+	const cancel = (event: Event) => event.preventDefault()
 
 	document.addEventListener('gesturestart', cancel)
 	document.addEventListener('gesturechange', cancel)

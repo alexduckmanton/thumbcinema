@@ -14,7 +14,7 @@ export interface InkCursorProps {
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Null on the playback page, and while a page animation holds the tools. */
 	tool: ModalToolId | null
-	/** Which of the eleven answers to "a finger is opaque" is being tried. */
+	/** Which of the ten answers to "a finger is opaque" is being tried. */
 	mode: DrawMode
 }
 
@@ -63,11 +63,11 @@ export function InkCursor({ engine, canvasRef, tool, mode }: InkCursorProps) {
 	/*
 	 * One layer for the life of the page, not one per tool.
 	 *
-	 * It has to outlive the ring it feeds: `offset` is applied inside the scene and
-	 * `zoom` is applied to the canvas element, and a layer that came and went with the
-	 * transform tool would put both back to their defaults every time you picked it
-	 * up. The mode is handed over separately, below, for the same reason — rebuilding
-	 * the layer to change a setting would drop whatever gesture was in flight.
+	 * It has to outlive the ring it feeds: `offset` is applied inside the scene, and a
+	 * layer that came and went with the transform tool would put it back to zero every
+	 * time you picked that tool up. The mode is handed over separately, below, for the
+	 * same reason — rebuilding the layer to change a setting would drop whatever
+	 * gesture was in flight.
 	 */
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `mode` is the starting value only; `setMode` below carries changes across. See above.
 	useEffect(() => {

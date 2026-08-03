@@ -14,6 +14,7 @@ import {
 } from './drawModes'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
 import type { ModalToolId } from './engine/tools/types'
+import { beginTouchLog, endTouchLog, sampleTouch } from './touchLog'
 
 /**
  * Where the pointer is and what it is doing, in the terms the cursor is drawn in.
@@ -59,7 +60,7 @@ export interface Cursor {
  * The one place a pointer becomes a mark, for as long as there is more than one
  * candidate answer to how a finger should draw.
  *
- * Six of the eleven modes cannot be built on top of paper.js, and it is worth being
+ * Six of the ten modes cannot be built on top of paper.js, and it is worth being
  * precise about why. paper 0.12 is single-pointer by construction: on a touch device
  * it listens for `touchstart` on the canvas and `touchmove`/`touchend` on the
  * document, and `DomEvent.getPoint` reads `event.targetTouches[0]` — there is one
@@ -213,29 +214,18 @@ export class PointerLayer {
 		this.releaseTool = null
 
 		this.engine.setTouchOffset(0)
-		this.canvas.style.removeProperty('touch-action')
 		this.store.set({ cursor: null })
 	}
 
 	/**
-	 * The two things a mode changes outside this file.
+	 * The one thing a mode changes outside this file.
 	 *
 	 * The offset is applied inside the scene rather than here, because in that mode
 	 * paper is still doing the drawing and `Scene.pinCoordinates` already owns the one
 	 * place a pointer becomes a project point.
-	 *
-	 * `touch-action` is written on the element rather than in the stylesheet for the
-	 * same reason `InkCursor` writes `cursor` there: it is a property of the mode, and
-	 * the mode is not something CSS can see.
 	 */
 	private applyMode(): void {
 		this.engine.setTouchOffset(this.mode === 'offset' ? CURSOR_OFFSET : 0)
-
-		// `none` is the stylesheet's, and means a drag here is a stroke and never a
-		// scroll. `pinch-zoom` gives the browser two-finger gestures back and keeps
-		// one-finger ones, which is exactly the trade that mode is testing.
-		if (this.mode === 'zoom') this.canvas.style.touchAction = 'pinch-zoom'
-		else this.canvas.style.removeProperty('touch-action')
 
 		// The middle of the page, every time one of the relative modes is switched on.
 		// Somewhere known beats wherever it happened to be left the last time, and the
@@ -296,6 +286,7 @@ export class PointerLayer {
 		if (!this.intercepts()) {
 			// Paper's gesture, watched rather than taken: `engaged` is true from the
 			// first frame because paper is already working.
+			beginTouchLog()
 			this.gesture = this.open(touch, false, true)
 			this.publish()
 			return
@@ -330,6 +321,7 @@ export class PointerLayer {
 		}
 
 		this.others.clear()
+		beginTouchLog()
 		this.gesture = this.open(touch, true, false)
 
 		/*
@@ -415,12 +407,17 @@ export class PointerLayer {
 
 		if (!sawSteering && movers === 0) return
 
+		// What the touch stream actually delivered, when anybody is watching. Off by
+		// default and free when off; see `touchLog.ts` for what the numbers mean.
+		const scale = movers > 0 ? 1 / movers : 0
+		sampleTouch(sumX * scale, sumY * scale, 1 + this.others.size)
+
 		// The relative modes take the *difference* and leave the cursor where it was,
 		// which is what lets the finger work in one corner while the ink lands in
 		// another. Everywhere else the finger is the cursor and this is a no-op.
 		if (this.relative && movers > 0) {
-			this.cursorX = clamp(this.cursorX + sumX / movers, 0, box.width)
-			this.cursorY = clamp(this.cursorY + sumY / movers, 0, box.height)
+			this.cursorX = clamp(this.cursorX + sumX * scale, 0, box.width)
+			this.cursorY = clamp(this.cursorY + sumY * scale, 0, box.height)
 		}
 
 		if (gesture.intercepted) {
@@ -507,6 +504,7 @@ export class PointerLayer {
 				this.disengage()
 				this.gesture = null
 				this.others.clear()
+				endTouchLog()
 				this.publish()
 				return
 			}

@@ -58,8 +58,6 @@ import type { ModalToolId } from './engine/tools/types'
  *    finger drawing as the case it was built for: the ink is dragged along behind
  *    the finger like a brush with long bristles, which both smooths the line and
  *    leaves it somewhere you can see it.
- *  - `zoom` gives up on seeing past the finger and does what every large drawing app
- *    actually does — lets you magnify the whole page and work bigger.
  */
 export type DrawMode =
 	| 'loupe'
@@ -72,7 +70,6 @@ export type DrawMode =
 	| 'secondFinger'
 	| 'twoFinger'
 	| 'steady'
-	| 'zoom'
 
 export interface DrawModeInfo {
 	id: DrawMode
@@ -132,11 +129,6 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 		id: 'steady',
 		label: 'Trailing ink (steady stroke)',
 		hint: 'The line follows your finger from a short distance behind it.',
-	},
-	{
-		id: 'zoom',
-		label: 'Pinch to zoom',
-		hint: 'No magnifier. Pinch the page to magnify it and draw bigger.',
 	},
 ]
 
@@ -265,7 +257,6 @@ export function getDrawMode(): DrawMode {
 
 export function setDrawMode(mode: DrawMode): void {
 	store.set({ mode })
-	applyZoomPolicy(mode)
 
 	try {
 		localStorage.setItem(KEY, mode)
@@ -278,41 +269,3 @@ export function setDrawMode(mode: DrawMode): void {
 export function useDrawMode(): DrawMode {
 	return useStore(store).mode
 }
-
-/**
- * Whether the page may be pinched right now.
- *
- * `lib/zoom.ts` asks this before cancelling Safari's gesture events, which is the
- * only thing standing between an iPhone and page zoom — iOS has ignored
- * `user-scalable=no` since iOS 10. Everything else honours the viewport tag, which
- * is what `applyZoomPolicy` rewrites.
- */
-export function zoomAllowed(): boolean {
-	return store.snapshot.mode === 'zoom'
-}
-
-/**
- * The viewport tag, rewritten to match the mode.
- *
- * `index.html` ships the locked-down version, because that is right for seven modes
- * out of eleven and for every other page on the site. Android and desktop honour it;
- * relaxing it is the whole of what `zoom` needs from them.
- *
- * Applied globally rather than per page, and left applied when you leave the create
- * page. Restoring it on unmount would be tidier and would also mean the gallery
- * behaved differently depending on which mode you last drew in, which is a stranger
- * thing to explain than a site you can pinch.
- */
-function applyZoomPolicy(mode: DrawMode): void {
-	if (typeof document === 'undefined') return
-
-	const tag = document.querySelector('meta[name="viewport"]')
-	if (!tag) return
-
-	const base = 'width=device-width, initial-scale=1, viewport-fit=cover'
-	tag.setAttribute('content', mode === 'zoom' ? base : `${base}, maximum-scale=1, user-scalable=no`)
-}
-
-// The stored mode is only honoured once the tag agrees with it: a reload in `zoom`
-// would otherwise come back up unable to zoom, which reads as the setting not sticking.
-applyZoomPolicy(store.snapshot.mode)

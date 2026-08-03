@@ -750,16 +750,22 @@ is now true at both widths and the differences are called out where they exist.
   reaches. Drawing near the top of a phone's canvas put it behind the wordmark, and a
   magnifier that goes behind something is not showing you what is under your finger. The
   ring needs none of that: it is on the paper by definition.
-- **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
-  which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
-  Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
-  the body, and the canvas takes `touch-action: none` so a stroke is never a scroll.
-  **Both halves are conditional now**, on the drawing mode below.
+- **Zoom is off site-wide, and unconditionally.** `maximum-scale=1, user-scalable=no`
+  in the viewport tag, which Android honours and iOS ignores, plus `preventPinchZoom()`
+  in `lib/zoom.ts` for Safari's gesture events. Double-tap zoom goes with
+  `touch-action: manipulation` on the body; `.book` and the canvas inside it both take
+  `touch-action: none`, so a stroke is never a scroll and never a pinch. There was a
+  drawing mode that gave pinch zoom back for comparison and it is gone — a page the
+  browser might still be about to zoom is a page whose first `touchmove` it can hold
+  on to while it decides, which is the opposite of what the relative modes need.
+- **`overscroll-behavior: contain` on the body**, for the same reason rather than for
+  scrolling's: a drag near the top of the window that might turn into a pull-to-refresh
+  is a drag the browser keeps to itself until it knows.
 
 ### The drawing modes, which are scaffolding
 
 There is a switch in the top right of the create page — an icon button with a native
-`<select>` over it — offering eleven answers to "a finger is opaque, so the thing you
+`<select>` over it — offering ten answers to "a finger is opaque, so the thing you
 are aiming at is under the thing you are aiming with". They exist to be compared, and
 **nine of them will be deleted**: `drawModes.ts` lists what each one is and where it
 came from, and the switch, that file and most of `pointer.ts` go when one wins. The

@@ -14,7 +14,7 @@ const HINT_DURATION = 5000
  * The switch between the drawing modes, in the top right of the window.
  *
  * A native `<select>` rather than anything built here, and that is the whole design:
- * it is the one control on either platform that can show eleven options in a list a
+ * it is the one control on either platform that can show ten options in a list a
  * thumb can hit, and it costs nothing. It is laid over the disc at zero opacity, so
  * what you see is the button and what you press is the picker.
  *
