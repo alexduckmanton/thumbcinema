@@ -894,21 +894,33 @@ Things worth knowing before touching anything nearby:
   the one press that isn't acted on at once. Switching tool mid-gesture is most of what
   holding one is for and transform ⇄ push is a switch like any other, but with a finger
   aiming *every* press engages — so "did it do any work" answers yes to both readings and
-  can't separate them. What can is that using a tool takes time or takes the cursor
-  somewhere. Asking that on the way up is too late, though: transform's mousedown
+  can't separate them. Asking on the way up is too late: transform's mousedown
   **deselects** whenever it lands away from the box, so a press meant to reach push threw
   away the very selection it was about to bend, and by release the selection was already
-  gone. So the press does nothing until it is no longer a tap — until the cursor leaves
-  `TAP_SLOP` or `TAP_TIME` passes — and then engages **at the point the button went
-  down**, so the handle it grabs is the one that was under the cursor when you pressed and
-  the wait costs nothing. A press that never gets there is a tap, `used` stays false, and
-  the ordinary tap path cycles it into push.
+  gone. So the press does nothing at all until it is no longer a tap, and then engages
+  **at the point the button went down** — so the handle it grabs is the one that was
+  under the cursor when you pressed, and the wait costs nothing. A press that never gets
+  there leaves `used` false, and the ordinary tap path cycles it into push.
 
-  Only transform, and only already in hand. Switching *to* a tool is unambiguous. The two
-  that mark have no second reading to wait for — `selectTool` on the tool in hand is a
-  no-op for them — so waiting would only put 400ms in front of every stroke that starts
-  from a re-press, and a press of theirs that goes nowhere costs nothing anyway: the
-  pencil discards a path of one segment, and the eraser's bite is a bite. And nothing
+  **What settles it is the cursor moving, and nothing else. There is no timer**, and a
+  duration was tried first and is exactly the wrong signal: a tap on the glass is quick,
+  but a deliberate press of a *button with the other hand* is not, and is routinely past
+  any threshold worth picking. When it was, the wait ended by itself, transform engaged
+  away from the selection and cleared it, and the release then found the tool had worked
+  and didn't switch mode either — both halves failing at once, which is what a press
+  being slow should never cause. `TAP_TIME` is the *page* tap's number and stays that.
+
+  What this gives up is tapping the tray to **select** the stroke under the cursor: a
+  press that never moves is now always the mode switch. Nothing is really lost, because
+  that is the second finger's job — a second finger down and up is a click at the cursor,
+  and it isn't deferred. So the two holders divide cleanly: the finger uses the tool, the
+  button switches it.
+
+  Only transform, and only already in hand. Switching *to* a tool is unambiguous, and a
+  press that was already down before the finger landed isn't deferred either — the
+  ambiguity belongs to a press arriving *during* a gesture. The two that mark have no
+  second reading to wait for, `selectTool` on the tool in hand being a no-op for them, so
+  waiting would only stand between a re-press and the stroke it starts. And nothing
   cycles while a second finger is still working the tool, because swapping the tool
   underneath a stroke in progress is what `engagePress` goes out of its way to avoid.
 - **The tray's three tools are driven by touch events, not by a click and not by a

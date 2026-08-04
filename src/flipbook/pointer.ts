@@ -118,8 +118,8 @@ export class PointerLayer {
 	/** The tool button that is held down in the tray. See `onToolPressed`. */
 	private pressed: Press | null = null
 
-	/** A press that hasn't yet found out whether it is the tool or a tap. `engagePress`. */
-	private waiting: number | null = null
+	/** True while a press is waiting to find out whether it is the tool. `engagePress`. */
+	private waiting = false
 
 	/**
 	 * Which kind of pointer the cursor currently describes.
@@ -357,7 +357,7 @@ export class PointerLayer {
 		// A press that was waiting to find out whether it was the tool or a tap: taking
 		// the cursor this far settles it, before anything below drives a tool. See
 		// `engagePress`.
-		if (this.waiting !== null && this.pressed && this.travelled(this.pressed) > TAP_SLOP) {
+		if (this.waiting && this.pressed && this.travelled(this.pressed) > TAP_SLOP) {
 			this.commitPress()
 		}
 
@@ -426,7 +426,7 @@ export class PointerLayer {
 				this.others.clear()
 				// A waiting press outlives the finger it was waiting on, and there is
 				// nothing left for it to engage. It is still a tap when the button comes up.
-				this.clearWaiting()
+				this.waiting = false
 				this.publish()
 				return
 			}
@@ -495,7 +495,7 @@ export class PointerLayer {
 
 		const press = this.pressed
 		this.pressed = null
-		this.clearWaiting()
+		this.waiting = false
 		if (!press) return
 
 		if (this.gesture?.engaged) {
@@ -535,27 +535,41 @@ export class PointerLayer {
 	 *
 	 * **A press on the transform tool while transform is already in hand waits**, and
 	 * that is the one place a press is not acted on immediately. It has two readings —
-	 * the tool being used again, or a tap switching it into push — and the readings are
-	 * not equally cheap to be wrong about: transform's mousedown *deselects* whenever it
+	 * the tool being used again, or a tap switching it into push — and they are not
+	 * equally cheap to be wrong about: transform's mousedown *deselects* whenever it
 	 * lands away from the box, so a press meant to reach push threw away the very
 	 * selection it was about to bend. Deciding on the way back up doesn't help, because
 	 * by then the selection is already gone.
 	 *
-	 * So it does nothing until it is no longer a tap — until the cursor leaves `TAP_SLOP`
-	 * (see `onTouchMove`) or `TAP_TIME` passes — and then engages **at the point the
-	 * button went down**, so the handle it grabs is the one that was under the cursor
-	 * when you pressed and nothing is lost to the wait.
+	 * **What settles it is the cursor moving, and nothing else — no timer.** A duration
+	 * was tried first and is exactly the wrong signal: a tap on the glass is quick, but a
+	 * deliberate press of a *button with the other hand* is not, and is routinely past
+	 * any threshold you would pick. When it was, the wait ended by itself, transform
+	 * engaged away from the selection and cleared it, and the release then found the tool
+	 * had worked and didn't switch mode either — both halves failing at once, which is
+	 * what a press being slow ought never to cause. So the press simply does nothing
+	 * until the cursor leaves `TAP_SLOP` (see `onTouchMove`), and then engages **at the
+	 * point the button went down**, so the handle it grabs is the one that was under the
+	 * cursor when you pressed and the wait costs nothing. Hold it as long as you like.
+	 *
+	 * What that gives up is tapping the tray to *select* the stroke under the cursor: a
+	 * press that never moves is now always the mode switch. Nothing is actually lost,
+	 * because that is the second finger's job — a second finger down and up is a click at
+	 * the cursor, and it is not deferred. So the two holders divide cleanly: **the finger
+	 * uses the tool, and the button switches it.**
+	 *
+	 * A press that was already down before the finger landed is not deferred either.
+	 * The ambiguity belongs to a press that arrives *during* a gesture; one that predates
+	 * it was somebody picking a tool up and then reaching for the page.
 	 *
 	 * Only transform, and only when it is already in hand. Switching *to* a tool is
-	 * unambiguous and engages at once. And the two tools that mark have no second reading
-	 * to wait for — `selectTool` on the tool already in hand is a no-op for them — so
-	 * waiting would only put `TAP_TIME` in front of every stroke that starts from a
-	 * re-press. A press of theirs that goes nowhere costs nothing either way: the pencil
-	 * discards a path of one segment (`PencilTool.end`), and the eraser's bite is a bite.
+	 * unambiguous. And the two tools that mark have no second reading to wait for —
+	 * `selectTool` on the tool already in hand is a no-op for them — so waiting would only
+	 * stand between a re-press and the stroke it starts.
 	 */
 	private engagePress(): void {
 		const press = this.pressed
-		if (!press || press.used || this.waiting !== null) return
+		if (!press || press.used || this.waiting) return
 
 		// Changing tool part-way through a gesture is much of the point of holding one,
 		// and the tool in hand has to be put down before the next one picks the gesture
@@ -570,22 +584,17 @@ export class PointerLayer {
 			return
 		}
 
-		if (press.id === 'transform') {
-			// The remainder of the window rather than a fresh one: a tool held down before
-			// the finger arrived has already spent its tap, and should work at once.
-			const left = TAP_TIME - (performance.now() - press.at)
-			if (left > 0) {
-				this.waiting = window.setTimeout(this.commitPress, left)
-				return
-			}
+		if (press.id === 'transform' && this.gesture && press.at > this.gesture.openedAt) {
+			this.waiting = true
+			return
 		}
 
 		this.commitPress()
 	}
 
 	/** The waiting press has turned out to be the tool after all. */
-	private commitPress = (): void => {
-		this.clearWaiting()
+	private commitPress(): void {
+		this.waiting = false
 
 		const press = this.pressed
 		if (!press || press.used || !this.gesture) return
@@ -598,12 +607,6 @@ export class PointerLayer {
 	/** How far the cursor has moved since a press went down. */
 	private travelled(press: Press): number {
 		return Math.hypot(this.cursorX - press.x, this.cursorY - press.y)
-	}
-
-	private clearWaiting(): void {
-		if (this.waiting === null) return
-		window.clearTimeout(this.waiting)
-		this.waiting = null
 	}
 
 	private engage(at?: { x: number; y: number }): void {
@@ -638,7 +641,7 @@ export class PointerLayer {
 
 	/** Ends whatever is in flight without leaving half a stroke on the page. */
 	private abandon(): void {
-		this.clearWaiting()
+		this.waiting = false
 		this.disengage()
 		this.gesture = null
 		this.others.clear()
@@ -794,7 +797,7 @@ export class PointerLayer {
 const CONTROLS = 'button, a, input, select, textarea, [role="slider"]'
 
 /**
- * What counts as a tap: a press that goes nowhere, quickly.
+ * What counts as a tap of a *finger on the glass*: a press that goes nowhere, quickly.
  *
  * Both halves are needed, and the time is the one doing the work. Safari withholds
  * movement until the finger has travelled several pixels (see `lib/zoom.ts`), so a small
@@ -802,6 +805,10 @@ const CONTROLS = 'button, a, input, select, textarea, [role="slider"]'
  * from a tap by distance alone. It is not indistinguishable by duration: aiming happens
  * at around 9px a second, so a five-pixel nudge takes better than half a second, where a
  * tap is over in a tenth of one.
+ *
+ * `TAP_TIME` is that tap's alone, and deliberately not a tap of the *tray*: a button
+ * pressed by the other hand is a considered movement rather than a flick, and is
+ * routinely slower than this. `engagePress` says what happened when it was used there.
  */
 export const TAP_SLOP = 8
 export const TAP_TIME = 400
