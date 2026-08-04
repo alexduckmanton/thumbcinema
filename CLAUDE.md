@@ -889,6 +889,23 @@ Things worth knowing before touching anything nearby:
   move a selection you had just made, read as a second tap and dropped you into push mode
   unasked. `CreateTray` therefore suppresses its own `onClick` for pointer-driven
   presses; keyboard activation still goes through it, told apart by `event.detail === 0`.
+
+  **A press on the tool already in hand can be a tap even though it worked**, and that is
+  `tapped`. Switching tool mid-gesture is most of what holding one is for, and transform ⇄
+  push is a switch like any other — but with a finger already aiming, *every* press
+  engages, so "did it do any work" answers yes to both readings and can't separate them.
+  What can is that using a tool takes time or takes the cursor somewhere: a press under
+  `TAP_TIME` that left the cursor within `TAP_SLOP` of where it found it was too brief and
+  too still to have been the tool. Only for the tool already in hand — on any other button
+  a press is a switch, and cycling there would land you in push every time you reached for
+  transform. And not while a second finger is still working the tool, because swapping the
+  tool underneath a stroke in progress is the thing `engagePress` goes out of its way not
+  to do.
+
+  It gets one case wrong: a quick press over a stroke meant only to select it lands in
+  push. That costs one more tap to come back, the tray's arrows say which mode you are in,
+  and the selection survives the round trip — where the alternative, no way at all to reach
+  push without lifting the aiming finger, costs the whole gesture.
 - **The tray's three tools are driven by touch events, not by a click and not by a
   pointer event, and that is what makes changing tool mid-gesture possible at all.** A
   tap on a tool while a finger is already on the page is a *multi-touch* gesture, and a

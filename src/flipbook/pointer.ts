@@ -115,12 +115,8 @@ export class PointerLayer {
 	private releaseTool: (() => void) | null = null
 	private releaseGrab: (() => void) | null = null
 
-	/**
-	 * The tool button that is held down in the tray, and whether it has done any work.
-	 *
-	 * `used` is what tells a hold from a tap on the way back up. See `onToolPressed`.
-	 */
-	private pressed: { id: ModalToolId; used: boolean } | null = null
+	/** The tool button that is held down in the tray. See `onToolPressed`. */
+	private pressed: Press | null = null
 
 	/**
 	 * Which kind of pointer the cursor currently describes.
@@ -456,13 +452,37 @@ export class PointerLayer {
 	 * time — to move a selection you had just made — read as a second tap and dropped you
 	 * into push mode without asking.
 	 *
+	 * **And a press on the tool already in hand can be a tap even though it worked**,
+	 * which is `tapped`. Switching tool mid-gesture is most of what holding one is for,
+	 * and transform ⇄ push is a switch like any other — but with a finger already aiming,
+	 * every press engages, so "did it do any work" answers yes to both readings and
+	 * cannot tell them apart. What can is that using a tool takes time or takes the
+	 * cursor somewhere: a press under `TAP_TIME` that left the cursor within `TAP_SLOP`
+	 * of where it found it was too brief and too still to have been the tool.
+	 *
+	 * The one case it gets wrong is a quick press over a stroke meant only to select it,
+	 * which lands in push instead of leaving you in transform. It costs one more tap to
+	 * come back, the tray's arrows say which mode you are in, and the selection survives
+	 * the round trip — where the alternative, no way at all to reach push without lifting
+	 * the aiming finger, costs the whole gesture.
+	 *
 	 * The tray suppresses its own `onClick` for pointer-driven presses, so the tap lands
 	 * here and exactly once. Keyboard activation still goes through the click.
 	 */
 	private onToolPressed = (): void => {
 		const id = pressedTool()
 		if (id !== null) {
-			this.pressed = { id, used: false }
+			this.pressed = {
+				id,
+				used: false,
+				// Whether this press could be a *mode* switch rather than a tool switch.
+				// `selectTool` on the tool already in hand is a no-op for the two that mark
+				// and the transform ⇄ push cycle for the one that grabs.
+				inHand: this.engine.store.snapshot.tool === id,
+				at: performance.now(),
+				x: this.cursorX,
+				y: this.cursorY,
+			}
 			// Held before the finger arrived: `onTouchStart` will ask again.
 			if (this.gesture) this.engagePress()
 			return
@@ -470,14 +490,26 @@ export class PointerLayer {
 
 		const press = this.pressed
 		this.pressed = null
+		if (!press) return
 
 		if (this.gesture?.engaged) {
 			this.releaseHold()
+			// Not while the other holder is still working the tool: a second finger on the
+			// glass is a stroke in progress, and swapping the tool underneath one is the
+			// thing `engagePress` goes out of its way not to do.
+			if (!this.gesture.engaged && this.tapped(press)) this.engine.selectTool(press.id)
 			this.publish()
 			return
 		}
 
-		if (press && !press.used) this.engine.selectTool(press.id)
+		if (!press.used) this.engine.selectTool(press.id)
+	}
+
+	/** Too brief and too still to have been the tool doing anything. See above. */
+	private tapped(press: Press): boolean {
+		if (!press.inHand) return false
+		if (performance.now() - press.at > TAP_TIME) return false
+		return Math.hypot(this.cursorX - press.x, this.cursorY - press.y) <= TAP_SLOP
 	}
 
 	/**
@@ -745,6 +777,18 @@ export const subscribeToolPressed = pressed.subscribe
 
 function clamp(value: number, low: number, high: number): number {
 	return Math.min(Math.max(value, low), high)
+}
+
+interface Press {
+	id: ModalToolId
+	/** Whether the tool has done any work. What tells a hold from a tap on the way up. */
+	used: boolean
+	/** Whether this tool was already in hand, so that pressing it again is a mode switch. */
+	inHand: boolean
+	/** When it went down, and where the cursor was standing then. Both for `tapped`. */
+	at: number
+	x: number
+	y: number
 }
 
 interface Gesture {
