@@ -14,6 +14,9 @@
 .content {
 	position: relative;
 	width: 100%;
+	/* And stretched to the bottom of the window while the tool is up, because the empty
+	   white under the tools is the field a finger aims from. That is `html.locked main`
+	   in base.css, which is also where it says why it isn't a `min-height` here. */
 	padding-top: 20px;
 	/* Air under the save button, and clear of the home indicator with it. */
 	padding-bottom: calc(env(safe-area-inset-bottom) + 16px);

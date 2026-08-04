@@ -41,6 +41,17 @@ export class Selection {
 
 	type: TransformType = 'none'
 
+	/**
+	 * Told when `type` has been recomputed, whatever it came out as.
+	 *
+	 * This used to write a native cursor onto the canvas — `move`, `alias`,
+	 * `nwse-resize` and the rest — which was how the tool explained itself to a mouse and
+	 * was invisible to a finger. The cursor is drawn now, at the point the tool is
+	 * actually working from, so what has to leave this file is the *fact* rather than the
+	 * name of a CSS cursor. See `FlipbookEngine.subscribeGrab`.
+	 */
+	onGrabChanged: (() => void) | null = null
+
 	/** The handle under the pointer, from the last `updateTransformType`. */
 	handle: paper.HitResult | null = null
 
@@ -126,7 +137,7 @@ export class Selection {
 		this.setLayerOpacity(this.scene.activeLayer, 1)
 
 		this.type = 'none'
-		this.setCursor('auto')
+		this.onGrabChanged?.()
 		this.scene.redraw()
 
 		return dropped
@@ -199,6 +210,15 @@ export class Selection {
 		this.scene.redraw()
 	}
 
+	/**
+	 * Push declares its own type on the way in rather than hit-testing for one: it bends
+	 * a stroke wherever the cursor is, so there are no handles and nothing to be over.
+	 */
+	setType(type: TransformType): void {
+		this.type = type
+		this.onGrabChanged?.()
+	}
+
 	/** While a drag would duplicate rather than move, the box turns green. */
 	setDuplicating(duplicating: boolean): void {
 		if (!this.bounds) return
@@ -208,12 +228,17 @@ export class Selection {
 	}
 
 	/**
-	 * Works out what a drag from `point` would do, and sets the cursor to match.
-	 * Called on every pointer move while the transform tool is active.
+	 * Works out what a drag from `point` would do. Called on every pointer move while
+	 * the transform tool is active, and what the drawn cursor is a picture of.
 	 */
 	updateTransformType(point: paper.Point, shiftHeld: boolean): TransformType {
+		const type = this.computeTransformType(point, shiftHeld)
+		this.onGrabChanged?.()
+		return type
+	}
+
+	private computeTransformType(point: paper.Point, shiftHeld: boolean): TransformType {
 		this.type = 'none'
-		this.setCursor('auto')
 		this.handle = null
 
 		if (this.isEmpty || !this.bounds || shiftHeld) return this.type
@@ -222,7 +247,6 @@ export class Selection {
 		// below claims the point first.
 		if (isWithinOuterRadius(this.bounds, point, ROTATE_RADIUS)) {
 			this.type = 'rotate'
-			this.setCursor('alias')
 		}
 
 		/*
@@ -237,7 +261,6 @@ export class Selection {
 		 */
 		if (this.bounds.bounds.contains(point)) {
 			this.type = 'translate'
-			this.setCursor('move')
 			return this.type
 		}
 
@@ -255,14 +278,11 @@ export class Selection {
 		const corner = cornerIndex(handle.name)
 		if (corner !== null) {
 			this.type = 'scale'
-			this.setCursor(corner === 1 || corner === 3 ? 'nwse-resize' : 'nesw-resize')
 			return this.type
 		}
 
 		if (handle.type === 'stroke' || handle.type === 'bounds') {
 			this.type = 'stretch'
-			const edge = this.draggedEdge()
-			this.setCursor(edge === 0 || edge === 2 ? 'ew-resize' : 'ns-resize')
 		}
 
 		return this.type
@@ -357,10 +377,6 @@ export class Selection {
 
 	private setLayerOpacity(layer: paper.Layer, opacity: number): void {
 		for (const child of layer.children) child.opacity = opacity
-	}
-
-	setCursor(cursor: string): void {
-		this.scene.canvas.style.cursor = cursor
 	}
 }
 

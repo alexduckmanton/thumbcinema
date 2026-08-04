@@ -67,7 +67,7 @@ src/
       tools/          pencil, eraser, transform, push
       FlipbookEngine.ts  the façade React drives
     components/       canvas, page strip, page arrows, trays, save form,
-                      the cursor ring and the loupe
+                      the cursor ring and the transform cursors
   styles/             tokens, element defaults, the icon sprite
 public/               fonts, images, favicons, sadbrowser.html
 ```
@@ -384,9 +384,8 @@ Also worth knowing:
   **And `selectTool` is not held either**, though it was: drawing through a page
   animation has been allowed since 2013 and the scene is in its final shape before the
   first frame of one moves, so refusing to say *what* you are drawing with was the odd
-  one out. It was worse than a no-op in the modes where pressing a tool button also
-  uses it — the press was refused, the hold went ahead, and the previous tool did the
-  work. Undo and `goToPage` stay held, which is a different question: those change what
+  one out. It was worse than a no-op now that pressing a tool button also *uses* it —
+  the press was refused, the hold went ahead, and the previous tool did the work. Undo and `goToPage` stay held, which is a different question: those change what
   is on the page the animation is carrying.
 - **The hidden thumbnail is not always the active page.** The strip hides whichever
   page the canvas stands in front of — that is what `.covered` means — and during a
@@ -446,8 +445,8 @@ it's one of these. Each is deliberate:
   `onExit` is gone with the old behaviour.
 - **The push dots are drawn at every width.** They were desktop-only, on the reasoning
   that a finger sits where the cursor would be and would cover them — true while the
-  cursor *was* the fingertip, and the whole thing `holdTool` changed. They are the only
-  statement the tool makes about what a drag would bend.
+  cursor *was* the fingertip, which is the whole thing drawing with a finger changed.
+  They are the only statement the tool makes about what a drag would bend.
 - **Horizontal flips work.** 2013's `scale.js` reaches for `selection.layer` in a file
   where the variable is `selection_layer`, so dragging a handle past its pivot throws
   instead of mirroring.
@@ -478,8 +477,9 @@ it's one of these. Each is deliberate:
   push a corner either side. Each arrow pivots about the top of its own box, so the two
   narrower ones are inset 7px to put all three hubs on the same pixel; 2013's 15 and 10
   placed them by eye for a fan that opened to one side.
-- **The pointer over the drawing is a ring the size of the stroke**, and on a finger it
-  brings a loupe. Neither existed.
+- **The pointer over the drawing is a ring the size of the stroke**, and the transform
+  tool's four cursors are drawn rather than named. Neither existed; the second replaces
+  the native cursors 2013 wrote onto the canvas.
 - **You can draw on a phone.** 2013 asked `Mobile_Detect.php` and sent phones back to
   the gallery, and the revival kept that. See below.
 
@@ -728,179 +728,215 @@ is now true at both widths and the differences are called out where they exist.
   few hundred pixels while the paper above stays 640 — and a bar visibly narrower than
   the drawing is worse than no bar. 656 is 640 and the same 8px of overhang either side
   the formula means everywhere else.
-- **The pointer over the drawing is a ring, and a finger brings a loupe.**
-  `InkCursor`, and both are drawn from the live canvas rather than from the scene — so
-  what they show is what is on the paper, stroke-in-progress and onion skin and all,
-  and nothing in that file knows anything about paper.js.
+- **The pointer over the drawing is a ring, or one of four shapes.** `InkCursor`, which
+  reads nothing but the `Cursor` `pointer.ts` publishes and knows nothing about paper.js.
 
-  The ring replaces the arrow outright, on every layout: it is the diameter of the mark
-  about to be made — the pencil's width, or the eraser's bite, which is `ERASE_TOLERANCE`
-  doubled — stated in project units and turned into a percentage of `.book`, which is
-  exactly the size the canvas is shown at. So it needs no measuring and no JavaScript
-  scale. Two things to keep straight there: a percentage *height* resolves against the
-  height of the box, and this box is 16:9, so the same expression on both axes drew an
-  ellipse nearly twice as wide as it was tall (`aspect-ratio: 1` instead); and there is
-  a 10px floor, because a width-1 stroke on a phone is half a pixel across and a ring
-  that small has stopped previewing anything and gone back to being a cursor. The
-  native cursor is turned off by writing `cursor: none` on the element rather than in
-  the stylesheet, because the transform tool writes its own cursors there and an inline
-  style is the only thing sure of beating one.
+  The ring is the two tools that mark. It replaces the arrow outright, on every layout
+  and for both kinds of pointer: it is the diameter of the mark about to be made — the
+  pencil's width, or the eraser's bite, which is `ERASE_TOLERANCE` doubled — stated in
+  project units and turned into a percentage of `.book`, which is exactly the size the
+  canvas is shown at. So it needs no measuring and no JavaScript scale. Two things to
+  keep straight there: a percentage *height* resolves against the height of the box, and
+  this box is 16:9, so the same expression on both axes drew an ellipse nearly twice as
+  wide as it was tall (`aspect-ratio: 1` instead); and there is a 6px floor, because a
+  three-unit stroke on a phone is under two pixels across and a ring that small has
+  stopped previewing anything and gone back to being a cursor.
 
-  The loupe is 80px, shows the drawing at twice the size it is on screen, and exists
-  because a finger is opaque: the thing you are aiming at is under the thing you are
-  aiming with, and joining a line you drew a moment ago is guesswork. It is asked of
-  the **pointer** rather than of the device — `event.pointerType === 'touch'`, not
-  `isTouch`, which answers for the whole machine including while somebody is using a
-  trackpad. It is **always above the finger and is allowed to hang off the top of the
-  paper to stay there**: a phone's drawing is 193px tall and the loupe needs 116 of them
-  to clear a finger, so the obvious fallback of dropping below when the room runs out
-  puts it under the hand it exists to see past — a thumb comes from below. Hanging off
-  costs nothing, because it paints its own paper. The ring is drawn inside it, magnified
-  with everything else, because that is where the aiming happens.
+  **The transform tool gets four shapes instead**, one per thing a drag would do: a
+  crosshair over nothing, and a move, scale or rotate arrow over whatever the press would
+  grab, the scale one turned to the axis the handle actually moves along. Those four
+  statements are the ones `Selection.updateTransformType` has made since 2013 by writing
+  `move`, `alias` and `nwse-resize` onto `canvas.style.cursor` — but a phone has no
+  cursor to name one on, and once the cursor stopped being the fingertip the native ones
+  were describing the wrong point. So they are drawn, at the point the tool is actually
+  working from, and **they are what the mouse gets too**: a tool that explains itself
+  differently on the two layouts is a tool you have to learn twice. The selection
+  therefore no longer writes a native cursor at all, and `setCursor` is gone from it; what
+  leaves that file is the fact that the answer changed, as `onGrabChanged`.
 
-  Hanging off the top is also why it carries `z-index: 101` — one above the header,
-  which at 100 is the highest thing on the page and the only thing the loupe ever
-  reaches. Drawing near the top of a phone's canvas put it behind the wordmark, and a
-  magnifier that goes behind something is not showing you what is under your finger. The
-  ring needs none of that: it is on the paper by definition.
-- **Zoom is off site-wide.** `maximum-scale=1, user-scalable=no` in the viewport tag,
-  which Android honours and iOS ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for
-  Safari's gesture events. Double-tap zoom goes with `touch-action: manipulation` on
-  the body; the canvas takes `touch-action: none`, so a stroke is never a scroll and
-  never a pinch. There was a drawing mode that gave pinch zoom back for comparison and
-  it is gone.
+  Which is a signal rather than a read for a measured reason. paper handles a mouse move
+  on the *document*, above the element this layer listens on, and pointer events fire
+  ahead of the mouse events paper is listening for either way — so an affordance read at
+  publish time is one event behind. Nothing notices that while the mouse is moving and
+  everything notices the moment it stops: park the arrow just inside a selection after
+  crossing into it and the cursor sits there saying "nothing here" until you jog it.
+  `PointerLayer.onGrab` is the only subscriber, and diffs before it republishes.
+
+  The native cursor is turned off by writing `cursor: none` on the element rather than in
+  the stylesheet, because paper writes inline styles onto this canvas and an inline style
+  is the only thing sure of beating one. It now covers the transform tool as well as the
+  two that mark.
+
+  There was a **loupe**: 80px, twice life size, floating above the fingertip and allowed
+  to hang off the top of the paper to stay there. It went with the mode it belonged to. A
+  magnifier is the answer to a mark landing under the finger making it, and the answer
+  that won puts the cursor somewhere else entirely — with nothing under the finger to
+  see, there is nothing to magnify.
+- **Zoom is off site-wide, and on the create page the document is held still.**
+  `maximum-scale=1, user-scalable=no` in the viewport tag, which Android honours and iOS
+  ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for Safari's gesture events.
+  Double-tap zoom goes with `touch-action: manipulation` on the body; the canvas takes
+  `touch-action: none`, so a stroke is never a scroll and never a pinch.
+
+  The create page goes further, because the empty white under the tools is now somewhere
+  you draw from: `useNoScrolling` puts `.locked` on the root element for as long as the
+  tool is up, and `base.css` spends four properties on it, one per browser. `overflow:
+  hidden` on both html and body is the ordinary one — the page has never had anything to
+  scroll *to*, `--book-reserve` sees to that, but it did have the rubber band, and the
+  whole drawing sliding an inch under your finger on a stroke that started near the
+  bottom edge. `position: fixed` on the body is the only thing that reliably stops iOS
+  scrolling the document anyway. `overscroll-behavior: none` is what takes
+  pull-to-refresh off Chrome on Android, which is not a scroll and survives all of the
+  above — and a pull far enough to reload the tab is the worst thing that can happen to
+  an unsaved flipbook. And `touch-action: none` overrides the body's `manipulation`,
+  which permits a pinch: a pinch is two contacts, and up here two contacts is a drawing
+  gesture.
+
+  **It comes off while the save form is up**, which is the one time this page has fields
+  in it — a long description in a small textarea has to be pannable, and `touch-action`
+  is an intersection down the ancestor chain that a descendant cannot give back. Nothing
+  is lost by it: the drawing is behind the wash by then, and `beforeunload` is already
+  guarding the reload.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then
   carries the whole distance at once — 10.7px against 0.3px for every event after it,
   recorded on iOS 18.7. Because slop is a fixed *distance* the delay scales inversely
-  with speed, so aiming a cursor slowly is its worst case, which is why it is the
-  relative drawing modes that feel it. `touch-action: none` does not turn it off, and
-  neither does taking the `gesture*` listeners off the document — measured, both, and
-  the second one is written up in `lib/zoom.ts` so it isn't tried again. What tracking
-  there is afterwards is as fine as the hardware allows: a steady 0.3px on a 3× screen
-  is one device pixel per event.
+  with speed, so aiming a cursor slowly is its worst case, which is exactly what this page
+  asks you to do. `touch-action: none` does not turn it off, and neither does taking the
+  `gesture*` listeners off the document — measured, both, and the second one is written
+  up in `lib/zoom.ts` so it isn't tried again. What tracking there is afterwards is as
+  fine as the hardware allows: a steady 0.3px on a 3× screen is one device pixel per
+  event.
 
-### The drawing modes, which are scaffolding
+### Drawing with a finger
 
-There is a switch in the top right of the create page — an icon button with a native
-`<select>` over it — offering ten answers to "a finger is opaque, so the thing you
-are aiming at is under the thing you are aiming with". They exist to be compared, and
-**nine of them will be deleted**: `drawModes.ts` lists what each one is and where it
-came from, and the switch, that file and most of `pointer.ts` go when one wins. The
-default is `holdTool`, which is the one leading. The choice lives in `localStorage`
-under `tc:drawMode`.
+A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
+aiming with. There is no settled industry answer to that — a survey turned up four
+separate families and no consensus — so rather than pick one blind, ten of them were
+built behind a switch in the corner of the create page and drawn with side by side: a
+follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that
+changed over on half a second of stillness, and four that moved the cursor off the
+fingertip altogether. **One won, and the other nine went with the switch**, along with
+`drawModes.ts` and most of what `pointer.ts` used to be. (`tc:drawMode` may still be
+sitting in somebody's `localStorage`; nothing reads it.)
 
-Three things about them are worth knowing before touching anything nearby:
+What is left is this. **The cursor is a thing standing on the page, and a finger anywhere
+nudges it by however far the finger moved.** It never travels to the contact point —
+that is the whole idea, and it has to hold from the first event of every gesture or the
+cursor would jump under the hand and back — and it survives the gesture that moved it,
+because a cursor you have carefully placed and then lost by lifting your finger is worse
+than no cursor. So the hand and the mark are never in the same place, which is the
+occlusion problem answered rather than worked around. What sets the tool *working* is a
+second contact: a second finger anywhere on the page, or a tool held down in the tray by
+the other hand. Either finger steers, and the cursor follows the average of whichever
+contacts the browser reports as having moved.
 
-- **Six modes take the gesture away from paper entirely.** paper 0.12 is
-  single-pointer by construction — it reads `targetTouches[0]`, has one drag in flight
-  and no notion of a pointer id — so a gesture that starts without drawing, stops
-  halfway through, puts the ink somewhere other than under the finger, waits for the
-  other hand, or watches a *second finger* has nowhere to say so. The last is the
-  plainest case: paper cannot see a second contact at all. Inside this layer the whole
-  `TouchList` is available, identifiers and all, so per-finger deltas are ordinary
-  arithmetic — `secondFinger` treats every finger after the first as a button, and
-  `twoFinger` lets any of them steer and averages whichever ones the browser reports
-  as having moved. `PointerLayer` listens on `.book` in the
-  **capture** phase, which runs before the canvas's own listeners and before anything
-  can bubble as far as the document, and drives whichever tool is in hand through
-  `engine.toolDown`/`toolDrag`/`toolUp`. It is *touch* events that are intercepted and
-  not pointer events: the two are separate streams, and stopping a `pointerdown` does
-  nothing at all to the `touchstart` paper is listening for.
-- **Three modes are relative, not direct.** The cursor stands on the page and a finger
-  anywhere on the glass nudges it by however far the finger moved — it never travels
-  to the contact point, which is the whole idea, and it survives the gesture that
-  moved it. So in those three the cursor is the pointer as far as anything downstream
-  is concerned, and `Cursor.x` is the cursor rather than the fingertip. What differs
-  between them is only what starts and stops the work: half a second of stillness in
-  two of them, a tool in the tray being physically held down by the other hand in
-  `holdTool`, and a second finger anywhere on the page in the other two.
+Things worth knowing before touching anything nearby:
 
-  **`twoFinger` has both of those, and that is `holdsTool`.** The two answers are not
-  exclusive — a held button and a second finger are each a mouse button, and which one
-  is to hand depends on how the phone is being held rather than on which is better — so
-  there either will do it, and `secondFinger` is left with only its own to keep a
-  control in the comparison. What follows is that a gesture can have *two* holders at
-  once, so a release has to ask whether the other one is still there: letting go of the
-  pencil while two fingers are on the glass must not cut the stroke off, and neither
-  must lifting the second finger while the pencil is held. That question is
-  `releaseHold`, and for every other mode it is `disengage` with an answer that never
-  varies.
-- **Three modes cover the transform tool** — the three whose changeover is a button
-  press in all but name (`drivesAllTools`). That falls out of the mechanism rather
-  than being a decision: a held button, or a second finger, *is* a mouse button, and a
-  mouse button is what selecting, marqueeing, moving, scaling and rotating are made
-  of, where the timed modes gate ink and there is no way to half-press a rotation. Two
-  consequences. The transform tool gets **four cursors** of its own up there — a
-  crosshair over nothing, and a move, scale or rotate arrow over whatever the press
-  would grab, the scale one turned to the axis the handle actually moves along. Those
-  are what `Selection.updateTransformType` has always written onto `canvas.style.cursor`
-  for a mouse; they are drawn rather than named here because a phone has no cursor to
-  name one on, and because the cursor is no longer the fingertip so the native ones
-  would be describing the wrong point. They are fed by `engine.toolHover`, which is
-  also **the only reason hovering exists on a phone at all** — the same dispatch is
-  what puts push's dots under the cursor before you commit to bending anything.
-  A **bare tap on the canvas puts the selection down** in those three: a finger that
-  isn't engaging anything only ever moves the cursor, so a press that went nowhere and
-  used no tool had no other meaning — and without it there was no way to let go of a
-  selection except by doing something that changed the drawing. It is a tap by
-  *duration* as well as distance, and the duration is the half doing the work: Safari
-  withholds movement until the finger has travelled several pixels, so a small
-  deliberate nudge reports no movement at all and is a tap by distance alone. It is
-  not one by duration — aiming runs at about 9px a second.
+- **paper drives no touch on this page at all.** paper 0.12 is single-pointer by
+  construction — it reads `targetTouches[0]`, has one drag in flight and no notion of a
+  pointer id — so it cannot see a second contact, and it works at the *fingertip*, which
+  here is neither the cursor nor anywhere on the drawing. `PointerLayer` listens in the
+  **capture** phase, which runs before the canvas's own listeners and before anything can
+  bubble as far as the document, calls `stopPropagation()`, and drives whichever tool is
+  in hand through `engine.toolDown`/`toolDrag`/`toolUp`. It is *touch* events that are
+  intercepted and not pointer events: the two are separate streams, and stopping a
+  `pointerdown` does nothing at all to the `touchstart` paper is listening for.
+- **The field is the whole page, not the drawing.** A cursor that is nudged rather than
+  placed doesn't care where the nudge comes from, and a phone's create page is a column
+  of drawing with a band of empty white under it — which is where a thumb already is, and
+  which nothing else on the page wants. So the touch listeners are on `<main>`, and
+  dragging down there aims exactly as dragging on the paper does. What keeps that from
+  eating the rest of the page is `ownsTouch`: a touch that starts inside a `button`, `a`,
+  `input`, `select`, `textarea` or `[role="slider"]` is left entirely alone, propagation
+  and all, which is every control on this page and is what lets the tray's own handlers
+  see a finger land on a tool while another one is aiming. A press on the tray is still
+  *felt* — as the other hand, through `onToolPressed` — just not as a finger, or the same
+  press would engage the tool twice and stay engaged when one of the two was released.
 
-  And **one tray button has to do two jobs**, which is settled on the way back *up*:
+  The column is stretched to the bottom of the window to make that band part of it, and
+  that is `html.locked #root`/`main` in `base.css` rather than a `min-height` on the
+  column itself. The obvious version is wrong by exactly the height of the header: the
+  column starts below it, so a column a windowful tall ends a header's worth past the
+  bottom of the window — clipped, so invisible, and sixty-odd pixels of field that no
+  finger can reach.
+- **Two holders, and either will do.** A held tray button and a second finger are both a
+  mouse button, and which one is to hand depends on how the phone is being held rather
+  than on which is better. So a gesture can have *two* at once, and a release has to ask
+  whether the other one is still there: letting go of the pencil while two fingers are on
+  the glass must not cut the stroke off, and neither must lifting the second finger while
+  the pencil is held. That question is `releaseHold`.
+- **Every tool is driven from the cursor, transform included.** That falls out of the
+  mechanism rather than being a decision: a button press is what selecting, marqueeing,
+  moving, scaling and rotating are made of, and both holders are a button press in all
+  but name. Which is also why hovering exists on a phone at all — `engine.toolHover`,
+  dispatched on every move that isn't working, is what keeps the four transform cursors
+  right and what puts push's dots under the cursor before you commit to bending anything.
+
+  A **bare tap puts the selection down**. A finger that isn't engaging anything only ever
+  moves the cursor, so a press that went nowhere and used no tool had no other meaning —
+  and without it there was no way to let go of a selection except by doing something that
+  changed the drawing. It is a tap by *duration* as well as distance, and the duration is
+  the half doing the work: Safari withholds movement until the finger has travelled
+  several pixels, so a small deliberate nudge reports no movement at all and is a tap by
+  distance alone. It is not one by duration — aiming runs at about 9px a second.
+- **One tray button has to do two jobs**, and which one is settled on the way back *up*:
   a press that did some work was the tool being used, and a press that did none was an
-  ordinary tap and selects (or, for transform, cycles into push). It cannot be decided
-  on the press, because at that moment there is no way to know whether a finger is
-  about to land on the canvas — and deciding early meant reaching for transform a
-  second time, to move a selection you had just made, read as a second tap and dropped
-  you into push mode unasked. `CreateTray` therefore suppresses its own `onClick` for
-  pointer-driven presses in this mode; keyboard activation still goes through it, told
-  apart by `event.detail === 0`.
-
+  ordinary tap and selects (or, for transform, cycles into push). It cannot be decided on
+  the press, because at that moment there is no way to know whether a finger is about to
+  land on the canvas — and deciding early meant reaching for transform a second time, to
+  move a selection you had just made, read as a second tap and dropped you into push mode
+  unasked. `CreateTray` therefore suppresses its own `onClick` for pointer-driven
+  presses; keyboard activation still goes through it, told apart by `event.detail === 0`.
 - **The tray's three tools are driven by touch events, not by a click and not by a
   pointer event, and that is what makes changing tool mid-gesture possible at all.** A
-  tap on a tool while a finger is already on the canvas is a *multi-touch* gesture, and
-  a browser owes it neither a `click` nor a compatibility mouse event — those are for a
+  tap on a tool while a finger is already on the page is a *multi-touch* gesture, and a
+  browser owes it neither a `click` nor a compatibility mouse event — those are for a
   single-finger tap. So the tray was reachable only by putting the drawing hand down
-  first, which is the one thing every relative mode exists to avoid: `holdTool` is the
-  default, and switching tools without lifting is most of what it is for. Two further
-  things were working against it, both fixed here rather than worked around: the tray
-  inherited the body's `touch-action: manipulation`, so a second contact on it is a
-  candidate pinch and a browser may hold the touch back while it decides (`none` now,
-  the other half of what the canvas already says); and selecting a tool slides its
-  button 50px down out from under the finger that pressed it, which a click — needing
-  the press and the release on the same element — can lose. Touch events have neither
-  problem: every finger fires them, and a touch's events all target the element it
-  started on however far anything travels. `preventDefault()` on the way down is what
-  stops the two paths both firing, and takes the long-press callout with it. The mouse
-  keeps the pointer handlers, told apart by `pointerType`, and `setPointerCapture` for
-  the same reason touch doesn't need it. Verified by withholding pointer events and
-  synthesised clicks from touch altogether: the tray goes on working, and before this
-  it did nothing at all under those conditions — no drawing, no switching.
-
+  first, which is the one thing this whole mechanism exists to avoid. Two further things
+  were working against it, both fixed rather than worked around: the tray inherited the
+  body's `touch-action: manipulation`, so a second contact on it is a candidate pinch and
+  a browser may hold the touch back while it decides (`none` now, the other half of what
+  the canvas already says); and selecting a tool slides its button 50px down out from
+  under the finger that pressed it, which a click — needing the press and the release on
+  the same element — can lose. Touch events have neither problem: every finger fires
+  them, and a touch's events all target the element it started on however far anything
+  travels. `preventDefault()` on the way down is what stops the two paths both firing,
+  and takes the long-press callout with it. The mouse keeps the pointer handlers, told
+  apart by `pointerType`, and `setPointerCapture` for the same reason touch doesn't need
+  it. Verified by withholding pointer events and synthesised clicks from touch
+  altogether: the tray goes on working, and before this it did nothing at all under those
+  conditions — no drawing, no switching.
 - **Changing tool part-way through a gesture puts the old one down first.** `engagePress`
   disengages before it selects, because a stroke left open while the tool underneath it
   is swapped gets finished by whichever tool answers the release.
-
-- **`intercepts()` asks which mode and which tool, and nothing about what the engine is
-  doing.** It used to hand the gesture back to paper while a page animation or a load
-  was in flight, and handing a gesture to paper in a relative mode is wrong by
-  construction: paper works at the *fingertip*, and up here the fingertip is not the
-  cursor and is not on the drawing at all. So touching the canvas during the 750ms of a
-  duplicate dropped whatever was selected — a transform mousedown arriving somewhere
-  near your thumb — and a marquee dragged from there was a rectangle under your hand
-  rather than around your work. Measured: a stroke drawn mid-animation with the cursor
-  parked at 0.86 down the page landed at 0.03, which is where the finger was. And
-  because interception is decided once, at `touchstart`, the gesture stayed paper's for
-  as long as the finger stayed down — the animation ended and it still didn't work,
-  which is why it read as having to lift and start again. A **load** is still refused,
-  but in `engage` rather than here, so the layer keeps the gesture and the cursor goes
-  on moving: a stroke laid on a page that is about to be replaced is a stroke thrown
-  away. A page animation is not that — the scene is in its final shape before the first
-  frame of it moves.
+- **Interception asks which tool, and nothing about what the engine is doing.** It used
+  to hand the gesture back to paper while a page animation or a load was in flight, and
+  handing a gesture to paper here is wrong by construction: paper works at the fingertip,
+  and the fingertip is not the cursor and is not on the drawing at all. So touching the
+  canvas during the 750ms of a duplicate dropped whatever was selected — a transform
+  mousedown arriving somewhere near your thumb — and a marquee dragged from there was a
+  rectangle under your hand rather than around your work. Measured: a stroke drawn
+  mid-animation with the cursor parked at 0.86 down the page landed at 0.03, which is
+  where the finger was. And because interception is decided once, at `touchstart`, the
+  gesture stayed paper's for as long as the finger stayed down — the animation ended and
+  it still didn't work, which is why it read as having to lift and start again. A **load**
+  is still refused, but in `engage`, so the layer keeps the gesture and the cursor goes on
+  moving: a stroke laid on a page that is about to be replaced is a stroke thrown away. A
+  page animation is not that — the scene is in its final shape before the first frame of
+  it moves.
+- **The mouse is a different question and gets a different surface.** It has a visible
+  cursor, sits a pixel wide and occludes nothing, so every part of the above is about a
+  problem it doesn't have — it is watched on `.book` alone, it is absolute, and it picks
+  the standing cursor up and carries it rather than the two disagreeing. What it takes
+  from this file is the ring and the four transform shapes. Two consequences to keep
+  straight: the standing cursor is published whether anything is touching the glass or
+  not and a mouse's is not, so `PointerLayer.source` decides which of the two exists —
+  it starts as whatever the device leads with and flips on the first event of the other
+  kind, which is what a laptop with a touchscreen needs; and the grey/black `.waiting`
+  and `.inking` states are the standing cursor's alone, because they are feedback for a
+  changeover you can't see and a mouse button is under your own hand.
 
 An intercepted gesture goes through the same `handlePointerDown`/`handlePointerUp` as
 an ordinary one, so it is one history step and updates its page and thumbnail the same

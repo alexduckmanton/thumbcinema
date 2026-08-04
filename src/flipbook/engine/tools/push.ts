@@ -83,7 +83,7 @@ export class PushTool implements ModalTool {
 	private refresh(): void {
 		this.selection.reset()
 
-		this.selection.type = 'push'
+		this.selection.setType('push')
 		if (this.selection.bounds) this.selection.bounds.visible = false
 		this.selection.layer.strokeColor = new this.scene.scope.Color(HIGHLIGHT_COLOR)
 
@@ -146,7 +146,6 @@ export class PushTool implements ModalTool {
 
 	private handleMove(event: paper.ToolEvent): void {
 		this.pointer = event.point
-		this.selection.setCursor('move')
 		this.update()
 	}
 

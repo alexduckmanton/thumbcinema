@@ -113,6 +113,12 @@ export class FlipbookEngine {
 		this.selection = new Selection(this.scene)
 		this.history = new History(this.scene)
 
+		// See `subscribeGrab`. The selection is what recomputes this, and it is the only
+		// thing that knows when it has.
+		this.selection.onGrabChanged = () => {
+			for (const listener of this.grabListeners) listener()
+		}
+
 		this.store = new Store<FlipbookState>({
 			pages: [{ id: this.nextPageId++, segments: 0 }],
 			activePage: 0,
@@ -1068,28 +1074,21 @@ export class FlipbookEngine {
 	// --- drawing without paper's help ----------------------------------------
 
 	/*
-	 * Four of the drawing modes have to take a gesture away from paper entirely,
-	 * because paper 0.12 has one drag in flight and no way to say "not yet", "stop
-	 * here" or "put it over there instead". `PointerLayer` intercepts those gestures
-	 * and drives whichever tool is in hand through the three methods below.
+	 * A finger's gesture is taken away from paper entirely, because paper 0.12 has one
+	 * drag in flight, cannot see a second contact and works at the fingertip — which on
+	 * this page is not where the cursor is. `PointerLayer` intercepts every touch and
+	 * drives whichever tool is in hand through the methods below.
 	 *
 	 * They are deliberately the *same* two ends the ordinary path uses —
 	 * `handlePointerDown` and `handlePointerUp` — so an intercepted gesture is one
 	 * history step, recounts its page and redraws its thumbnail exactly as a normal
 	 * one does. Nothing about undo, the page strip or the save button knows which
 	 * route an edit arrived by, and nothing should.
-	 *
-	 * All of this goes when a mode is chosen. See `drawModes.ts`.
 	 */
 
 	/** A point on the canvas, in CSS pixels from its top left, in project units. */
 	toProject(x: number, y: number): paper.Point {
 		return this.scene.toProject(x, y)
-	}
-
-	/** Lifts a *touch* off the mark it makes. Zero except in the `offset` mode. */
-	setTouchOffset(pixels: number): void {
-		this.scene.touchOffsetY = pixels
 	}
 
 	/** Where the intercepted gesture started, was, and is. See `synthesise`. */
@@ -1171,6 +1170,11 @@ export class FlipbookEngine {
 		switch (this.selection.type) {
 			case 'translate':
 				return { kind: 'move', angle: 0 }
+			// Push bends a stroke where it lies rather than grabbing a handle, and what
+			// says whether a drag would bend anything is the dots the tool draws under the
+			// cursor. The four-way arrow is what the mouse has shown here since 2013.
+			case 'push':
+				return { kind: 'move', angle: 0 }
 			case 'rotate':
 				return { kind: 'rotate', angle: 0 }
 			case 'scale': {
@@ -1185,6 +1189,24 @@ export class FlipbookEngine {
 			}
 			default:
 				return NOTHING_TO_GRAB
+		}
+	}
+
+	private readonly grabListeners = new Set<() => void>()
+
+	/**
+	 * Told when what the transform tool would grab has been recomputed.
+	 *
+	 * It changes on a hover, which for a mouse paper handles on the *document* — above
+	 * anything drawing a cursor, and after the pointer event that drawing was published
+	 * from. So a cursor that only reads this when the pointer moves is one event behind,
+	 * which nothing notices while the mouse is moving and everything notices the moment
+	 * it stops. See `PointerLayer.onGrab`, which is the only subscriber.
+	 */
+	subscribeGrab = (listener: () => void): (() => void) => {
+		this.grabListeners.add(listener)
+		return () => {
+			this.grabListeners.delete(listener)
 		}
 	}
 

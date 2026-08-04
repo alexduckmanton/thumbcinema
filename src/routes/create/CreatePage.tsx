@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
-import { DrawModeSwitch } from '../../flipbook/components/DrawModeSwitch'
 import { InkCursor } from '../../flipbook/components/InkCursor'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
-import { useDrawMode } from '../../flipbook/drawModes'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
@@ -28,15 +26,24 @@ export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
 
-	// Which answer to "a finger is opaque" is switched on. Scaffolding: see
-	// `drawModes.ts` for the ten of them and for what happens when one wins.
-	const drawMode = useDrawMode()
+	/*
+	 * Everywhere a finger may aim from, which is the whole page rather than the drawing.
+	 *
+	 * The cursor is nudged rather than placed — see `PointerLayer` — so it doesn't care
+	 * where the nudge comes from, and on a phone the band of white under the tools is
+	 * where a thumb already is and is the only part of this page nothing else wants.
+	 * Controls standing on it keep their own touches.
+	 */
+	const field = useRef<HTMLElement | null>(null)
 
 	const crash = useCrashRecovery(engine)
 
 	useEffect(() => {
 		document.title = 'create — thumbcinema'
 	}, [])
+
+	// Everything but the naming form, which has fields in it a finger may want to pan.
+	useNoScrolling(phase !== 'naming')
 
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools.
 	useKeyboardShortcuts(engine, { enabled: phase === 'drawing', tools: true })
@@ -116,12 +123,7 @@ export function CreatePage() {
 				/>
 			</SiteHeader>
 
-			{/* Scaffolding, and above everything so it stays reachable in all ten
-			    modes — including the ones that park a magnifier under the top edge of
-			    the window. It goes when one of them wins. */}
-			<DrawModeSwitch mode={drawMode} />
-
-			<main className={contentClass}>
+			<main className={contentClass} ref={field}>
 				{engine && state ? (
 					<PageStrip
 						engine={engine}
@@ -157,11 +159,11 @@ export function CreatePage() {
 							</div>
 						) : null}
 
-						{/* The ring that says what the stroke will be, and the loupe that
-						    shows what is under a finger. Inside `.book` because both are
+						{/* The ring that says what the stroke will be, or the shape that says
+						    what the transform tool would grab. Inside `.book` because both are
 						    measured against the drawing rather than the window. */}
 						{state && phase === 'drawing' ? (
-							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} mode={drawMode} />
+							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} fieldRef={field} />
 						) : null}
 
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
@@ -190,12 +192,7 @@ export function CreatePage() {
 					) : null}
 
 					{engine && state ? (
-						<CreateTray
-							engine={engine}
-							state={state}
-							stowed={phase !== 'drawing'}
-							mode={drawMode}
-						/>
+						<CreateTray engine={engine} state={state} stowed={phase !== 'drawing'} />
 					) : null}
 
 					<div className={styles.footer}>
@@ -304,6 +301,35 @@ function StepButton({
 			<span className="visuallyHidden">{label}</span>
 		</button>
 	)
+}
+
+/**
+ * The document holds still while the drawing tool is up: no scroll, no bounce, no pull
+ * to refresh, no pinch.
+ *
+ * The create page has never had anywhere to scroll *to* — `--book-reserve` sizes the
+ * drawing around everything else in the column precisely so it doesn't, because a page
+ * that scrolls while you draw on it is a page that has taken the stroke away from you.
+ * What it did still have was the rubber band, and the whole drawing sliding an inch
+ * under your finger on a stroke that started near the bottom edge; and a pull far enough
+ * to reload the tab, which on an unsaved flipbook is the worst outcome this page has.
+ *
+ * Both of those got much easier to reach the moment the empty band under the tools
+ * became somewhere to drag. What the class does, and why it takes four properties to do
+ * it, is in `base.css`.
+ *
+ * Off while the save form is up, which is the one time this page has fields in it: a
+ * long description in a small textarea has to be pannable, and `touch-action: none` on
+ * an ancestor cannot be given back by a descendant. Nothing is lost by it — the drawing
+ * tool is behind the wash by then, and `beforeunload` is already guarding the reload.
+ */
+function useNoScrolling(enabled: boolean): void {
+	useEffect(() => {
+		if (!enabled) return
+
+		document.documentElement.classList.add('locked')
+		return () => document.documentElement.classList.remove('locked')
+	}, [enabled])
 }
 
 const WARNING = "Whoa, you haven't saved your flipbook yet. Leave and you'll lose it."
