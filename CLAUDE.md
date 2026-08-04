@@ -836,6 +836,31 @@ Three things about them are worth knowing before touching anything nearby:
   pointer-driven presses in this mode; keyboard activation still goes through it, told
   apart by `event.detail === 0`.
 
+- **The tray's three tools are driven by touch events, not by a click and not by a
+  pointer event, and that is what makes changing tool mid-gesture possible at all.** A
+  tap on a tool while a finger is already on the canvas is a *multi-touch* gesture, and
+  a browser owes it neither a `click` nor a compatibility mouse event — those are for a
+  single-finger tap. So the tray was reachable only by putting the drawing hand down
+  first, which is the one thing every relative mode exists to avoid: `holdTool` is the
+  default, and switching tools without lifting is most of what it is for. Two further
+  things were working against it, both fixed here rather than worked around: the tray
+  inherited the body's `touch-action: manipulation`, so a second contact on it is a
+  candidate pinch and a browser may hold the touch back while it decides (`none` now,
+  the other half of what the canvas already says); and selecting a tool slides its
+  button 50px down out from under the finger that pressed it, which a click — needing
+  the press and the release on the same element — can lose. Touch events have neither
+  problem: every finger fires them, and a touch's events all target the element it
+  started on however far anything travels. `preventDefault()` on the way down is what
+  stops the two paths both firing, and takes the long-press callout with it. The mouse
+  keeps the pointer handlers, told apart by `pointerType`, and `setPointerCapture` for
+  the same reason touch doesn't need it. Verified by withholding pointer events and
+  synthesised clicks from touch altogether: the tray goes on working, and before this
+  it did nothing at all under those conditions — no drawing, no switching.
+
+- **Changing tool part-way through a gesture puts the old one down first.** `engagePress`
+  disengages before it selects, because a stroke left open while the tool underneath it
+  is swapped gets finished by whichever tool answers the release.
+
 An intercepted gesture goes through the same `handlePointerDown`/`handlePointerUp` as
 an ordinary one, so it is one history step and updates its page and thumbnail the same
 way. It differs in one measurable respect: a stroke includes the point the gesture

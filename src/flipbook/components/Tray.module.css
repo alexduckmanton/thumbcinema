@@ -75,6 +75,12 @@
 	   on a phone otherwise, and either one lands in the middle of a stroke. */
 	user-select: none;
 	-webkit-touch-callout: none;
+	/* And this button is pressed while a finger is already on the canvas, which is two
+	   contacts and so a candidate pinch — the body's `manipulation` permits one. A
+	   browser is entitled to hold a touch back while it decides, and what it holds back
+	   is the press that changes tool mid-stroke. The canvas says `none` for the same
+	   reason; this is the other half of it. */
+	touch-action: none;
 	transition: bottom 0.1s ease-in-out, left 0.1s ease-in-out;
 }
 

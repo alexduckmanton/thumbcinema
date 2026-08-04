@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { type DrawMode, setToolPressed } from '../drawModes'
+import { type DrawMode, setToolPressed, TAP_SLOP } from '../drawModes'
 import type { FlipbookEngine, FlipbookState } from '../engine/FlipbookEngine'
 import type { ModalToolId } from '../engine/tools/types'
 import icons from '../../styles/icons.module.css'
@@ -55,30 +55,47 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 	 * tool up, or use the one already in hand — depends on whether a finger is on the
 	 * canvas, which only `PointerLayer` knows, so it decides. See `onToolPressed`.
 	 *
+	 * The mouse's half only. A finger goes through `useToolTouch` below, and its
+	 * `pointerType` guard is what keeps the two from both reporting the same press.
+	 *
 	 * **The pointer is captured** on the way down, so the release is heard even if the
-	 * thumb has slid off the button by then. A missed release is a tool that never
-	 * stops.
+	 * cursor has slid off the button by then — which it will have, because selecting a
+	 * tool slides the button 50px down out from under it. A missed release is a tool
+	 * that never stops.
 	 */
 	const holdProps = (id: ModalToolId) =>
 		holdToUse
 			? {
 					onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+						if (event.pointerType === 'touch') return
 						setToolPressed(id)
 						event.currentTarget.setPointerCapture(event.pointerId)
 					},
-					onPointerUp: () => setToolPressed(null),
-					onPointerCancel: () => setToolPressed(null),
+					onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
+						if (event.pointerType === 'touch') return
+						setToolPressed(null)
+					},
+					onPointerCancel: (event: React.PointerEvent<HTMLButtonElement>) => {
+						if (event.pointerType === 'touch') return
+						setToolPressed(null)
+					},
 				}
 			: null
 
+	const pencilRef = useToolTouch('pencil', holdToUse, engine)
+	const eraserRef = useToolTouch('eraser', holdToUse, engine)
+	const transformRef = useToolTouch('transform', holdToUse, engine)
+
 	/**
-	 * The ordinary tap, and in `holdTool` only the keyboard's.
+	 * The mouse's tap, and the keyboard's. A finger's never reaches here.
 	 *
-	 * A pointer-driven click in that mode has already been dealt with on the way down
-	 * — and letting this run as well would select twice, which for transform is not a
-	 * no-op: it is the cycle into push mode, arriving unasked at the end of every
-	 * hold. `detail` is the click count, and it is 0 for the synthetic click a
-	 * keyboard activation produces, which is exactly the one that still has to work.
+	 * `useToolTouch` calls `preventDefault()` on the way down, so a touch produces no
+	 * click at all; what this still has to refuse is the *mouse* click in `holdTool`,
+	 * which the pointer handlers above have already dealt with — and letting it run as
+	 * well would select twice, which for transform is not a no-op: it is the cycle into
+	 * push mode, arriving unasked at the end of every hold. `detail` is the click
+	 * count, and it is 0 for the synthetic click a keyboard activation produces, which
+	 * is exactly the one that still has to work.
 	 */
 	const press = (id: ModalToolId) => (event: React.MouseEvent<HTMLButtonElement>) => {
 		if (holdToUse && event.detail > 0) return
@@ -92,6 +109,7 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 			<ul className={`${styles.group} ${styles.tools}`}>
 				<li>
 					<button
+						ref={pencilRef}
 						type="button"
 						className={toolClass('pencil')}
 						title={holdToUse ? 'Draw (b) — hold to draw' : 'Draw (b)'}
@@ -106,6 +124,7 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 
 				<li>
 					<button
+						ref={eraserRef}
 						type="button"
 						className={toolClass('eraser')}
 						title={holdToUse ? 'Erase (e) — hold to rub out' : 'Erase (e)'}
@@ -120,6 +139,7 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 
 				<li>
 					<button
+						ref={transformRef}
 						type="button"
 						className={[
 							styles.tool,
@@ -205,4 +225,102 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 			</ul>
 		</div>
 	)
+}
+
+/**
+ * A tool button, driven by touch events rather than by a click or a pointer event.
+ *
+ * **A tap on a tool while another finger is on the canvas is a multi-touch gesture, and
+ * a browser owes it neither a `click` nor a mouse event.** That is the whole reason this
+ * exists: the compatibility mouse events, and the click synthesised from them, are for a
+ * single-finger tap, so every one of the modes that has you keep a finger on the glass —
+ * which is every relative mode, and `holdTool` is the default — had a tray that could
+ * only be reached by putting the drawing hand down first. Switching tools mid-gesture is
+ * exactly what those modes are for. Touch events have no such rule: every finger fires
+ * them, and a touch's events all target the element it started on however far it travels
+ * and whatever moves underneath it.
+ *
+ * That last part matters twice over here, because selecting a tool **slides its button
+ * 50px down** (`.toolActive`) out from under the finger that just pressed it. A click
+ * needs the press and the release on the same element and would be lost; touch's
+ * implicit capture means the release lands here regardless. It is why the mouse's half
+ * of `holdTool` calls `setPointerCapture` for the same reason.
+ *
+ * `preventDefault()` on the way down is what keeps the two paths from both firing: no
+ * synthesised click, and with it no long-press callout or text selection landing in the
+ * middle of somebody's stroke.
+ *
+ * Native listeners rather than React's `onTouchStart`, because React's are passive by
+ * delegation at the root and a passive listener may not call `preventDefault()`.
+ */
+function useToolTouch(id: ModalToolId, holdToUse: boolean, engine: FlipbookEngine) {
+	const ref = useRef<HTMLButtonElement>(null)
+
+	// Read at the moment a finger lands rather than closed over, so that switching mode
+	// or page mid-press doesn't leave the listeners rebound around a live touch.
+	const latest = useRef({ holdToUse, engine })
+	latest.current = { holdToUse, engine }
+
+	useEffect(() => {
+		const button = ref.current
+		if (!button) return
+
+		let active: number | null = null
+		let startX = 0
+		let startY = 0
+		let travel = 0
+
+		const onStart = (event: TouchEvent) => {
+			const touch = event.changedTouches[0]
+			if (!touch || active !== null) return
+
+			event.preventDefault()
+			active = touch.identifier
+			startX = touch.clientX
+			startY = touch.clientY
+			travel = 0
+
+			if (latest.current.holdToUse) setToolPressed(id)
+		}
+
+		const onMove = (event: TouchEvent) => {
+			if (active === null) return
+			for (const touch of Array.from(event.changedTouches)) {
+				if (touch.identifier !== active) continue
+				travel = Math.max(travel, Math.hypot(touch.clientX - startX, touch.clientY - startY))
+			}
+		}
+
+		const onEnd = (event: TouchEvent) => {
+			if (active === null) return
+			if (!Array.from(event.changedTouches).some((touch) => touch.identifier === active)) return
+			active = null
+
+			// In `holdTool` the layer decides what the press meant — the tool being used,
+			// or an ordinary tap picking it up — because only it knows whether a finger
+			// was on the canvas. Everywhere else a tap is a tap. See `onToolPressed`.
+			if (latest.current.holdToUse) {
+				setToolPressed(null)
+				return
+			}
+
+			if (event.type === 'touchend' && travel <= TAP_SLOP) latest.current.engine.selectTool(id)
+		}
+
+		button.addEventListener('touchstart', onStart, { passive: false })
+		button.addEventListener('touchmove', onMove, { passive: false })
+		button.addEventListener('touchend', onEnd)
+		button.addEventListener('touchcancel', onEnd)
+
+		return () => {
+			button.removeEventListener('touchstart', onStart)
+			button.removeEventListener('touchmove', onMove)
+			button.removeEventListener('touchend', onEnd)
+			button.removeEventListener('touchcancel', onEnd)
+			// A button that goes away mid-hold must not leave the tool working.
+			if (active !== null && latest.current.holdToUse) setToolPressed(null)
+		}
+	}, [id])
+
+	return ref
 }

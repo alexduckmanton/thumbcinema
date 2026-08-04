@@ -647,7 +647,15 @@ export class PointerLayer {
 		if (!press) return
 
 		press.used = true
-		if (this.engine.store.snapshot.tool !== press.id) this.engine.selectTool(press.id)
+
+		// Changing tool part-way through a gesture is the point of this mode, and the
+		// tool in hand has to be put down before the next one picks the gesture up: a
+		// stroke left open while the tool underneath it is swapped would be finished by
+		// whichever tool happened to answer the release.
+		if (this.engine.store.snapshot.tool !== press.id) {
+			this.disengage()
+			this.engine.selectTool(press.id)
+		}
 
 		this.engage()
 		this.publish()
