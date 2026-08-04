@@ -890,22 +890,27 @@ Things worth knowing before touching anything nearby:
   unasked. `CreateTray` therefore suppresses its own `onClick` for pointer-driven
   presses; keyboard activation still goes through it, told apart by `event.detail === 0`.
 
-  **A press on the tool already in hand can be a tap even though it worked**, and that is
-  `tapped`. Switching tool mid-gesture is most of what holding one is for, and transform ⇄
-  push is a switch like any other — but with a finger already aiming, *every* press
-  engages, so "did it do any work" answers yes to both readings and can't separate them.
-  What can is that using a tool takes time or takes the cursor somewhere: a press under
-  `TAP_TIME` that left the cursor within `TAP_SLOP` of where it found it was too brief and
-  too still to have been the tool. Only for the tool already in hand — on any other button
-  a press is a switch, and cycling there would land you in push every time you reached for
-  transform. And not while a second finger is still working the tool, because swapping the
-  tool underneath a stroke in progress is the thing `engagePress` goes out of its way not
-  to do.
+  **A press on the transform tool while transform is already in hand waits**, and it is
+  the one press that isn't acted on at once. Switching tool mid-gesture is most of what
+  holding one is for and transform ⇄ push is a switch like any other, but with a finger
+  aiming *every* press engages — so "did it do any work" answers yes to both readings and
+  can't separate them. What can is that using a tool takes time or takes the cursor
+  somewhere. Asking that on the way up is too late, though: transform's mousedown
+  **deselects** whenever it lands away from the box, so a press meant to reach push threw
+  away the very selection it was about to bend, and by release the selection was already
+  gone. So the press does nothing until it is no longer a tap — until the cursor leaves
+  `TAP_SLOP` or `TAP_TIME` passes — and then engages **at the point the button went
+  down**, so the handle it grabs is the one that was under the cursor when you pressed and
+  the wait costs nothing. A press that never gets there is a tap, `used` stays false, and
+  the ordinary tap path cycles it into push.
 
-  It gets one case wrong: a quick press over a stroke meant only to select it lands in
-  push. That costs one more tap to come back, the tray's arrows say which mode you are in,
-  and the selection survives the round trip — where the alternative, no way at all to reach
-  push without lifting the aiming finger, costs the whole gesture.
+  Only transform, and only already in hand. Switching *to* a tool is unambiguous. The two
+  that mark have no second reading to wait for — `selectTool` on the tool in hand is a
+  no-op for them — so waiting would only put 400ms in front of every stroke that starts
+  from a re-press, and a press of theirs that goes nowhere costs nothing anyway: the
+  pencil discards a path of one segment, and the eraser's bite is a bite. And nothing
+  cycles while a second finger is still working the tool, because swapping the tool
+  underneath a stroke in progress is what `engagePress` goes out of its way to avoid.
 - **The tray's three tools are driven by touch events, not by a click and not by a
   pointer event, and that is what makes changing tool mid-gesture possible at all.** A
   tap on a tool while a finger is already on the page is a *multi-touch* gesture, and a
