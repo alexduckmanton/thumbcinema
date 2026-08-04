@@ -894,6 +894,17 @@ Things worth knowing before touching anything nearby:
   `setTransformMode`; `selectTool` no longer cycles, and `v` keeps the cycle because a
   key press has no second reading.
 
+  **Each half says which of two jobs it does by being lit or not**, and that is a fourth
+  thing the fan was already drawing. The *unlit* one names the other mode and switching is
+  all it does — not switching *and* engaging, the way pressing a different tool does,
+  because engaging push at the cursor runs its mousedown there and away from the strokes
+  that means `selection.clear()`, which is the selection the press was on its way to bend.
+  The *lit* one is the mode you are already in, which is the tool in hand, so it holds
+  exactly as the hand does. That isn't a second reading of one press: they are two
+  buttons, and which one you touched has already answered it. It matters because the
+  arrows are most of what you can see of this tool — before they came apart from it,
+  holding them used it — and a live control that does nothing is worse than no control.
+
   They had to come apart, and the two failed attempts are worth keeping written down
   because both look right. One button meant one press with two readings — the tool being
   used again, or the mode being switched — and with a finger on the page aiming, *every*

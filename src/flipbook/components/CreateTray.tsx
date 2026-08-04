@@ -78,15 +78,32 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const transformRef = useToolTouch('transform')
 
 	/**
-	 * The two halves of the transform fan, which switch mode and never use the tool.
+	 * The two halves of the transform fan, which do one thing each and say which by being
+	 * lit or not.
 	 *
-	 * `mode` is the mouse's and the keyboard's; `useModeTouch` is a finger's, and exists
-	 * for the same reason `useToolTouch` does — a tap while another finger is on the page
-	 * is a multi-touch gesture, and a browser owes it no click at all.
+	 * **The unlit one names the other mode, and switching is all it does.** Not switching
+	 * *and* engaging, the way pressing a different tool does: engaging push at the cursor
+	 * runs its mousedown there, and away from the strokes that means `selection.clear()`
+	 * — which is the selection this press was most likely on its way to bend.
+	 *
+	 * **The lit one is the mode you are already in, which is the tool in hand**, so it
+	 * does what the hand does: press and hold to use it. That is not a second reading of
+	 * one press — the two arrows are two buttons, and which one you touched has already
+	 * answered the question. It matters because before the fan came apart the arrows were
+	 * *part* of the tool button, so holding them worked; they are most of what you can see
+	 * of this tool, and a live control that does nothing is worse than no control.
+	 *
+	 * `fanProps` is the mouse's and the keyboard's; `useFanTouch` is a finger's, and
+	 * exists for the reason `useToolTouch` does — a tap made while another finger is on
+	 * the page is a multi-touch gesture, and a browser owes it no click at all.
 	 */
-	const mode = (index: 0 | 1) => () => engine.setTransformMode(index)
-	const moveRef = useModeTouch(() => engine.setTransformMode(0))
-	const pushRef = useModeTouch(() => engine.setTransformMode(1))
+	const fanProps = (index: 0 | 1) => ({
+		onClick: () => engine.setTransformMode(index),
+		...(transformIndex === index ? holdProps('transform') : {}),
+	})
+
+	const moveRef = useFanTouch(0, transformIndex, engine)
+	const pushRef = useFanTouch(1, transformIndex, engine)
 
 	/**
 	 * The keyboard's tap. A finger's never reaches here, and a mouse's is handled above.
@@ -168,10 +185,14 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 							ref={moveRef}
 							type="button"
 							className={styles.mode}
-							title="Move, scale and rotate"
+							title={
+								transformIndex === 0
+									? 'Move, scale and rotate — hold to use'
+									: 'Move, scale and rotate'
+							}
 							aria-pressed={tool === 'transform' && transformIndex === 0}
 							disabled={tool !== 'transform'}
-							onClick={mode(0)}
+							{...fanProps(0)}
 						>
 							<span
 								className={`${styles.layer} ${styles.spokeTranslate} ${
@@ -194,10 +215,12 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 							ref={pushRef}
 							type="button"
 							className={styles.mode}
-							title="Push the line about"
+							title={
+								transformIndex === 1 ? 'Push the line about — hold to use' : 'Push the line about'
+							}
 							aria-pressed={tool === 'transform' && transformIndex === 1}
 							disabled={tool !== 'transform'}
-							onClick={mode(1)}
+							{...fanProps(1)}
 						>
 							<span
 								className={`${styles.layer} ${styles.spokePush} ${
@@ -326,24 +349,28 @@ function useToolTouch(id: ModalToolId) {
 }
 
 /**
- * A mode button in the transform fan, driven by touch for the reason `useToolTouch` is:
- * a tap made while another finger is on the page produces no `click`.
+ * Half of the transform fan, driven by touch for the reason `useToolTouch` is: a tap made
+ * while another finger is on the page produces no `click`.
  *
- * Much less to it than a tool, though, because there is nothing to decide. It has one
- * meaning, it is over on the way up, and it never touches the drawing — which is exactly
- * why the mode lives here rather than on a second press of the tool.
+ * Which of its two jobs it does is decided by *which button this is*, not by anything
+ * about the press — see `fanProps` above. Unlit, it switches the mode and stops there.
+ * Lit, it is the tool in hand and behaves exactly like the hand: it reports the press and
+ * lets `PointerLayer` put the tool to work at the cursor for as long as it is held.
  */
-function useModeTouch(pick: () => void) {
+function useFanTouch(index: 0 | 1, transformIndex: 0 | 1, engine: FlipbookEngine) {
 	const ref = useRef<HTMLButtonElement>(null)
 
-	const latest = useRef(pick)
-	latest.current = pick
+	// Read when a finger lands rather than closed over, so switching mode mid-press
+	// doesn't leave the listeners rebound around a live touch.
+	const latest = useRef({ transformIndex, engine })
+	latest.current = { transformIndex, engine }
 
 	useEffect(() => {
 		const button = ref.current
 		if (!button) return
 
 		let active: number | null = null
+		let holding = false
 
 		const onStart = (event: TouchEvent) => {
 			const touch = event.changedTouches[0]
@@ -351,6 +378,14 @@ function useModeTouch(pick: () => void) {
 
 			event.preventDefault()
 			active = touch.identifier
+
+			if (latest.current.transformIndex !== index) {
+				latest.current.engine.setTransformMode(index)
+				return
+			}
+
+			holding = true
+			setToolPressed('transform')
 		}
 
 		const onEnd = (event: TouchEvent) => {
@@ -358,7 +393,9 @@ function useModeTouch(pick: () => void) {
 			if (!Array.from(event.changedTouches).some((touch) => touch.identifier === active)) return
 
 			active = null
-			if (event.type === 'touchend') latest.current()
+			if (!holding) return
+			holding = false
+			setToolPressed(null)
 		}
 
 		button.addEventListener('touchstart', onStart, { passive: false })
@@ -369,8 +406,10 @@ function useModeTouch(pick: () => void) {
 			button.removeEventListener('touchstart', onStart)
 			button.removeEventListener('touchend', onEnd)
 			button.removeEventListener('touchcancel', onEnd)
+			// A button that goes away mid-hold must not leave the tool working.
+			if (holding) setToolPressed(null)
 		}
-	}, [])
+	}, [index])
 
 	return ref
 }

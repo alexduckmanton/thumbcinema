@@ -142,6 +142,11 @@
  * when they were the tool button's own children — but it takes no presses itself, or it
  * would lie over the hand and swallow them. Only the arrows are pressable, which is also
  * the honest hit area: what you are aiming at is the arrow you can see.
+ *
+ * Each does one thing, and says which by being lit: the unlit half switches the mode, and
+ * the lit half is the tool in hand and holds like the hand does. Which is also why they
+ * are not merely decorative — they are most of what you can see of this tool, and before
+ * they came apart from it, holding them used it.
  */
 .mode {
 	position: absolute;
