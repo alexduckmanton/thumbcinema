@@ -364,7 +364,13 @@ Also worth knowing:
   appear across the drawing.
 - **A selected stroke is moved into the selection layer, not flagged.** The selection
   layer draws *below* the pages, which reads correctly only because the page fades to
-  20% while anything is selected.
+  20% while anything is selected. **The layer is not a page, so anything left in it
+  survives a page turn** — which is why `goToPage` puts it down, and why `togglePlay`
+  now does too. Playing with something in hand stood it over every frame of the
+  flipbook, in blue and boxed, while the drawing changed underneath it; stopping
+  dropped it onto whichever page was showing, so pressing play moved a stroke from one
+  frame to another. Measured with a stroke on page one of three: every frame read 444
+  ink pixels and 184 blue, blank pages included.
 - **A page being deleted is still in `pages` while it falls.** So `pages.length` is
   one too many for 750ms, and deleting the only page — which inserts the replacement
   up front — makes it two. Ask `settledPageCount()` whether this is a flipbook yet;

@@ -746,6 +746,17 @@ export class FlipbookEngine {
 
 	// --- playback ------------------------------------------------------------
 
+	/**
+	 * Play, or stop.
+	 *
+	 * **Anything in hand is put down first**, and that isn't tidiness. A selected
+	 * stroke is physically moved into the selection layer, which is not a page — so it
+	 * stood there over every frame of the flipbook, in blue, with its box round it,
+	 * while the drawing changed underneath it. Stopping then dropped it onto whichever
+	 * page happened to be showing, which is a stroke moved from one frame to another
+	 * by pressing play. Putting it down is what `goToPage` has always done for a page
+	 * turn; playing is the same question asked twelve times a second.
+	 */
 	togglePlay(): void {
 		if (this.store.snapshot.playback === 'play') {
 			this.pause()
@@ -753,6 +764,7 @@ export class FlipbookEngine {
 		}
 		if (this.pageCount < 2) return
 
+		this.clearSelection()
 		this.stopPlayback()
 		this.store.set({ playback: 'play' })
 		this.scene.clearOnion()
