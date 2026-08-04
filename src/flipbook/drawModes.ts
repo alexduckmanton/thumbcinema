@@ -50,7 +50,9 @@ import type { ModalToolId } from './engine/tools/types'
  *    Two fingers down means the tool is working; one means you are only aiming. They
  *    differ in who steers: `secondFinger` keeps the cursor on the first finger and
  *    treats every other one as a button, `twoFinger` lets either finger steer and
- *    averages whichever ones the browser reports as having moved. Both are only
+ *    averages whichever ones the browser reports as having moved. `twoFinger` also
+ *    takes `holdTool`'s button, so either hand can be the one that starts the work —
+ *    see `holdsTool`. Both are only
  *    possible because this layer takes the touch stream away from paper — paper has
  *    one drag in flight and reads `targetTouches[0]`, so a second finger is invisible
  *    to it.
@@ -123,7 +125,7 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 	{
 		id: 'twoFinger',
 		label: 'Two fingers, either one steers',
-		hint: 'Two fingers down means the tool is working. Move either one and the cursor follows it; move both and it follows the average.',
+		hint: 'Two fingers down means the tool is working. Move either one and the cursor follows it; move both and it follows the average. Holding a tool in the tray does the same job, so one finger on the page and the other hand on the pencil works too.',
 	},
 	{
 		id: 'steady',
@@ -201,6 +203,23 @@ export function drivesAllTools(mode: DrawMode): boolean {
 /** Whether a gesture is opened and closed by fingers other than the steering one. */
 export function isMultiTouchMode(mode: DrawMode): boolean {
 	return mode === 'secondFinger' || mode === 'twoFinger'
+}
+
+/**
+ * Whether holding a tool down in the tray sets it working at the cursor.
+ *
+ * `holdTool`'s whole mechanism, and `twoFinger` has it as well as its own. The two
+ * answers to "how does the tool know to start" are not exclusive — a held button and a
+ * second finger are both a mouse button, and which one is to hand depends on how the
+ * phone is being held rather than on which is better. So in `twoFinger` either will do
+ * it, and `secondFinger` is left with only its own, which is what keeps a control in
+ * the comparison.
+ *
+ * What a press *means* is still decided in `PointerLayer.onToolPressed`, and what stops
+ * the tool is whichever holder is left: see `releaseHold`.
+ */
+export function holdsTool(mode: DrawMode): boolean {
+	return mode === 'holdTool' || mode === 'twoFinger'
 }
 
 /**

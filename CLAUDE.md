@@ -803,6 +803,17 @@ Three things about them are worth knowing before touching anything nearby:
   between them is only what starts and stops the work: half a second of stillness in
   two of them, a tool in the tray being physically held down by the other hand in
   `holdTool`, and a second finger anywhere on the page in the other two.
+
+  **`twoFinger` has both of those, and that is `holdsTool`.** The two answers are not
+  exclusive — a held button and a second finger are each a mouse button, and which one
+  is to hand depends on how the phone is being held rather than on which is better — so
+  there either will do it, and `secondFinger` is left with only its own to keep a
+  control in the comparison. What follows is that a gesture can have *two* holders at
+  once, so a release has to ask whether the other one is still there: letting go of the
+  pencil while two fingers are on the glass must not cut the stroke off, and neither
+  must lifting the second finger while the pencil is held. That question is
+  `releaseHold`, and for every other mode it is `disengage` with an answer that never
+  varies.
 - **Three modes cover the transform tool** — the three whose changeover is a button
   press in all but name (`drivesAllTools`). That falls out of the mechanism rather
   than being a decision: a held button, or a second finger, *is* a mouse button, and a

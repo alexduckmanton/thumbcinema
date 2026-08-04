@@ -5,6 +5,7 @@ import {
 	HOLD_DELAY,
 	HOLD_SLOP,
 	drivesAllTools,
+	holdsTool,
 	isMultiTouchMode,
 	isRelativeMode,
 	isTimedMode,
@@ -328,10 +329,11 @@ export class PointerLayer {
 		 * `steady` and `holdToMove` are marking from the frame they are touched;
 		 * `holdToDraw` opens with nothing but a cursor; `holdTool` asks the other
 		 * hand; and the two-finger modes open with one finger down, which by
-		 * definition is not yet two.
+		 * definition is not yet two — but their other hand still counts, which is
+		 * why `twoFinger` asks the same question `holdTool` does.
 		 */
 		if (this.mode === 'steady' || this.mode === 'holdToMove') this.engage()
-		else if (this.mode === 'holdTool') this.engagePress()
+		else if (holdsTool(this.mode)) this.engagePress()
 
 		// Only the two with a changeover on a timer. `steady` draws for the whole
 		// gesture and `holdTool` is told when to start, so neither has anything for a
@@ -532,8 +534,9 @@ export class PointerLayer {
 			gesture.anchorY = at.y
 		}
 
-		// Down to one finger: whatever the second one was switching on is over.
-		if (this.multiTouch && this.others.size === 0) this.disengage()
+		// Down to one finger: whatever the second one was switching on is over, unless
+		// the other hand is holding a tool down as well.
+		if (this.multiTouch) this.releaseHold()
 
 		this.publish()
 	}
@@ -590,7 +593,7 @@ export class PointerLayer {
 	}
 
 	/**
-	 * A tool's button in the tray going down or coming up, in `holdTool`.
+	 * A tool's button in the tray going down or coming up, in the modes that hold.
 	 *
 	 * The same changeover the timer makes in the other two, decided by a second hand
 	 * instead of by half a second of stillness — so it can happen part-way through a
@@ -614,7 +617,7 @@ export class PointerLayer {
 	 * the click.
 	 */
 	private onToolPressed = (): void => {
-		if (this.mode !== 'holdTool') return
+		if (!holdsTool(this.mode)) return
 
 		const id = pressedTool()
 		if (id !== null) {
@@ -628,12 +631,28 @@ export class PointerLayer {
 		this.pressed = null
 
 		if (this.gesture?.engaged) {
-			this.disengage()
+			this.releaseHold()
 			this.publish()
 			return
 		}
 
 		if (press && !press.used) this.engine.selectTool(press.id)
+	}
+
+	/**
+	 * Stops the tool, unless something else is still holding it at work.
+	 *
+	 * `twoFinger` has two ways of saying "now" — a second finger on the page and a tool
+	 * held down in the tray — and either will do, so either coming away has to check
+	 * whether the other is still there. Letting go of the pencil while two fingers are
+	 * on the glass shouldn't cut the stroke off, and neither should lifting the second
+	 * finger while the pencil is held. The other modes have only one holder each, and
+	 * for them this is `disengage` with a question that always answers the same way.
+	 */
+	private releaseHold(): void {
+		if (this.pressed !== null) return
+		if (this.multiTouch && this.others.size > 0) return
+		this.disengage()
 	}
 
 	/**

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import { type DrawMode, setToolPressed, TAP_SLOP } from '../drawModes'
+import { type DrawMode, holdsTool, setToolPressed, TAP_SLOP } from '../drawModes'
 import type { FlipbookEngine, FlipbookState } from '../engine/FlipbookEngine'
 import type { ModalToolId } from '../engine/tools/types'
 import icons from '../../styles/icons.module.css'
@@ -11,7 +11,7 @@ export interface CreateTrayProps {
 	state: FlipbookState
 	/** True while the save form is up: the controls fly away and leave it alone. */
 	stowed?: boolean
-	/** Scaffolding: in `holdTool` all three tools are held down to use them. */
+	/** Scaffolding: in two of the modes all three tools are held down to use them. */
 	mode: DrawMode
 }
 
@@ -39,7 +39,8 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 	const toolClass = (id: ModalToolId) =>
 		tool === id ? `${styles.tool} ${styles.toolActive}` : styles.tool
 
-	const holdToUse = mode === 'holdTool'
+	// `holdTool`, and `twoFinger` — which has this as well as its own second finger.
+	const holdToUse = holdsTool(mode)
 
 	// A held button that outlives the mode, the page or the tray would leave the tool
 	// working for ever with nothing on screen saying so.
@@ -49,7 +50,7 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 	}, [holdToUse])
 
 	/**
-	 * Press and hold to use the tool, in `holdTool` and nowhere else.
+	 * Press and hold to use the tool, in the two modes that hold.
 	 *
 	 * All this does is report which button is down. What a press *means* — pick the
 	 * tool up, or use the one already in hand — depends on whether a finger is on the
@@ -90,7 +91,7 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 	 * The mouse's tap, and the keyboard's. A finger's never reaches here.
 	 *
 	 * `useToolTouch` calls `preventDefault()` on the way down, so a touch produces no
-	 * click at all; what this still has to refuse is the *mouse* click in `holdTool`,
+	 * click at all; what this still has to refuse is the *mouse* click in a holding mode,
 	 * which the pointer handlers above have already dealt with — and letting it run as
 	 * well would select twice, which for transform is not a no-op: it is the cycle into
 	 * push mode, arriving unasked at the end of every hold. `detail` is the click
@@ -296,8 +297,8 @@ function useToolTouch(id: ModalToolId, holdToUse: boolean, engine: FlipbookEngin
 			if (!Array.from(event.changedTouches).some((touch) => touch.identifier === active)) return
 			active = null
 
-			// In `holdTool` the layer decides what the press meant — the tool being used,
-			// or an ordinary tap picking it up — because only it knows whether a finger
+			// In a holding mode the layer decides what the press meant — the tool being
+			// used, or an ordinary tap picking it up — because only it knows whether a finger
 			// was on the canvas. Everywhere else a tap is a tap. See `onToolPressed`.
 			if (latest.current.holdToUse) {
 				setToolPressed(null)
