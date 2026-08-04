@@ -17,9 +17,10 @@ export interface CreateTrayProps {
  * The create page's tray: three modal tools on the left, three page actions on the
  * right.
  *
- * The transform button is one button with two tools: pressing it again cycles into
- * push and back. Push used to refuse to switch on unless something was selected — it
- * selects for itself now, so the cycle always goes round.
+ * The transform tool is three controls in one picture: the hand is the tool, and the two
+ * halves of the fan behind it are its two modes. It was one button that cycled — see
+ * `.transform` in the stylesheet for why it could not stay that way once a finger on the
+ * page could press it.
  *
  * One layout at every width, and shorter than it was. 2013 ended this row with play and
  * circleplay; the page bar under the drawing is both of those now — a tap on its handle
@@ -77,15 +78,24 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 	const transformRef = useToolTouch('transform')
 
 	/**
+	 * The two halves of the transform fan, which switch mode and never use the tool.
+	 *
+	 * `mode` is the mouse's and the keyboard's; `useModeTouch` is a finger's, and exists
+	 * for the same reason `useToolTouch` does — a tap while another finger is on the page
+	 * is a multi-touch gesture, and a browser owes it no click at all.
+	 */
+	const mode = (index: 0 | 1) => () => engine.setTransformMode(index)
+	const moveRef = useModeTouch(() => engine.setTransformMode(0))
+	const pushRef = useModeTouch(() => engine.setTransformMode(1))
+
+	/**
 	 * The keyboard's tap. A finger's never reaches here, and a mouse's is handled above.
 	 *
 	 * `useToolTouch` calls `preventDefault()` on the way down, so a touch produces no
 	 * click at all; what this still has to refuse is the *mouse* click, which the pointer
-	 * handlers above have already dealt with — and letting it run as well would select
-	 * twice, which for transform is not a no-op: it is the cycle into push mode, arriving
-	 * unasked at the end of every hold. `detail` is the click count, and it is 0 for the
-	 * synthetic click a keyboard activation produces, which is exactly the one that still
-	 * has to work.
+	 * handlers above have already dealt with. `detail` is the click count, and it is 0 for
+	 * the synthetic click a keyboard activation produces, which is exactly the one that
+	 * still has to work.
 	 */
 	const press = (id: ModalToolId) => (event: React.MouseEvent<HTMLButtonElement>) => {
 		if (event.detail > 0) return
@@ -128,9 +138,11 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 				</li>
 
 				<li>
-					<button
-						ref={transformRef}
-						type="button"
+					{/* Three controls in one picture: the hand is the tool, and the two halves
+					    of the fan are its two modes. See `.transform` in the stylesheet for why
+					    they are separate, which is the whole of how transform and push are told
+					    apart while a finger is on the page. */}
+					<div
 						className={[
 							styles.tool,
 							styles.transform,
@@ -138,38 +150,64 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						]
 							.filter(Boolean)
 							.join(' ')}
-						title="Transform (v) — hold to select and move"
-						aria-pressed={tool === 'transform'}
-						onClick={press('transform')}
-						{...holdProps('transform')}
 					>
-						{/* Four stacked images: the hand, and three arrows that fan out
-						    from behind it when the tool is on. */}
-						{/* No `blade` here, unlike the pencil and the eraser: on a phone this
-						    button is turned over as a whole, arrows and all. */}
-						<span className={`${styles.layer} ${icons.transform}`} aria-hidden="true" />
-						<span
-							className={`${styles.layer} ${
-								tool === 'transform' && transformIndex === 0
-									? icons.translateActive
-									: icons.translate
-							}`}
-							aria-hidden="true"
-						/>
-						<span
-							className={`${styles.layer} ${
-								tool === 'transform' && transformIndex === 0 ? icons.rotateActive : icons.rotate
-							}`}
-							aria-hidden="true"
-						/>
-						<span
-							className={`${styles.layer} ${
-								tool === 'transform' && transformIndex === 1 ? icons.nudgeActive : icons.nudge
-							}`}
-							aria-hidden="true"
-						/>
-						<span className="visuallyHidden">Transform</span>
-					</button>
+						<button
+							ref={transformRef}
+							type="button"
+							className={styles.hand}
+							title="Transform (v) — hold to select and move"
+							aria-pressed={tool === 'transform'}
+							onClick={press('transform')}
+							{...holdProps('transform')}
+						>
+							<span className={`${styles.layer} ${icons.transform}`} aria-hidden="true" />
+							<span className="visuallyHidden">Transform</span>
+						</button>
+
+						<button
+							ref={moveRef}
+							type="button"
+							className={styles.mode}
+							title="Move, scale and rotate"
+							aria-pressed={tool === 'transform' && transformIndex === 0}
+							disabled={tool !== 'transform'}
+							onClick={mode(0)}
+						>
+							<span
+								className={`${styles.layer} ${styles.spokeTranslate} ${
+									tool === 'transform' && transformIndex === 0
+										? icons.translateActive
+										: icons.translate
+								}`}
+								aria-hidden="true"
+							/>
+							<span
+								className={`${styles.layer} ${styles.spokeRotate} ${
+									tool === 'transform' && transformIndex === 0 ? icons.rotateActive : icons.rotate
+								}`}
+								aria-hidden="true"
+							/>
+							<span className="visuallyHidden">Move, scale and rotate</span>
+						</button>
+
+						<button
+							ref={pushRef}
+							type="button"
+							className={styles.mode}
+							title="Push the line about"
+							aria-pressed={tool === 'transform' && transformIndex === 1}
+							disabled={tool !== 'transform'}
+							onClick={mode(1)}
+						>
+							<span
+								className={`${styles.layer} ${styles.spokePush} ${
+									tool === 'transform' && transformIndex === 1 ? icons.nudgeActive : icons.nudge
+								}`}
+								aria-hidden="true"
+							/>
+							<span className="visuallyHidden">Push the line about</span>
+						</button>
+					</div>
 				</li>
 			</ul>
 
@@ -283,6 +321,56 @@ function useToolTouch(id: ModalToolId) {
 			if (active !== null) setToolPressed(null)
 		}
 	}, [id])
+
+	return ref
+}
+
+/**
+ * A mode button in the transform fan, driven by touch for the reason `useToolTouch` is:
+ * a tap made while another finger is on the page produces no `click`.
+ *
+ * Much less to it than a tool, though, because there is nothing to decide. It has one
+ * meaning, it is over on the way up, and it never touches the drawing — which is exactly
+ * why the mode lives here rather than on a second press of the tool.
+ */
+function useModeTouch(pick: () => void) {
+	const ref = useRef<HTMLButtonElement>(null)
+
+	const latest = useRef(pick)
+	latest.current = pick
+
+	useEffect(() => {
+		const button = ref.current
+		if (!button) return
+
+		let active: number | null = null
+
+		const onStart = (event: TouchEvent) => {
+			const touch = event.changedTouches[0]
+			if (!touch || active !== null || button.disabled) return
+
+			event.preventDefault()
+			active = touch.identifier
+		}
+
+		const onEnd = (event: TouchEvent) => {
+			if (active === null) return
+			if (!Array.from(event.changedTouches).some((touch) => touch.identifier === active)) return
+
+			active = null
+			if (event.type === 'touchend') latest.current()
+		}
+
+		button.addEventListener('touchstart', onStart, { passive: false })
+		button.addEventListener('touchend', onEnd)
+		button.addEventListener('touchcancel', onEnd)
+
+		return () => {
+			button.removeEventListener('touchstart', onStart)
+			button.removeEventListener('touchend', onEnd)
+			button.removeEventListener('touchcancel', onEnd)
+		}
+	}, [])
 
 	return ref
 }

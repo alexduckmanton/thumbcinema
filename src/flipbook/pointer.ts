@@ -118,9 +118,6 @@ export class PointerLayer {
 	/** The tool button that is held down in the tray. See `onToolPressed`. */
 	private pressed: Press | null = null
 
-	/** True while a press is waiting to find out whether it is the tool. `engagePress`. */
-	private waiting = false
-
 	/**
 	 * Which kind of pointer the cursor currently describes.
 	 *
@@ -354,13 +351,6 @@ export class PointerLayer {
 		this.cursorX = clamp(this.cursorX + sumX / movers, 0, box.width)
 		this.cursorY = clamp(this.cursorY + sumY / movers, 0, box.height)
 
-		// A press that was waiting to find out whether it was the tool or a tap: taking
-		// the cursor this far settles it, before anything below drives a tool. See
-		// `engagePress`.
-		if (this.waiting && this.pressed && this.travelled(this.pressed) > TAP_SLOP) {
-			this.commitPress()
-		}
-
 		const point = this.engine.toProject(this.cursorX, this.cursorY)
 
 		if (gesture.engaged) this.engine.toolDrag(point)
@@ -424,9 +414,6 @@ export class PointerLayer {
 
 				this.gesture = null
 				this.others.clear()
-				// A waiting press outlives the finger it was waiting on, and there is
-				// nothing left for it to engage. It is still a tap when the button comes up.
-				this.waiting = false
 				this.publish()
 				return
 			}
@@ -465,11 +452,10 @@ export class PointerLayer {
 	 * time — to move a selection you had just made — read as a second tap and dropped you
 	 * into push mode without asking.
 	 *
-	 * **A press on the tool already in hand is the ambiguous one**, because with a finger
-	 * aiming it engages like any other and "did it do any work" then answers yes to both
-	 * readings of it. What separates them is that using a tool takes time or takes the
-	 * cursor somewhere — and for transform that question has to be asked *before* the
-	 * tool acts rather than after, which is what `engagePress` waits for.
+	 * A press on the tool **already in hand** used to be ambiguous, because for transform
+	 * it was also the switch into push, and with a finger aiming every press engages. That
+	 * is gone: the fan's two halves are their own controls, so a press here only ever
+	 * means "use this tool". See `engagePress`.
 	 *
 	 * The tray suppresses its own `onClick` for pointer-driven presses, so the tap lands
 	 * here and exactly once. Keyboard activation still goes through the click.
@@ -477,17 +463,7 @@ export class PointerLayer {
 	private onToolPressed = (): void => {
 		const id = pressedTool()
 		if (id !== null) {
-			this.pressed = {
-				id,
-				used: false,
-				// Whether this press could be a *mode* switch rather than a tool switch.
-				// `selectTool` on the tool already in hand is a no-op for the two that mark
-				// and the transform ⇄ push cycle for the one that grabs.
-				inHand: this.engine.store.snapshot.tool === id,
-				at: performance.now(),
-				x: this.cursorX,
-				y: this.cursorY,
-			}
+			this.pressed = { id, used: false }
 			// Held before the finger arrived: `onTouchStart` will ask again.
 			if (this.gesture) this.engagePress()
 			return
@@ -495,7 +471,6 @@ export class PointerLayer {
 
 		const press = this.pressed
 		this.pressed = null
-		this.waiting = false
 		if (!press) return
 
 		if (this.gesture?.engaged) {
@@ -504,11 +479,8 @@ export class PointerLayer {
 			return
 		}
 
-		// Nothing happened while it was down, so it was a tap — including the transform
-		// press that waited and never became the tool. A second finger still working the
-		// tool is the one case that isn't: the branch above has already returned, because
-		// swapping the tool underneath a stroke in progress is the thing `engagePress`
-		// goes out of its way not to do.
+		// Nothing happened while it was down, so it was an ordinary tap on the tray and
+		// picks the tool up.
 		if (!press.used) this.engine.selectTool(press.id)
 	}
 
@@ -530,86 +502,37 @@ export class PointerLayer {
 	/**
 	 * Puts the pressed tool to work at the cursor.
 	 *
-	 * Picks it up if it isn't already in hand, and then leaves it alone: a hold must
-	 * never *cycle*, or holding transform twice in a row would land you in push mode.
-	 *
-	 * **A press on the transform tool while transform is already in hand waits**, and
-	 * that is the one place a press is not acted on immediately. It has two readings —
-	 * the tool being used again, or a tap switching it into push — and they are not
-	 * equally cheap to be wrong about: transform's mousedown *deselects* whenever it
-	 * lands away from the box, so a press meant to reach push threw away the very
-	 * selection it was about to bend. Deciding on the way back up doesn't help, because
-	 * by then the selection is already gone.
-	 *
-	 * **What settles it is the cursor moving, and nothing else — no timer.** A duration
-	 * was tried first and is exactly the wrong signal: a tap on the glass is quick, but a
-	 * deliberate press of a *button with the other hand* is not, and is routinely past
-	 * any threshold you would pick. When it was, the wait ended by itself, transform
-	 * engaged away from the selection and cleared it, and the release then found the tool
-	 * had worked and didn't switch mode either — both halves failing at once, which is
-	 * what a press being slow ought never to cause. So the press simply does nothing
-	 * until the cursor leaves `TAP_SLOP` (see `onTouchMove`), and then engages **at the
-	 * point the button went down**, so the handle it grabs is the one that was under the
-	 * cursor when you pressed and the wait costs nothing. Hold it as long as you like.
-	 *
-	 * What that gives up is tapping the tray to *select* the stroke under the cursor: a
-	 * press that never moves is now always the mode switch. Nothing is actually lost,
-	 * because that is the second finger's job — a second finger down and up is a click at
-	 * the cursor, and it is not deferred. So the two holders divide cleanly: **the finger
-	 * uses the tool, and the button switches it.**
-	 *
-	 * A press that was already down before the finger landed is not deferred either.
-	 * The ambiguity belongs to a press that arrives *during* a gesture; one that predates
-	 * it was somebody picking a tool up and then reaching for the page.
-	 *
-	 * Only transform, and only when it is already in hand. Switching *to* a tool is
-	 * unambiguous. And the two tools that mark have no second reading to wait for —
-	 * `selectTool` on the tool already in hand is a no-op for them — so waiting would only
-	 * stand between a re-press and the stroke it starts.
+	 * Picks it up if it isn't already in hand, and then leaves it alone. A press means
+	 * one thing now — *use this tool* — which it did not while the transform button also
+	 * had to switch its own mode: that press had two readings, and with a finger on the
+	 * page aiming, every press is also a press, so nothing about the press itself could
+	 * separate them. Both inferences were tried on a real phone and both failed.
+	 * Duration, because a deliberate press of a button by the other hand is slow and runs
+	 * past any threshold worth picking. Distance, because Safari withholds a resting
+	 * finger's movement and then delivers ten pixels of it in one event (`lib/zoom.ts`),
+	 * so the aiming finger crosses any slop on its own. The fan came apart into two
+	 * controls instead, and the question stopped being asked. See `CreateTray`.
 	 */
 	private engagePress(): void {
 		const press = this.pressed
-		if (!press || press.used || this.waiting) return
+		if (!press) return
+
+		press.used = true
 
 		// Changing tool part-way through a gesture is much of the point of holding one,
 		// and the tool in hand has to be put down before the next one picks the gesture
 		// up: a stroke left open while the tool underneath it is swapped would be
 		// finished by whichever tool happened to answer the release.
-		if (!press.inHand) {
-			press.used = true
+		if (this.engine.store.snapshot.tool !== press.id) {
 			this.disengage()
 			this.engine.selectTool(press.id)
-			this.engage()
-			this.publish()
-			return
 		}
 
-		if (press.id === 'transform' && this.gesture && press.at > this.gesture.openedAt) {
-			this.waiting = true
-			return
-		}
-
-		this.commitPress()
-	}
-
-	/** The waiting press has turned out to be the tool after all. */
-	private commitPress(): void {
-		this.waiting = false
-
-		const press = this.pressed
-		if (!press || press.used || !this.gesture) return
-
-		press.used = true
-		this.engage({ x: press.x, y: press.y })
+		this.engage()
 		this.publish()
 	}
 
-	/** How far the cursor has moved since a press went down. */
-	private travelled(press: Press): number {
-		return Math.hypot(this.cursorX - press.x, this.cursorY - press.y)
-	}
-
-	private engage(at?: { x: number; y: number }): void {
+	private engage(): void {
 		const gesture = this.gesture
 		if (!gesture || gesture.engaged) return
 		if (!this.engine.store.snapshot.tool) return
@@ -626,9 +549,8 @@ export class PointerLayer {
 		// The stroke starts wherever the *cursor* is standing, which is the one place it
 		// can start: the finger's position means nothing here, and a stroke that opened
 		// under the fingertip and then jumped to the ring would draw a line between the
-		// two. `at` is where it was standing when a waiting press went down — see
-		// `engagePress` — which is a few pixels back by the time that press commits.
-		this.engine.toolDown(this.engine.toProject(at?.x ?? this.cursorX, at?.y ?? this.cursorY))
+		// two.
+		this.engine.toolDown(this.engine.toProject(this.cursorX, this.cursorY))
 	}
 
 	private disengage(): void {
@@ -641,7 +563,6 @@ export class PointerLayer {
 
 	/** Ends whatever is in flight without leaving half a stroke on the page. */
 	private abandon(): void {
-		this.waiting = false
 		this.disengage()
 		this.gesture = null
 		this.others.clear()
@@ -797,7 +718,7 @@ export class PointerLayer {
 const CONTROLS = 'button, a, input, select, textarea, [role="slider"]'
 
 /**
- * What counts as a tap of a *finger on the glass*: a press that goes nowhere, quickly.
+ * What counts as a tap of a finger on the glass: a press that goes nowhere, quickly.
  *
  * Both halves are needed, and the time is the one doing the work. Safari withholds
  * movement until the finger has travelled several pixels (see `lib/zoom.ts`), so a small
@@ -806,9 +727,8 @@ const CONTROLS = 'button, a, input, select, textarea, [role="slider"]'
  * at around 9px a second, so a five-pixel nudge takes better than half a second, where a
  * tap is over in a tenth of one.
  *
- * `TAP_TIME` is that tap's alone, and deliberately not a tap of the *tray*: a button
- * pressed by the other hand is a considered movement rather than a flick, and is
- * routinely slower than this. `engagePress` says what happened when it was used there.
+ * The tray has no use for either number: its buttons say what they mean by *which* one
+ * you pressed, not by how you pressed it. `engagePress` has the story.
  */
 export const TAP_SLOP = 8
 export const TAP_TIME = 400
@@ -846,12 +766,6 @@ interface Press {
 	id: ModalToolId
 	/** Whether the tool has done any work. What tells a hold from a tap on the way up. */
 	used: boolean
-	/** Whether this tool was already in hand, so that pressing it again is a mode switch. */
-	inHand: boolean
-	/** When it went down, and where the cursor was standing then. Both for `tapped`. */
-	at: number
-	x: number
-	y: number
 }
 
 interface Gesture {

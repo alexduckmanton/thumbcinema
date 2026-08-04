@@ -285,8 +285,11 @@ export class FlipbookEngine {
 	/**
 	 * Switches modal tool.
 	 *
-	 * Clicking the tool you're already on is a no-op — except for transform, which
-	 * cycles into push mode and back, and is what makes it one button rather than two.
+	 * Picking up the tool you're already on is a no-op, transform included. It used to
+	 * cycle that one into push and back, which was what made the fan one button rather
+	 * than three — and is exactly what could not survive a finger on the page, where
+	 * every press of a tool is also a press *of* it. The two halves of the fan are their
+	 * own controls now; see `setTransformMode` and `.transform` in `Tray.module.css`.
 	 *
 	 * **Not held while a page animates**, unlike the page actions and undo. Drawing
 	 * through those 750ms has been allowed since 2013 and the scene is in its final
@@ -296,11 +299,7 @@ export class FlipbookEngine {
 	 * and the previous tool did the work.
 	 */
 	selectTool(id: ModalToolId): void {
-		if (this.store.snapshot.tool === id) {
-			if (id === 'transform')
-				this.setTransformIndex(this.store.snapshot.transformIndex === 0 ? 1 : 0)
-			return
-		}
+		if (this.store.snapshot.tool === id) return
 
 		this.activeTool?.deactivate()
 		this.store.set({ tool: id, transformIndex: 0 })
@@ -315,6 +314,33 @@ export class FlipbookEngine {
 		}
 		next.activate()
 		this.scene.redraw()
+	}
+
+	/**
+	 * Transform or push, asked for directly.
+	 *
+	 * One of the two halves of the fan being tapped, or `v` pressed a second time. It
+	 * only answers while transform is the tool in hand — the arrows are the tool's own
+	 * picture of itself and mean nothing when it is put down, so they are `disabled`
+	 * there and this refuses for the same reason.
+	 */
+	setTransformMode(index: 0 | 1): void {
+		if (this.store.snapshot.tool !== 'transform') return
+		if (this.store.snapshot.transformIndex === index) return
+		this.setTransformIndex(index)
+	}
+
+	/**
+	 * Transform up, then transform ⇄ push: what `v` does.
+	 *
+	 * The keyboard keeps the cycle the tray gave up, because a key has no second reading
+	 * — it can never also be the tool being used at the cursor, which is the whole of why
+	 * the tray's two jobs had to come apart.
+	 */
+	cycleTransform(): void {
+		const { tool, transformIndex } = this.store.snapshot
+		if (tool !== 'transform') this.selectTool('transform')
+		else this.setTransformIndex(transformIndex === 0 ? 1 : 0)
 	}
 
 	/**

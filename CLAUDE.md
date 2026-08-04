@@ -476,7 +476,9 @@ it's one of these. Each is deliberate:
   quarter-turn from straight-down to flat-right — rotate down the middle, translate and
   push a corner either side. Each arrow pivots about the top of its own box, so the two
   narrower ones are inset 7px to put all three hubs on the same pixel; 2013's 15 and 10
-  placed them by eye for a fan that opened to one side.
+  placed them by eye for a fan that opened to one side. **They are also controls now**,
+  which is how transform and push are told apart; the picture is pixel-identical either
+  way.
 - **The pointer over the drawing is a ring the size of the stroke**, and the transform
   tool's four cursors are drawn rather than named. Neither existed; the second replaces
   the native cursors 2013 wrote onto the canvas.
@@ -497,9 +499,11 @@ is now true at both widths and the differences are called out where they exist.
   back because the picture the tool makes is a pencil hanging off the bottom of the
   paper with its length running up behind the drawing, and that survives being scaled
   down but not being flipped.
-- **The tray is six controls at every width** — three tools, three page actions. It
-  ended in play and circleplay in 2013; the page bar's handle is both of those now, and
-  the width popover that hung off the pencil is gone as well. See below for each.
+- **The tray is six controls at every width** — three tools, three page actions — plus
+  the two halves of the transform tool's fan, which are the tool's own modes and only
+  reachable while it is in hand. It ended in play and circleplay in 2013; the page bar's
+  handle is both of those now, and the width popover that hung off the pencil is gone as
+  well. See below for each.
 - **The tools are cut off at the tray's top edge, on both layouts.** Each is a 304px
   picture anchored by its tip. On a phone the paper is 200px tall and the pencil is not
   scaled with it, so it came out of the top of the drawing and stood in the air above
@@ -881,48 +885,38 @@ Things worth knowing before touching anything nearby:
   the half doing the work: Safari withholds movement until the finger has travelled
   several pixels, so a small deliberate nudge reports no movement at all and is a tap by
   distance alone. It is not one by duration — aiming runs at about 9px a second.
-- **One tray button has to do two jobs**, and which one is settled on the way back *up*:
-  a press that did some work was the tool being used, and a press that did none was an
-  ordinary tap and selects (or, for transform, cycles into push). It cannot be decided on
-  the press, because at that moment there is no way to know whether a finger is about to
-  land on the canvas — and deciding early meant reaching for transform a second time, to
-  move a selection you had just made, read as a second tap and dropped you into push mode
-  unasked. `CreateTray` therefore suppresses its own `onClick` for pointer-driven
-  presses; keyboard activation still goes through it, told apart by `event.detail === 0`.
+- **The transform tool is three controls in one picture, and that is how its mode is
+  switched.** The hand is the tool — press and hold it and it works at the cursor, like
+  the pencil and the eraser. The two halves of the fan behind it are its two modes: tap
+  the translate/rotate pair for transform, tap the push arrow for push. The fan was
+  already a picture of the three things this tool does, so the groups of it are the two
+  things it can *be*, and tapping one is now the whole of how you get between them.
+  `setTransformMode`; `selectTool` no longer cycles, and `v` keeps the cycle because a
+  key press has no second reading.
 
-  **A press on the transform tool while transform is already in hand waits**, and it is
-  the one press that isn't acted on at once. Switching tool mid-gesture is most of what
-  holding one is for and transform ⇄ push is a switch like any other, but with a finger
-  aiming *every* press engages — so "did it do any work" answers yes to both readings and
-  can't separate them. Asking on the way up is too late: transform's mousedown
-  **deselects** whenever it lands away from the box, so a press meant to reach push threw
-  away the very selection it was about to bend, and by release the selection was already
-  gone. So the press does nothing at all until it is no longer a tap, and then engages
-  **at the point the button went down** — so the handle it grabs is the one that was
-  under the cursor when you pressed, and the wait costs nothing. A press that never gets
-  there leaves `used` false, and the ordinary tap path cycles it into push.
+  They had to come apart, and the two failed attempts are worth keeping written down
+  because both look right. One button meant one press with two readings — the tool being
+  used again, or the mode being switched — and with a finger on the page aiming, *every*
+  press of a tool is also a press of it, so nothing about the press itself separates
+  them. Settling it on the way up doesn't work: transform's mousedown **deselects**
+  whenever it lands away from the box, so by release the selection the press was about to
+  bend is already gone. Settling it before the tool acts needs a signal, and neither
+  candidate survives a real phone. **Duration** fails because a deliberate press of a
+  button by the other hand is slow — routinely past any threshold worth picking — and
+  when it overran, the tool engaged *and* the mode didn't change, both halves failing at
+  once. **Distance** fails because Safari withholds a resting finger's movement and then
+  delivers ten pixels of it in a single event (see `lib/zoom.ts`), so the aiming finger
+  crosses any slop on its own. Two targets need no signal.
 
-  **What settles it is the cursor moving, and nothing else. There is no timer**, and a
-  duration was tried first and is exactly the wrong signal: a tap on the glass is quick,
-  but a deliberate press of a *button with the other hand* is not, and is routinely past
-  any threshold worth picking. When it was, the wait ended by itself, transform engaged
-  away from the selection and cleared it, and the release then found the tool had worked
-  and didn't switch mode either — both halves failing at once, which is what a press
-  being slow should never cause. `TAP_TIME` is the *page* tap's number and stays that.
-
-  What this gives up is tapping the tray to **select** the stroke under the cursor: a
-  press that never moves is now always the mode switch. Nothing is really lost, because
-  that is the second finger's job — a second finger down and up is a click at the cursor,
-  and it isn't deferred. So the two holders divide cleanly: the finger uses the tool, the
-  button switches it.
-
-  Only transform, and only already in hand. Switching *to* a tool is unambiguous, and a
-  press that was already down before the finger landed isn't deferred either — the
-  ambiguity belongs to a press arriving *during* a gesture. The two that mark have no
-  second reading to wait for, `selectTool` on the tool in hand being a no-op for them, so
-  waiting would only stand between a re-press and the stroke it starts. And nothing
-  cycles while a second finger is still working the tool, because swapping the tool
-  underneath a stroke in progress is what `engagePress` goes out of its way to avoid.
+  What that costs is nothing: pressing the hand still selects the stroke under the cursor
+  exactly as it did, because that press means one thing again. `TAP_SLOP` and `TAP_TIME`
+  went back to being the page tap's alone.
+- **A press on the tray is otherwise unconditional**, and settled on the way back up in
+  one respect only: a press that did some work was the tool being used, and a press that
+  did none was an ordinary tap and picks the tool up. It cannot be decided on the press,
+  because at that moment there is no way to know whether a finger is about to land on the
+  page. `CreateTray` suppresses its own `onClick` for pointer-driven presses; keyboard
+  activation still goes through it, told apart by `event.detail === 0`.
 - **The tray's three tools are driven by touch events, not by a click and not by a
   pointer event, and that is what makes changing tool mid-gesture possible at all.** A
   tap on a tool while a finger is already on the page is a *multi-touch* gesture, and a
