@@ -817,6 +817,15 @@ Three things about them are worth knowing before touching anything nearby:
   would be describing the wrong point. They are fed by `engine.toolHover`, which is
   also **the only reason hovering exists on a phone at all** — the same dispatch is
   what puts push's dots under the cursor before you commit to bending anything.
+  A **bare tap on the canvas puts the selection down** in those three: a finger that
+  isn't engaging anything only ever moves the cursor, so a press that went nowhere and
+  used no tool had no other meaning — and without it there was no way to let go of a
+  selection except by doing something that changed the drawing. It is a tap by
+  *duration* as well as distance, and the duration is the half doing the work: Safari
+  withholds movement until the finger has travelled several pixels, so a small
+  deliberate nudge reports no movement at all and is a tap by distance alone. It is
+  not one by duration — aiming runs at about 9px a second.
+
   And **one tray button has to do two jobs**, which is settled on the way back *up*:
   a press that did some work was the tool being used, and a press that did none was an
   ordinary tap and selects (or, for transform, cycles into push). It cannot be decided

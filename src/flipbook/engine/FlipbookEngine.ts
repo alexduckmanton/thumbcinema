@@ -359,9 +359,20 @@ export class FlipbookEngine {
 		this.captureActivePage()
 	}
 
-	/** Puts everything back on the page. Nothing has changed; nothing is recorded. */
+	/**
+	 * Puts everything back on the page. Nothing has changed; nothing is recorded.
+	 *
+	 * The tool is re-initialised afterwards rather than left to notice, because two of
+	 * them dress a selection their own way — push hides the box, recolours the layer
+	 * and keeps a radius and a group of dots in the guide layer, none of which
+	 * `Selection.clear` knows about. `init` is what each tool already does to make the
+	 * scene its own, and for the two that don't dress anything it is a no-op.
+	 */
 	clearSelection(): void {
+		if (this.selection.isEmpty) return
+
 		this.selection.clear()
+		this.activeTool?.init()
 		this.captureActivePage()
 	}
 

@@ -172,6 +172,19 @@ export const HOLD_SLOP = 8
 export const TRAIL_DISTANCE = 32
 
 /**
+ * What counts as a tap on the canvas: a press that goes nowhere, quickly.
+ *
+ * Both halves are needed, and the time is the one doing the work. Safari withholds
+ * movement until the finger has travelled several pixels (see `lib/zoom.ts`), so a
+ * small deliberate nudge of the cursor reports *no* movement at all and is
+ * indistinguishable from a tap by distance alone. It is not indistinguishable by
+ * duration: aiming happens at around 9px a second, so a five-pixel nudge takes better
+ * than half a second, where a tap is over in a tenth of one.
+ */
+export const TAP_SLOP = 8
+export const TAP_TIME = 400
+
+/**
  * Whether every tool is driven from the cursor, rather than just the two that mark.
  *
  * The three modes where a gesture is gated by something other than the ink itself —

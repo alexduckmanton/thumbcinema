@@ -9,6 +9,8 @@ import {
 	isRelativeMode,
 	isTimedMode,
 	pressedTool,
+	TAP_SLOP,
+	TAP_TIME,
 	subscribeToolPressed,
 	TRAIL_DISTANCE,
 } from './drawModes'
@@ -379,6 +381,7 @@ export class PointerLayer {
 				const dy = y - gesture.y
 				gesture.x = x
 				gesture.y = y
+				gesture.travel += Math.hypot(dx, dy)
 				sawSteering = true
 				sumX += dx
 				sumY += dy
@@ -494,6 +497,26 @@ export class PointerLayer {
 			if (next.done) {
 				this.clearHold()
 				this.disengage()
+
+				/*
+				 * A tap on the canvas puts the selection down.
+				 *
+				 * In these modes a bare finger only ever moves the cursor, so a press
+				 * that went nowhere and never put a tool to work had no other meaning at
+				 * all — and there was no way to let go of a selection without engaging
+				 * something that would change the drawing. Now there is.
+				 *
+				 * Both halves of `tap` are needed and the time is the one earning its
+				 * keep: Safari withholds movement until the finger has travelled several
+				 * pixels, so a small deliberate nudge of the cursor reports *no* movement
+				 * and is a tap by distance alone. It is not a tap by duration. See
+				 * `TAP_TIME`.
+				 */
+				if (gesture.intercepted && !gesture.everEngaged) {
+					const quick = performance.now() - gesture.openedAt <= TAP_TIME
+					if (quick && gesture.travel <= TAP_SLOP) this.engine.clearSelection()
+				}
+
 				this.gesture = null
 				this.others.clear()
 				this.publish()
@@ -635,6 +658,7 @@ export class PointerLayer {
 		if (!gesture || gesture.engaged) return
 
 		gesture.engaged = true
+		gesture.everEngaged = true
 		// The stroke starts wherever the *cursor* is standing in the relative modes,
 		// which is the one place it must start: the finger's position means nothing
 		// there, and a stroke that opened under the fingertip and then jumped to the
@@ -673,6 +697,9 @@ export class PointerLayer {
 			id: touch.identifier,
 			intercepted,
 			engaged,
+			everEngaged: engaged,
+			openedAt: performance.now(),
+			travel: 0,
 			x,
 			y,
 			// Touching down does not move the cursor in the relative modes — that is
@@ -820,6 +847,11 @@ interface Gesture {
 	/** Whether paper was cut out of this gesture, or is drawing it as usual. */
 	intercepted: boolean
 	engaged: boolean
+	/** Whether a tool has worked at any point in this gesture. See `onTouchEnd`. */
+	everEngaged: boolean
+	/** When the first finger landed, and how far it has been since. Both for the tap. */
+	openedAt: number
+	travel: number
 	x: number
 	y: number
 	inkX: number
