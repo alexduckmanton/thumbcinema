@@ -272,12 +272,25 @@ export class PointerLayer {
 	 * fingertip too. Deliberate: that mode's claim is that the contact point and the
 	 * working point are different things, and a tool that quietly disagreed would be
 	 * the one place it stopped being true.
+	 *
+	 * **The question is only which mode and which tool, never what the engine is
+	 * busy with**, and that is a fix rather than a simplification. It used to hand the
+	 * gesture back to paper while a page animation or a load was in flight, and
+	 * handing a gesture to paper in a relative mode is wrong by construction: paper
+	 * works at the *fingertip*, and in these modes the fingertip is not the cursor and
+	 * is not on the drawing at all. Touching the canvas during the 750ms of a
+	 * duplicate therefore dropped whatever was selected — a transform mousedown
+	 * arriving somewhere near your thumb — and a marquee dragged from there was the
+	 * few pixels the finger moved rather than the distance the cursor covered. And
+	 * because interception is decided once, at `touchstart`, the gesture stayed
+	 * paper's for as long as the finger was down: the animation ended and it still
+	 * didn't work, which is why it read as having to lift and start again.
 	 */
 	private intercepts(): boolean {
 		if (!this.relative && this.mode !== 'steady') return false
 
 		const state = this.engine.store.snapshot
-		if (state.busy || state.loading || !state.tool) return false
+		if (!state.tool) return false
 		return drivesAllTools(this.mode) || state.tool === 'pencil' || state.tool === 'eraser'
 	}
 
@@ -683,6 +696,13 @@ export class PointerLayer {
 	private engage(): void {
 		const gesture = this.gesture
 		if (!gesture || gesture.engaged) return
+
+		// A flipbook still arriving is being written to a page at a time, and a stroke
+		// laid on a page that is about to be replaced is a stroke thrown away. The
+		// cursor goes on moving; there is just nothing yet to work on. A page
+		// *animation* is not this — the scene is already in its final shape by the time
+		// anything moves, and drawing through one has been allowed since 2013.
+		if (gesture.intercepted && this.engine.store.snapshot.loading) return
 
 		gesture.engaged = true
 		gesture.everEngaged = true

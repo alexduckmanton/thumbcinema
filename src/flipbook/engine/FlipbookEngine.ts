@@ -281,10 +281,15 @@ export class FlipbookEngine {
 	 *
 	 * Clicking the tool you're already on is a no-op — except for transform, which
 	 * cycles into push mode and back, and is what makes it one button rather than two.
+	 *
+	 * **Not held while a page animates**, unlike the page actions and undo. Drawing
+	 * through those 750ms has been allowed since 2013 and the scene is in its final
+	 * shape before the first frame of it moves, so refusing to say *what* you are
+	 * drawing with was the odd one out — and worse than a no-op in the modes where
+	 * pressing a tool button also uses it: the press was refused, the hold went ahead,
+	 * and the previous tool did the work.
 	 */
 	selectTool(id: ModalToolId): void {
-		if (this.store.snapshot.busy) return
-
 		if (this.store.snapshot.tool === id) {
 			if (id === 'transform')
 				this.setTransformIndex(this.store.snapshot.transformIndex === 0 ? 1 : 0)

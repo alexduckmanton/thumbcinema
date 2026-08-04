@@ -375,6 +375,13 @@ Also worth knowing:
   the press buys the pause and the next one does the work. It lives in the engine, so
   the `n` and `d` shortcuts go through it as well as the buttons. The drawing tools
   don't need it — they stop playback themselves, and nothing is animating when they do.
+  **And `selectTool` is not held either**, though it was: drawing through a page
+  animation has been allowed since 2013 and the scene is in its final shape before the
+  first frame of one moves, so refusing to say *what* you are drawing with was the odd
+  one out. It was worse than a no-op in the modes where pressing a tool button also
+  uses it — the press was refused, the hold went ahead, and the previous tool did the
+  work. Undo and `goToPage` stay held, which is a different question: those change what
+  is on the page the animation is carrying.
 - **The hidden thumbnail is not always the active page.** The strip hides whichever
   page the canvas stands in front of — that is what `.covered` means — and during a
   delete the arriving page is active from the first frame but takes 750ms to get
@@ -871,6 +878,23 @@ Three things about them are worth knowing before touching anything nearby:
 - **Changing tool part-way through a gesture puts the old one down first.** `engagePress`
   disengages before it selects, because a stroke left open while the tool underneath it
   is swapped gets finished by whichever tool answers the release.
+
+- **`intercepts()` asks which mode and which tool, and nothing about what the engine is
+  doing.** It used to hand the gesture back to paper while a page animation or a load
+  was in flight, and handing a gesture to paper in a relative mode is wrong by
+  construction: paper works at the *fingertip*, and up here the fingertip is not the
+  cursor and is not on the drawing at all. So touching the canvas during the 750ms of a
+  duplicate dropped whatever was selected — a transform mousedown arriving somewhere
+  near your thumb — and a marquee dragged from there was a rectangle under your hand
+  rather than around your work. Measured: a stroke drawn mid-animation with the cursor
+  parked at 0.86 down the page landed at 0.03, which is where the finger was. And
+  because interception is decided once, at `touchstart`, the gesture stayed paper's for
+  as long as the finger stayed down — the animation ended and it still didn't work,
+  which is why it read as having to lift and start again. A **load** is still refused,
+  but in `engage` rather than here, so the layer keeps the gesture and the cursor goes
+  on moving: a stroke laid on a page that is about to be replaced is a stroke thrown
+  away. A page animation is not that — the scene is in its final shape before the first
+  frame of it moves.
 
 An intercepted gesture goes through the same `handlePointerDown`/`handlePointerUp` as
 an ordinary one, so it is one history step and updates its page and thumbnail the same
