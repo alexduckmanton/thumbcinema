@@ -63,13 +63,14 @@ export function CreatePage() {
 				// A beat before the work starts, so the wash is painted before the main
 				// thread disappears into serialising a large drawing.
 				await nextPaint()
-				const { svg, thumbnailDataUrl } = engine.exportForSave()
+				const { svg, thumbnailDataUrl, cover } = await engine.exportForSave()
 
 				const location = await saveFlipbook({
 					title: values.title,
 					description: values.description,
 					svg,
 					thumbnailDataUrl,
+					cover,
 					nsfw: values.nsfw,
 				})
 

@@ -154,7 +154,6 @@ export function GalleryPage() {
 							<Link
 								to={flipbookPath(item.id)}
 								className={styles.card}
-								style={{ backgroundImage: `url(${item.thumbnail_url})` }}
 								onPointerEnter={(event) => handleEnter(event, item.id)}
 								onPointerLeave={(event) => handleLeave(event, item.id)}
 								// Touch only starts a download here — the card is a plain link
@@ -165,6 +164,42 @@ export function GalleryPage() {
 								// over the card could otherwise release into a navigation.
 								onClick={handleClick}
 							>
+								{/*
+								 * The drawing: the cover page as an SVG where there is one, and the
+								 * PNG of the same page where there isn't — a `time-capsule` save, a
+								 * 2012 flipbook, anything the backfill hasn't reached. The server
+								 * says which; see `thumbnail_svg_url`.
+								 *
+								 * An `<img>` rather than the `background-image` this was, because a
+								 * background can't be lazy and the grid is an infinite scroll: every
+								 * card that has ever been appended used to fetch its picture whether
+								 * or not it was anywhere near the window.
+								 *
+								 * `alt=""` because the link beside it already carries the flipbook's
+								 * name, and `draggable` off because an image inside a link is a drag
+								 * source by default — which is a gesture that starts on a card and
+								 * ends somewhere else entirely, over a grid where dragging is how a
+								 * finger scrubs.
+								 */}
+								<img
+									className={styles.thumb}
+									src={item.thumbnail_svg_url ?? item.thumbnail_url}
+									alt=""
+									loading="lazy"
+									decoding="async"
+									draggable={false}
+									// A picture that won't load leaves the white card it was going to
+									// cover, which is what the `background-image` this replaced did
+									// on a 404. An `<img>` draws a broken-image icon instead, and a
+									// grid of drawings is the last place for one — some archive rows
+									// have no thumbnail at all. Set on the element rather than held
+									// as state because it is a per-card fact that never reverses:
+									// nothing changes a card's `src` once it is on screen.
+									onError={(event) => {
+										event.currentTarget.style.visibility = 'hidden'
+									}}
+								/>
+
 								{/* The card's only text. Clipped rather than hidden, because
 								    without it every link in the grid has no accessible name. */}
 								<span className="visuallyHidden">{item.title || 'Untitled flipbook'}</span>

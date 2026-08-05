@@ -1,10 +1,13 @@
 /*
  * The flipbook, over the thumbnail of it.
  *
- * Over rather than instead of: the card's background image is a PNG of the busiest
- * page and it is already on screen, so the canvas lies on top of it and fades up when
- * it has something to show. Swapping them would mean a frame of empty white card
- * between the two, on a hover, which is the one moment the card is being looked at.
+ * Over rather than instead of: the card already carries a picture of the busiest page
+ * and it is already on screen, so the canvas lies on top of it and fades up when it
+ * has something to show. Swapping them would mean a frame of empty white card between
+ * the two, on a hover, which is the one moment the card is being looked at.
+ *
+ * It is above without a z-index, because it comes after the link in the markup and
+ * both are positioned. That is worth knowing before reordering the card's children.
  */
 
 .preview {

@@ -33,6 +33,7 @@ function flipbook(id: string, over: Partial<FlipbookSummary> = {}): FlipbookSumm
 		created_at: '2025-01-01T00:00:00.000Z',
 		data_url: `/api/flipbooks/${id}/data`,
 		thumbnail_url: `/api/flipbooks/${id}/thumbnail`,
+		thumbnail_svg_url: `/api/flipbooks/${id}/thumbnail.svg`,
 		...over,
 	}
 }
@@ -60,6 +61,33 @@ describe('GalleryPage', () => {
 		const first = await screen.findByRole('link', { name: 'Flipbook aaa' })
 		expect(first).toHaveAttribute('href', '/f/aaa')
 		expect(await screen.findByRole('link', { name: 'Flipbook bbb' })).toBeInTheDocument()
+	})
+
+	it('shows the cover page as an SVG, lazily', async () => {
+		listFlipbooks.mockResolvedValue(page([flipbook('aaa')]))
+
+		render(<GalleryPage />)
+
+		const card = await screen.findByRole('link', { name: 'Flipbook aaa' })
+		const thumb = card.querySelector('img')
+
+		expect(thumb).toHaveAttribute('src', '/api/flipbooks/aaa/thumbnail.svg')
+		// The grid is an infinite scroll, and the card that has just been appended to
+		// the bottom of it is a long way from the window.
+		expect(thumb).toHaveAttribute('loading', 'lazy')
+		// The link beside it is what carries the flipbook's name.
+		expect(thumb).toHaveAttribute('alt', '')
+	})
+
+	it('falls back to the PNG on a row that has no SVG thumbnail', async () => {
+		// A `time-capsule` save, a 2012 flipbook, or anything the backfill hasn't
+		// reached: the server says so by sending null, and the card shows the picture.
+		listFlipbooks.mockResolvedValue(page([flipbook('aaa', { thumbnail_svg_url: null })]))
+
+		render(<GalleryPage />)
+
+		const card = await screen.findByRole('link', { name: 'Flipbook aaa' })
+		expect(card.querySelector('img')).toHaveAttribute('src', '/api/flipbooks/aaa/thumbnail')
 	})
 
 	it('lays the grid out with placeholder cards while a page is on its way', async () => {

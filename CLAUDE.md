@@ -60,6 +60,7 @@ src/
       selection.ts    selecting and transforming
       history.ts      undo and redo, as a stack of pages-as-strings
       formats.ts      the two artwork formats, in and out
+      png.ts          the saved thumbnail, encoded small
       pages.ts        the page list as data, and how to count it
       print.ts        the printable booklet
       animations.ts   the page-strip keyframes, and freeze()
@@ -138,6 +139,7 @@ drawing tool itself works without one.
 | `npm run db:migrate` | Applies `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Loads the 2012–2015 flipbooks from `_original/` |
 | `npm run db:backfill-brotli` | Compresses `data_br` for any row without one |
+| `npm run db:backfill-thumbnails` | Cuts an SVG cover out of any SVG row without one |
 | `npm run db:stats` | Row counts and storage use |
 
 ## Architecture
@@ -1273,11 +1275,33 @@ grid, and a long press on the card gets Safari's own menu back.
   hover would have to fetch the flipbook's metadata before it could start fetching the
   artwork, which is a round trip in front of every first hover. Extra fields are
   harmless to `time-capsule`, which reads the ones it knows.
-- **The canvas lies over the PNG thumbnail rather than replacing it.** A canvas is
+- **The canvas lies over the thumbnail rather than replacing it.** A canvas is
   transparent until something is drawn on it, so swapping them would put a frame of
   empty white card in the one moment the card is being looked at. It fades up when it
   has something to show; leaving the card takes it away and the thumbnail is simply
-  there again.
+  there again. It is above without a z-index, because it comes after the link in the
+  markup and both are positioned — worth knowing before reordering a card's children.
+- **The thumbnail on a card is one page of the flipbook, not a picture of one.**
+  `thumbnail_svg` is the cover page lifted out of the artwork and stored on its own,
+  brotli'd; `/api/flipbooks/:id/thumbnail.svg` serves it. On a real row it is 718 bytes
+  against that flipbook's 10,060-byte PNG, it is sharp at whatever size the card is
+  rather than resampled from a fixed 640×360 grid, and across a grid of 24 it is the
+  difference between roughly 480 KB and 70 KB. See `lib/thumbnail.js` for how a page is
+  taken out, and **Data** below for why the PNG is still written on every save.
+
+  Which of the two a card asks for is **stated by the listing** — `thumbnail_svg_url`
+  is null on a row that hasn't got one and the card shows the PNG. It has to be stated
+  rather than guessed: a card that tried the SVG first would put a 404 in front of every
+  PNG in the grid.
+- **The card's picture is an `<img>` now, not the link's `background-image`.** What
+  changed is not the format, which a background would have shown perfectly well, but
+  that a background image can't be lazy — the grid is an infinite scroll, and every card
+  ever appended to it fetched its picture whether or not it was within a screen of the
+  window. Two things came with it, both restoring what a background did for free: an
+  `onError` that hides the image, because a picture that won't load used to leave a
+  white card and an `<img>` draws a broken-image icon instead — and some archive rows
+  have no thumbnail at all; and `draggable={false}`, because an image inside a link is a
+  drag source by default, in a grid where dragging is how a finger scrubs.
 
 ## Styling
 
@@ -1400,6 +1424,39 @@ neither.
   side.
 - **A brotli copy is only written when it is smaller.** On the very smallest rows it
   isn't, and those keep `data_br` null on purpose.
+
+**A flipbook is stored with two thumbnails, and the SVG is the one anybody sees.**
+`thumbnail` is a 640×360 PNG of the cover page and `thumbnail_svg` is that same page as
+an SVG, brotli'd — 718 bytes against 10,060 on a real row. The gallery asks for the SVG
+and falls back to the PNG.
+
+- **The PNG is not legacy and is written on every save.** `time-capsule` reads that
+  column and serves it as `image/png`, and the two deployments share one database. It
+  is also the fallback for the three kinds of row with no SVG: a `time-capsule` save,
+  a `legacy-json` flipbook — point lists, no paths, nothing to take a page out of — and
+  anything the backfill hasn't reached.
+- **It is a much better PNG than it was.** `canvas.toDataURL` writes 8-bit RGBA and
+  picks its filters for speed; a flipbook cover is grey ink on white paper and encodes
+  losslessly as 8-bit greyscale at between a third and a half the size. `png.ts` does
+  that, in the browser, at save time — no dependency on either side, and it falls back
+  to `toDataURL` if the picture turns out to have a colour in it or the browser has no
+  `CompressionStream`. Measured: 10,060 bytes → 2,626 on the same page.
+- **One filter for the whole image, chosen by trying all five.** The spec's per-row
+  heuristic is beaten on this content by doing nothing at all — 36,494 bytes against
+  27,514 on a dense cover — because a page is long runs of identical white that
+  deflate matches better than any predictor, and every filter but `none` breaks them
+  up. Five deflates, once, on a save that is about to wait on a network round trip.
+- **The save says which page the PNG is of**, as `cover`, and the server cuts the SVG
+  out of that same page. The server can find the busiest page perfectly well on its
+  own; what it can't do is agree with the client about it, and two pictures of two
+  different pages is a card that changes drawing depending on which deployment you are
+  looking at.
+- **`npm run db:backfill-thumbnails` fills in whatever is outstanding**, is safe to
+  re-run, and is what gives the 438 SVG-format archive rows theirs. It skips
+  `legacy-json` and always will, and a row whose artwork won't decompress is reported
+  and left alone rather than stopping the batch.
+- **Neither is written when it would be worse than the other**, which is the rule
+  `data_br` already follows against the gzip.
 
 There are **two artwork formats** and both are still live:
 

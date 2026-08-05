@@ -87,8 +87,6 @@
 	inset: 0;
 	display: block;
 	background-color: var(--white);
-	background-size: cover;
-	background-position: center;
 
 	/*
 	 * No `touch-action` here, and no callout suppression either: under a finger this is
@@ -105,6 +103,36 @@
 	 * Selection stays off. There is one span of text in here and it is the accessible
 	 * name, which nobody reads with their eyes and nobody wants to select.
 	 */
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+/*
+ * The drawing on the card — an SVG of the cover page, or the PNG of it on rows that
+ * haven't got one.
+ *
+ * This was the link's `background-image` until the SVG arrived. What changed is not
+ * the format, which a background would have shown perfectly well, but that a
+ * background image can't be lazy: the grid is an infinite scroll, and every card ever
+ * appended to it fetched its picture whether or not it was within a screen of the
+ * window. An `<img>` is also the element that can fall back, though it doesn't need
+ * to here — the server says which URL to ask for.
+ *
+ * `cover` rather than `contain`, as `background-size: cover` was: every flipbook is
+ * the same 16:9 as the card, so the two agree and neither crops anything. It is the
+ * rounding of the card's own corners that clips this, via `overflow: hidden` on the
+ * cell — an image can't take the radius itself, because the preview canvas lies over
+ * it and would need the same treatment.
+ */
+.thumb {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	/* Every gesture on a card is the link's or the play button's. */
+	pointer-events: none;
 	-webkit-user-select: none;
 	user-select: none;
 }

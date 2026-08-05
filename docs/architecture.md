@@ -122,8 +122,17 @@ the same reason: a save made on that branch simply doesn't have one, and is serv
 gzip. `npm run db:backfill-brotli` fills in whatever is outstanding and is safe to
 re-run.
 
-Artwork is immutable (a flipbook is never edited), so `/data` and `/thumbnail` are
-served with `Cache-Control: immutable` and the CDN absorbs repeat traffic.
+Artwork is immutable (a flipbook is never edited), so `/data`, `/thumbnail` and
+`/thumbnail.svg` are served with `Cache-Control: immutable` and the CDN absorbs repeat
+traffic.
+
+### And why a card shows an SVG rather than the PNG
+
+The same reasoning one step further: a thumbnail is one page of a flipbook, and one page
+of a flipbook is a few hundred coordinates. Stored as the drawing rather than as pixels
+it is 718 bytes where the PNG of it is 10,060, and it is sharp at whatever size the card
+is drawn at. Both are kept — the PNG is what `time-capsule` serves and what every row
+without an SVG falls back to. See `docs/data-formats.md`.
 
 ## Where PHP used to be
 

@@ -19,9 +19,12 @@ try {
 			count(*) FILTER (WHERE featured AND NOT nsfw)   AS featured,
 			count(*) FILTER (WHERE nsfw)                    AS nsfw,
 			count(*) FILTER (WHERE thumbnail IS NULL)       AS missing_thumbnails,
+			count(*) FILTER (WHERE thumbnail_svg IS NULL AND format = 'svg')
+			                                                AS missing_svg_thumbnails,
 			coalesce(sum(views), 0)                         AS views,
 			pg_size_pretty(coalesce(sum(length(data_gz)), 0))  AS artwork_size,
 			pg_size_pretty(coalesce(sum(length(thumbnail)), 0)) AS thumbnail_size,
+			pg_size_pretty(coalesce(sum(length(thumbnail_svg)), 0)) AS thumbnail_svg_size,
 			pg_size_pretty(pg_total_relation_size('flipbooks')) AS table_size
 		FROM flipbooks
 	`);
@@ -32,6 +35,7 @@ try {
     made since         ${totals.user_made}
     legacy json format ${totals.legacy}
     no thumbnail       ${totals.missing_thumbnails}
+    no svg thumbnail   ${totals.missing_svg_thumbnails}  (npm run db:backfill-thumbnails)
 
   on the Featured tab ${totals.featured}
   hidden as nsfw      ${totals.nsfw}
@@ -39,7 +43,8 @@ try {
   total views         ${totals.views}
 
   artwork             ${totals.artwork_size}
-  thumbnails          ${totals.thumbnail_size}
+  thumbnails, png     ${totals.thumbnail_size}
+  thumbnails, svg     ${totals.thumbnail_svg_size}
   table on disk       ${totals.table_size}
 `);
 
