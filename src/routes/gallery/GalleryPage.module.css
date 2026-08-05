@@ -132,7 +132,8 @@
 }
 
 /*
- * Play, in the opposite corner from the admin toggles.
+ * Play, in the bottom-left corner — diagonally opposite the admin toggles, and the
+ * corner of a flipbook least likely to have anything drawn in it.
  *
  * The one control on a card that is not the link. A finger can scrub a card by dragging
  * across it but it cannot hover one, so without this there is no way to simply *watch* a
@@ -145,7 +146,7 @@
  */
 .play {
 	position: absolute;
-	right: 8px;
+	left: 8px;
 	bottom: 8px;
 	z-index: 2;
 
@@ -194,17 +195,6 @@
    Suppressed here so the two don't stack into a ring inside a ring. */
 .play:focus-visible {
 	outline: none;
-}
-
-.play svg {
-	/* The triangle's mass is to the left of its bounding box's centre, which reads as
-	   sitting too far back inside a circle. Half a pixel is enough to settle it; the
-	   square it becomes while playing is symmetrical and wants none of it. */
-	margin-left: 1px;
-}
-
-.play[aria-pressed='true'] svg {
-	margin-left: 0;
 }
 
 /*

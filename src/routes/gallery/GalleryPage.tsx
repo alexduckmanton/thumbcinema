@@ -9,7 +9,7 @@ import type { GalleryView } from '../../lib/api'
 import { Link, navigate, useLocation } from '../../router/Router'
 import { flipbookPath, galleryPath, galleryView } from '../../router/routes'
 import { loadPreview } from './preview'
-import { useCardGesture } from './useCardGesture'
+import { type Hover, useCardGesture } from './useCardGesture'
 import { useGallery } from './useGallery'
 import { ViewToggle } from './ViewToggle'
 import styles from './GalleryPage.module.css'
@@ -55,23 +55,37 @@ const FlipbookPreview = lazy(() =>
 )
 
 /**
- * The play button's mark: a triangle, or a square while it is running.
+ * The play button's mark: a triangle, or a pair of bars while it is running.
  *
- * Drawn here rather than taken from the sprite because the sprite hasn't got one — play
- * went with the tray it lived in — and because it shouldn't. That sheet is hand-drawn
- * pictures of *things*: a pencil, an eraser, a printer. A play triangle is not a picture
- * of anything, it is a geometric primitive, and it belongs with the ↺ and ↻ on the
- * create page, which are live text for the same reason.
+ * Pause rather than stop, because that is what the button does — it leaves the flipbook
+ * on the frame it had reached and pressing play again carries on from there. A square
+ * promises the drawing is about to go away, and it isn't.
  *
- * `currentColor`, so the button's own state decides the colour in one place.
+ * Drawn here rather than taken from the sprite because the sprite hasn't got either —
+ * play went with the tray it lived in — and because it shouldn't. That sheet is
+ * hand-drawn pictures of *things*: a pencil, an eraser, a printer. These are geometric
+ * primitives, and they belong with the ↺ and ↻ on the create page, which are live text
+ * for the same reason.
+ *
+ * Both marks are centred on the 12×12 box by their own geometry rather than nudged into
+ * place by CSS — the triangle's points average to exactly 6, so the disc needs no
+ * per-state offset and there is no rule to keep in step with the markup.
  */
+/** Whether `id` is the card currently running. Read twice per card, per render. */
+function playingNow(hover: Hover | null, id: string): boolean {
+	return hover?.id === id && hover.playing
+}
+
 function PlayGlyph({ playing }: { playing: boolean }) {
 	return (
 		<svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor" aria-hidden="true">
 			{playing ? (
-				<rect x="1.5" y="1.5" width="9" height="9" rx="1" />
+				<>
+					<rect x="2.5" y="1.5" width="2.5" height="9" rx="0.5" />
+					<rect x="7" y="1.5" width="2.5" height="9" rx="0.5" />
+				</>
 			) : (
-				<path d="M2.5 1 L11 6 L2.5 11 Z" />
+				<path d="M3.5 1.5 L11 6 L3.5 10.5 Z" />
 			)}
 		</svg>
 	)
@@ -162,30 +176,40 @@ export function GalleryPage() {
 							    of this flipbook rather than a picture of an absence. */}
 							{hover?.id === item.id ? (
 								<Suspense fallback={null}>
-									<FlipbookPreview source={item} originX={hover.originX} playing={hover.playing} />
+									<FlipbookPreview
+										source={item}
+										originX={hover.originX}
+										playing={hover.playing}
+										scrubbing={hover.scrubbing}
+									/>
 								</Suspense>
 							) : null}
 
 							{/*
-							 * The way in for a finger, which has no hover to play a card with.
+							 * The way in for a finger, which has no hover to play a card with —
+							 * and the only one, since under a finger the card is just a link.
 							 *
 							 * Pressed, it runs the flipbook; dragged off, it hands the flipbook
-							 * to the finger and becomes the same scrub the card gives. It sits
+							 * to the finger and becomes the same scrub the mouse gets. It sits
 							 * over the link rather than in it, so holding it is a hold on a
 							 * button and iOS offers nothing.
+							 *
+							 * The label says what the press will do rather than describing a
+							 * state, which is how a media control reads out, and is why there
+							 * is no `aria-pressed` beside it: two ways of saying one thing is
+							 * one of them disagreeing eventually.
 							 */}
 							<button
 								type="button"
 								className={styles.play}
-								aria-pressed={hover?.id === item.id && hover.playing}
-								aria-label={`Play ${item.title || 'Untitled flipbook'}`}
+								aria-label={`${playingNow(hover, item.id) ? 'Pause' : 'Play'} ${item.title || 'Untitled flipbook'}`}
 								onPointerDown={(event) => handlePlayDown(event, item)}
 								onPointerMove={handlePointerMove}
 								onPointerUp={handlePointerUp}
 								onPointerCancel={handlePointerCancel}
 								onClick={(event) => handlePlayClick(event, item)}
 							>
-								<PlayGlyph playing={hover?.id === item.id && hover.playing} />
+								<PlayGlyph playing={playingNow(hover, item.id)} />
 							</button>
 
 							<AdminToggles

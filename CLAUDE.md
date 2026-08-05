@@ -1170,15 +1170,15 @@ can't start a scrub, because a drag begun on the button can still be released ov
 
 ### The play button
 
-A disc in the card's bottom-right corner, the one control on a card that isn't the link,
+A disc in the card's bottom-left corner, the one control on a card that isn't the link,
 and **the only way in on a finger**. It answers three gestures, all of which begin
 identically — a press always starts playback, because a hold that waited for the release
 would not be a hold — and none of which can be told apart before the finger comes off:
 
 | | |
 |---|---|
-| **tap** | plays, and keeps playing. Tap again to stop. |
-| **hold** | plays while held, stops when let go. `HOLD_MS` (300) apart from a tap. |
+| **tap** | plays, and keeps playing. Tap again to pause. |
+| **hold** | plays while held, pauses when let go. `HOLD_MS` (300) apart from a tap. |
 | **drag** | hands the flipbook to the finger: the same scrub the mouse gets, off the same absolute position across the card. |
 
 That is `handlePointerUp`'s whole job, and it is why nothing is decided at
@@ -1186,6 +1186,14 @@ That is `handlePointerUp`'s whole job, and it is why nothing is decided at
 button of a card that is already running would otherwise stop it, unmounting the preview
 a few milliseconds before the drag armed and mounted it again, and the card would flash
 its thumbnail in the middle of one continuous gesture.
+
+**Stopping is a pause and never a stop.** The preview stays on the card showing the
+frame it reached, and pressing play again carries on from there — the card does not fall
+back to its thumbnail. Same reasoning as the frame staying after a scrub: what you
+stopped to look at is the thing you want left on screen, and a thumbnail is a page nobody
+chose. In the component that costs nothing at all, because *paused is simply nobody
+writing*: the frame ref is written by playback and by the scrub, and stopping either one
+writes nothing and repaints nothing. There is no third state.
 
 - **It is a sibling of the `<a>`, not a child**, which is what "above the anchor" has to
   mean to be true. A button inside a link is invalid markup — interactive content can't
@@ -1214,16 +1222,30 @@ its thumbnail in the middle of one continuous gesture.
   followed by a click, and acting on both would toggle twice; `byPointer` spends the
   echo. What's left is Enter or Space on a focused button, which is the only way a
   keyboard has in — hence `aria-pressed` rather than a label that lies.
-- **The glyph is drawn in the component, not taken from the sprite.** The sprite hasn't
-  got a play icon — it went with the tray — and shouldn't: that sheet is hand-drawn
-  pictures of *things*, and a triangle isn't one. It belongs with the ↺ and ↻ on the
-  create page.
+- **The glyph is drawn in the component, not taken from the sprite** — a triangle, and
+  two bars while it runs. The sprite hasn't got either, play having gone with the tray,
+  and shouldn't: that sheet is hand-drawn pictures of *things*, and these are geometric
+  primitives. They belong with the ↺ and ↻ on the create page. Both are centred on the
+  12×12 box by their own geometry rather than nudged by CSS, so there is no per-state
+  rule to keep in step with the markup.
+- **A paused card stops the preview following any finger.** `Hover.scrubbing` is what
+  says a touch is entitled to move the frame, and only the drag that began on the button
+  sets it. Without it the preview — which listens on the card it is mounted in, and now
+  outlives the gesture that started it — would quietly bring card-body scrubbing back for
+  any card showing a paused flipbook. A mouse is followed regardless: it can be over a
+  card without having asked for anything, which is the whole of what hovering is.
+- **Playback owns the frame while it runs, and the pointer doesn't argue.** `track`
+  stands down while `playing`. Otherwise the two write to `follow` in turn — the timer
+  clearing it twelve times a second, a mouse moving over a playing card setting it again
+  — and the canvas alternates between the frame playback reached and the frame under the
+  cursor. Pause, or leave and come back, and the pointer has it again.
 
 Verified on the iOS Simulator against real Safari rather than reasoned about: a tap
-plays and goes on playing, a second tap stops it, a hold plays and releasing stops it,
-a **hold followed by a wandering drag** scrubs without the page scrolling out from
-under it, a sideways drag on the card body now does nothing at all, a vertical drag
-anywhere scrolls the grid, and a long press on the card gets Safari's own menu back.
+plays and goes on playing, a second tap pauses it *on its frame*, a hold plays and
+releasing pauses it on its frame, pressing play again carries on from there, a **hold
+followed by a wandering drag** scrubs without the page scrolling out from under it, a
+sideways drag on the card body does nothing at all, a vertical drag anywhere scrolls the
+grid, and a long press on the card gets Safari's own menu back.
 - **There is no hover-intent delay**, deliberately. The guard against a pointer sweeping
   the grid isn't to hesitate before every card, which everyone pays for on every hover
   — it is that letting go abandons the download.

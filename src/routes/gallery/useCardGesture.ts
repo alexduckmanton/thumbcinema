@@ -14,6 +14,15 @@ export interface Hover {
 	originX: number
 	/** Running on its own rather than following the pointer. See the play button. */
 	playing: boolean
+	/**
+	 * A finger is dragging this one, and is allowed to move the frame.
+	 *
+	 * A paused flipbook stays on its card, so the preview outlives the gesture that
+	 * started it — and a card showing one is still a link somebody may be tapping or
+	 * scrolling past. This is how the drag that began on the play button says it is the
+	 * one touch entitled to scrub. See `FlipbookPreview`.
+	 */
+	scrubbing: boolean
 }
 
 /**
@@ -109,6 +118,25 @@ export function useCardGesture() {
 	const byPointer = useRef(false)
 
 	/**
+	 * Stops a card playing and leaves it exactly where it stopped.
+	 *
+	 * The preview stays mounted with `playing` off, which is what makes this a pause: the
+	 * canvas holds the frame it had reached and nothing repaints. Dropping the hover
+	 * instead would unmount it and the card would fall back to its thumbnail, which is a
+	 * page nobody chose at the moment somebody stopped to look at one.
+	 *
+	 * `scrubbing` goes off with it. Whatever gesture was driving this is over, and a
+	 * paused card is a link again as far as any later touch is concerned.
+	 */
+	const pause = useCallback((id: string) => {
+		setHover((current) =>
+			current?.id === id && current.playing
+				? { ...current, playing: false, scrubbing: false }
+				: current,
+		)
+	}, [])
+
+	/**
 	 * A mouse arriving on a card, which is the whole of what starts a preview for it.
 	 *
 	 * Asked of the pointer rather than of the device, as the create page's tray is when
@@ -122,7 +150,7 @@ export function useCardGesture() {
 	 */
 	const handleEnter = useCallback((event: React.PointerEvent, id: string) => {
 		if (event.pointerType === 'touch') return
-		setHover({ id, originX: event.clientX, playing: false })
+		setHover({ id, originX: event.clientX, playing: false, scrubbing: false })
 	}, [])
 
 	// Guarded on the id because leaving one card and entering the next are two events
@@ -192,7 +220,7 @@ export function useCardGesture() {
 		// `playing: false` whichever way the gesture began. A drag off the play button is
 		// the same drag as a drag across the card, and it takes the flipbook off its own
 		// clock and puts it under the finger — which is what dragging a flipbook means.
-		setHover({ id: held.id, originX: event.clientX, playing: false })
+		setHover({ id: held.id, originX: event.clientX, playing: false, scrubbing: true })
 	}, [])
 
 	/**
@@ -209,29 +237,42 @@ export function useCardGesture() {
 	 *    frame you could not see. Reverting on lift would mean you never got to look at
 	 *    it, and the card would flick back to a page you didn't choose at the exact
 	 *    moment you stopped choosing.
-	 *  - **A hold.** Playback was a peek and the peek is over: it stops. `HOLD_MS` is
+	 *  - **A hold.** Playback was a peek and the peek is over: it pauses. `HOLD_MS` is
 	 *    the whole of the difference between this and the next one.
 	 *  - **A tap.** Playback is a switch, so it stays running — and a tap on a card that
-	 *    was *already* running is the other half of that switch, and stops it.
+	 *    was *already* running is the other half of that switch, and pauses it.
 	 *
 	 * All three start the same way, which is why none of this can be decided any earlier
 	 * than here.
+	 *
+	 * **Stopping is a pause, not a stop.** It leaves the preview on the card, showing
+	 * the frame it had reached — the card does not fall back to its thumbnail. That is
+	 * the same reasoning as the frame staying after a scrub: what you were watching for
+	 * is the thing you want left on screen, and snapping back to a page nobody chose
+	 * throws it away at the exact moment you stopped to look. Pressing play again picks
+	 * up from there rather than starting over.
 	 */
-	const handlePointerUp = useCallback((event: React.PointerEvent) => {
-		const held = candidate.current
-		if (!held || held.pointerId !== event.pointerId) return
-		candidate.current = null
+	const handlePointerUp = useCallback(
+		(event: React.PointerEvent) => {
+			const held = candidate.current
+			if (!held || held.pointerId !== event.pointerId) return
+			candidate.current = null
 
-		if (held.scrubbing) {
-			swallowClick.current = true
-			return
-		}
+			if (held.scrubbing) {
+				swallowClick.current = true
+				// The frame stays; the claim on the pointer doesn't. Without this the preview
+				// would go on following any finger that crossed the card afterwards.
+				setHover((current) =>
+					current?.id === held.id ? { ...current, scrubbing: false } : current,
+				)
+				return
+			}
 
-		const wasHeld = performance.now() - held.downAt >= HOLD_MS
-		if (wasHeld || held.wasPlaying) {
-			setHover((current) => (current?.id === held.id ? null : current))
-		}
-	}, [])
+			const wasHeld = performance.now() - held.downAt >= HOLD_MS
+			if (wasHeld || held.wasPlaying) pause(held.id)
+		},
+		[pause],
+	)
 
 	/**
 	 * The browser took the gesture — a scroll, or a second finger.
@@ -239,16 +280,20 @@ export function useCardGesture() {
 	 * No click follows a cancel, so nothing is swallowed: setting the flag here would
 	 * leave it set, and the next tap on any card in the grid would go nowhere.
 	 *
-	 * A cancel that arrives mid-scrub does put the thumbnail back, where a lift doesn't.
-	 * The gesture was taken away rather than finished, so there is no frame anyone chose
-	 * to leave on screen.
+	 * Whatever it interrupted, the frame stays and the card doesn't fall back to its
+	 * thumbnail — the same as a lift. All that ends is the gesture's claim on the
+	 * pointer, so a later touch crossing the card can't move the frame.
 	 */
 	const handlePointerCancel = useCallback((event: React.PointerEvent) => {
 		const held = candidate.current
 		if (!held || held.pointerId !== event.pointerId) return
 		candidate.current = null
 
-		if (held.scrubbing) setHover((current) => (current?.id === held.id ? null : current))
+		setHover((current) =>
+			current?.id === held.id && (current.playing || current.scrubbing)
+				? { ...current, playing: false, scrubbing: false }
+				: current,
+		)
 	}, [])
 
 	const handleClick = useCallback((event: React.MouseEvent) => {
@@ -259,7 +304,7 @@ export function useCardGesture() {
 
 	/** Starts a card playing from the top. The only thing that turns playback on. */
 	const startPlaying = useCallback((item: PreviewSource, originX: number) => {
-		setHover({ id: item.id, originX, playing: true })
+		setHover({ id: item.id, originX, playing: true, scrubbing: false })
 	}, [])
 
 	/** Whether this card is the one currently running. */
@@ -337,10 +382,10 @@ export function useCardGesture() {
 
 			// A keyboard has no position to scrub from, so the flipbook starts where the
 			// card does — the left-hand edge, which is page one.
-			if (isPlaying(item.id)) setHover(null)
+			if (isPlaying(item.id)) pause(item.id)
 			else startPlaying(item, event.currentTarget.getBoundingClientRect().left)
 		},
-		[isPlaying, startPlaying],
+		[isPlaying, pause, startPlaying],
 	)
 
 	return {
