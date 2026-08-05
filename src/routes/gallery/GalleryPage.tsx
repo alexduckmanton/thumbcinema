@@ -54,6 +54,29 @@ const FlipbookPreview = lazy(() =>
 	loadPreview().then((module) => ({ default: module.FlipbookPreview })),
 )
 
+/**
+ * The play button's mark: a triangle, or a square while it is running.
+ *
+ * Drawn here rather than taken from the sprite because the sprite hasn't got one — play
+ * went with the tray it lived in — and because it shouldn't. That sheet is hand-drawn
+ * pictures of *things*: a pencil, an eraser, a printer. A play triangle is not a picture
+ * of anything, it is a geometric primitive, and it belongs with the ↺ and ↻ on the
+ * create page, which are live text for the same reason.
+ *
+ * `currentColor`, so the button's own state decides the colour in one place.
+ */
+function PlayGlyph({ playing }: { playing: boolean }) {
+	return (
+		<svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor" aria-hidden="true">
+			{playing ? (
+				<rect x="1.5" y="1.5" width="9" height="9" rx="1" />
+			) : (
+				<path d="M2.5 1 L11 6 L2.5 11 Z" />
+			)}
+		</svg>
+	)
+}
+
 export function GalleryPage() {
 	const { search } = useLocation()
 	const view = galleryView(search)
@@ -69,6 +92,8 @@ export function GalleryPage() {
 		handlePointerUp,
 		handlePointerCancel,
 		handleClick,
+		handlePlayDown,
+		handlePlayClick,
 	} = useCardGesture()
 
 	useEffect(() => {
@@ -100,22 +125,34 @@ export function GalleryPage() {
 			<main className={styles.content}>
 				<div className={styles.grid}>
 					{items.map((item) => (
-						<Link
-							key={item.id}
-							to={flipbookPath(item.id)}
-							className={styles.card}
-							style={{ backgroundImage: `url(${item.thumbnail_url})` }}
-							onPointerEnter={(event) => handleEnter(event, item.id)}
-							onPointerLeave={(event) => handleLeave(event, item.id)}
-							onPointerDown={(event) => handlePointerDown(event, item)}
-							onPointerMove={handlePointerMove}
-							onPointerUp={handlePointerUp}
-							onPointerCancel={handlePointerCancel}
-							onClick={handleClick}
-						>
-							{/* The card's only text. Clipped rather than hidden, because
-							    without it every link in the grid has no accessible name. */}
-							<span className="visuallyHidden">{item.title || 'Untitled flipbook'}</span>
+						/*
+						 * The card is three things side by side rather than one inside another:
+						 * the link, the flipbook playing over it, and the play button.
+						 *
+						 * They are siblings because two of them must not be *inside* a link.
+						 * A button within an `<a>` is invalid markup — interactive content
+						 * can't nest — and, more to the point, iOS treats a press anywhere
+						 * inside a link as a press on the link and offers to open it. The one
+						 * control that wants a long press has to be somewhere that isn't the
+						 * anchor, and this is what that costs: one wrapper.
+						 */
+						<div key={item.id} className={styles.cell}>
+							<Link
+								to={flipbookPath(item.id)}
+								className={styles.card}
+								style={{ backgroundImage: `url(${item.thumbnail_url})` }}
+								onPointerEnter={(event) => handleEnter(event, item.id)}
+								onPointerLeave={(event) => handleLeave(event, item.id)}
+								onPointerDown={(event) => handlePointerDown(event, item)}
+								onPointerMove={handlePointerMove}
+								onPointerUp={handlePointerUp}
+								onPointerCancel={handlePointerCancel}
+								onClick={handleClick}
+							>
+								{/* The card's only text. Clipped rather than hidden, because
+								    without it every link in the grid has no accessible name. */}
+								<span className="visuallyHidden">{item.title || 'Untitled flipbook'}</span>
+							</Link>
 
 							{/* The flipbook itself, on the card the pointer is on and on no
 							    other. The fallback is null because there is nothing to stand
@@ -123,9 +160,31 @@ export function GalleryPage() {
 							    of this flipbook rather than a picture of an absence. */}
 							{hover?.id === item.id ? (
 								<Suspense fallback={null}>
-									<FlipbookPreview source={item} originX={hover.originX} />
+									<FlipbookPreview source={item} originX={hover.originX} playing={hover.playing} />
 								</Suspense>
 							) : null}
+
+							{/*
+							 * The way in for a finger, which has no hover to play a card with.
+							 *
+							 * Pressed, it runs the flipbook; dragged off, it hands the flipbook
+							 * to the finger and becomes the same scrub the card gives. It sits
+							 * over the link rather than in it, so holding it is a hold on a
+							 * button and iOS offers nothing.
+							 */}
+							<button
+								type="button"
+								className={styles.play}
+								aria-pressed={hover?.id === item.id && hover.playing}
+								aria-label={`Play ${item.title || 'Untitled flipbook'}`}
+								onPointerDown={(event) => handlePlayDown(event, item)}
+								onPointerMove={handlePointerMove}
+								onPointerUp={handlePointerUp}
+								onPointerCancel={handlePointerCancel}
+								onClick={(event) => handlePlayClick(event, item)}
+							>
+								<PlayGlyph playing={hover?.id === item.id && hover.playing} />
+							</button>
 
 							<AdminToggles
 								id={item.id}
@@ -133,7 +192,7 @@ export function GalleryPage() {
 								onChange={(flags) => updateItem(item.id, flags)}
 								className={styles.cardAdmin}
 							/>
-						</Link>
+						</div>
 					))}
 
 					{/* The cards that haven't landed yet, in the grid with the rest so they

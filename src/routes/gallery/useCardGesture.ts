@@ -12,6 +12,8 @@ import { loadPreview } from './preview'
 export interface Hover {
 	id: string
 	originX: number
+	/** Running on its own rather than following the pointer. See the play button. */
+	playing: boolean
 }
 
 /**
@@ -31,6 +33,18 @@ interface Candidate {
 	y: number
 	/** True once the finger has committed to scrubbing rather than tapping. */
 	scrubbing: boolean
+	/**
+	 * A press on the play button of a card that is already playing, waiting to see
+	 * whether it was a stop or the start of a drag.
+	 *
+	 * Turning playback *on* happens at `pointerdown`, because a press-and-hold that
+	 * waited for the release wouldn't be a hold. Turning it *off* has to wait, and this
+	 * is why: a drag that starts on the button of a running flipbook would otherwise
+	 * stop it — unmounting the preview — a few milliseconds before the drag armed and
+	 * mounted it again, and the card would flash its thumbnail in the middle of one
+	 * continuous gesture.
+	 */
+	stopOnRelease: boolean
 }
 
 /**
@@ -47,16 +61,24 @@ interface Candidate {
  * which gesture it is by moving sideways. From there it is the same scrub the mouse
  * gets, in the same place, off the same absolute position across the card.
  *
- * Three things make that work on iOS, and none of them is a hack:
+ * What a finger still can't do that way is simply *watch* one, and that is the play
+ * button's job — a sibling of the anchor rather than anything inside it, so that the
+ * one control wanting a long press is somewhere iOS doesn't answer with a menu. A drag
+ * that begins on it is the same drag as any other and ends in the same scrub.
  *
- *  - **`touch-action: pan-y` on the card**, which is the browser's own way of being
- *    told that vertical belongs to the page and horizontal belongs to us. Without it
- *    Safari claims the gesture for scrolling and sends `pointercancel` instead of the
- *    moves. The gallery only ever scrolls vertically, so nothing is given up.
- *  - **`-webkit-touch-callout: none`**, which is what stops the press-and-hold menu.
- *    The card stays a real `<a href>`; see `handlePointerDown`.
- *  - **Pointer capture once it is a scrub**, so the drag survives the finger drifting
- *    off the card, which over a 200px-tall thumbnail it does constantly.
+ * Two things make it work on iOS, and neither is a hack:
+ *
+ *  - **`touch-action: pan-y`** on the card and the button, which is the browser's own
+ *    way of being told that vertical belongs to the page and horizontal belongs to us.
+ *    Without it Safari claims the gesture for scrolling and sends `pointercancel`
+ *    instead of the moves. The gallery only ever scrolls vertically, so nothing is
+ *    given up.
+ *  - **Pointer capture**, so the drag survives the finger leaving what it started on —
+ *    off a 36px button immediately, and off a 200px-tall thumbnail constantly.
+ *
+ * The card's own press-and-hold menu is left alone. Suppressing it took the link's
+ * affordances with it — that menu is how a flipbook is opened in a new tab or its
+ * address copied — so the gesture moved instead of the menu going.
  */
 export function useCardGesture() {
 	const [hover, setHover] = useState<Hover | null>(null)
@@ -73,6 +95,9 @@ export function useCardGesture() {
 	 */
 	const swallowClick = useRef(false)
 
+	/** True while a play-button click is the echo of a press that was already acted on. */
+	const byPointer = useRef(false)
+
 	/**
 	 * A mouse arriving on a card, which is the whole of what starts a preview for it.
 	 *
@@ -87,7 +112,7 @@ export function useCardGesture() {
 	 */
 	const handleEnter = useCallback((event: React.PointerEvent, id: string) => {
 		if (event.pointerType === 'touch') return
-		setHover({ id, originX: event.clientX })
+		setHover({ id, originX: event.clientX, playing: false })
 	}, [])
 
 	// Guarded on the id because leaving one card and entering the next are two events
@@ -101,11 +126,11 @@ export function useCardGesture() {
 	 * A finger landing on a card: a tap and a scrub both start here and are told apart
 	 * `TOUCH_SLOP` later.
 	 *
-	 * The card is left as a real `<a href>` rather than becoming a div that navigates on
-	 * click, which was the other way to be rid of the press-and-hold menu. It would have
-	 * cost the things an anchor is: cmd-click and middle-click to a new tab, the URL in
-	 * the status bar, "copy link", and a link's name and role in the accessibility tree.
-	 * `-webkit-touch-callout: none` is one line of CSS against all of that.
+	 * The card is a real `<a href>` and is left alone, press-and-hold menu and all. The
+	 * way past that menu is not to suppress it — that took the link's own affordances
+	 * with it — but to put the control that wants a long press somewhere the menu isn't:
+	 * the play button in the corner, which is a sibling of the anchor rather than
+	 * anything inside it. See `handlePlayDown`.
 	 */
 	const handlePointerDown = useCallback((event: React.PointerEvent, item: PreviewSource) => {
 		if (event.pointerType !== 'touch') return
@@ -120,6 +145,7 @@ export function useCardGesture() {
 			x: event.clientX,
 			y: event.clientY,
 			scrubbing: false,
+			stopOnRelease: false,
 		}
 
 		// On contact rather than on the decision, and wanted whichever way the gesture
@@ -156,7 +182,10 @@ export function useCardGesture() {
 		// to; without this the scrub would stop dead halfway.
 		event.currentTarget.setPointerCapture(event.pointerId)
 
-		setHover({ id: held.id, originX: event.clientX })
+		// `playing: false` whichever way the gesture began. A drag off the play button is
+		// the same drag as a drag across the card, and it takes the flipbook off its own
+		// clock and puts it under the finger — which is what dragging a flipbook means.
+		setHover({ id: held.id, originX: event.clientX, playing: false })
 	}, [])
 
 	/**
@@ -174,13 +203,21 @@ export function useCardGesture() {
 	 * So the flipbook stays where you left it. Touching another card moves the preview
 	 * there — there is only ever one — and tapping this one still opens it, because a
 	 * tap that never scrubbed swallows nothing.
+	 *
+	 * This is also where a running flipbook is stopped, rather than at the press that
+	 * asked for it. See `Candidate.stopOnRelease`.
 	 */
 	const handlePointerUp = useCallback((event: React.PointerEvent) => {
 		const held = candidate.current
 		if (!held || held.pointerId !== event.pointerId) return
 		candidate.current = null
 
-		if (held.scrubbing) swallowClick.current = true
+		if (held.scrubbing) {
+			swallowClick.current = true
+			return
+		}
+
+		if (held.stopOnRelease) setHover((current) => (current?.id === held.id ? null : current))
 	}, [])
 
 	/**
@@ -207,6 +244,92 @@ export function useCardGesture() {
 		event.preventDefault()
 	}, [])
 
+	/** Starts a card playing from the top. The only thing that turns playback on. */
+	const startPlaying = useCallback((item: PreviewSource, originX: number) => {
+		setHover({ id: item.id, originX, playing: true })
+	}, [])
+
+	/** Whether this card is the one currently running. */
+	const isPlaying = useCallback((id: string) => hover?.id === id && hover.playing, [hover])
+
+	/**
+	 * A press on the play button, which is where a long press is safe.
+	 *
+	 * The button is a sibling of the `<a>` rather than a child of it — interactive
+	 * content inside a link is invalid markup, and more to the point a child would still
+	 * be the link as far as iOS is concerned, which is the whole thing being avoided. A
+	 * long press here raises no menu because there is no link under the finger.
+	 *
+	 * Starting is acted on at `pointerdown`, so pressing and holding runs the flipbook
+	 * straight away rather than at the moment you let go — which is what a hold is for.
+	 * **Stopping waits for the release**, and the asymmetry is deliberate: a drag that
+	 * begins on the button of a card that is already running would otherwise stop it,
+	 * unmounting the preview a few milliseconds before the drag armed and mounted it
+	 * again, and the card would flash its thumbnail in the middle of one gesture.
+	 *
+	 * The candidate is recorded exactly as the card's is, so the drag that starts here
+	 * and leaves the button is the same drag it would have been anywhere else: past
+	 * `TOUCH_SLOP` sideways, `handlePointerMove` takes the flipbook off its clock and
+	 * puts it under the finger.
+	 */
+	const handlePlayDown = useCallback(
+		(event: React.PointerEvent, item: PreviewSource) => {
+			swallowClick.current = false
+			byPointer.current = true
+
+			const running = isPlaying(item.id)
+
+			candidate.current = {
+				id: item.id,
+				pointerId: event.pointerId,
+				x: event.clientX,
+				y: event.clientY,
+				scrubbing: false,
+				stopOnRelease: running,
+			}
+
+			// Captured on the way in, not at the slop line as the card does it. The button
+			// is 36px across and the drag that matters leaves it almost immediately; by the
+			// time there is anything to capture, the pointer is over the card instead and
+			// `handlePointerMove` would never hear about it.
+			event.currentTarget.setPointerCapture(event.pointerId)
+
+			loadPreview()
+				.then((module) => module.prefetch(item))
+				.catch(() => {})
+
+			if (!running) startPlaying(item, event.clientX)
+		},
+		[isPlaying, startPlaying],
+	)
+
+	/**
+	 * The same toggle for the keyboard.
+	 *
+	 * A click follows every pointer press, and acting on both would turn playback on and
+	 * straight back off again — so a click that a `pointerdown` already answered is spent
+	 * here and does nothing. What is left is the click with no pointer behind it, which
+	 * is Enter or Space on a focused button.
+	 */
+	const handlePlayClick = useCallback(
+		(event: React.MouseEvent, item: PreviewSource) => {
+			// It is a sibling of the link rather than inside it, so this can't reach the
+			// anchor — but the card is a link and a stray activation on one is a navigation.
+			event.preventDefault()
+
+			if (byPointer.current) {
+				byPointer.current = false
+				return
+			}
+
+			// A keyboard has no position to scrub from, so the flipbook starts where the
+			// card does — the left-hand edge, which is page one.
+			if (isPlaying(item.id)) setHover(null)
+			else startPlaying(item, event.currentTarget.getBoundingClientRect().left)
+		},
+		[isPlaying, startPlaying],
+	)
+
 	return {
 		hover,
 		handleEnter,
@@ -216,5 +339,7 @@ export function useCardGesture() {
 		handlePointerUp,
 		handlePointerCancel,
 		handleClick,
+		handlePlayDown,
+		handlePlayClick,
 	}
 }

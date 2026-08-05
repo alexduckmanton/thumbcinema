@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { FPS } from '../engine/constants'
 import { frameAt } from './artwork'
 import { peek, retain, type PreviewSource } from './cache'
 import { drawPage, sizeCanvas } from './render'
@@ -26,6 +27,14 @@ export interface FlipbookPreviewProps {
 	 * middle of the flipbook, and this is the only way to know that on the first frame.
 	 */
 	originX: number
+	/**
+	 * Run the flipbook rather than follow the pointer.
+	 *
+	 * What the play button in the card's corner turns on, and the reason it exists: a
+	 * finger can scrub a card but it cannot hover one, so without this there is no way
+	 * to simply *watch* a flipbook without also covering it up.
+	 */
+	playing?: boolean
 }
 
 /**
@@ -43,9 +52,12 @@ export interface FlipbookPreviewProps {
  * been painted, so the canvas can fade up over the still thumbnail underneath it, and
  * once per slice of the flipbook arriving, which is the cache asking to be redrawn.
  */
-export function FlipbookPreview({ source, originX }: FlipbookPreviewProps) {
+export function FlipbookPreview({ source, originX, playing = false }: FlipbookPreviewProps) {
 	const canvasRef = useRef<HTMLCanvasElement | null>(null)
 	const [painted, setPainted] = useState(false)
+
+	/** Which frame playback is on. Only read while `playing`. */
+	const playhead = useRef(0)
 
 	/**
 	 * Where along the card the pointer is, 0 to 1, and what was last drawn from it.
@@ -96,10 +108,14 @@ export function FlipbookPreview({ source, originX }: FlipbookPreviewProps) {
 			const first = entry?.pages[0]
 			if (!entry || !first) return
 
+			// Playing runs on its own frame counter; scrubbing reads the pointer.
+			//
 			// Across the whole flipbook, not across the pages that have landed: a long
 			// one goes on arriving for a while, and a scrub that remapped itself
 			// underneath a stationary pointer would drift through the drawing on its own.
-			const index = frameAt(pointer.current.fraction, entry.total || entry.pages.length)
+			const index = playing
+				? playhead.current
+				: frameAt(pointer.current.fraction, entry.total || entry.pages.length)
 
 			// Before it has arrived, the newest page there is. It is the closest thing to
 			// what was asked for, and it moves towards it as the rest lands.
@@ -120,6 +136,39 @@ export function FlipbookPreview({ source, originX }: FlipbookPreviewProps) {
 		// From here the cache has somewhere to draw. Everything it reports — a slice of
 		// pages built, the last of them, a load that failed — means the same thing here.
 		repaint.current = schedule
+
+		/*
+		 * Playback: one page every 1000/FPS, looping, from the beginning.
+		 *
+		 * A timer rather than a rAF count, and the engine's own `FPS` — this is the same
+		 * twelve frames a second `scheduleFrame` turns on the playback page, and a
+		 * flipbook that ran at a different speed in the grid than on its own page would
+		 * be a different animation.
+		 *
+		 * It doesn't lap while the flipbook is still arriving, for the reason the engine
+		 * doesn't: looping the two pages that have landed while the other forty are being
+		 * built reads as a stutter rather than as a flipbook. The last page it has is held
+		 * until the rest catch up, which on anything but the largest archive files is a
+		 * frame or two.
+		 */
+		let timer = 0
+		if (playing) {
+			playhead.current = 0
+
+			const advance = () => {
+				const entry = peek(source.id)
+				const landed = entry?.pages.length ?? 0
+				const reach = entry?.status === 'ready' ? (entry.total ?? landed) : landed
+
+				if (reach > 0) playhead.current = (playhead.current + 1) % reach
+				schedule()
+
+				timer = window.setTimeout(advance, 1000 / FPS)
+			}
+
+			timer = window.setTimeout(advance, 1000 / FPS)
+			schedule()
+		}
 
 		const track = (clientX: number) => {
 			// `getBoundingClientRect` per move looks like the expensive thing here and
@@ -159,10 +208,11 @@ export function FlipbookPreview({ source, originX }: FlipbookPreviewProps) {
 			live = false
 			repaint.current = () => {}
 			if (frame !== 0) cancelAnimationFrame(frame)
+			if (timer !== 0) window.clearTimeout(timer)
 			card.removeEventListener('pointermove', onMove)
 			observer.disconnect()
 		}
-	}, [source.id, originX])
+	}, [source.id, originX, playing])
 
 	// No `aria-hidden`, and none needed: a canvas with no fallback content contributes
 	// nothing to the accessibility tree on its own, and the card around it already has

@@ -27,16 +27,24 @@
 	padding: 0 30px;
 }
 
-.card {
+/*
+ * The card as a box: what holds the link, the flipbook and the play button.
+ *
+ * There used to be no wrapper — the `<a>` was the card and everything sat inside it.
+ * The play button is what ended that. A button inside a link is invalid markup, and
+ * iOS reads a press anywhere inside a link as a press on the link and offers to open
+ * it, which is the one thing the button exists to get away from. So the three are
+ * siblings and this is the box they share.
+ *
+ * Everything that draws the card is here; `.card` below is now only the link and the
+ * thumbnail on it.
+ */
+.cell {
 	position: relative;
-	display: block;
 	/* Every flipbook is the same shape as the canvas it was drawn on, so the card is
 	   that shape and the thumbnail fills it without cropping. */
 	aspect-ratio: 16 / 9;
 	overflow: hidden;
-	background-color: var(--white);
-	background-size: cover;
-	background-position: center;
 	/* Softer than the 4px it was, so the cards belong to the same set of corners as
 	   the controls above them. Not the full 16: a card is a much bigger shape than a
 	   button, and a radius that reads as generous at 48px tall reads as a blob at
@@ -47,6 +55,34 @@
 	   edge is one of them too many. */
 	box-shadow: var(--shadow-card);
 	transition: box-shadow 0.12s ease-out, transform 0.12s ease-out;
+}
+
+.cell:hover {
+	box-shadow: var(--shadow-card-hover);
+	transform: translateY(-2px);
+}
+
+/*
+ * The ring goes on the wrapper, not on the link inside it.
+ *
+ * `overflow: hidden` above would clip an outline drawn on a child, and an outline
+ * offset 3px outwards is exactly the thing it would clip. An element's own outline is
+ * not clipped by its own overflow, so drawing it here works — and `:focus-within` picks
+ * up the play button as well, which is the other thing in the box worth reaching by
+ * keyboard.
+ */
+.cell:focus-within {
+	outline: 2px solid var(--blue);
+	outline-offset: 3px;
+}
+
+.card {
+	position: absolute;
+	inset: 0;
+	display: block;
+	background-color: var(--white);
+	background-size: cover;
+	background-position: center;
 
 	/*
 	 * Vertical belongs to the page, horizontal belongs to the flipbook.
@@ -60,34 +96,17 @@
 	touch-action: pan-y;
 
 	/*
-	 * The press-and-hold menu, gone.
+	 * A long press on the card raises iOS's open / open-in-new-tab sheet, and it is
+	 * meant to. `-webkit-touch-callout: none` was here for a while and took the link's
+	 * own affordances with it — that menu is how you open a flipbook in a new tab or
+	 * copy its address, and suppressing it site-wide to make room for one gesture was
+	 * the wrong trade. The gesture moved instead: see `.play`.
 	 *
-	 * Holding a link in iOS Safari raises the native open / open-in-new-tab / copy
-	 * sheet, which on a card you are about to drag across is the wrong offer at the
-	 * wrong moment — and it arrives before the drag has had a chance to say otherwise.
-	 *
-	 * One line, and the card stays a real `<a href>`. The alternative was making it a
-	 * div that navigates on click, which is where you end up if you go looking for the
-	 * behaviour rather than the property, and it would have cost cmd-click and
-	 * middle-click to a new tab, the URL in the status bar, and a link's own name and
-	 * role in the accessibility tree. None of that is worth a long-press menu.
+	 * Selection is still off. There is one span of text in here and it is the
+	 * accessible name, which nobody reads with their eyes and nobody wants to select.
 	 */
-	-webkit-touch-callout: none;
-
-	/* With the callout gone, a long press would otherwise start selecting the card's
-	   visually hidden title instead. Nothing here is text anyone reads with their eyes. */
 	-webkit-user-select: none;
 	user-select: none;
-}
-
-.card:hover {
-	box-shadow: var(--shadow-card-hover);
-	transform: translateY(-2px);
-}
-
-.card:focus-visible {
-	outline: 2px solid var(--blue);
-	outline-offset: 3px;
 }
 
 /*
@@ -107,7 +126,7 @@
 	transition: opacity 0.1s linear;
 }
 
-.card:hover .cardAdmin,
+.cell:hover .cardAdmin,
 .cardAdmin:focus-within {
 	opacity: 1;
 }
@@ -116,6 +135,70 @@
 	.cardAdmin {
 		opacity: 1;
 	}
+}
+
+/*
+ * Play, in the opposite corner from the admin toggles.
+ *
+ * The one control on a card that is not the link. A finger can scrub a card by dragging
+ * across it but it cannot hover one, so without this there is no way to simply *watch* a
+ * flipbook — and holding the card to do it is exactly the press iOS answers with a menu.
+ * Pressed, this runs the flipbook; dragged off, it hands it to the finger and becomes
+ * the same scrub the card gives.
+ *
+ * A disc rather than a bar, the size of a comfortable touch target, and the same white
+ * over the drawing that the toggles use in the other corner.
+ */
+.play {
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	z-index: 2;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	/* 36 is as small as this goes and still be reliably hittable with a thumb; the 44
+	   a guideline would ask for is a quarter of the height of a card on a phone. */
+	width: 36px;
+	height: 36px;
+	padding: 0;
+
+	border: none;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.92);
+	color: var(--ink);
+	box-shadow: var(--shadow-card);
+	cursor: pointer;
+
+	/* The gesture that starts here is the gesture the card would have given: sideways
+	   is the flipbook's, vertically the page still scrolls out from under it. */
+	touch-action: pan-y;
+	-webkit-user-select: none;
+	user-select: none;
+
+	transition: background-color 0.12s ease-out, opacity 0.12s ease-out;
+}
+
+.play:hover {
+	background: rgb(255, 255, 255);
+}
+
+/* The ring is drawn on the wrapper — see `.cell:focus-within` — so it isn't clipped.
+   Suppressed here so the two don't stack into a ring inside a ring. */
+.play:focus-visible {
+	outline: none;
+}
+
+.play svg {
+	/* The triangle's mass is to the left of its bounding box's centre, which reads as
+	   sitting too far back inside a circle. Half a pixel is enough to settle it; the
+	   square it becomes while playing is symmetrical and wants none of it. */
+	margin-left: 1px;
+}
+
+.play[aria-pressed='true'] svg {
+	margin-left: 0;
 }
 
 /*
