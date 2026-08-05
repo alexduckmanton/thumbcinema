@@ -70,6 +70,17 @@
 	border: none;
 	background: none;
 	cursor: pointer;
+	/* One of the drawing modes being tried has you press and hold the pencil with your
+	   other hand while you draw. A long press on an image is a callout and a selection
+	   on a phone otherwise, and either one lands in the middle of a stroke. */
+	user-select: none;
+	-webkit-touch-callout: none;
+	/* And this button is pressed while a finger is already on the canvas, which is two
+	   contacts and so a candidate pinch — the body's `manipulation` permits one. A
+	   browser is entitled to hold a touch back while it decides, and what it holds back
+	   is the press that changes tool mid-stroke. The canvas says `none` for the same
+	   reason; this is the other half of it. */
+	touch-action: none;
 	transition: bottom 0.1s ease-in-out, left 0.1s ease-in-out;
 }
 
@@ -87,22 +98,82 @@
  * fan out from behind it when the tool is on. Selecting it barely moves the base —
  * 11px — because the movement people read here is the arrows opening, not the icon
  * sliding.
+ *
+ * It is also **three controls, not one**, and that is why this box is a `<div>` where
+ * the other two tools are the `<button>` themselves. The hand is the tool: press and
+ * hold it and it works at the cursor. The arrows are the mode — the fan is already a
+ * picture of the three things this tool does, so the two groups of it are the two
+ * things it can be. Tapping one is the whole of how you get between transform and push.
+ *
+ * They had to come apart. One button meant one press with two readings — the tool being
+ * used again, or the mode being switched — and with a finger on the page aiming, every
+ * press is also a press, so nothing about the press itself can separate them. Both
+ * guesses were tried and both fail on a real phone: duration, because a deliberate press
+ * of a button by the other hand is slow; and distance, because Safari withholds a resting
+ * finger's movement and then delivers ten pixels of it at once (see `lib/zoom.ts`). Two
+ * targets need no guess.
  */
 .transform {
 	background: none;
+	/* The hand inside it is the thing you press; this box only positions the group. */
+	cursor: default;
 }
 
 .transformActive {
 	bottom: -21px;
 }
 
+/* The hand: the tool itself, and what gives the group its size — 2013 had that from
+   the anchor's own sprite class. */
+.hand {
+	position: relative;
+	z-index: 2;
+	display: block;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: pointer;
+}
+
+/*
+ * Each half of the fan, as a control.
+ *
+ * The box is the whole group so that the arrows inside it position exactly as they did
+ * when they were the tool button's own children — but it takes no presses itself, or it
+ * would lie over the hand and swallow them. Only the arrows are pressable, which is also
+ * the honest hit area: what you are aiming at is the arrow you can see.
+ *
+ * Each does one thing, and says which by being lit: the unlit half switches the mode, and
+ * the lit half is the tool in hand and holds like the hand does. Which is also why they
+ * are not merely decorative — they are most of what you can see of this tool, and before
+ * they came apart from it, holding them used it.
+ */
+.mode {
+	position: absolute;
+	inset: 0;
+	padding: 0;
+	border: none;
+	background: none;
+	pointer-events: none;
+}
+
+.transformActive .mode .layer {
+	pointer-events: auto;
+	cursor: pointer;
+}
+
+.hand:focus-visible,
+.mode:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 2px;
+}
+
 .layer {
 	position: absolute;
 	bottom: -40px;
-	/* Explicit, because the hand below is in flow and an absolute box with
-	   `left: auto` falls where it *would* have gone — which is 40px to the right of
-	   the button, out over the eraser. The arrows are stacked on the hand, not
-	   queued up next to it. */
+	/* Explicit, because the hand is in flow and an absolute box with `left: auto` falls
+	   where it *would* have gone — which is 40px to the right of the group, out over the
+	   eraser. The arrows are stacked on the hand, not queued up next to it. */
 	left: 0;
 	transform: rotate(-180deg);
 	transform-origin: 50% 0%;
@@ -110,12 +181,9 @@
 	transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
-/* The hand. Left in flow, unlike the arrows, because it is what gives the button
-   its size — 2013 had that from the anchor's own sprite class. */
-.layer:nth-child(1) {
+.hand .layer {
 	position: relative;
 	bottom: 0;
-	z-index: 2;
 	transform: none;
 	transition: none;
 	opacity: 1;
@@ -130,8 +198,8 @@
  * on the same pixel and makes the fan below symmetrical rather than nearly so. They had
  * 15 and 10, from when the fan opened sideways and each arrow was placed by eye.
  */
-.layer:nth-child(3),
-.layer:nth-child(4) {
+.spokeRotate,
+.spokePush {
 	left: 7px;
 }
 
@@ -153,15 +221,15 @@
  * in one direction. It is a longer sweep for the left-hand arrow than the right-hand
  * one, which is what a fan opening looks like.
  */
-.transformActive .layer:nth-child(2) {
+.transformActive .spokeTranslate {
 	transform: rotate(45deg);
 }
 
-.transformActive .layer:nth-child(3) {
+.transformActive .spokeRotate {
 	transform: rotate(0deg);
 }
 
-.transformActive .layer:nth-child(4) {
+.transformActive .spokePush {
 	transform: rotate(-45deg);
 }
 

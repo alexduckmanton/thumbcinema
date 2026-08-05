@@ -113,6 +113,12 @@ export class FlipbookEngine {
 		this.selection = new Selection(this.scene)
 		this.history = new History(this.scene)
 
+		// See `subscribeGrab`. The selection is what recomputes this, and it is the only
+		// thing that knows when it has.
+		this.selection.onGrabChanged = () => {
+			for (const listener of this.grabListeners) listener()
+		}
+
 		this.store = new Store<FlipbookState>({
 			pages: [{ id: this.nextPageId++, segments: 0 }],
 			activePage: 0,
@@ -146,9 +152,7 @@ export class FlipbookEngine {
 				respace: (path) => this.pencil.finish(path),
 			})
 			this.push = new PushTool(this.scene, this.selection, {
-				showDots: !options.isTouch,
 				respace: (path) => this.pencil.finish(path),
-				onExit: () => this.setTransformIndex(0),
 			})
 
 			this.pencil.init()
@@ -281,17 +285,21 @@ export class FlipbookEngine {
 	/**
 	 * Switches modal tool.
 	 *
-	 * Clicking the tool you're already on is a no-op — except for transform, which
-	 * cycles into push mode and back, and is what makes it one button rather than two.
+	 * Picking up the tool you're already on is a no-op, transform included. It used to
+	 * cycle that one into push and back, which was what made the fan one button rather
+	 * than three — and is exactly what could not survive a finger on the page, where
+	 * every press of a tool is also a press *of* it. The two halves of the fan are their
+	 * own controls now; see `setTransformMode` and `.transform` in `Tray.module.css`.
+	 *
+	 * **Not held while a page animates**, unlike the page actions and undo. Drawing
+	 * through those 750ms has been allowed since 2013 and the scene is in its final
+	 * shape before the first frame of it moves, so refusing to say *what* you are
+	 * drawing with was the odd one out — and worse than a no-op in the modes where
+	 * pressing a tool button also uses it: the press was refused, the hold went ahead,
+	 * and the previous tool did the work.
 	 */
 	selectTool(id: ModalToolId): void {
-		if (this.store.snapshot.busy) return
-
-		if (this.store.snapshot.tool === id) {
-			if (id === 'transform')
-				this.setTransformIndex(this.store.snapshot.transformIndex === 0 ? 1 : 0)
-			return
-		}
+		if (this.store.snapshot.tool === id) return
 
 		this.activeTool?.deactivate()
 		this.store.set({ tool: id, transformIndex: 0 })
@@ -308,7 +316,41 @@ export class FlipbookEngine {
 		this.scene.redraw()
 	}
 
-	/** Transform ⇄ push. Push refuses when there's no selection, so it flips back. */
+	/**
+	 * Transform or push, asked for directly.
+	 *
+	 * One of the two halves of the fan being tapped, or `v` pressed a second time. It
+	 * only answers while transform is the tool in hand — the arrows are the tool's own
+	 * picture of itself and mean nothing when it is put down, so they are `disabled`
+	 * there and this refuses for the same reason.
+	 */
+	setTransformMode(index: 0 | 1): void {
+		if (this.store.snapshot.tool !== 'transform') return
+		if (this.store.snapshot.transformIndex === index) return
+		this.setTransformIndex(index)
+	}
+
+	/**
+	 * Transform up, then transform ⇄ push: what `v` does.
+	 *
+	 * The keyboard keeps the cycle the tray gave up, because a key has no second reading
+	 * — it can never also be the tool being used at the cursor, which is the whole of why
+	 * the tray's two jobs had to come apart.
+	 */
+	cycleTransform(): void {
+		const { tool, transformIndex } = this.store.snapshot
+		if (tool !== 'transform') this.selectTool('transform')
+		else this.setTransformIndex(transformIndex === 0 ? 1 : 0)
+	}
+
+	/**
+	 * Transform ⇄ push.
+	 *
+	 * Neither refuses any more — push selects for itself, so it no longer needs a
+	 * selection to exist before it can switch on — but the refusal path stays, because
+	 * `init()` returning false is part of the `ModalTool` contract and a tool that
+	 * cannot start must not leave the button pointing at it.
+	 */
 	private setTransformIndex(index: 0 | 1): void {
 		const previous = this.activeTool
 		this.store.set({ transformIndex: index })
@@ -354,9 +396,20 @@ export class FlipbookEngine {
 		this.captureActivePage()
 	}
 
-	/** Puts everything back on the page. Nothing has changed; nothing is recorded. */
+	/**
+	 * Puts everything back on the page. Nothing has changed; nothing is recorded.
+	 *
+	 * The tool is re-initialised afterwards rather than left to notice, because two of
+	 * them dress a selection their own way — push hides the box, recolours the layer
+	 * and keeps a radius and a group of dots in the guide layer, none of which
+	 * `Selection.clear` knows about. `init` is what each tool already does to make the
+	 * scene its own, and for the two that don't dress anything it is a no-op.
+	 */
 	clearSelection(): void {
+		if (this.selection.isEmpty) return
+
 		this.selection.clear()
+		this.activeTool?.init()
 		this.captureActivePage()
 	}
 
@@ -725,6 +778,17 @@ export class FlipbookEngine {
 
 	// --- playback ------------------------------------------------------------
 
+	/**
+	 * Play, or stop.
+	 *
+	 * **Anything in hand is put down first**, and that isn't tidiness. A selected
+	 * stroke is physically moved into the selection layer, which is not a page — so it
+	 * stood there over every frame of the flipbook, in blue, with its box round it,
+	 * while the drawing changed underneath it. Stopping then dropped it onto whichever
+	 * page happened to be showing, which is a stroke moved from one frame to another
+	 * by pressing play. Putting it down is what `goToPage` has always done for a page
+	 * turn; playing is the same question asked twelve times a second.
+	 */
 	togglePlay(): void {
 		if (this.store.snapshot.playback === 'play') {
 			this.pause()
@@ -732,6 +796,7 @@ export class FlipbookEngine {
 		}
 		if (this.pageCount < 2) return
 
+		this.clearSelection()
 		this.stopPlayback()
 		this.store.set({ playback: 'play' })
 		this.scene.clearOnion()
@@ -1032,6 +1097,186 @@ export class FlipbookEngine {
 		}
 	}
 
+	// --- drawing without paper's help ----------------------------------------
+
+	/*
+	 * A finger's gesture is taken away from paper entirely, because paper 0.12 has one
+	 * drag in flight, cannot see a second contact and works at the fingertip — which on
+	 * this page is not where the cursor is. `PointerLayer` intercepts every touch and
+	 * drives whichever tool is in hand through the methods below.
+	 *
+	 * They are deliberately the *same* two ends the ordinary path uses —
+	 * `handlePointerDown` and `handlePointerUp` — so an intercepted gesture is one
+	 * history step, recounts its page and redraws its thumbnail exactly as a normal
+	 * one does. Nothing about undo, the page strip or the save button knows which
+	 * route an edit arrived by, and nothing should.
+	 */
+
+	/** A point on the canvas, in CSS pixels from its top left, in project units. */
+	toProject(x: number, y: number): paper.Point {
+		return this.scene.toProject(x, y)
+	}
+
+	/** Where the intercepted gesture started, was, and is. See `synthesise`. */
+	private gestureDown: paper.Point | null = null
+	private gesturePrevious: paper.Point | null = null
+	private gestureLast: paper.Point | null = null
+
+	/**
+	 * Opens a gesture *at* `point`, which for the pencil paper's own path does not.
+	 *
+	 * `PencilTool.begin` only makes the path; the first segment arrives on the first
+	 * `onMouseDrag`, so a paper-driven stroke starts a pointer-event's travel after
+	 * the place it was started from. Measured: about 7px on a phone at a normal
+	 * drawing speed. Here the down point is put in explicitly, because in these modes
+	 * it is not "where the finger landed" but "where the cursor was standing when it
+	 * was told to draw", and dropping it would move the start of the line.
+	 *
+	 * The other two tools are handed the event they would have had. They read only
+	 * `point`, `downPoint` and `lastPoint` off it — no modifiers, no hit target, no
+	 * delta — which is what makes a three-field stand-in enough.
+	 */
+	toolDown(point: paper.Point): void {
+		const tool = this.store.snapshot.tool
+		if (!tool) return
+
+		this.handlePointerDown()
+
+		this.gestureDown = point
+		this.gesturePrevious = point
+		this.gestureLast = point
+
+		if (tool === 'pencil') {
+			this.pencil.begin()
+			this.pencil.extend(point)
+		} else if (tool === 'eraser') {
+			this.eraser?.eraseAt(point)
+		} else {
+			this.dispatch('onMouseDown', point)
+		}
+	}
+
+	toolDrag(point: paper.Point): void {
+		const tool = this.store.snapshot.tool
+
+		this.gesturePrevious = this.gestureLast
+		this.gestureLast = point
+
+		if (tool === 'pencil') this.pencil.extend(point)
+		else if (tool === 'eraser') this.eraser?.eraseAt(point)
+		else this.dispatch('onMouseDrag', point)
+	}
+
+	/**
+	 * The cursor moving with nothing pressed — a hover, which on a phone otherwise
+	 * doesn't exist.
+	 *
+	 * The transform tool works out what a drag from here would do; push recomputes
+	 * which points are in range and redraws its dots over them. Both of those are
+	 * feedback you get for free with a mouse and could not get at all with a finger
+	 * until the cursor stopped being the fingertip. The marking tools have no
+	 * `onMouseMove` and quietly ignore it.
+	 */
+	toolHover(point: paper.Point): void {
+		this.dispatch('onMouseMove', point)
+	}
+
+	/**
+	 * What a drag from the cursor would do to the selection, and along which axis.
+	 *
+	 * Read straight off the selection, which `toolHover` has just updated. `angle` is
+	 * degrees clockwise from horizontal and is only meaningful for `scale`: the arrows
+	 * have to point along the axis the handle actually moves, or a cursor that says
+	 * "you can resize this" is still not saying which way.
+	 */
+	transformAffordance(): { kind: 'none' | 'move' | 'scale' | 'rotate'; angle: number } {
+		// `selection.type` outlives the tool that set it, so ask whose it is first.
+		if (this.store.snapshot.tool !== 'transform') return NOTHING_TO_GRAB
+
+		switch (this.selection.type) {
+			case 'translate':
+				return { kind: 'move', angle: 0 }
+			// Push bends a stroke where it lies rather than grabbing a handle, and what
+			// says whether a drag would bend anything is the dots the tool draws under the
+			// cursor. The four-way arrow is what the mouse has shown here since 2013.
+			case 'push':
+				return { kind: 'move', angle: 0 }
+			case 'rotate':
+				return { kind: 'rotate', angle: 0 }
+			case 'scale': {
+				// Corners: top-left and bottom-right are the ↖↘ diagonal, the other two ↗↙.
+				const corner = this.selection.draggedCorner()
+				return { kind: 'scale', angle: corner !== null && corner % 2 === 1 ? 45 : -45 }
+			}
+			case 'stretch': {
+				// Edges: left and right are even, and stretch horizontally.
+				const edge = this.selection.draggedEdge()
+				return { kind: 'scale', angle: edge !== null && edge % 2 === 1 ? 90 : 0 }
+			}
+			default:
+				return NOTHING_TO_GRAB
+		}
+	}
+
+	private readonly grabListeners = new Set<() => void>()
+
+	/**
+	 * Told when what the transform tool would grab has been recomputed.
+	 *
+	 * It changes on a hover, which for a mouse paper handles on the *document* — above
+	 * anything drawing a cursor, and after the pointer event that drawing was published
+	 * from. So a cursor that only reads this when the pointer moves is one event behind,
+	 * which nothing notices while the mouse is moving and everything notices the moment
+	 * it stops. See `PointerLayer.onGrab`, which is the only subscriber.
+	 */
+	subscribeGrab = (listener: () => void): (() => void) => {
+		this.grabListeners.add(listener)
+		return () => {
+			this.grabListeners.delete(listener)
+		}
+	}
+
+	toolUp(): void {
+		const tool = this.store.snapshot.tool
+
+		// The eraser has no gesture to close — it takes its bite on every event and
+		// leaves nothing open. Everything else does, and all of them need the second
+		// half of the history step.
+		if (tool === 'pencil') this.pencil.end()
+		else if (tool !== 'eraser' && this.gestureLast) this.dispatch('onMouseUp', this.gestureLast)
+
+		this.gestureDown = null
+		this.gesturePrevious = null
+		this.gestureLast = null
+
+		this.handlePointerUp()
+	}
+
+	/**
+	 * Hands the tool the event paper would have handed it.
+	 *
+	 * `lastPoint` is the point *before* the current one rather than the current one
+	 * repeated, because the push tool asks whether the two differ to decide whether a
+	 * gesture was a click — and a synthetic mouse-up that answered "no" every time
+	 * would drop you out of push mode at the end of every push.
+	 */
+	private dispatch(
+		kind: 'onMouseDown' | 'onMouseDrag' | 'onMouseUp' | 'onMouseMove',
+		point: paper.Point,
+	): void {
+		const tool = this.activeTool?.tool
+		if (!tool) return
+
+		const handler = tool[kind]
+		if (typeof handler !== 'function') return
+
+		handler.call(tool, {
+			point,
+			downPoint: this.gestureDown ?? point,
+			lastPoint: this.gesturePrevious ?? point,
+		} as unknown as paper.ToolEvent)
+	}
+
 	// --- internals -----------------------------------------------------------
 
 	private drawing = false
@@ -1189,3 +1434,6 @@ function nextFrame(): Promise<void> {
 		requestAnimationFrame(() => resolve())
 	})
 }
+
+/** The common answer, shared rather than rebuilt on every pointer move. */
+const NOTHING_TO_GRAB = { kind: 'none', angle: 0 } as const

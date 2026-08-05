@@ -171,6 +171,19 @@ export class Scene {
 	}
 
 	/**
+	 * A point on the canvas, in CSS pixels from its top left, as a project point.
+	 *
+	 * The same conversion `getEventPoint` does, for the drawing modes that drive a
+	 * tool directly instead of letting paper dispatch to it — see `PointerLayer`.
+	 * They have already decided where the mark goes by the time they get here, so
+	 * this deliberately does *not* apply `touchOffsetY`: that offset describes a
+	 * fingertip, and what these hand over is a mark.
+	 */
+	toProject(x: number, y: number): paper.Point {
+		return new this.scope.Point(x / this.displayScale, y / this.displayScale)
+	}
+
+	/**
 	 * Brings the canvas up to date *now*.
 	 *
 	 * paper redraws on its own on the next animation frame, so this is only needed

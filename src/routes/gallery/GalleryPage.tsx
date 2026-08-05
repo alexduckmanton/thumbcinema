@@ -87,10 +87,11 @@ export function GalleryPage() {
 	/**
 	 * A pointer arriving on a card, which is the whole of what starts a preview.
 	 *
-	 * Asked of the pointer rather than of the device, as the drawing tool's loupe is:
-	 * `isTouch` answers for the machine, and on a laptop with a touchscreen the answer
-	 * is yes while somebody is using the trackpad. What a tap must not do is start
-	 * downloading a flipbook the tap is already navigating away from.
+	 * Asked of the pointer rather than of the device, as the create page's tray is when
+	 * it tells a mouse from a finger: `isTouch` answers for the machine, and on a laptop
+	 * with a touchscreen the answer is yes while somebody is using the trackpad. What a
+	 * tap must not do is start downloading a flipbook the tap is already navigating
+	 * away from.
 	 *
 	 * There is no hover-intent delay in front of this, deliberately. The guard against
 	 * a pointer sweeping across the grid isn't to hesitate before every card, which

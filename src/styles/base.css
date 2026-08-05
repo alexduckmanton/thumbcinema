@@ -158,6 +158,67 @@ body {
 }
 
 /*
+ * The drawing tool holds the document still: no scroll, no bounce, no pull to refresh
+ * and no pinch. Added to the root element for as long as the create page is up — see
+ * `useNoScrolling` — and nowhere else, because everything else on this site is a page
+ * you read.
+ *
+ * Five properties, and each one is answering a different browser:
+ *
+ *  - `overflow: hidden` on both is the ordinary one. The create page is sized to the
+ *    window by `--book-reserve`, so there was never anything to scroll to; what there
+ *    was is the *rubber band*, which on a page that can't scroll still moves the whole
+ *    drawing under your finger.
+ *  - `position: fixed` on the body is the only thing that reliably stops iOS scrolling
+ *    the document anyway. `overflow: hidden` alone is famously ignored there.
+ *  - `overscroll-behavior: none` is what takes pull-to-refresh off Chrome on Android,
+ *    which is not a scroll and so survives all of the above.
+ *  - `touch-action: none` overrides the body's `manipulation` above, which permits a
+ *    pinch — and a pinch is two contacts, which up here is a drawing gesture. The
+ *    canvas has always said `none`; this is the same statement made about the rest of
+ *    the page, now that the rest of the page is somewhere you can draw from.
+ *
+ * `preventPinchZoom()` in `lib/zoom.ts` is still needed alongside it: Safari's pinch
+ * arrives as its own non-standard gesture events, which no CSS reaches.
+ */
+html.locked,
+html.locked body {
+	overflow: hidden;
+	overscroll-behavior: none;
+	touch-action: none;
+}
+
+html.locked body {
+	position: fixed;
+	inset: 0;
+}
+
+/*
+ * And while it is held still, the page's one column is stretched to fill it.
+ *
+ * Not so that anything more can be seen — the create page is sized around the window by
+ * `--book-reserve` and has never had anything below the fold — but so that the empty
+ * white under the tools belongs to the column. That band is the field a finger aims
+ * from, and a field that stopped where the tray happens to end would be a page whose
+ * bottom third silently did nothing.
+ *
+ * Flex rather than `min-height: 100dvh` on the column itself, which is the obvious
+ * version and is wrong by exactly the height of the header: the column starts below it,
+ * so a column a windowful tall ends a header's worth past the bottom of the window.
+ * Clipped, so invisible — but it is 60-odd pixels of the field that no finger can reach,
+ * which is the one thing this is here to avoid.
+ */
+html.locked #root {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+}
+
+html.locked main {
+	flex: 1;
+}
+
+/*
  * No text shadows. 2013 put a 1px shadow under nearly every piece of type, which is
  * what held white-on-blue and pale-on-dark up against the dark, saturated chrome of
  * the time. That chrome is gone, and each one is now a slight blur on type that was

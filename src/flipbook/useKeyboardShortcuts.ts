@@ -78,7 +78,8 @@ export function useKeyboardShortcuts(
 					engine.selectTool('eraser')
 					break
 				case 'v':
-					engine.selectTool('transform')
+					// Picks it up, and cycles transform ⇄ push from there. See `cycleTransform`.
+					engine.cycleTransform()
 					break
 				case 'n':
 					void engine.addBlankPage()
