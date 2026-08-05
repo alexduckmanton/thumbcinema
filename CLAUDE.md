@@ -1516,6 +1516,15 @@ What that costs is schema freedom:
   aren't looking at.
 - **Never run `npm run db:migrate` from `time-capsule`.** Its `db/schema.sql` is a
   frozen copy and will drift.
+- **Additive is not the same as safe to deploy.** A push builds and goes live on its
+  own; the migration is a thing a person runs. So there is always a window in which
+  the new code is talking to the old table, and new code that *reads* a new column
+  spends that window returning 500s. `thumbnail_svg` is read by the query behind the
+  home page, and its first deploy served an empty grid to every visitor until the
+  migration caught up. New code that reads a new column has to survive not finding
+  it — `querySvgAware()` in `lib/flipbooks.js` is what that looks like: a missing
+  column is treated as every row simply not having one, which is a state the feature
+  is already built for. Covered in `lib/flipbooks.test.js`, both directions.
 
 Both projects need `DATABASE_URL` and `ADMIN_TOKEN` set to the same values, and both
 carry an **Ignored Build Step** so neither builds the other's branch.

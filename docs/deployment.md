@@ -140,6 +140,19 @@ production:
 This is also the nicest way to develop locally: real data, and you can reset the
 branch whenever you've made a mess.
 
+**A preview that adds a column is live before the column is.** Nothing here runs
+migrations: a push builds and deploys on its own, and `npm run db:migrate` is a thing
+you run against whichever database that deployment points at. So a branch carrying a
+schema change is talking to the old table until you do — and if preview and production
+share one database, running it early means production's code meets the new column
+first, which is fine, and never the other way round.
+
+New code that reads a new column therefore has to survive not finding it. See
+`querySvgAware()` in `lib/flipbooks.js`: `thumbnail_svg` missing is treated as no row
+having one, so the gallery shows PNGs rather than 500ing. Worth keeping up whenever
+another column is added — the alternative was a blank home page for the length of the
+window.
+
 ## Working offline
 
 If you'd rather not depend on Neon for local work, any Postgres 14+ will do:
