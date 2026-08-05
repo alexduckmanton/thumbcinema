@@ -68,6 +68,11 @@ src/
       FlipbookEngine.ts  the façade React drives
     components/       canvas, page strip, page arrows, trays, save form,
                       the cursor ring and the transform cursors
+    preview/          the gallery's flipbooks. No paper.js in this directory.
+      artwork.ts      a saved file as Path2D pages, on demand
+      render.ts       one page onto a 2D canvas
+      cache.ts        the flipbooks the grid has in hand, shared by every card
+      FlipbookPreview.tsx  the canvas on the hovered card
   styles/             tokens, element defaults, the icon sprite
 public/               fonts, images, favicons, sadbrowser.html
 ```
@@ -132,6 +137,7 @@ drawing tool itself works without one.
 | `npm run preview` | Serves the built `dist/` — static only, no API |
 | `npm run db:migrate` | Applies `db/schema.sql` (idempotent) |
 | `npm run db:import-archive` | Loads the 2012–2015 flipbooks from `_original/` |
+| `npm run db:backfill-brotli` | Compresses `data_br` for any row without one |
 | `npm run db:stats` | Row counts and storage use |
 
 ## Architecture
@@ -182,6 +188,17 @@ The trap is that a plain `import` of anything large, anywhere under a route, sil
 puts it back. The chunk table won't say so — paper is still its own chunk either way.
 What to check is the entry bundle's dependency list for each route: nothing that only
 the drawing tool needs belongs in it.
+
+**The gallery's hover preview is split for the same reason and warmed rather than
+awaited.** `FlipbookPreview` is `lazy()` and its chunk is 1.8 kB gzipped, but it drags
+`engine/formats.ts` along with it — and that file is also in both paper routes' chunks,
+so leaving it in the entry would have every visit to every page carry a copy of it. The
+factory is named (`loadPreview`) so the gallery can call it in an effect on mount: by
+the time a pointer lands on a card the module is in memory and `lazy` resolves out of
+the module cache, so the Suspense boundary never shows. What must stay true is that
+neither the gallery's chunk nor the preview's reaches paper — `grep from\" dist/assets/
+GalleryPage-*.js` after a build is the check, and today it is five imports, none of
+them paper.
 
 ## The drawing tool
 
@@ -1036,6 +1053,232 @@ The same flipbook, the same page bar, and much less around it than there used to
   is in the title's row, which is below the fold on this page and costs the flipbook
   nothing. Sideways the flipbook now fills the window down to the bar.
 
+## The gallery, and the flipbooks that play in it
+
+A card in the grid is a flipbook, and hovering one plays it: the pointer's position
+across the card is the position in the flipbook, left edge the first page and right
+edge the last. Clicking still goes to the playback page, which is unchanged.
+
+The thing to understand before touching any of it is that **the gallery does not use
+the drawing engine, and does not load paper.js at all.** That is not a shortcut taken
+to save a download; it is what the split is for.
+
+- **`src/flipbook/preview/` is a second renderer, and a much smaller one.**
+  `FlipbookEngine` builds a paper.js project — a scene graph, a layer per page, hit
+  testing, an undo history, four tools — and every part of that exists so a drawing can
+  be *changed*. A card only ever shows one. What is left once you take the editing out
+  is: parse the file into paths, and stroke them onto a canvas. That is three small
+  files and 1.8 kB gzipped, against paper's 71.
+- **What the two share is the hard part, and it was already shared.**
+  `engine/formats.ts` knows the two artwork formats, the three stroke vocabularies and
+  the leading-three-groups contract. It has never imported paper and every function in
+  it is a pure function of a string — which is exactly why it can be read twice. If a
+  fourth stroke vocabulary ever appears, that is still the one file that learns about
+  it, and both renderers get it.
+- **It draws the same pixels, and that is measured rather than assumed.** The same page
+  rendered both ways at the same size, composited over the same white: on an archive
+  flipbook (polylines) and on one saved by this tool (path data) the ink pixel counts
+  are *equal* and no channel differs by more than 1. They agree because paper.js
+  strokes to a 2D canvas as well — same rasteriser, same cap, join, colour and width,
+  restated in the same place for the same reason. The one difference is the 2012
+  format, where 152 pixels in 921,600 differ on a dense page: the engine replays those
+  through the pencil, which resamples them at five-pixel spacing, and the preview draws
+  the corner the file actually holds. The preview is the more faithful of the two.
+- **One canvas exists at a time, because one card is under the pointer at a time.**
+  `FlipbookPreview` is mounted into whichever card is hovered and nowhere else, so the
+  grid never holds fifty canvases, fifty engines or fifty of anything. Everything
+  underneath it is a module-level singleton: one renderer, one cache.
+- **Nothing about the scrub goes through React.** A pointer moves sixty to a hundred
+  and twenty times a second, and each move changes one number and at most the pixels in
+  a canvas — neither of which is a thing to re-render a grid of cards for. The
+  `pointermove` listener is attached to the card natively and writes a fraction to a
+  ref; a rAF reads it and draws. React is told exactly once, when the first frame lands
+  and the canvas can fade up over the still thumbnail underneath it.
+- **The cache reports by calling a repaint, not by asking for a render.** This was a
+  `useReducer` bump at first, which is the obvious way to do it and is silently wrong:
+  nothing in the paint reads React state, so a render changed nothing, and a flipbook
+  arrived to a canvas that never drew it. What that looks like is a card sitting on its
+  thumbnail — which is also exactly what it does while loading, so it looks like a slow
+  network rather than a bug. See `repaint` in `FlipbookPreview`.
+- **The scrub is mapped across the flipbook's page count, not across the pages that
+  have arrived.** `readArtwork` hands back the total before it builds a single page,
+  because a long flipbook goes on landing for a while and a scrub that remapped itself
+  under a stationary pointer would drift through the drawing on its own.
+- **A fetch in flight is abandoned when the card is left; a decode already running is
+  not.** Sweeping a pointer down a column would otherwise start twenty downloads nobody
+  is waiting for. But once the bytes are here they are paid for, and what remains is
+  arithmetic in idle slices — stopping there would throw away the download to save the
+  cheap half and leave the next hover starting from nothing. Both halves are in
+  `retain`, and both are covered in `cache.test.ts`.
+- **Pages are built a frame at a time**, the same bargain `FlipbookEngine.replay` makes:
+  the largest flipbook in the archive is nine megabytes of polyline text, and building
+  all of it before showing any of it is a locked-up tab. `readArtwork` is a generator so
+  the cache can drive it in slices.
+- **Six flipbooks are kept, and the one on screen is never evicted.** `Path2D` is
+  native and compact but it is still memory, and the archive holds flipbooks of two
+  hundred pages. Six is enough that going back to a card you were just on is free,
+  which is the whole of what the cache is for.
+- **It is asked of the pointer, not of the device.** `event.pointerType === 'touch'`
+  rather than `isTouch` — the same distinction the create page's tray makes when it
+  tells a mouse apart from a finger. `isTouch` answers for the machine, including while
+  somebody is using a trackpad on a laptop that has a touchscreen.
+
+### On a finger
+
+`useCardGesture` holds both, and the two layouts diverge on one fact: a mouse can point
+at a card without committing to anything, and a finger cannot. Pointing is free and says
+nothing, so a mouse plays a flipbook the moment it arrives *anywhere* on a card and
+scrubs it by moving across. A finger has no move that says nothing — everything it does
+to a card is a commitment, and the card is a link.
+
+**So under a finger the card is only a link.** It doesn't scrub and it doesn't play;
+every gesture is on the play button in the corner instead, where it is asked for rather
+than stumbled into.
+
+The card body did scrub under a finger for a while, and giving that up is most of what
+this section is. It made every card a thing that might or might not be a link depending
+on how you touched it, and holding the scroll off needed `touch-action` on the card
+itself. Both are gone. What follows from that:
+
+- **No `touch-action` on the card, and no callout suppression.** It scrolls, it taps,
+  and a long press gets iOS's own open / open-in-new-tab / copy sheet — which is how a
+  flipbook is opened in a new tab or has its address copied. `-webkit-touch-callout:
+  none` was on the card for a while to make room for the drag, and it was the wrong
+  trade: it takes all of that with it. Replacing the anchor with a div that navigates on
+  click was never on either — it costs cmd-click and middle-click, the URL in the status
+  bar, and a link's own name and role in the accessibility tree.
+- **`user-select: none` stays**, because the one span of text in a card is its
+  accessible name and nobody wants to select that.
+- **The download still starts on contact** — `prefetch`, which takes no hold and so is
+  deliberately *not* abandoned when the gesture ends. It is the opposite of `retain` and
+  answers a different risk: a mouse sweeping the grid touches twenty cards nobody wants,
+  a finger touches one, and a tap is about to open the page that needs those bytes.
+- **The frame stays when the finger lifts**, where a mouse leaving puts the thumbnail
+  back. This is the one place the two genuinely want different things rather than the
+  same thing arrived at differently: a finger is *over* the drawing the whole time it is
+  down, so the frame you were looking for is the one frame you could not see. Reverting
+  on lift would mean you never got to look at it. A `pointercancel` mid-scrub does
+  revert, because the gesture was taken away rather than finished.
+
+A drag that begins and ends on the same element still produces a click, and that click
+would open the flipbook you had just finished looking through. `Link` calls its `onClick`
+before anything else and stands down if the event was defaulted, so `swallowClick` only
+has to `preventDefault()` there to call off both the router and the anchor. It is cleared
+on the next `pointerdown` as well as when spent — a click that never arrives must not be
+able to eat a later tap. The card keeps that handler as a backstop even now that it
+can't start a scrub, because a drag begun on the button can still be released over it.
+
+### The play button
+
+A disc in the card's bottom-left corner, the one control on a card that isn't the link,
+and **the only way in on a finger**. It answers three gestures, all of which begin
+identically — a press always starts playback, because a hold that waited for the release
+would not be a hold — and none of which can be told apart before the finger comes off:
+
+| | |
+|---|---|
+| **tap** | plays, and keeps playing. Tap again to pause. |
+| **hold** | plays while held, pauses when let go. `HOLD_MS` (300) apart from a tap. |
+| **drag** | hands the flipbook to the finger: the same scrub the mouse gets, off the same absolute position across the card. |
+
+That is `handlePointerUp`'s whole job, and it is why nothing is decided at
+`pointerdown`. Stopping in particular must not happen there: a drag beginning on the
+button of a card that is already running would otherwise stop it, unmounting the preview
+a few milliseconds before the drag armed and mounted it again, and the card would flash
+its thumbnail in the middle of one continuous gesture.
+
+**Stopping is a pause and never a stop.** The preview stays on the card showing the
+frame it reached, and pressing play again carries on from there — the card does not fall
+back to its thumbnail. Same reasoning as the frame staying after a scrub: what you
+stopped to look at is the thing you want left on screen, and a thumbnail is a page nobody
+chose. In the component that costs nothing at all, because *paused is simply nobody
+writing*: the frame ref is written by playback and by the scrub, and stopping either one
+writes nothing and repaints nothing. There is no third state.
+
+- **It is a sibling of the `<a>`, not a child**, which is what "above the anchor" has to
+  mean to be true. A button inside a link is invalid markup — interactive content can't
+  nest — and iOS reads a press anywhere inside a link as a press on the link, so a
+  descendant would raise the same menu. That is what the `.cell` wrapper is for, and it
+  took `AdminToggles` out of the anchor with it, which was the same violation.
+- **Pressed, it runs the flipbook at the engine's own `FPS`.** Twelve frames a second,
+  the same speed `scheduleFrame` turns on the playback page — a flipbook that ran at a
+  different rate in the grid would be a different animation. It doesn't lap while the
+  artwork is still arriving, for the reason the engine doesn't.
+- **A tap's playback survives the release**, which is why tap and hold are worth
+  separating at all: hold-to-play alone would mean watching a flipbook from behind your
+  own thumb.
+- **`touch-action: none` on the button, not `pan-y`** — and this one is subtle enough to
+  have shipped wrong once. Safari decides whether a gesture is a scroll from how it
+  *begins*: a quick sideways flick off the button commits to us and is safe, but a
+  press-and-hold leaves the question open, and the first vertical movement after that —
+  however far into a scrub — hands the whole drag to the scroller and the flipbook stops
+  following the finger. Which is exactly the gesture this button exists for. Declaring
+  the button's touches ours outright closes it, and costs only the ability to start a
+  page scroll from a 36px disc.
+- **Pointer capture is taken on the way *in***, not at the slop line as a card-body drag
+  would have done, because a 36px button is somewhere the finger has already left by the
+  time there is anything to capture.
+- **The click is answered too, and only when a pointer didn't.** Every pointer press is
+  followed by a click, and acting on both would toggle twice; `byPointer` spends the
+  echo. What's left is Enter or Space on a focused button, which is the only way a
+  keyboard has in — hence `aria-pressed` rather than a label that lies.
+- **The glyph is drawn in the component, not taken from the sprite** — a triangle, and
+  two bars while it runs. The sprite hasn't got either, play having gone with the tray,
+  and shouldn't: that sheet is hand-drawn pictures of *things*, and these are geometric
+  primitives. They belong with the ↺ and ↻ on the create page. Both are centred on the
+  12×12 box by their own geometry rather than nudged by CSS, so there is no per-state
+  rule to keep in step with the markup.
+- **A paused card stops the preview following any finger.** `Hover.scrubbing` is what
+  says a touch is entitled to move the frame, and only the drag that began on the button
+  sets it. Without it the preview — which listens on the card it is mounted in, and now
+  outlives the gesture that started it — would quietly bring card-body scrubbing back for
+  any card showing a paused flipbook. A mouse is followed regardless: it can be over a
+  card without having asked for anything, which is the whole of what hovering is.
+- **Playback owns the frame while it runs, and the pointer doesn't argue.** `track`
+  stands down while `playing`. Otherwise the two write to `follow` in turn — the timer
+  clearing it twelve times a second, a mouse moving over a playing card setting it again
+  — and the canvas alternates between the frame playback reached and the frame under the
+  cursor. Pause, or leave and come back, and the pointer has it again.
+- **It is hidden until wanted, but only where there is a hover to want it with.** On a
+  mouse it fades in with the card, like the admin toggles in the opposite corner and for
+  the same reason — the grid is fifty drawings, and a control parked on every one is
+  fifty white discs before it is anything useful. Under `@media (hover: none)` it is
+  simply always there, which is also the layout where it matters most, being the only way
+  in a finger has. Hidden by `opacity`, never `display` or `visibility`, so it keeps its
+  place in the tab order: a keyboard hovers nothing and would otherwise never reach it.
+- **Keyboard focus reveals it too**, anywhere in the card — the button or the link beside
+  it. A control that only appeared once you had already tabbed *to* it is one nobody
+  knows to go looking for.
+
+**The focus ring is `:has(:focus-visible)`, not `:focus-within`.** That is what it was,
+and it was wrong in a way only a mouse notices: `:focus-within` matches however the focus
+arrived, so *clicking* the play button drew a blue ring round the whole flipbook.
+`:focus-visible` is the browser's own judgement on that — a button gets it from the
+keyboard and not from a click — and `:has` carries the judgement out to `.cell`, which is
+the box that can draw the ring without `overflow: hidden` clipping it. Verified both
+ways round with real input rather than synthetic events, which is the only way to test
+it: a dispatched `focus()` or a synthesised Tab poisons the browser's input-modality
+heuristic and makes a mouse click look like a keyboard one.
+
+Verified on the iOS Simulator against real Safari rather than reasoned about: a tap
+plays and goes on playing, a second tap pauses it *on its frame*, a hold plays and
+releasing pauses it on its frame, pressing play again carries on from there, a **hold
+followed by a wandering drag** scrubs without the page scrolling out from under it, a
+sideways drag on the card body does nothing at all, a vertical drag anywhere scrolls the
+grid, and a long press on the card gets Safari's own menu back.
+- **There is no hover-intent delay**, deliberately. The guard against a pointer sweeping
+  the grid isn't to hesitate before every card, which everyone pays for on every hover
+  — it is that letting go abandons the download.
+- **The card's listing row carries `format` and `data_url` now.** Without them the
+  hover would have to fetch the flipbook's metadata before it could start fetching the
+  artwork, which is a round trip in front of every first hover. Extra fields are
+  harmless to `time-capsule`, which reads the ones it knows.
+- **The canvas lies over the PNG thumbnail rather than replacing it.** A canvas is
+  transparent until something is drawn on it, so swapping them would put a frame of
+  empty white card in the one moment the card is being looked at. It fades up when it
+  has something to show; leaving the card takes it away and the thumbnail is simply
+  there again.
+
 ## Styling
 
 **Plain CSS, one `.module.css` per component.** Vite scopes the class names, so
@@ -1131,9 +1374,32 @@ properties, element defaults, and two utility classes.
 
 ## Data
 
-One table, `flipbooks`. See `db/schema.sql` — it is commented. Artwork is stored
-gzipped in a `bytea` column and served with `Content-Encoding: gzip`, never
-decompressed server side.
+One table, `flipbooks`. See `db/schema.sql` — it is commented.
+
+**Artwork is stored compressed twice and decompressed never.** `data_gz` is gzip at
+level 9, `data_br` is brotli at quality 11, and `sendFlipbookData` hands back whichever
+the client's `Accept-Encoding` asked for — brotli first, gzip if it won't take brotli
+or if the row hasn't got one, and a `gunzip` only for the rare client that advertises
+neither.
+
+- **Brotli is 18 MB where gzip is 62.** Not the 15–20% it usually saves over gzip on
+  text, and the reason is worth knowing before anyone decides one copy is enough: a
+  flipbook is the same drawing forty times over, so almost all of the redundancy in
+  the file is *between* pages. DEFLATE's 32 KB window can never see two pages of a
+  nine-megabyte file at once; brotli's reaches 16 MB. The biggest flipbook in the
+  archive is 4.1 MB of gzip and 232 KB of brotli. Nothing about the artwork changes —
+  it is the same bytes, packed better.
+- **Both are kept because `time-capsule` reads `data_gz` and knows nothing else.**
+  `data_br` is nullable for the same reason: a flipbook saved on that branch simply
+  arrives without one and is served as gzip. That is the fallback working, not a gap.
+- **`npm run db:backfill-brotli` fills in whatever is outstanding**, is safe to
+  re-run, and is what to run after an archive import — which deliberately nulls
+  `data_br` on the rows it replaces rather than leaving a brotli copy of artwork that
+  is no longer there. Getting that wrong would serve one drawing to everyone who takes
+  brotli and a different one to everyone who doesn't, which is invisible from either
+  side.
+- **A brotli copy is only written when it is smaller.** On the very smallest rows it
+  isn't, and those keep `data_br` null on purpose.
 
 There are **two artwork formats** and both are still live:
 
@@ -1213,6 +1479,18 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
   the historical archive would exceed it. The server answers 413 and the create page
   says so in plain words.
+- **A save now compresses twice, and brotli at quality 11 is the slow one.** The two run
+  in parallel and the reader is waiting on the response for their permalink, so if
+  saving ever feels slow on a large flipbook that is where to look — `brotli()` in
+  `lib/flipbooks.js`. Quality 11 is deliberate: it is paid once for bytes that are then
+  immutable and CDN-cached forever, and every reader of that flipbook gets the benefit.
+  Dropping to 9 or 10 would be the first thing to try, not dropping the column.
+- **Hovering a card downloads a whole flipbook.** That is the design and brotli is what
+  makes it reasonable — median 45 KB across the first Featured page, worst 288 KB — but
+  it is a real request per card hovered, and the archive's largest are still hundreds of
+  kilobytes. Preloading a page of cards rather than waiting for the pointer is now
+  arguably affordable (1.75 MB for all 24) and was not before; it is deliberately not
+  done, because most of a grid is never hovered.
 - **New flipbooks are public immediately and there is no rate limiting.** Deliberate,
   matching the original. `lib/router.js` `saveFlipbook()` is where a throttle would go.
 - **No accounts.** Everything saves anonymously. The 2013 draft button is gone with

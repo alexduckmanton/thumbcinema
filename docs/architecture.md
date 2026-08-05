@@ -83,7 +83,7 @@ Three reasons:
 The `__path` query parameter exists so routing never has to guess whether a given
 platform preserves the original URL through a rewrite. It's passed explicitly.
 
-## Why gzip in a bytea column
+## Why compressed blobs in a bytea column
 
 The obvious alternatives were object storage (Vercel Blob, S3, R2) or static files
 committed to the repo.
@@ -95,9 +95,32 @@ artwork from 247 MB to 62 MB; with thumbnails the whole table is 77 MB, which fi
 Neon's 0.5 GB free tier with room to spare.
 
 So there's no object store, no second set of credentials, no lifecycle rules, and no
-consistency question between "the row exists" and "the file exists". The bytes go out
-with `Content-Encoding: gzip` and are never decompressed server side — the only time
-`gunzip` runs is the rare client that doesn't advertise gzip support.
+consistency question between "the row exists" and "the file exists".
+
+### And why brotli beside it
+
+Every row is stored twice — `data_gz` and `data_br` — and the API serves whichever
+the client asked for. Neither is ever decompressed server side; the only time `gunzip`
+runs is the rare client that advertises no encoding at all.
+
+Brotli takes the same 62 MB down to **18 MB**, and not a coordinate of it changes.
+That is a much wider gap than the 15–20% brotli usually opens over gzip on text, and
+the reason is what this data is. A flipbook is the same drawing forty times over, with
+each page differing from the last by one stroke — so nearly all of the redundancy in
+the file is *between* pages rather than within one. DEFLATE's window is 32 KB against
+files that run to nine megabytes, so it can never see two pages at once; brotli's
+window reaches 16 MB and matches page against page. The biggest archive flipbook goes
+from 4.1 MB of gzip to 232 KB.
+
+Per file it ranges from about 20% off a small one to 95% off the largest. What it buys
+in practice is the gallery: a card that plays under the pointer has to fetch its
+artwork, and the first page of Featured went from 5.0 MB to 1.75 MB, median card 45 KB.
+
+Both copies are kept because `time-capsule` reads `data_gz` directly and knows nothing
+about the other column — see the note in `db/schema.sql`. `data_br` is nullable for
+the same reason: a save made on that branch simply doesn't have one, and is served as
+gzip. `npm run db:backfill-brotli` fills in whatever is outstanding and is safe to
+re-run.
 
 Artwork is immutable (a flipbook is never edited), so `/data` and `/thumbnail` are
 served with `Cache-Control: immutable` and the CDN absorbs repeat traffic.

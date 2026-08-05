@@ -172,6 +172,14 @@ try {
 				 ON CONFLICT (legacy_id) WHERE legacy_id IS NOT NULL
 				 DO UPDATE SET
 				     data_gz        = EXCLUDED.data_gz,
+				     -- Invalidated rather than recompressed. The two backups overlap and
+				     -- a re-import can legitimately replace a truncated copy with a whole
+				     -- one, at which point a data_br left in place is a brotli of artwork
+				     -- that is no longer there — and it is the copy the API *prefers*, so
+				     -- the row would go on serving the old drawing to everyone who takes
+				     -- brotli and the new one to everyone who doesn't. Nulling it costs a
+				     -- backfill run; getting it wrong is invisible.
+				     data_br        = NULL,
 				     thumbnail      = EXCLUDED.thumbnail,
 				     format         = EXCLUDED.format,
 				     legacy_user_id = EXCLUDED.legacy_user_id,
@@ -198,6 +206,8 @@ try {
 	console.log(`Artwork ${mb(rawBytes)} raw → ${mb(storedBytes)} stored ` +
 		`(${Math.round((storedBytes / rawBytes) * 100)}%).`);
 	console.log(`Featured (inferred): ${featuredCount}, anonymous: ${imported - featuredCount}.`);
+	console.log('\nRun `npm run db:backfill-brotli` next — these rows have no brotli copy yet\n' +
+		'and are served as gzip, which on flipbook artwork is six times the bytes.');
 
 	if (!RESET_FEATURED && !DRY_RUN) {
 		console.log('Existing rows kept their `featured` value; pass --reset-featured to re-derive.');

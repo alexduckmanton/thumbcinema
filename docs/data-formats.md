@@ -134,11 +134,13 @@ Faster infrastructure exposing a latent 2013 race is a fun way to lose an aftern
 
 ## Storage
 
-Everything is gzipped at level 9 into a `bytea` column and served back with
-`Content-Encoding: gzip`. See `docs/architecture.md` for why.
+Everything is stored compressed into `bytea`, twice — gzip at level 9 in `data_gz`,
+brotli at quality 11 in `data_br` — and served back with whichever `Content-Encoding`
+the client asked for. See `docs/architecture.md` for why both, and why brotli is worth
+so much more than usual on this particular data.
 
-Measured over the archive: **247 MB of artwork → 62 MB stored**, about 25%. Add 12 MB
-of thumbnails and the table is 77 MB on disk.
+Measured over the archive: **247 MB of artwork → 62 MB of gzip → 18 MB of brotli.**
+Add 12 MB of thumbnails and the table is about 92 MB on disk, holding both copies.
 
 Size distribution of the archive artwork, uncompressed:
 

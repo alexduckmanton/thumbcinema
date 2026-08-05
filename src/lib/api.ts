@@ -12,24 +12,31 @@
 
 export type FlipbookFormat = 'svg' | 'legacy-json'
 
-/** A row as it appears in the gallery grid. */
+/**
+ * A row as it appears in the gallery grid.
+ *
+ * `format` and `data_url` are here so a card can play without asking for its
+ * metadata first: hovering one fetches the artwork straight away, and the format is
+ * what says how to read it. Without them the hover would cost a round trip before it
+ * could start one.
+ */
 export interface FlipbookSummary {
 	id: string
 	title: string | null
 	source: string
+	format: FlipbookFormat
 	featured: boolean
 	nsfw: boolean
 	created_at: string
+	data_url: string
 	thumbnail_url: string
 }
 
 /** A single flipbook, as the playback page needs it. */
 export interface Flipbook extends FlipbookSummary {
 	description: string | null
-	format: FlipbookFormat
 	byline: string
 	views: number
-	data_url: string
 }
 
 export interface FlipbookPage {

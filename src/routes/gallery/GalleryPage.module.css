@@ -27,16 +27,24 @@
 	padding: 0 30px;
 }
 
-.card {
+/*
+ * The card as a box: what holds the link, the flipbook and the play button.
+ *
+ * There used to be no wrapper — the `<a>` was the card and everything sat inside it.
+ * The play button is what ended that. A button inside a link is invalid markup, and
+ * iOS reads a press anywhere inside a link as a press on the link and offers to open
+ * it, which is the one thing the button exists to get away from. So the three are
+ * siblings and this is the box they share.
+ *
+ * Everything that draws the card is here; `.card` below is now only the link and the
+ * thumbnail on it.
+ */
+.cell {
 	position: relative;
-	display: block;
 	/* Every flipbook is the same shape as the canvas it was drawn on, so the card is
 	   that shape and the thumbnail fills it without cropping. */
 	aspect-ratio: 16 / 9;
 	overflow: hidden;
-	background-color: var(--white);
-	background-size: cover;
-	background-position: center;
 	/* Softer than the 4px it was, so the cards belong to the same set of corners as
 	   the controls above them. Not the full 16: a card is a much bigger shape than a
 	   button, and a radius that reads as generous at 48px tall reads as a blob at
@@ -49,14 +57,56 @@
 	transition: box-shadow 0.12s ease-out, transform 0.12s ease-out;
 }
 
-.card:hover {
+.cell:hover {
 	box-shadow: var(--shadow-card-hover);
 	transform: translateY(-2px);
 }
 
-.card:focus-visible {
+/*
+ * The ring goes on the wrapper, not on the link inside it.
+ *
+ * `overflow: hidden` above would clip an outline drawn on a child, and an outline
+ * offset 3px outwards is exactly the thing it would clip. An element's own outline is
+ * not clipped by its own overflow, so drawing it here works — and either of the two
+ * things in the box worth reaching by keyboard can raise it.
+ *
+ * `:has(:focus-visible)` rather than `:focus-within`, which is what this was and was
+ * wrong: `:focus-within` matches however the focus arrived, so *clicking* the play
+ * button drew a blue ring round the whole flipbook. A mouse doesn't want telling where
+ * it just clicked. `:focus-visible` is the browser's own judgement about that — a
+ * button gets it from the keyboard and not from a click — and `:has` is what carries
+ * that judgement out to the box that can draw it.
+ */
+.cell:has(:focus-visible) {
 	outline: 2px solid var(--blue);
 	outline-offset: 3px;
+}
+
+.card {
+	position: absolute;
+	inset: 0;
+	display: block;
+	background-color: var(--white);
+	background-size: cover;
+	background-position: center;
+
+	/*
+	 * No `touch-action` here, and no callout suppression either: under a finger this is
+	 * a link and nothing else. It scrolls, it taps, and a long press gets iOS's own
+	 * open / open-in-new-tab / copy sheet, which is how a flipbook is opened in a new
+	 * tab or has its address copied.
+	 *
+	 * Both were here for a while, for a sideways drag anywhere on the card. That is
+	 * gone on touch. It made every card a thing that might or might not be a link
+	 * depending on how you touched it, and it had to fight the scroller to do it — see
+	 * `.play`, which is where a finger asks for a flipbook now. The mouse is unaffected
+	 * and still plays from anywhere on the card, because hovering commits to nothing.
+	 *
+	 * Selection stays off. There is one span of text in here and it is the accessible
+	 * name, which nobody reads with their eyes and nobody wants to select.
+	 */
+	-webkit-user-select: none;
+	user-select: none;
 }
 
 /*
@@ -76,7 +126,7 @@
 	transition: opacity 0.1s linear;
 }
 
-.card:hover .cardAdmin,
+.cell:hover .cardAdmin,
 .cardAdmin:focus-within {
 	opacity: 1;
 }
@@ -85,6 +135,105 @@
 	.cardAdmin {
 		opacity: 1;
 	}
+}
+
+/*
+ * Play, in the bottom-left corner — diagonally opposite the admin toggles, and the
+ * corner of a flipbook least likely to have anything drawn in it.
+ *
+ * The one control on a card that is not the link. A finger can scrub a card by dragging
+ * across it but it cannot hover one, so without this there is no way to simply *watch* a
+ * flipbook — and holding the card to do it is exactly the press iOS answers with a menu.
+ * Pressed, this runs the flipbook; dragged off, it hands it to the finger and becomes
+ * the same scrub the card gives.
+ *
+ * A disc rather than a bar, the size of a comfortable touch target, and the same white
+ * over the drawing that the toggles use in the other corner.
+ */
+.play {
+	position: absolute;
+	left: 8px;
+	bottom: 8px;
+	z-index: 2;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	/* 36 is as small as this goes and still be reliably hittable with a thumb; the 44
+	   a guideline would ask for is a quarter of the height of a card on a phone. */
+	width: 36px;
+	height: 36px;
+	padding: 0;
+
+	border: none;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.92);
+	color: var(--ink);
+	box-shadow: var(--shadow-card);
+	cursor: pointer;
+
+	/*
+	 * Touches that start here are ours, in both directions, and the scroller may not
+	 * have them.
+	 *
+	 * `pan-y` was the obvious answer and is subtly wrong. Safari decides whether a
+	 * gesture is a scroll from how it *begins*: a quick sideways flick off the button
+	 * commits to us and is safe, but a press-and-hold leaves the question open, and the
+	 * first vertical movement after that — however far into a scrub — hands the whole
+	 * drag to the scroller and the flipbook stops following the finger. It is the exact
+	 * gesture this button exists for, so `none` it is.
+	 *
+	 * What it costs is starting a page scroll from a 36px disc, which is nothing: the
+	 * rest of the card scrolls, and a button is not usually where anyone begins one.
+	 */
+	touch-action: none;
+	-webkit-user-select: none;
+	user-select: none;
+
+	transition: background-color 0.12s ease-out, opacity 0.12s ease-out;
+
+	/*
+	 * Out of the way until it is wanted, the same as the admin toggles in the opposite
+	 * corner and for the same reason: a flipbook is a drawing, and the grid is fifty of
+	 * them. A control parked on every one is fifty white discs before it is anything
+	 * useful.
+	 *
+	 * Hidden by opacity rather than by `display` or `visibility`, so it keeps its place
+	 * in the tab order — a keyboard never hovers anything and would otherwise have no
+	 * way to reach it at all. `:focus-visible` below is what shows it when it gets there.
+	 */
+	opacity: 0;
+}
+
+/*
+ * Shown by hovering the card, or by keyboard focus landing anywhere in it — the button
+ * itself, or the link beside it. Tabbing onto a card should say what is on it, and a
+ * control that only appeared once you had already tabbed *to* it is one nobody knows to
+ * go looking for.
+ */
+.cell:hover .play,
+.cell:has(:focus-visible) .play {
+	opacity: 1;
+}
+
+.play:hover {
+	background: rgb(255, 255, 255);
+}
+
+/*
+ * No hover to reveal it with, so it is simply always there — which is also the layout
+ * where it matters most, being the only way into a flipbook a finger has.
+ */
+@media (hover: none) {
+	.play {
+		opacity: 1;
+	}
+}
+
+/* The ring is drawn on the wrapper — see `.cell:focus-within` — so it isn't clipped.
+   Suppressed here so the two don't stack into a ring inside a ring. */
+.play:focus-visible {
+	outline: none;
 }
 
 /*
