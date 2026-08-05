@@ -67,11 +67,17 @@
  *
  * `overflow: hidden` above would clip an outline drawn on a child, and an outline
  * offset 3px outwards is exactly the thing it would clip. An element's own outline is
- * not clipped by its own overflow, so drawing it here works — and `:focus-within` picks
- * up the play button as well, which is the other thing in the box worth reaching by
- * keyboard.
+ * not clipped by its own overflow, so drawing it here works — and either of the two
+ * things in the box worth reaching by keyboard can raise it.
+ *
+ * `:has(:focus-visible)` rather than `:focus-within`, which is what this was and was
+ * wrong: `:focus-within` matches however the focus arrived, so *clicking* the play
+ * button drew a blue ring round the whole flipbook. A mouse doesn't want telling where
+ * it just clicked. `:focus-visible` is the browser's own judgement about that — a
+ * button gets it from the keyboard and not from a click — and `:has` is what carries
+ * that judgement out to the box that can draw it.
  */
-.cell:focus-within {
+.cell:has(:focus-visible) {
 	outline: 2px solid var(--blue);
 	outline-offset: 3px;
 }
@@ -185,10 +191,43 @@
 	user-select: none;
 
 	transition: background-color 0.12s ease-out, opacity 0.12s ease-out;
+
+	/*
+	 * Out of the way until it is wanted, the same as the admin toggles in the opposite
+	 * corner and for the same reason: a flipbook is a drawing, and the grid is fifty of
+	 * them. A control parked on every one is fifty white discs before it is anything
+	 * useful.
+	 *
+	 * Hidden by opacity rather than by `display` or `visibility`, so it keeps its place
+	 * in the tab order — a keyboard never hovers anything and would otherwise have no
+	 * way to reach it at all. `:focus-visible` below is what shows it when it gets there.
+	 */
+	opacity: 0;
+}
+
+/*
+ * Shown by hovering the card, or by keyboard focus landing anywhere in it — the button
+ * itself, or the link beside it. Tabbing onto a card should say what is on it, and a
+ * control that only appeared once you had already tabbed *to* it is one nobody knows to
+ * go looking for.
+ */
+.cell:hover .play,
+.cell:has(:focus-visible) .play {
+	opacity: 1;
 }
 
 .play:hover {
 	background: rgb(255, 255, 255);
+}
+
+/*
+ * No hover to reveal it with, so it is simply always there — which is also the layout
+ * where it matters most, being the only way into a flipbook a finger has.
+ */
+@media (hover: none) {
+	.play {
+		opacity: 1;
+	}
 }
 
 /* The ring is drawn on the wrapper — see `.cell:focus-within` — so it isn't clipped.

@@ -1239,6 +1239,26 @@ writes nothing and repaints nothing. There is no third state.
   clearing it twelve times a second, a mouse moving over a playing card setting it again
   — and the canvas alternates between the frame playback reached and the frame under the
   cursor. Pause, or leave and come back, and the pointer has it again.
+- **It is hidden until wanted, but only where there is a hover to want it with.** On a
+  mouse it fades in with the card, like the admin toggles in the opposite corner and for
+  the same reason — the grid is fifty drawings, and a control parked on every one is
+  fifty white discs before it is anything useful. Under `@media (hover: none)` it is
+  simply always there, which is also the layout where it matters most, being the only way
+  in a finger has. Hidden by `opacity`, never `display` or `visibility`, so it keeps its
+  place in the tab order: a keyboard hovers nothing and would otherwise never reach it.
+- **Keyboard focus reveals it too**, anywhere in the card — the button or the link beside
+  it. A control that only appeared once you had already tabbed *to* it is one nobody
+  knows to go looking for.
+
+**The focus ring is `:has(:focus-visible)`, not `:focus-within`.** That is what it was,
+and it was wrong in a way only a mouse notices: `:focus-within` matches however the focus
+arrived, so *clicking* the play button drew a blue ring round the whole flipbook.
+`:focus-visible` is the browser's own judgement on that — a button gets it from the
+keyboard and not from a click — and `:has` carries the judgement out to `.cell`, which is
+the box that can draw the ring without `overflow: hidden` clipping it. Verified both
+ways round with real input rather than synthetic events, which is the only way to test
+it: a dispatched `focus()` or a synthesised Tab poisons the browser's input-modality
+heuristic and makes a mouse click look like a keyboard one.
 
 Verified on the iOS Simulator against real Safari rather than reasoned about: a tap
 plays and goes on playing, a second tap pauses it *on its frame*, a hold plays and
