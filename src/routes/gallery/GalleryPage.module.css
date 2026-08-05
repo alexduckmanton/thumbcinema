@@ -85,25 +85,19 @@
 	background-position: center;
 
 	/*
-	 * Vertical belongs to the page, horizontal belongs to the flipbook.
+	 * No `touch-action` here, and no callout suppression either: under a finger this is
+	 * a link and nothing else. It scrolls, it taps, and a long press gets iOS's own
+	 * open / open-in-new-tab / copy sheet, which is how a flipbook is opened in a new
+	 * tab or has its address copied.
 	 *
-	 * This is the whole of how a card can be scrubbed with a finger without fighting
-	 * the scroll, and it is the browser's own mechanism for saying so rather than
-	 * anything clever: told `pan-y`, Safari stops treating a sideways drag as a
-	 * candidate scroll and delivers the pointer moves instead of a `pointercancel`.
-	 * The gallery has never scrolled sideways, so nothing is given up.
-	 */
-	touch-action: pan-y;
-
-	/*
-	 * A long press on the card raises iOS's open / open-in-new-tab sheet, and it is
-	 * meant to. `-webkit-touch-callout: none` was here for a while and took the link's
-	 * own affordances with it — that menu is how you open a flipbook in a new tab or
-	 * copy its address, and suppressing it site-wide to make room for one gesture was
-	 * the wrong trade. The gesture moved instead: see `.play`.
+	 * Both were here for a while, for a sideways drag anywhere on the card. That is
+	 * gone on touch. It made every card a thing that might or might not be a link
+	 * depending on how you touched it, and it had to fight the scroller to do it — see
+	 * `.play`, which is where a finger asks for a flipbook now. The mouse is unaffected
+	 * and still plays from anywhere on the card, because hovering commits to nothing.
 	 *
-	 * Selection is still off. There is one span of text in here and it is the
-	 * accessible name, which nobody reads with their eyes and nobody wants to select.
+	 * Selection stays off. There is one span of text in here and it is the accessible
+	 * name, which nobody reads with their eyes and nobody wants to select.
 	 */
 	-webkit-user-select: none;
 	user-select: none;
@@ -171,9 +165,21 @@
 	box-shadow: var(--shadow-card);
 	cursor: pointer;
 
-	/* The gesture that starts here is the gesture the card would have given: sideways
-	   is the flipbook's, vertically the page still scrolls out from under it. */
-	touch-action: pan-y;
+	/*
+	 * Touches that start here are ours, in both directions, and the scroller may not
+	 * have them.
+	 *
+	 * `pan-y` was the obvious answer and is subtly wrong. Safari decides whether a
+	 * gesture is a scroll from how it *begins*: a quick sideways flick off the button
+	 * commits to us and is safe, but a press-and-hold leaves the question open, and the
+	 * first vertical movement after that — however far into a scrub — hands the whole
+	 * drag to the scroller and the flipbook stops following the finger. It is the exact
+	 * gesture this button exists for, so `none` it is.
+	 *
+	 * What it costs is starting a page scroll from a 36px disc, which is nothing: the
+	 * rest of the card scrolls, and a button is not usually where anyone begins one.
+	 */
+	touch-action: none;
 	-webkit-user-select: none;
 	user-select: none;
 

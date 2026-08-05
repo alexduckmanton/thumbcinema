@@ -1125,39 +1125,34 @@ to save a download; it is what the split is for.
 
 ### On a finger
 
-`useCardGesture` holds both, and the mouse's half is the simple one. A mouse can point
-at a card without committing to anything, so it plays on arrival. A finger has to touch
-the thing it wants to look at, and the same touch is how you open it — so the two
-gestures start identically and are told apart `TOUCH_SLOP` (10px) later.
+`useCardGesture` holds both, and the two layouts diverge on one fact: a mouse can point
+at a card without committing to anything, and a finger cannot. Pointing is free and says
+nothing, so a mouse plays a flipbook the moment it arrives *anywhere* on a card and
+scrubs it by moving across. A finger has no move that says nothing — everything it does
+to a card is a commitment, and the card is a link.
 
-**`touch-action: pan-y` on the card and the play button** is what makes any of it
-possible: the browser's own way of being told that vertical belongs to the page and
-horizontal belongs to us. Without it Safari treats a sideways drag as a candidate
-scroll and sends `pointercancel` in place of the moves — which is exactly the "nothing
-happens when I swipe a tile" symptom. The gallery has never scrolled sideways, so
-nothing is given up. `user-select: none` goes with it, because the one span of text in
-a card is its accessible name and nobody wants to select that.
+**So under a finger the card is only a link.** It doesn't scrub and it doesn't play;
+every gesture is on the play button in the corner instead, where it is asked for rather
+than stumbled into.
 
-**The press-and-hold menu is left alone.** `-webkit-touch-callout: none` was on the
-card for a while and did stop it, and it was the wrong trade: that menu is how a
-flipbook is opened in a new tab, added to a reading list, or has its address copied,
-and suppressing it site-wide to make room for one gesture takes all of that with it.
-What moved instead is the gesture — see the play button below. The card is a real
-`<a href>` throughout, and replacing it with a div that navigates on click was never
-on: it costs cmd-click and middle-click, the URL in the status bar, and a link's own
-name and role in the accessibility tree.
+The card body did scrub under a finger for a while, and giving that up is most of what
+this section is. It made every card a thing that might or might not be a link depending
+on how you touched it, and holding the scroll off needed `touch-action` on the card
+itself. Both are gone. What follows from that:
 
-And three decisions in the hook:
-
-- **The download starts on contact, not on the decision** — `prefetch`, which takes no
-  hold and so is deliberately *not* abandoned when the gesture ends. It is the opposite
-  of `retain` and answers a different risk: a mouse sweeping the grid touches twenty
-  cards nobody wants, a finger touches one, and whichever way that gesture goes the
-  bytes are wanted — a scrub is about to draw them and a tap is about to open the page
-  that needs them.
-- **The horizontal component has to be the larger one.** `pan-y` means Safari has agreed
-  horizontal is ours, but it makes that call a few events in, and these are the events
-  before it. Without the test the first pixels of a scroll flick a flipbook on.
+- **No `touch-action` on the card, and no callout suppression.** It scrolls, it taps,
+  and a long press gets iOS's own open / open-in-new-tab / copy sheet — which is how a
+  flipbook is opened in a new tab or has its address copied. `-webkit-touch-callout:
+  none` was on the card for a while to make room for the drag, and it was the wrong
+  trade: it takes all of that with it. Replacing the anchor with a div that navigates on
+  click was never on either — it costs cmd-click and middle-click, the URL in the status
+  bar, and a link's own name and role in the accessibility tree.
+- **`user-select: none` stays**, because the one span of text in a card is its
+  accessible name and nobody wants to select that.
+- **The download still starts on contact** — `prefetch`, which takes no hold and so is
+  deliberately *not* abandoned when the gesture ends. It is the opposite of `retain` and
+  answers a different risk: a mouse sweeping the grid touches twenty cards nobody wants,
+  a finger touches one, and a tap is about to open the page that needs those bytes.
 - **The frame stays when the finger lifts**, where a mouse leaving puts the thumbnail
   back. This is the one place the two genuinely want different things rather than the
   same thing arrived at differently: a finger is *over* the drawing the whole time it is
@@ -1170,14 +1165,27 @@ would open the flipbook you had just finished looking through. `Link` calls its 
 before anything else and stands down if the event was defaulted, so `swallowClick` only
 has to `preventDefault()` there to call off both the router and the anchor. It is cleared
 on the next `pointerdown` as well as when spent — a click that never arrives must not be
-able to eat a later tap.
+able to eat a later tap. The card keeps that handler as a backstop even now that it
+can't start a scrub, because a drag begun on the button can still be released over it.
 
 ### The play button
 
-A disc in the card's bottom-right corner, and the one control on a card that isn't the
-link. It exists because scrubbing still doesn't let a finger simply *watch* a flipbook —
-holding the card to do that is exactly the press iOS answers with a menu, and a finger
-resting on a card covers the drawing it is resting on.
+A disc in the card's bottom-right corner, the one control on a card that isn't the link,
+and **the only way in on a finger**. It answers three gestures, all of which begin
+identically — a press always starts playback, because a hold that waited for the release
+would not be a hold — and none of which can be told apart before the finger comes off:
+
+| | |
+|---|---|
+| **tap** | plays, and keeps playing. Tap again to stop. |
+| **hold** | plays while held, stops when let go. `HOLD_MS` (300) apart from a tap. |
+| **drag** | hands the flipbook to the finger: the same scrub the mouse gets, off the same absolute position across the card. |
+
+That is `handlePointerUp`'s whole job, and it is why nothing is decided at
+`pointerdown`. Stopping in particular must not happen there: a drag beginning on the
+button of a card that is already running would otherwise stop it, unmounting the preview
+a few milliseconds before the drag armed and mounted it again, and the card would flash
+its thumbnail in the middle of one continuous gesture.
 
 - **It is a sibling of the `<a>`, not a child**, which is what "above the anchor" has to
   mean to be true. A button inside a link is invalid markup — interactive content can't
@@ -1188,19 +1196,20 @@ resting on a card covers the drawing it is resting on.
   the same speed `scheduleFrame` turns on the playback page — a flipbook that ran at a
   different rate in the grid would be a different animation. It doesn't lap while the
   artwork is still arriving, for the reason the engine doesn't.
-- **Playback survives the release.** Same reasoning as the frame staying after a scrub,
-  only more so: hold-to-play would mean watching a flipbook from behind your own thumb.
-- **Starting happens on `pointerdown`, stopping on `pointerup`,** and the asymmetry is
-  load-bearing. A press has to start it immediately or a hold isn't a hold; but a drag
-  that *begins* on the button of a running flipbook would otherwise stop it — unmounting
-  the preview — a few milliseconds before the drag armed and mounted it again, and the
-  card would flash its thumbnail in the middle of one continuous gesture. See
-  `Candidate.stopOnRelease`.
-- **Dragging off it is the same drag as any other**, and ends in the same scrub: the
-  candidate is recorded exactly as the card's is, so past `TOUCH_SLOP` sideways the
-  flipbook comes off its clock and goes under the finger. Pointer capture is taken on
-  the way *in* here rather than at the slop line, because a 36px button is somewhere the
-  finger has already left by the time there is anything to capture.
+- **A tap's playback survives the release**, which is why tap and hold are worth
+  separating at all: hold-to-play alone would mean watching a flipbook from behind your
+  own thumb.
+- **`touch-action: none` on the button, not `pan-y`** — and this one is subtle enough to
+  have shipped wrong once. Safari decides whether a gesture is a scroll from how it
+  *begins*: a quick sideways flick off the button commits to us and is safe, but a
+  press-and-hold leaves the question open, and the first vertical movement after that —
+  however far into a scrub — hands the whole drag to the scroller and the flipbook stops
+  following the finger. Which is exactly the gesture this button exists for. Declaring
+  the button's touches ours outright closes it, and costs only the ability to start a
+  page scroll from a 36px disc.
+- **Pointer capture is taken on the way *in***, not at the slop line as a card-body drag
+  would have done, because a 36px button is somewhere the finger has already left by the
+  time there is anything to capture.
 - **The click is answered too, and only when a pointer didn't.** Every pointer press is
   followed by a click, and acting on both would toggle twice; `byPointer` spends the
   echo. What's left is Enter or Space on a focused button, which is the only way a
@@ -1210,11 +1219,11 @@ resting on a card covers the drawing it is resting on.
   pictures of *things*, and a triangle isn't one. It belongs with the ↺ and ↻ on the
   create page.
 
-Verified on the iOS Simulator against real Safari rather than reasoned about: the
-sideways drag scrubs and holds its frame, the vertical drag scrolls the grid untouched,
-a tap on the button plays and goes on playing after the finger leaves, a drag off the
-button turns playback into a scrub, a long press on the button raises nothing, and a
-long press on the card gets Safari's own menu back.
+Verified on the iOS Simulator against real Safari rather than reasoned about: a tap
+plays and goes on playing, a second tap stops it, a hold plays and releasing stops it,
+a **hold followed by a wandering drag** scrubs without the page scrolling out from
+under it, a sideways drag on the card body now does nothing at all, a vertical drag
+anywhere scrolls the grid, and a long press on the card gets Safari's own menu back.
 - **There is no hover-intent delay**, deliberately. The guard against a pointer sweeping
   the grid isn't to hesitate before every card, which everyone pays for on every hover
   — it is that letting go abandons the download.

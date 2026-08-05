@@ -26,6 +26,20 @@ export interface Hover {
  */
 const TOUCH_SLOP = 10
 
+/**
+ * How long a press has to last before letting go of it means stop.
+ *
+ * The play button answers two gestures and they end differently. A **tap** is a switch:
+ * it starts the flipbook and leaves it running, and the next tap stops it. A **hold** is
+ * a peek: it runs the flipbook for as long as you keep your finger down and stops when
+ * you take it away. Both start playback on contact, so the only thing that tells them
+ * apart afterwards is how long the finger stayed.
+ *
+ * 300ms. Below it a press reads as a tap even when it's a slow one; above it, nobody
+ * holding a button to watch something thinks they have merely tapped it.
+ */
+const HOLD_MS = 300
+
 interface Candidate {
 	id: string
 	pointerId: number
@@ -33,52 +47,48 @@ interface Candidate {
 	y: number
 	/** True once the finger has committed to scrubbing rather than tapping. */
 	scrubbing: boolean
-	/**
-	 * A press on the play button of a card that is already playing, waiting to see
-	 * whether it was a stop or the start of a drag.
-	 *
-	 * Turning playback *on* happens at `pointerdown`, because a press-and-hold that
-	 * waited for the release wouldn't be a hold. Turning it *off* has to wait, and this
-	 * is why: a drag that starts on the button of a running flipbook would otherwise
-	 * stop it — unmounting the preview — a few milliseconds before the drag armed and
-	 * mounted it again, and the card would flash its thumbnail in the middle of one
-	 * continuous gesture.
-	 */
-	stopOnRelease: boolean
+	/** Whether this card was already running when the press landed. */
+	wasPlaying: boolean
+	/** When the press landed, for telling a tap from a hold. See `HOLD_MS`. */
+	downAt: number
 }
 
 /**
  * The card gestures, mouse and finger, in one place.
  *
- * A mouse has a hover and a finger doesn't, and that is the whole of the difference:
- * pointing at a card is free and says nothing, so a mouse plays a flipbook the moment
- * it arrives. A finger has to touch the thing it wants to look at, and the same touch
- * is how you open it — so a flipbook can't start playing on contact without a tap
- * flashing a frame on its way to the playback page.
+ * **A mouse has a hover and a finger doesn't, and the two layouts diverge on that.**
+ * Pointing at a card is free and says nothing, so a mouse plays a flipbook the moment
+ * it arrives anywhere on one, and scrubs it by moving across. A finger has no move that
+ * says nothing: everything it does to a card is a commitment, and the card is a link.
+ * So on a finger the card is *only* a link — it doesn't scrub, it doesn't play — and
+ * every gesture lives on the play button in the corner instead, where it is asked for
+ * rather than stumbled into.
  *
- * So the finger's version waits. The download starts on contact, because that is
- * wanted either way (see `prefetch`), but nothing is shown until the finger has said
- * which gesture it is by moving sideways. From there it is the same scrub the mouse
- * gets, in the same place, off the same absolute position across the card.
+ * The card body did scrub under a finger for a while, and giving that up is what this
+ * is: it made every card a thing that might or might not be a link depending on how you
+ * touched it, and it needed `touch-action` on the card to hold the scroll off. Both are
+ * gone. A card now behaves exactly as a link should on a phone, press-and-hold menu
+ * included — that menu is how a flipbook is opened in a new tab or has its address
+ * copied, and it was suppressed for a while to make room for a gesture that has since
+ * moved somewhere better.
  *
- * What a finger still can't do that way is simply *watch* one, and that is the play
- * button's job — a sibling of the anchor rather than anything inside it, so that the
- * one control wanting a long press is somewhere iOS doesn't answer with a menu. A drag
- * that begins on it is the same drag as any other and ends in the same scrub.
+ * The button answers three gestures, all of which begin identically and none of which
+ * can be told apart until the finger comes off — see `handlePointerUp`:
  *
- * Two things make it work on iOS, and neither is a hack:
+ *  - **tap** — plays, and keeps playing. Tap again to stop.
+ *  - **hold** — plays while held, stops when let go. `HOLD_MS` apart from a tap.
+ *  - **drag** — hands the flipbook to the finger, and is the same scrub the mouse gets:
+ *    same place, same absolute position across the card.
  *
- *  - **`touch-action: pan-y`** on the card and the button, which is the browser's own
- *    way of being told that vertical belongs to the page and horizontal belongs to us.
- *    Without it Safari claims the gesture for scrolling and sends `pointercancel`
- *    instead of the moves. The gallery only ever scrolls vertically, so nothing is
- *    given up.
- *  - **Pointer capture**, so the drag survives the finger leaving what it started on —
- *    off a 36px button immediately, and off a 200px-tall thumbnail constantly.
+ * Two things make that work on iOS, and neither is a hack:
  *
- * The card's own press-and-hold menu is left alone. Suppressing it took the link's
- * affordances with it — that menu is how a flipbook is opened in a new tab or its
- * address copied — so the gesture moved instead of the menu going.
+ *  - **`touch-action: none` on the button**, which says the touches that start there
+ *    are ours and the scroller may not have them. `pan-y` was not enough — Safari
+ *    decides whether a gesture is a scroll from how it begins, so a quick sideways
+ *    flick was safe but a press-and-hold left the question open and the first vertical
+ *    movement after it took the drag away mid-scrub.
+ *  - **Pointer capture**, so the drag survives the finger leaving what it started on,
+ *    which off a 36px disc is immediately.
  */
 export function useCardGesture() {
 	const [hover, setHover] = useState<Hover | null>(null)
@@ -123,49 +133,46 @@ export function useCardGesture() {
 	}, [])
 
 	/**
-	 * A finger landing on a card: a tap and a scrub both start here and are told apart
-	 * `TOUCH_SLOP` later.
+	 * A finger landing on a card, which starts a download and nothing else.
 	 *
-	 * The card is a real `<a href>` and is left alone, press-and-hold menu and all. The
-	 * way past that menu is not to suppress it — that took the link's own affordances
-	 * with it — but to put the control that wants a long press somewhere the menu isn't:
-	 * the play button in the corner, which is a sibling of the anchor rather than
-	 * anything inside it. See `handlePlayDown`.
+	 * **The card body does not scrub under a finger, and that is deliberate.** It used
+	 * to: a sideways drag anywhere on a card was a scrub, which needed
+	 * `touch-action: pan-y` to keep Safari from claiming the gesture, and which made
+	 * every card a thing that might or might not be a link depending on how you touched
+	 * it. On a mouse that ambiguity costs nothing, because hovering is free and says
+	 * nothing — so the desktop still plays from anywhere on the card. A finger has no
+	 * such move. Everything a finger does to a card is a commitment, so the card is
+	 * simply a link again and the gestures live on the play button, where they are
+	 * asked for rather than stumbled into.
+	 *
+	 * What is left here is worth keeping on its own: a tap is about to open the playback
+	 * page, and that page needs this artwork. `prefetch` takes no hold, so there is
+	 * nothing to undo if the finger goes somewhere else.
 	 */
-	const handlePointerDown = useCallback((event: React.PointerEvent, item: PreviewSource) => {
+	const handleCardTouch = useCallback((event: React.PointerEvent, item: PreviewSource) => {
 		if (event.pointerType !== 'touch') return
 
-		// A click that never came — the finger left the card, or the browser took the
-		// gesture for a scroll. Cleared here so it can never eat a later tap.
-		swallowClick.current = false
-
-		candidate.current = {
-			id: item.id,
-			pointerId: event.pointerId,
-			x: event.clientX,
-			y: event.clientY,
-			scrubbing: false,
-			stopOnRelease: false,
-		}
-
-		// On contact rather than on the decision, and wanted whichever way the gesture
-		// goes: a scrub is about to draw this and a tap is about to open the page that
-		// needs it. `prefetch` takes no hold, so there is nothing to undo here.
 		loadPreview()
 			.then((module) => module.prefetch(item))
 			.catch(() => {})
 	}, [])
 
 	/**
-	 * The move that decides what the gesture was.
+	 * The move that turns a press on the play button into a scrub.
 	 *
-	 * Sideways, and more sideways than up: `touch-action: pan-y` means Safari has
-	 * already agreed horizontal is ours, but it makes that call a few events in and
-	 * these are the events before it. Requiring the horizontal component to be the
-	 * larger one is what stops the first pixels of a scroll flicking a flipbook on.
+	 * Sideways, and more sideways than up — a drag that sets off downwards is somebody
+	 * reaching past the button, not somebody scrubbing.
 	 *
-	 * After this the preview mounts and takes the pointer over — it listens on the card
-	 * itself — so this runs only until a gesture is armed, never during one.
+	 * The gesture cannot be stolen once it has started, and that is `touch-action: none`
+	 * on the button rather than anything here. `pan-y` was not enough: Safari decides
+	 * whether a gesture is a scroll from how it *begins*, so a quick sideways flick was
+	 * committed to us and safe, while a press-and-hold left the question open — and the
+	 * first vertical movement after that, however late, handed the whole drag to the
+	 * scroller mid-scrub. Declaring the button's touches ours outright is what closes
+	 * that, and it costs only the ability to start a page scroll from a 36px disc.
+	 *
+	 * After this the preview mounts and listens for itself, so this runs only until a
+	 * gesture is armed, never during one.
 	 */
 	const handlePointerMove = useCallback((event: React.PointerEvent) => {
 		const held = candidate.current
@@ -189,23 +196,26 @@ export function useCardGesture() {
 	}, [])
 
 	/**
-	 * The finger lifted. The scrub ends, the click it would have become is called off,
-	 * and the frame it landed on **stays**.
+	 * The finger lifted, and this is where the gesture is finally named.
 	 *
-	 * This is the one place the finger and the mouse genuinely want different things,
-	 * rather than the same thing arrived at differently. A mouse leaving a card is a
-	 * decision — you moved away — and putting the thumbnail back is right. A finger
-	 * lifting is not: the whole time a finger is on the card it is *over* the drawing,
-	 * so the frame you were looking for is the one frame you could not see. Reverting on
-	 * lift would mean you never got to look at it, and the card would flick back to a
-	 * page you didn't choose at the exact moment you stopped choosing.
+	 * Three ways out, and each one ends differently:
 	 *
-	 * So the flipbook stays where you left it. Touching another card moves the preview
-	 * there — there is only ever one — and tapping this one still opens it, because a
-	 * tap that never scrubbed swallows nothing.
+	 *  - **A scrub.** The frame it landed on *stays*, and the click it would otherwise
+	 *    have become is called off. This is the one place the finger and the mouse
+	 *    genuinely want different things rather than the same thing arrived at
+	 *    differently. A mouse leaving a card is a decision — you moved away — and
+	 *    putting the thumbnail back is right. A finger lifting is not: the whole time it
+	 *    is down it is *over* the drawing, so the frame you were looking for is the one
+	 *    frame you could not see. Reverting on lift would mean you never got to look at
+	 *    it, and the card would flick back to a page you didn't choose at the exact
+	 *    moment you stopped choosing.
+	 *  - **A hold.** Playback was a peek and the peek is over: it stops. `HOLD_MS` is
+	 *    the whole of the difference between this and the next one.
+	 *  - **A tap.** Playback is a switch, so it stays running — and a tap on a card that
+	 *    was *already* running is the other half of that switch, and stops it.
 	 *
-	 * This is also where a running flipbook is stopped, rather than at the press that
-	 * asked for it. See `Candidate.stopOnRelease`.
+	 * All three start the same way, which is why none of this can be decided any earlier
+	 * than here.
 	 */
 	const handlePointerUp = useCallback((event: React.PointerEvent) => {
 		const held = candidate.current
@@ -217,7 +227,10 @@ export function useCardGesture() {
 			return
 		}
 
-		if (held.stopOnRelease) setHover((current) => (current?.id === held.id ? null : current))
+		const wasHeld = performance.now() - held.downAt >= HOLD_MS
+		if (wasHeld || held.wasPlaying) {
+			setHover((current) => (current?.id === held.id ? null : current))
+		}
 	}, [])
 
 	/**
@@ -260,17 +273,16 @@ export function useCardGesture() {
 	 * be the link as far as iOS is concerned, which is the whole thing being avoided. A
 	 * long press here raises no menu because there is no link under the finger.
 	 *
-	 * Starting is acted on at `pointerdown`, so pressing and holding runs the flipbook
-	 * straight away rather than at the moment you let go — which is what a hold is for.
-	 * **Stopping waits for the release**, and the asymmetry is deliberate: a drag that
-	 * begins on the button of a card that is already running would otherwise stop it,
-	 * unmounting the preview a few milliseconds before the drag armed and mounted it
-	 * again, and the card would flash its thumbnail in the middle of one gesture.
+	 * **Everything starts here and nothing is decided here.** A press always begins
+	 * playback, because a hold that waited for the release would not be a hold — and
+	 * from that same press the finger can go on to lift quickly (a tap), stay down (a
+	 * hold), or set off sideways (a scrub). Which of the three it was is `handlePointerUp`'s
+	 * to work out, and it cannot be known any sooner.
 	 *
-	 * The candidate is recorded exactly as the card's is, so the drag that starts here
-	 * and leaves the button is the same drag it would have been anywhere else: past
-	 * `TOUCH_SLOP` sideways, `handlePointerMove` takes the flipbook off its clock and
-	 * puts it under the finger.
+	 * That is also why stopping never happens on the way in. A drag that begins on the
+	 * button of a card that is already running would otherwise stop it, unmounting the
+	 * preview a few milliseconds before the drag armed and mounted it again, and the
+	 * card would flash its thumbnail in the middle of one continuous gesture.
 	 */
 	const handlePlayDown = useCallback(
 		(event: React.PointerEvent, item: PreviewSource) => {
@@ -285,7 +297,8 @@ export function useCardGesture() {
 				x: event.clientX,
 				y: event.clientY,
 				scrubbing: false,
-				stopOnRelease: running,
+				wasPlaying: running,
+				downAt: performance.now(),
 			}
 
 			// Captured on the way in, not at the slop line as the card does it. The button
@@ -334,7 +347,7 @@ export function useCardGesture() {
 		hover,
 		handleEnter,
 		handleLeave,
-		handlePointerDown,
+		handleCardTouch,
 		handlePointerMove,
 		handlePointerUp,
 		handlePointerCancel,

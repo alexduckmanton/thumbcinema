@@ -87,7 +87,7 @@ export function GalleryPage() {
 		hover,
 		handleEnter,
 		handleLeave,
-		handlePointerDown,
+		handleCardTouch,
 		handlePointerMove,
 		handlePointerUp,
 		handlePointerCancel,
@@ -143,10 +143,12 @@ export function GalleryPage() {
 								style={{ backgroundImage: `url(${item.thumbnail_url})` }}
 								onPointerEnter={(event) => handleEnter(event, item.id)}
 								onPointerLeave={(event) => handleLeave(event, item.id)}
-								onPointerDown={(event) => handlePointerDown(event, item)}
-								onPointerMove={handlePointerMove}
-								onPointerUp={handlePointerUp}
-								onPointerCancel={handlePointerCancel}
+								// Touch only starts a download here — the card is a plain link
+								// under a finger, and the gestures are all on the play button.
+								// The mouse still plays and scrubs from anywhere on the card.
+								onPointerDown={(event) => handleCardTouch(event, item)}
+								// Kept as a backstop: a drag that began on the button and ended
+								// over the card could otherwise release into a navigation.
 								onClick={handleClick}
 							>
 								{/* The card's only text. Clipped rather than hidden, because
