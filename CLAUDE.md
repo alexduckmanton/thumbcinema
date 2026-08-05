@@ -782,9 +782,23 @@ is now true at both widths and the differences are called out where they exist.
   Double-tap zoom goes with `touch-action: manipulation` on the body; the canvas takes
   `touch-action: none`, so a stroke is never a scroll and never a pinch.
 
-  The create page goes further, because the empty white under the tools is now somewhere
-  you draw from: `useNoScrolling` puts `.locked` on the root element for as long as the
-  tool is up, and `base.css` spends four properties on it, one per browser. `overflow:
+  **Cancelling the gesture events is not the whole answer, and that took a while to
+  believe.** A pinch still got through occasionally, and the gap is which touches anything
+  is watching: `PointerLayer` prevents the gestures it owns, but a touch that starts on a
+  *control* is left alone by design — the page actions, undo, redo, save, the page bar and
+  its arrows, every thumbnail in the strip, and the whole header, which is outside the
+  field altogether. Two fingers landing there met nothing that objected. So the create page
+  states the rule once, at the top, instead of relying on every control under it:
+  `refuseMultiTouch()` cancels every multi-touch `touchmove` on the document while the tool
+  is up. Nothing here scrolls, so the refusal costs nothing — which is exactly what is not
+  true of the gallery, and why it isn't site-wide. Capture (`PointerLayer` stops
+  propagation on its own gestures), `passive: false` (Safari makes a document `touchmove`
+  passive by default), and `touchmove` rather than `touchstart` (refusing a second contact
+  landing would take the click off every control for anyone already resting a finger).
+
+  The create page goes further still, because the empty white under the tools is now
+  somewhere you draw from: `useNoScrolling` puts `.locked` on the root element for as long
+  as the tool is up, and `base.css` spends four properties on it, one per browser. `overflow:
   hidden` on both html and body is the ordinary one — the page has never had anything to
   scroll *to*, `--book-reserve` sees to that, but it did have the rubber band, and the
   whole drawing sliding an inch under your finger on a stroke that started near the

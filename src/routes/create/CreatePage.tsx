@@ -13,6 +13,7 @@ import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
+import { refuseMultiTouch } from '../../lib/zoom'
 import { registerMessage, showMessage } from '../../lib/messages'
 import { guardNavigation, navigate } from '../../router/Router'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
@@ -328,7 +329,14 @@ function useNoScrolling(enabled: boolean): void {
 		if (!enabled) return
 
 		document.documentElement.classList.add('locked')
-		return () => document.documentElement.classList.remove('locked')
+		// And the one thing CSS can't say on iOS, where `touch-action` does not reach page
+		// zoom and cancelling the gesture events turns out not to be the whole answer.
+		const release = refuseMultiTouch()
+
+		return () => {
+			document.documentElement.classList.remove('locked')
+			release()
+		}
 	}, [enabled])
 }
 
