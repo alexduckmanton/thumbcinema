@@ -101,6 +101,29 @@ export function retain(source: PreviewSource, onChange: Listener): () => void {
 	}
 }
 
+/**
+ * Starts a flipbook downloading without taking a hold on it.
+ *
+ * For the finger, which has no hover to start things off. A tap and a scrub begin
+ * with the same touch and are told apart ten pixels later, so the download starts on
+ * contact and the gesture decides afterwards what it was for. That is the difference
+ * between the flipbook being there as the drag begins and arriving a beat after it.
+ *
+ * Deliberately not a hold, and so deliberately *not* abandoned when the gesture ends —
+ * the opposite of `retain`. The two are answering different risks. A mouse sweeping
+ * the grid touches twenty cards nobody wants, which is what `retain` abandons; a
+ * finger touches one, and whichever way that gesture goes the bytes are wanted. A
+ * scrub is about to draw them, and a tap is about to open the playback page, which
+ * needs the same artwork and will find this response in the HTTP cache. Aborting on
+ * the tap would throw away a download that had all but arrived, to save nothing.
+ *
+ * Nothing to release, so nothing for the caller to remember. The entry sits at zero
+ * holds and is evicted by the usual LRU when six newer ones have been asked for.
+ */
+export function prefetch(source: PreviewSource): void {
+	open(source)
+}
+
 /** What a holder reads. Never null while it holds one. */
 export function peek(id: string): PreviewEntry | null {
 	return entries.get(id) ?? null

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 
 import { Button } from '../../components/Button'
 import { AdminToggles } from '../../components/AdminToggles'
@@ -8,6 +8,8 @@ import { SiteHeader } from '../../components/SiteHeader'
 import type { GalleryView } from '../../lib/api'
 import { Link, navigate, useLocation } from '../../router/Router'
 import { flipbookPath, galleryPath, galleryView } from '../../router/routes'
+import { loadPreview } from './preview'
+import { useCardGesture } from './useCardGesture'
 import { useGallery } from './useGallery'
 import { ViewToggle } from './ViewToggle'
 import styles from './GalleryPage.module.css'
@@ -36,34 +38,21 @@ const PREFETCH_PX = 1200
 const SKELETON = GALLERY_SKELETON
 
 /**
- * The hover preview, in its own chunk.
+ * The preview, in its own chunk.
  *
- * Named so it can be warmed as well as awaited. It is a few kilobytes — the renderer,
- * the cache, and `engine/formats.ts` with it — and none of it is needed to draw the
- * grid, but all of it is needed the instant a pointer lands on a card. So the module
- * is asked for as soon as the gallery has mounted and is in memory long before then;
- * `lazy` resolves out of the module cache and the Suspense boundary never shows.
+ * It is a few kilobytes — the renderer, the cache, and `engine/formats.ts` with it —
+ * and none of it is needed to draw the grid, but all of it is needed the instant a
+ * pointer lands on a card. So the module is asked for as soon as the gallery has
+ * mounted and is in memory long before then; `lazy` resolves out of the module cache
+ * and the Suspense boundary never shows.
  *
  * The reason it is split at all is `formats.ts`, which the two paper.js routes also
  * import. Left in the entry bundle it would be carried by every visit to every page,
  * including the ones that already have their own copy of it in their chunk.
  */
-const loadPreview = () => import('../../flipbook/preview/FlipbookPreview')
 const FlipbookPreview = lazy(() =>
 	loadPreview().then((module) => ({ default: module.FlipbookPreview })),
 )
-
-/**
- * Which card the pointer is on, and where along it it came in.
- *
- * One at a time, because a pointer is one thing — which is what lets a grid of fifty
- * flipbooks be played through a single canvas, a single renderer and no paper.js at
- * all. See `FlipbookPreview`.
- */
-interface Hover {
-	id: string
-	originX: number
-}
 
 export function GalleryPage() {
 	const { search } = useLocation()
@@ -71,7 +60,16 @@ export function GalleryPage() {
 
 	const { items, loading, exhausted, failed, loadMore, retry, updateItem } = useGallery(view)
 
-	const [hover, setHover] = useState<Hover | null>(null)
+	const {
+		hover,
+		handleEnter,
+		handleLeave,
+		handlePointerDown,
+		handlePointerMove,
+		handlePointerUp,
+		handlePointerCancel,
+		handleClick,
+	} = useCardGesture()
 
 	useEffect(() => {
 		document.title = 'thumbcinema'
@@ -82,31 +80,6 @@ export function GalleryPage() {
 	// again, and a gallery whose cards don't play is still a gallery.
 	useEffect(() => {
 		loadPreview().catch(() => {})
-	}, [])
-
-	/**
-	 * A pointer arriving on a card, which is the whole of what starts a preview.
-	 *
-	 * Asked of the pointer rather than of the device, as the create page's tray is when
-	 * it tells a mouse from a finger: `isTouch` answers for the machine, and on a laptop
-	 * with a touchscreen the answer is yes while somebody is using the trackpad. What a
-	 * tap must not do is start downloading a flipbook the tap is already navigating
-	 * away from.
-	 *
-	 * There is no hover-intent delay in front of this, deliberately. The guard against
-	 * a pointer sweeping across the grid isn't to hesitate before every card, which
-	 * everyone pays for — it is that letting go of a card whose artwork hasn't arrived
-	 * abandons the download. See `retain` in the preview cache.
-	 */
-	const handleEnter = useCallback((event: React.PointerEvent, id: string) => {
-		if (event.pointerType === 'touch') return
-		setHover({ id, originX: event.clientX })
-	}, [])
-
-	// Guarded on the id because leaving one card and entering the next are two events
-	// about two different cards, and nothing guarantees which order they arrive in.
-	const handleLeave = useCallback((id: string) => {
-		setHover((current) => (current?.id === id ? null : current))
 	}, [])
 
 	const changeView = useCallback((next: GalleryView) => {
@@ -133,7 +106,12 @@ export function GalleryPage() {
 							className={styles.card}
 							style={{ backgroundImage: `url(${item.thumbnail_url})` }}
 							onPointerEnter={(event) => handleEnter(event, item.id)}
-							onPointerLeave={() => handleLeave(item.id)}
+							onPointerLeave={(event) => handleLeave(event, item.id)}
+							onPointerDown={(event) => handlePointerDown(event, item)}
+							onPointerMove={handlePointerMove}
+							onPointerUp={handlePointerUp}
+							onPointerCancel={handlePointerCancel}
+							onClick={handleClick}
 						>
 							{/* The card's only text. Clipped rather than hidden, because
 							    without it every link in the grid has no accessible name. */}

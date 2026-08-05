@@ -1121,8 +1121,63 @@ to save a download; it is what the split is for.
 - **It is asked of the pointer, not of the device.** `event.pointerType === 'touch'`
   rather than `isTouch` — the same distinction the create page's tray makes when it
   tells a mouse apart from a finger. `isTouch` answers for the machine, including while
-  somebody is using a trackpad on a laptop that has a touchscreen. What a tap must not
-  do is start downloading a flipbook the tap is already navigating away from.
+  somebody is using a trackpad on a laptop that has a touchscreen.
+
+### On a finger
+
+`useCardGesture` holds both, and the mouse's half is the simple one. A mouse can point
+at a card without committing to anything, so it plays on arrival. A finger has to touch
+the thing it wants to look at, and the same touch is how you open it — so the two
+gestures start identically and are told apart `TOUCH_SLOP` (10px) later.
+
+Three properties on `.card` do the work, and none of them is a workaround:
+
+- **`touch-action: pan-y`.** The browser's own way of being told that vertical belongs
+  to the page and horizontal belongs to us. Without it Safari treats a sideways drag as
+  a candidate scroll and sends `pointercancel` in place of the moves — which is exactly
+  the "nothing happens when I swipe a tile" symptom. The gallery has never scrolled
+  sideways, so nothing is given up.
+- **`-webkit-touch-callout: none`.** What stops iOS raising the open / open-in-new-tab
+  sheet on a press-and-hold. **The card stays a real `<a href>`.** Replacing it with a
+  div that navigates on click is where you end up if you chase the behaviour rather than
+  the property, and it costs cmd-click and middle-click to a new tab, the URL in the
+  status bar, and a link's own name and role in the accessibility tree. One line of CSS
+  against all of that.
+- **`user-select: none`**, because with the callout gone a long press starts selecting
+  the card's visually hidden title instead.
+
+And three decisions in the hook:
+
+- **The download starts on contact, not on the decision** — `prefetch`, which takes no
+  hold and so is deliberately *not* abandoned when the gesture ends. It is the opposite
+  of `retain` and answers a different risk: a mouse sweeping the grid touches twenty
+  cards nobody wants, a finger touches one, and whichever way that gesture goes the
+  bytes are wanted — a scrub is about to draw them and a tap is about to open the page
+  that needs them.
+- **The horizontal component has to be the larger one.** `pan-y` means Safari has agreed
+  horizontal is ours, but it makes that call a few events in, and these are the events
+  before it. Without the test the first pixels of a scroll flick a flipbook on.
+- **The frame stays when the finger lifts**, where a mouse leaving puts the thumbnail
+  back. This is the one place the two genuinely want different things rather than the
+  same thing arrived at differently: a finger is *over* the drawing the whole time it is
+  down, so the frame you were looking for is the one frame you could not see. Reverting
+  on lift would mean you never got to look at it. A `pointercancel` mid-scrub does
+  revert, because the gesture was taken away rather than finished.
+
+A drag that begins and ends on the same element still produces a click, and that click
+would open the flipbook you had just finished looking through. `Link` calls its `onClick`
+before anything else and stands down if the event was defaulted, so `swallowClick` only
+has to `preventDefault()` there to call off both the router and the anchor. It is cleared
+on the next `pointerdown` as well as when spent — a click that never arrives must not be
+able to eat a later tap.
+
+**A long press that never moves navigates**, which is a link behaving like a link now
+that the callout is gone. Press-and-hold to *play* would be the natural thing to add
+there and is not built.
+
+Verified on the iOS Simulator against real Safari rather than reasoned about: the
+sideways drag scrubs and holds its frame, the vertical drag scrolls the grid untouched,
+the press-and-hold raises no menu, and a tap still opens the flipbook.
 - **There is no hover-intent delay**, deliberately. The guard against a pointer sweeping
   the grid isn't to hesitate before every card, which everyone pays for on every hover
   — it is that letting go abandons the download.

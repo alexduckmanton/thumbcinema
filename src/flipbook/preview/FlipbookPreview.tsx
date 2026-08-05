@@ -5,6 +5,16 @@ import { peek, retain, type PreviewSource } from './cache'
 import { drawPage, sizeCanvas } from './render'
 import styles from './FlipbookPreview.module.css'
 
+/**
+ * Re-exported so the gallery can start a download before it has decided to show one.
+ *
+ * The gallery reaches this module through a single lazy `import()` — see `loadPreview`
+ * — and importing `cache.ts` directly to get at this would put the whole preview chunk,
+ * `engine/formats.ts` and all, back into the entry bundle. One line here keeps that
+ * split intact and gives the finger somewhere to knock.
+ */
+export { prefetch } from './cache'
+
 export interface FlipbookPreviewProps {
 	source: PreviewSource
 	/**

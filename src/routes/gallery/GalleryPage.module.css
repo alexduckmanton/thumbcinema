@@ -47,6 +47,37 @@
 	   edge is one of them too many. */
 	box-shadow: var(--shadow-card);
 	transition: box-shadow 0.12s ease-out, transform 0.12s ease-out;
+
+	/*
+	 * Vertical belongs to the page, horizontal belongs to the flipbook.
+	 *
+	 * This is the whole of how a card can be scrubbed with a finger without fighting
+	 * the scroll, and it is the browser's own mechanism for saying so rather than
+	 * anything clever: told `pan-y`, Safari stops treating a sideways drag as a
+	 * candidate scroll and delivers the pointer moves instead of a `pointercancel`.
+	 * The gallery has never scrolled sideways, so nothing is given up.
+	 */
+	touch-action: pan-y;
+
+	/*
+	 * The press-and-hold menu, gone.
+	 *
+	 * Holding a link in iOS Safari raises the native open / open-in-new-tab / copy
+	 * sheet, which on a card you are about to drag across is the wrong offer at the
+	 * wrong moment — and it arrives before the drag has had a chance to say otherwise.
+	 *
+	 * One line, and the card stays a real `<a href>`. The alternative was making it a
+	 * div that navigates on click, which is where you end up if you go looking for the
+	 * behaviour rather than the property, and it would have cost cmd-click and
+	 * middle-click to a new tab, the URL in the status bar, and a link's own name and
+	 * role in the accessibility tree. None of that is worth a long-press menu.
+	 */
+	-webkit-touch-callout: none;
+
+	/* With the callout gone, a long press would otherwise start selecting the card's
+	   visually hidden title instead. Nothing here is text anyone reads with their eyes. */
+	-webkit-user-select: none;
+	user-select: none;
 }
 
 .card:hover {
