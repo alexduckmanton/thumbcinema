@@ -1,126 +1,128 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
-import { CANVAS_WIDTH, PENCIL_COLOR } from '../engine/constants'
+import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { ERASE_TOLERANCE } from '../engine/tools/eraser'
 import { DEFAULT_PENCIL_WIDTH } from '../engine/tools/pencil'
 import type { ModalToolId } from '../engine/tools/types'
+import { type Cursor, PointerLayer } from '../pointer'
 import styles from './InkCursor.module.css'
 
 export interface InkCursorProps {
+	engine: FlipbookEngine | null
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
-	/** Null on the playback page, and while a page animation holds the tools. */
+	/** Null while a page animation holds the tools. */
 	tool: ModalToolId | null
+	/**
+	 * Everywhere a finger may aim from — the page, less the controls on it.
+	 *
+	 * The cursor is nudged rather than placed, so it doesn't care where the nudge comes
+	 * from, and the empty band under the drawing on a phone is where a thumb already is.
+	 * See `PointerLayer`. Defaults to the drawing itself.
+	 */
+	fieldRef?: React.RefObject<HTMLElement | null>
 }
 
 /**
- * What the pointer looks like over the drawing: a ring the size of the mark it is
- * about to make, and — on a finger — a loupe showing what is underneath it.
+ * What the pointer looks like over the drawing, on both layouts and every input.
  *
- * The ring replaces the arrow outright. A pencil whose cursor is an arrow tells you
- * where the line will start and nothing about what it will be. A circle the size of
- * the mark says it where you are looking, which is also the last thing the width
- * popover was doing before it was taken out.
+ * Two shapes, one per kind of tool. The pencil and the eraser get a **ring** the
+ * diameter of the mark about to be made, which replaces the arrow outright: a pencil
+ * whose cursor is an arrow tells you where the line will start and nothing about what it
+ * will be. The transform tool gets one of **four drawn shapes** saying what a drag from
+ * here would grab — see `TransformCursor`, and note that it is drawn for a mouse as well
+ * as for a finger, which is new: a mouse has had the native `move`/`nwse-resize` set
+ * since 2013, and these say the same four things in the site's own hand and at the point
+ * the tool is actually working from.
  *
- * The loupe is the phone's, and it is there for one reason: a finger is opaque. On a
- * desktop the pointer is a few pixels of arrow over a drawing you can see all of;
- * with a finger the thing you are aiming at is under the thing you are aiming with,
- * and joining up to a line you drew a moment ago is guesswork. So while the finger is
- * down, the drawing under it is repeated above it at twice the size — with the ring
- * in the middle, magnified with everything else, because the ring is the aim.
- *
- * Both are drawn from the live canvas rather than from the scene, so what they show
- * is exactly what is on the paper: the stroke in progress, the onion skin, the
- * selection, all of it. Nothing here knows anything about paper.js.
+ * Nothing here reads the scene, and nothing here knows about paper.js. Where the pointer
+ * is and what it is doing arrives as the `Cursor` this subscribes to; the other half of
+ * that — a finger nudging a standing cursor rather than placing one — is `pointer.ts`.
  */
-export function InkCursor({ canvasRef, tool }: InkCursorProps) {
-	const loupe = useRef<HTMLCanvasElement | null>(null)
-	const [at, setAt] = useState<Point | null>(null)
-	/** What is holding the canvas down, if anything. `touch` is what brings the loupe. */
-	const [holding, setHolding] = useState<string | null>(null)
+export function InkCursor({ engine, canvasRef, tool, fieldRef }: InkCursorProps) {
+	const [layer, setLayer] = useState<PointerLayer | null>(null)
 
-	// The pencil and the eraser mark the page; the transform tool moves what is
-	// already on it, and has a set of cursors of its own that say which handle you are
-	// over. A ring there would be describing a stroke nobody is about to draw.
+	// The pencil and the eraser mark the page; the transform tool moves what is already
+	// on it. A ring there would be describing a stroke nobody is about to draw.
 	const marking = tool === 'pencil' || tool === 'eraser'
+	const aiming = tool === 'transform'
+	const shown = marking || aiming
+
+	/*
+	 * One layer for the life of the page, not one per tool. Rebuilding it to change a
+	 * setting would drop whatever gesture was in flight and put the standing cursor back
+	 * in the middle of the page.
+	 */
+	useEffect(() => {
+		const canvas = canvasRef.current
+		// `.book`, which wraps the canvas. The listeners have to be on an ancestor to be
+		// sure of running before paper's own — at the target element, capture and bubble
+		// listeners are called in the order they were added, so registering on the canvas
+		// itself would be a race against whichever ran first.
+		const book = canvas?.parentElement
+		if (!engine || !canvas || !book) return
+
+		const created = new PointerLayer(fieldRef?.current ?? book, book, canvas, engine)
+		setLayer(created)
+
+		return () => {
+			created.destroy()
+			setLayer(null)
+		}
+	}, [engine, canvasRef, fieldRef])
+
+	// Picking a tool up changes what the cursor is, and on a desktop that is a button
+	// press rather than a pointer moving — so nothing would republish until it did.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `tool` is the trigger rather than a value the effect reads; that is the whole point of it.
+	useEffect(() => {
+		layer?.refresh()
+	}, [layer, tool])
+
+	const cursor = useSyncExternalStore(
+		layer ? layer.subscribe : NO_SUBSCRIBE,
+		() => layer?.snapshot ?? null,
+		() => null,
+	)
 
 	useEffect(() => {
 		const canvas = canvasRef.current
-		if (!canvas || !marking) return
+		if (!canvas || !shown) return
 
-		/*
-		 * Whether the pointer is over the drawing, and whether it is down.
-		 *
-		 * Refs rather than the state below, because leaving and releasing have to know
-		 * about each other and both are decided inside the handler that fires. A drag
-		 * that runs off the edge of the canvas is still a stroke, so the ring goes with
-		 * it; the ring only stops being drawn when the pointer is neither on the paper
-		 * nor holding it. Without the second half a stroke released outside left a ring
-		 * standing on the drawing with no pointer anywhere near it.
-		 */
-		let over = false
-		let held = false
-
-		const track = (event: PointerEvent) => {
-			const box = canvas.getBoundingClientRect()
-			setAt({
-				x: event.clientX - box.left,
-				y: event.clientY - box.top,
-				size: box.width,
-				top: box.top,
-			})
-		}
-
-		const enter = (event: PointerEvent) => {
-			over = true
-			track(event)
-		}
-
-		const down = (event: PointerEvent) => {
-			held = true
-			track(event)
-			setHolding(event.pointerType)
-		}
-
-		const up = () => {
-			held = false
-			setHolding(null)
-			if (!over) setAt(null)
-		}
-
-		const leave = () => {
-			over = false
-			if (!held) setAt(null)
-		}
-
-		canvas.addEventListener('pointerdown', down)
-		canvas.addEventListener('pointermove', track)
-		canvas.addEventListener('pointerenter', enter)
-		canvas.addEventListener('pointerleave', leave)
-		// On the document, because a stroke can be released anywhere — the same reason
-		// the engine listens for mouseup there rather than on the canvas.
-		document.addEventListener('pointerup', up)
-		document.addEventListener('pointercancel', up)
-
-		// The ring *is* the cursor, so the arrow goes. Written on the element rather
-		// than set in the stylesheet because the transform tool writes its own cursors
-		// there too, and an inline style is the only thing that can be sure of beating
-		// one.
+		// The drawn cursor *is* the cursor, so the arrow goes — for the transform tool as
+		// much as for the two that mark, which is why the selection no longer writes a
+		// native cursor of its own. Written on the element rather than in the stylesheet
+		// because paper writes inline styles onto this canvas and an inline style is the
+		// only thing sure of beating one.
 		const previous = canvas.style.cursor
 		canvas.style.cursor = 'none'
 
 		return () => {
-			canvas.removeEventListener('pointerdown', down)
-			canvas.removeEventListener('pointermove', track)
-			canvas.removeEventListener('pointerenter', enter)
-			canvas.removeEventListener('pointerleave', leave)
-			document.removeEventListener('pointerup', up)
-			document.removeEventListener('pointercancel', up)
-
 			canvas.style.cursor = previous
-			setAt(null)
-			setHolding(null)
 		}
-	}, [canvasRef, marking])
+	}, [canvasRef, shown])
+
+	if (!shown || !cursor) return null
+
+	/*
+	 * The standing cursor is also a state: light grey while a gesture is only aiming,
+	 * black the moment the tool starts working. That is the whole feedback for a
+	 * changeover you can't otherwise see — a second finger somewhere else on the page, or
+	 * a tool button held by the other hand, is not something you are looking at.
+	 *
+	 * A mouse gets neither. There a ring means the same thing whether the button is down
+	 * or not, and one that changed colour under your own hand would be saying something
+	 * it doesn't mean.
+	 */
+	const state = cursor.standing ? (cursor.marking ? styles.inking : styles.waiting) : ''
+
+	if (aiming) {
+		return (
+			<TransformCursor
+				at={cursor}
+				affordance={cursor.affordance}
+				className={state ? `${styles.grip} ${state}` : styles.grip}
+			/>
+		)
+	}
 
 	/**
 	 * What the tool is about to put down, in project units — 640 of them across.
@@ -131,180 +133,86 @@ export function InkCursor({ canvasRef, tool }: InkCursorProps) {
 	 */
 	const ink = tool === 'eraser' ? ERASE_TOLERANCE * 2 : DEFAULT_PENCIL_WIDTH
 
-	/*
-	 * The loupe is a finger's, and it is asked of the *pointer* rather than of the
-	 * device. `isTouch` answers for the whole machine — a tablet with a keyboard and a
-	 * trackpad is a touch device all day, including while somebody is using the
-	 * trackpad — and what matters here is what is on the glass right now. A mouse gets
-	 * the ring and no loupe; a finger gets both.
-	 */
-	const magnifying = holding === 'touch' && at !== null
+	return (
+		<span
+			className={state ? `${styles.ring} ${state}` : styles.ring}
+			aria-hidden="true"
+			style={{ left: cursor.x, top: cursor.y, '--ink': ink } as React.CSSProperties}
+		/>
+	)
+}
 
-	// The frame loop below reads this rather than closing over `at`, so a moving
-	// pointer doesn't restart the loop sixty times a second.
-	const atRef = useRef(at)
-	atRef.current = at
-
-	// Redrawn every frame rather than on every move: the loupe is showing a stroke
-	// being drawn, and most of what changes inside it between two pointer events is
-	// the line arriving, not the pointer moving.
-	useEffect(() => {
-		if (!magnifying) return
-
-		let frame = 0
-		const draw = () => {
-			paint(loupe.current, canvasRef.current, atRef.current, ink)
-			frame = requestAnimationFrame(draw)
-		}
-		draw()
-
-		return () => cancelAnimationFrame(frame)
-	}, [magnifying, canvasRef, ink])
-
-	if (!marking || !at) return null
+/**
+ * The transform tool's cursor: four shapes, one per thing a drag would do.
+ *
+ * A mouse has had this since 2013 — `Selection.updateTransformType` wrote `move`,
+ * `alias`, `nwse-resize` and the rest onto the canvas as the pointer crossed the box,
+ * and it is most of how the tool explains itself. On a phone none of it existed, because
+ * there was no cursor to name one on and because once the cursor stopped being the
+ * fingertip the native ones would have been describing the wrong point. These are the
+ * same four statements, drawn where the cursor actually is — and now that they exist
+ * they are what the mouse gets too, so the tool says the same thing on both.
+ *
+ * Inline SVG rather than the 2013 sprite, and that is a deliberate exception to "icons
+ * come from the sheet": the sheet is drawings of *things* at fixed sizes, and these are
+ * neither things nor fixed — the scale arrows have to point along whichever axis the
+ * handle moves, which is a rotation applied per frame. Everything is `currentColor`, so
+ * the same two classes that grey and blacken the ring drive these.
+ */
+function TransformCursor({
+	at,
+	affordance,
+	className,
+}: {
+	at: Cursor
+	affordance: Cursor['affordance']
+	className: string | undefined
+}) {
+	// Nothing under the cursor: the crosshair, which says where a press would land
+	// without promising it would grab anything.
+	if (affordance.kind === 'none') {
+		return (
+			<svg
+				className={className}
+				style={{ left: at.x, top: at.y }}
+				viewBox="0 0 24 24"
+				aria-hidden="true"
+			>
+				<path d="M12 3v6M12 15v6M3 12h6M15 12h6" />
+			</svg>
+		)
+	}
 
 	return (
-		<>
-			<span
-				className={styles.ring}
-				aria-hidden="true"
-				style={{ left: at.x, top: at.y, '--ink': ink } as React.CSSProperties}
-			/>
-
-			{/* No `aria-hidden` on the canvas, unlike the ring above it: a `<canvas>` can
-			    take focus, and hiding a focusable element from the tree is worse than
-			    leaving this one in it — with no role and no accessible name there is
-			    nothing here for a reader to announce anyway. */}
-			{magnifying ? (
-				<canvas
-					ref={loupe}
-					className={styles.loupe}
-					width={LOUPE * ratio()}
-					height={LOUPE * ratio()}
-					style={liftAbove(at)}
-				/>
+		<svg
+			className={className}
+			style={{
+				left: at.x,
+				top: at.y,
+				// The rotation has to come *after* the centring translate, or the box is
+				// swung about its own top-left corner and the cursor orbits the point it is
+				// meant to be standing on.
+				transform: `translate(-50%, -50%) rotate(${affordance.angle}deg)`,
+			}}
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+		>
+			{affordance.kind === 'move' ? (
+				<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3" />
 			) : null}
-		</>
+
+			{affordance.kind === 'scale' ? (
+				<path d="M3 12h18M3 12l4-3.5M3 12l4 3.5M21 12l-4-3.5M21 12l-4 3.5" />
+			) : null}
+
+			{/* Not rotated with anything: a ring reads the same at every angle, and the
+			    only honest thing to point it at would be the selection's centre — which is
+			    where it already is. */}
+			{affordance.kind === 'rotate' ? (
+				<path d="M12 4.5A7.5 7.5 0 1 0 19.5 12M19.5 12l-3-2.5M19.5 12l3-2.5" />
+			) : null}
+		</svg>
 	)
 }
 
-interface Point {
-	/** Where the pointer is, in CSS pixels from the top left of the canvas. */
-	x: number
-	y: number
-	/** How wide the canvas is being shown, which is what maps those onto the artwork. */
-	size: number
-	/** And how far down the window it starts, which is what stops the loupe leaving it. */
-	top: number
-}
-
-/** The loupe, in CSS pixels. Big enough to aim with, small enough not to be the page. */
-const LOUPE = 80
-
-/**
- * How much bigger the drawing is inside the loupe than outside it.
- *
- * Twice, so 80px of loupe covers 40px of screen. Three times is sharper and shows so
- * little of the drawing that it stops being obvious which part of it you are looking
- * at, which is the one thing a loupe must never be.
- */
-const ZOOM = 2
-
-/**
- * How far above the finger the loupe floats, centre to touch point.
- *
- * A fingertip's contact patch is around 10mm, so the bottom edge of the circle clears
- * it by about a finger's width again — near enough to read the two together as one
- * thing, far enough that the hand isn't over it.
- */
-const LIFT = 76
-
-/**
- * Above the finger. Always above the finger.
- *
- * It is allowed to hang off the top of the paper to stay there, and that is the whole
- * decision. A phone's drawing is 193px tall and the loupe needs 116 of them to clear a
- * finger, so anything in the top half of the page has nowhere on the paper to go — and
- * the obvious answer, dropping below the touch point when the room runs out, puts it
- * under the hand it exists to see past. A thumb comes from below.
- *
- * Hanging off the top costs nothing: the loupe paints its own paper, so it reads the
- * same over the header as it does over the drawing. The only clamp is the top of the
- * window, so it can't leave the screen.
- *
- * Sideways it is kept within the drawing, and only the circle moves — what it *shows*
- * stays centred on the finger, because that is the thing being aimed.
- */
-function liftAbove(at: Point): React.CSSProperties {
-	return {
-		left: Math.min(Math.max(at.x, LOUPE / 2), at.size - LOUPE / 2),
-		// `at.top` is the paper's own distance from the top of the window, and this box
-		// is positioned against the paper — so the floor has to be expressed in the
-		// paper's coordinates, which is what subtracting it does.
-		top: Math.max(at.y - LIFT, LOUPE / 2 - at.top + 4),
-	}
-}
-
-function ratio(): number {
-	return typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 3)
-}
-
-/**
- * One frame of the loupe: the paper, the drawing under the finger, and the ring.
- *
- * The arithmetic goes through three coordinate spaces and it is worth naming them.
- * `at` is in CSS pixels on the page; the artwork is 640 units wide however wide the
- * canvas is shown; and the canvas's own backing store is a device-pixel multiple of
- * that again, which is where `drawImage` has to be told to read from.
- */
-function paint(
-	loupe: HTMLCanvasElement | null,
-	source: HTMLCanvasElement | null,
-	at: Point | null,
-	ink: number,
-): void {
-	if (!loupe || !source || !at || at.size <= 0) return
-
-	const context = loupe.getContext('2d')
-	if (!context) return
-
-	const dpr = ratio()
-	context.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-	// A flipbook is ink on paper, and the edges of the canvas — where the loupe is
-	// showing part of the page that isn't drawing — have to be paper too.
-	context.fillStyle = '#fff'
-	context.fillRect(0, 0, LOUPE, LOUPE)
-
-	// Backing-store pixels per CSS pixel of canvas. Not `devicePixelRatio`: paper sizes
-	// the backing store from the *project*, so on a phone showing 640 units in 343px
-	// this is nearer 4 than 2.
-	const density = source.width / at.size
-	const window_ = (LOUPE / ZOOM) * density
-
-	context.drawImage(
-		source,
-		at.x * density - window_ / 2,
-		at.y * density - window_ / 2,
-		window_,
-		window_,
-		0,
-		0,
-		LOUPE,
-		LOUPE,
-	)
-
-	// The ring again, magnified with everything else — the loupe is where the aiming
-	// actually happens, so the thing being aimed has to be in it. Floored at the same
-	// six pixels as the ring on the page, which is stated in the stylesheet: CSS can't
-	// hand a number to a canvas, so this is the one place the two have to agree by
-	// being written down twice.
-	const radius = ((ink * at.size) / CANVAS_WIDTH / 2) * ZOOM
-	context.beginPath()
-	context.arc(LOUPE / 2, LOUPE / 2, Math.max(radius, 3), 0, Math.PI * 2)
-	context.strokeStyle = PENCIL_COLOR
-	context.globalAlpha = 0.5
-	context.lineWidth = 1
-	context.stroke()
-	context.globalAlpha = 1
-}
+const NO_SUBSCRIBE = () => () => {}

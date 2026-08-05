@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
@@ -13,6 +13,7 @@ import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { ApiError, saveFlipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
+import { refuseMultiTouch } from '../../lib/zoom'
 import { registerMessage, showMessage } from '../../lib/messages'
 import { guardNavigation, navigate } from '../../router/Router'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
@@ -26,11 +27,24 @@ export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
 
+	/*
+	 * Everywhere a finger may aim from, which is the whole page rather than the drawing.
+	 *
+	 * The cursor is nudged rather than placed — see `PointerLayer` — so it doesn't care
+	 * where the nudge comes from, and on a phone the band of white under the tools is
+	 * where a thumb already is and is the only part of this page nothing else wants.
+	 * Controls standing on it keep their own touches.
+	 */
+	const field = useRef<HTMLElement | null>(null)
+
 	const crash = useCrashRecovery(engine)
 
 	useEffect(() => {
 		document.title = 'create — thumbcinema'
 	}, [])
+
+	// Everything but the naming form, which has fields in it a finger may want to pan.
+	useNoScrolling(phase !== 'naming')
 
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools.
 	useKeyboardShortcuts(engine, { enabled: phase === 'drawing', tools: true })
@@ -110,7 +124,7 @@ export function CreatePage() {
 				/>
 			</SiteHeader>
 
-			<main className={contentClass}>
+			<main className={contentClass} ref={field}>
 				{engine && state ? (
 					<PageStrip
 						engine={engine}
@@ -146,11 +160,11 @@ export function CreatePage() {
 							</div>
 						) : null}
 
-						{/* The ring that says what the stroke will be, and the loupe that
-						    shows what is under a finger. Inside `.book` because both are
+						{/* The ring that says what the stroke will be, or the shape that says
+						    what the transform tool would grab. Inside `.book` because both are
 						    measured against the drawing rather than the window. */}
 						{state && phase === 'drawing' ? (
-							<InkCursor canvasRef={canvasRef} tool={state.tool} />
+							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} fieldRef={field} />
 						) : null}
 
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
@@ -288,6 +302,42 @@ function StepButton({
 			<span className="visuallyHidden">{label}</span>
 		</button>
 	)
+}
+
+/**
+ * The document holds still while the drawing tool is up: no scroll, no bounce, no pull
+ * to refresh, no pinch.
+ *
+ * The create page has never had anywhere to scroll *to* — `--book-reserve` sizes the
+ * drawing around everything else in the column precisely so it doesn't, because a page
+ * that scrolls while you draw on it is a page that has taken the stroke away from you.
+ * What it did still have was the rubber band, and the whole drawing sliding an inch
+ * under your finger on a stroke that started near the bottom edge; and a pull far enough
+ * to reload the tab, which on an unsaved flipbook is the worst outcome this page has.
+ *
+ * Both of those got much easier to reach the moment the empty band under the tools
+ * became somewhere to drag. What the class does, and why it takes four properties to do
+ * it, is in `base.css`.
+ *
+ * Off while the save form is up, which is the one time this page has fields in it: a
+ * long description in a small textarea has to be pannable, and `touch-action: none` on
+ * an ancestor cannot be given back by a descendant. Nothing is lost by it — the drawing
+ * tool is behind the wash by then, and `beforeunload` is already guarding the reload.
+ */
+function useNoScrolling(enabled: boolean): void {
+	useEffect(() => {
+		if (!enabled) return
+
+		document.documentElement.classList.add('locked')
+		// And the one thing CSS can't say on iOS, where `touch-action` does not reach page
+		// zoom and cancelling the gesture events turns out not to be the whole answer.
+		const release = refuseMultiTouch()
+
+		return () => {
+			document.documentElement.classList.remove('locked')
+			release()
+		}
+	}, [enabled])
 }
 
 const WARNING = "Whoa, you haven't saved your flipbook yet. Leave and you'll lose it."
