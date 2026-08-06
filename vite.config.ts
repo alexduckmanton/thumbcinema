@@ -64,7 +64,11 @@ export default defineConfig({
 		environment: 'jsdom',
 		globals: true,
 		setupFiles: ['./vitest.setup.ts'],
-		include: ['src/**/*.test.{ts,tsx}'],
+		// `lib/` is the back end the rewrite didn't touch and has never had tests. The
+		// one exception is `lib/thumbnail.js`, which is new, is a hand-written scanner
+		// over two file formats, and is exactly the kind of thing that has to be
+		// exercised rather than read.
+		include: ['src/**/*.test.{ts,tsx}', 'lib/**/*.test.js'],
 		coverage: {
 			provider: 'v8',
 			include: ['src/**/*.{ts,tsx}'],

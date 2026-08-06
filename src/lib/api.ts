@@ -30,6 +30,19 @@ export interface FlipbookSummary {
 	created_at: string
 	data_url: string
 	thumbnail_url: string
+	/**
+	 * The cover page as an SVG — what a card shows, when the row has one.
+	 *
+	 * Null for the three kinds of row that haven't got one: a `time-capsule` save,
+	 * which knows nothing about the column; a `legacy-json` flipbook, which has no
+	 * SVG anywhere in it to take a page out of; and anything
+	 * `npm run db:backfill-thumbnails` hasn't reached. Those fall back to
+	 * `thumbnail_url`, which is still written on every save and isn't going anywhere.
+	 *
+	 * Stated by the server rather than guessed at here, because a card that simply
+	 * tried the SVG first would put a 404 in front of every PNG in the grid.
+	 */
+	thumbnail_svg_url: string | null
 }
 
 /** A single flipbook, as the playback page needs it. */
@@ -153,6 +166,12 @@ export interface SavePayload {
 	svg: string
 	/** A `data:image/png;base64,…` URL for the thumbnail. */
 	thumbnailDataUrl: string
+	/**
+	 * Which page that thumbnail is of. The server cuts the same page out of the
+	 * artwork as an SVG, which is what the gallery shows; sending the index is what
+	 * keeps the two pictures of the same drawing.
+	 */
+	cover: number
 	nsfw: boolean
 }
 
@@ -172,6 +191,10 @@ export async function saveFlipbook(
 		description: payload.description,
 		project: payload.svg,
 		imgBase64: payload.thumbnailDataUrl,
+		// Additive, and ignored by the 2013 endpoint's own reading of this form —
+		// which matters because that endpoint is the contract both deployments post
+		// to. See docs/data-formats.md.
+		cover: String(payload.cover),
 		nsfw: payload.nsfw ? '1' : '0',
 	})
 

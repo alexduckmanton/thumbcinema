@@ -180,6 +180,11 @@ try {
 				     -- brotli and the new one to everyone who doesn't. Nulling it costs a
 				     -- backfill run; getting it wrong is invisible.
 				     data_br        = NULL,
+				     -- And for exactly the same reason: thumbnail_svg is a page cut out
+				     -- of the artwork above, so replacing the artwork without clearing
+				     -- it leaves a card showing a page of the drawing that has just been
+				     -- superseded. npm run db:backfill-thumbnails puts it back.
+				     thumbnail_svg  = NULL,
 				     thumbnail      = EXCLUDED.thumbnail,
 				     format         = EXCLUDED.format,
 				     legacy_user_id = EXCLUDED.legacy_user_id,

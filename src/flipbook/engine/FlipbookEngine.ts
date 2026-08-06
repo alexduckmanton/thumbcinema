@@ -10,6 +10,7 @@ import {
 } from './formats'
 import { History, type Op, type Step } from './history'
 import type { PageState } from './pages'
+import { encodeThumbnail } from './png'
 import { type PaperCore, Scene } from './scene'
 import { Selection } from './selection'
 import { EraserTool } from './tools/eraser'
@@ -850,21 +851,35 @@ export class FlipbookEngine {
 	// --- saving --------------------------------------------------------------
 
 	/**
-	 * The two things a save needs: the artwork, and a picture of it.
+	 * The three things a save needs: the artwork, a picture of it, and which page
+	 * that picture is of.
 	 *
-	 * The thumbnail is taken from the busiest page rather than the first, on the
-	 * grounds that a flipbook's first page is very often nearly empty. (The 2013
-	 * code meant to do this and couldn't — it counted segments by reading `.length`
-	 * off a paper Layer, which is undefined, so every page scored zero and the
-	 * "busiest" was always page one.)
+	 * The cover is the busiest page rather than the first, on the grounds that a
+	 * flipbook's first page is very often nearly empty. (The 2013 code meant to do
+	 * this and couldn't — it counted segments by reading `.length` off a paper Layer,
+	 * which is undefined, so every page scored zero and the "busiest" was always page
+	 * one.)
+	 *
+	 * `cover` goes up with the save because the server cuts that same page out of the
+	 * artwork as an SVG — the thumbnail the gallery actually shows — and the two
+	 * pictures being of two different pages would be a card that changes drawing
+	 * depending on which deployment you are looking at. The server can find the
+	 * busiest page perfectly well on its own; what it can't do is agree with this one
+	 * about it. See `lib/thumbnail.js`.
+	 *
+	 * Async because the PNG is encoded rather than handed to `toDataURL` — see
+	 * `png.ts`, and note that `exportSvgElement` still runs after the await on
+	 * purpose: `captureCover` moves the active page and puts it back, and the export
+	 * has to be of the scene as the reader left it.
 	 */
-	exportForSave(): { svg: string; thumbnailDataUrl: string } {
+	async exportForSave(): Promise<{ svg: string; thumbnailDataUrl: string; cover: number }> {
 		this.selection.clear()
 
-		const thumbnailDataUrl = this.captureCover()
+		const cover = this.busiestPage()
+		const thumbnailDataUrl = await this.captureCover(cover)
 
 		const svg = this.exportSvgElement()
-		return { svg: new XMLSerializer().serializeToString(svg), thumbnailDataUrl }
+		return { svg: new XMLSerializer().serializeToString(svg), thumbnailDataUrl, cover }
 	}
 
 	exportSvgElement(): SVGElement {
@@ -898,10 +913,14 @@ export class FlipbookEngine {
 	 * `toDataURL` there would produce a 1280×720 image on a retina screen and a
 	 * 640×360 one elsewhere. Every stored thumbnail is the same size regardless of
 	 * the machine it was drawn on.
+	 *
+	 * Still written on every save, and still a PNG, even though the gallery now shows
+	 * the SVG instead: `time-capsule` reads this column and serves it as `image/png`,
+	 * and the two deployments share one database. It is also the fallback for any row
+	 * without an SVG thumbnail. What has changed is only how well it is encoded.
 	 */
-	private captureCover(): string {
+	private async captureCover(cover: number): Promise<string> {
 		const original = this.scene.activePage
-		const cover = this.busiestPage()
 
 		this.scene.setActivePage(cover, { playing: true })
 		this.scene.hideOnion()
@@ -923,7 +942,7 @@ export class FlipbookEngine {
 		this.refreshOnion()
 		this.scene.redraw()
 
-		return frame.toDataURL('image/png')
+		return encodeThumbnail(frame)
 	}
 
 	private busiestPage(): number {

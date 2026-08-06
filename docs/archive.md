@@ -112,6 +112,18 @@ It is **idempotent**. `legacy_id` carries a unique index and the insert is
 `ON CONFLICT ... DO UPDATE`, so re-running refreshes rows rather than duplicating
 them. Safe to run repeatedly.
 
+**Run both backfills afterwards**, and for the same reason in each case: the import
+replaces `data_gz` and nulls the two columns derived from it, rather than leaving
+either holding a copy of artwork that is no longer there.
+
+```bash
+npm run db:backfill-brotli       # data_br, the copy the API prefers to serve
+npm run db:backfill-thumbnails   # thumbnail_svg, the page a gallery card shows
+```
+
+Until they have run, those rows serve gzip and show their PNG thumbnail — which is
+the fallback working, not a gap.
+
 It skips:
 
 - files under 500 bytes — a handful of saves that failed halfway in 2013

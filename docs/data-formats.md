@@ -13,7 +13,8 @@ const form = new URLSearchParams({
     title: payload.title,
     description: payload.description,
     project: payload.svg,                  // paper.js exportSVG(), serialised
-    imgBase64: payload.thumbnailDataUrl,   // canvas.toDataURL("image/png")
+    imgBase64: payload.thumbnailDataUrl,   // a PNG of the cover page
+    cover: String(payload.cover),          // which page that is
     nsfw: payload.nsfw ? '1' : '0',
 })
 
@@ -31,6 +32,10 @@ So:
 - The request is **`application/x-www-form-urlencoded`**, not JSON.
 - The response is **a bare URL in a `text/plain` body**. Not JSON, no wrapper. It gets
   assigned directly to `window.location.href`.
+- `cover` is new and additive. It is the index of the page the PNG is of, and the
+  server cuts the SVG thumbnail out of that same page rather than picking one of its
+  own — see **Thumbnails** below. Absent from a `time-capsule` save, and the server
+  finds the busiest page itself when it is.
 - `draft` and `postID` are gone. Drafts needed an account to return to them with, and
   the server ignored both fields anyway.
 - `nsfw` is honoured: flagged flipbooks keep working on their own URL but are left out
@@ -131,6 +136,39 @@ still has the workaround** — don't collapse that deferral back into the constr
 over there.
 
 Faster infrastructure exposing a latent 2013 race is a fun way to lose an afternoon.
+
+## Thumbnails
+
+A flipbook is stored with two of them and the gallery shows the second:
+
+| Column | What | Served as |
+|---|---|---|
+| `thumbnail` | a 640×360 PNG of the cover page | `/api/flipbooks/:id/thumbnail` |
+| `thumbnail_svg` | that same page as a standalone SVG, brotli'd | `/api/flipbooks/:id/thumbnail.svg` |
+
+On a real row those are 10,060 bytes and 718. The SVG is also vector, so it is sharp at
+whatever size a card happens to be rather than resampled from a fixed grid of pixels.
+
+**The PNG is not going anywhere.** `time-capsule` reads that column and serves it as
+`image/png`, and both deployments share one database — so it is written on every save
+from this branch too. It is also the fallback for every row without an SVG: a
+`time-capsule` save, a `legacy-json` flipbook (point lists, with no paths anywhere in
+it to take a page out of), or anything `npm run db:backfill-thumbnails` hasn't reached.
+The listing says which a card should ask for; `thumbnail_svg_url` is null when there
+isn't one.
+
+`lib/thumbnail.js` is the whole of how a page is lifted out, and it is text in and text
+out because both callers are Node — the save path and the backfill. It works because a
+page group carries its own paint in both stroke vocabularies, in 0.8
+(`stroke="rgb(68, 68, 68)"`) as in 0.12 (`stroke="#444444"`); what it strips is the
+`visibility` every page but the last one saved is wearing, the `opacity` the onion skin
+leaves on the page behind the one being drawn on, and the stroke ids, which nothing
+reads. Verified rather than assumed: the lifted page and the whole artwork rasterised at
+640×360 differ by 0 pixels of 230,400.
+
+The PNG is written by `src/flipbook/engine/png.ts` rather than by `canvas.toDataURL`,
+which is 8-bit RGBA and picks its filters for speed. A cover is grey ink on white paper,
+so 8-bit greyscale is lossless here and between a third and a half the size.
 
 ## Storage
 

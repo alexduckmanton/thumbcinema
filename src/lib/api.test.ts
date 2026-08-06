@@ -112,6 +112,7 @@ describe('saveFlipbook', () => {
 			description: '',
 			svg: '<svg/>',
 			thumbnailDataUrl: 'data:image/png;base64,AAAA',
+			cover: 3,
 			nsfw: false,
 		})
 
@@ -128,6 +129,9 @@ describe('saveFlipbook', () => {
 		expect(body.get('title')).toBe('A title')
 		expect(body.get('project')).toBe('<svg/>')
 		expect(body.get('imgBase64')).toBe('data:image/png;base64,AAAA')
+		// Which page the PNG is of, so the server cuts the SVG thumbnail from that
+		// same page rather than picking one of its own.
+		expect(body.get('cover')).toBe('3')
 		expect(body.get('nsfw')).toBe('0')
 	})
 
@@ -139,6 +143,7 @@ describe('saveFlipbook', () => {
 			description: '',
 			svg: '<svg/>',
 			thumbnailDataUrl: '',
+			cover: 0,
 			nsfw: true,
 		})
 
@@ -155,6 +160,7 @@ describe('saveFlipbook', () => {
 			description: '',
 			svg: '<svg/>',
 			thumbnailDataUrl: '',
+			cover: 0,
 			nsfw: false,
 		}).catch((e: unknown) => e)
 

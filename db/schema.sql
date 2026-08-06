@@ -79,6 +79,31 @@ ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT
 -- written on every save — it is what the other branch serves from.
 ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS data_br BYTEA;
 
+-- The card in the gallery: one page of the artwork, as a standalone SVG, brotli'd.
+--
+-- The same drawing the PNG beside it is a picture of, stored as the drawing rather
+-- than as pixels. On a real row it is 718 bytes against that PNG's 10,060, and it is
+-- sharp at whatever size a card happens to be instead of being resampled from a fixed
+-- 640x360 grid. See lib/thumbnail.js for how a page is lifted out.
+--
+-- Brotli and no gzip beside it, unlike data_gz/data_br: this is two to four kilobytes
+-- rather than nine megabytes, so the rare client that won't take brotli is served a
+-- decompression rather than a second copy of every row.
+--
+-- Nullable, and the fallback is the PNG:
+--   * `time-capsule` neither writes this nor knows it exists, and its saves land here
+--     with it null. It also still serves /thumbnail, which is why the PNG is still
+--     written on every save from this branch and is not going anywhere.
+--   * the 147 legacy-json archive rows have no SVG to take a page out of at all.
+--   * anything the backfill hasn't reached yet.
+-- The gallery asks for whichever the row has; `thumbnail_svg_url` is null when there
+-- isn't one and the card shows the PNG, exactly as it did before.
+--
+-- `npm run db:backfill-thumbnails` fills in whatever is outstanding and is safe to
+-- re-run. Written only when it is smaller than the PNG, for the same reason data_br
+-- is written only when it beats the gzip.
+ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS thumbnail_svg BYTEA;
+
 -- The WordPress author ID, parsed from the archive filename ({post}_u{user}_...).
 -- It is the entire evidence base for the featured reconstruction, so it's kept:
 -- 84 was the `lostandfound` catch-all that anonymous saves were reassigned to, and
