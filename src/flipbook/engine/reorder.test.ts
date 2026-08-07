@@ -128,6 +128,25 @@ describe('slideInterval', () => {
 		expect(slideInterval(-4)).toBe(SLIDE_SLOW_MS)
 	})
 
+	/*
+	 * The whole point of squaring it. Half a page out is where a hand rests once it has
+	 * moved the page one slot, and on a straight line that is already a third of the
+	 * throttle — so the rate you actually held was never the slow one, and the control was
+	 * indistinguishable from not having one. Most of the travel has to stay slow.
+	 */
+	it('is still nearly the slow rate half way out', () => {
+		const halfWay = slideInterval(0.5)
+		expect(halfWay).toBeGreaterThan(slideInterval(0) - (SLIDE_SLOW_MS - SLIDE_FAST_MS) * 0.3)
+		expect(1000 / halfWay).toBeLessThan(1.5)
+	})
+
+	it('spends most of its range in the last quarter, next to the edge', () => {
+		const perSecond = (reach: number) => 1000 / slideInterval(reach)
+		const middle = perSecond(0.75) - perSecond(0)
+		const edge = perSecond(1) - perSecond(0.75)
+		expect(edge).toBeGreaterThan(middle * 2)
+	})
+
 	// The floor is about being able to read the flipbook going past, so it is worth
 	// stating in the units that matters in rather than only in milliseconds.
 	it('never runs faster than six pages a second', () => {

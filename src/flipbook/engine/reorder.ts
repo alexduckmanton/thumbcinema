@@ -65,8 +65,8 @@ export const SETTLE_MS = 300
 export const SLIDE_DWELL_MS = 400
 
 /**
- * How long one page takes to pass under the held page: gently at the near end of the
- * run, and up to three times quicker held out at the edge of the window.
+ * How long one page takes to pass under the held page: about one a second where the run
+ * starts, and five times that held out at the edge of the window.
  *
  * A rate rather than a speed, and that is the point of it. The two things this is asked
  * for are very different sizes — nudging a frame two or three places, and taking a page
@@ -88,16 +88,23 @@ export const SLIDE_DWELL_MS = 400
  * flipbook past you rather than jumping to an index. A page every two frames, which is
  * where an unbounded ramp ends up, is a blur you have to stop and read afterwards.
  *
- * The interval is what is interpolated, not the rate, so the pages-per-second curve is
- * shallow at the near end and steepens towards the edge. That is the right way round: the
- * slow half is where you are choosing a page and wants the finer control.
+ * **The curve is squared, and that is what makes the throttle legible.** Straight-line
+ * was the first version and it was almost impossible to tell from no throttle at all,
+ * for a reason that is obvious once measured: half a page out is where a hand naturally
+ * rests when it has just moved the page one slot, and on a straight line from the gate to
+ * the window edge that is already a third of the way open. So the rate you actually
+ * *held* was never the slow one. Squared keeps the whole middle of the travel at very
+ * nearly the slow rate and spends the difference in the last quarter, next to the edge —
+ * which is both what "hold it closer to the edge" describes and where there is a hard
+ * stop to aim at.
  */
-export const SLIDE_SLOW_MS = 500
+export const SLIDE_SLOW_MS = 850
 export const SLIDE_FAST_MS = 170
 
 /** The interval for the next page, `reach` being 0 at the gate and 1 at full tilt. */
 export function slideInterval(reach: number): number {
-	return SLIDE_SLOW_MS + (SLIDE_FAST_MS - SLIDE_SLOW_MS) * Math.min(1, Math.max(0, reach))
+	const open = Math.min(1, Math.max(0, reach)) ** 2
+	return SLIDE_SLOW_MS + (SLIDE_FAST_MS - SLIDE_SLOW_MS) * open
 }
 
 /**

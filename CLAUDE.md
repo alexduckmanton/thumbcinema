@@ -423,15 +423,14 @@ staying exactly where your hand is.
   `--slide` is both numbers, so consecutive steps join into one continuous glide instead
   of reading as a series of hops — the trick `PageNav`'s sweep already uses to turn twelve
   frames a second into a moving handle. Measured at both ends of the throttle — a ten-page
-  run at full tilt and a six-page one at the slowest rate there is: no frame in which the
+  run at full tilt and a three-page one at the slowest rate there is: no frame in which the
   row went backwards, and none in which it stood still.
 - **`SLIDE_DWELL_MS` is what keeps a nudge a nudge.** Holding the page one slot over is
   also how you move it exactly one place, and that is much the commoner thing to want, so
   a gesture that goes out and comes straight back must never turn into a run.
 - **How far out the page is held is the throttle, and that is measured against the window
-  rather than the flipbook.** A page at a time you can count where the run starts, three
-  times that held out at the edge of the screen — 2.0 to 5.8 pages a second on a 1200px
-  window, 2.2 to 5.3 on a phone, measured. "Held out at the edge" is a statement about the
+  rather than the flipbook.** About a page a second where the run starts, five times that
+  held out at the edge of the screen. "Held out at the edge" is a statement about the
   screen, and `slideReach` asks it as "how far through the travel you actually had", which
   is the same question on both layouts and needs no breakpoint to ask it: `room` is the
   distance from the press to the edge it is being dragged towards, taken once, at the
@@ -439,18 +438,28 @@ staying exactly where your hand is.
 - **It was a ramp on elapsed time first, and distance is better because it goes both
   ways.** A time ramp is a control you can only push: it winds up whether you meant it to
   or not, and the only way to slow down is to let go and start again. Pull the page back
-  towards the middle of the column and this eases off under it — 170ms a page at the edge,
-  474ms back at 250px out — so stopping on the page you wanted is something you aim at
+  towards the middle of the column and this eases off under it — 174ms a page at the edge,
+  846ms back at 250px out — so stopping on the page you wanted is something you aim at
   rather than something you catch.
-- **The *interval* is what is interpolated, not the rate**, so the pages-per-second curve
-  is shallow at the near end and steepens towards the edge. That is the right way round:
-  the slow half is where you are choosing a page and wants the finer control. Measured at
-  225 / 300 / 400 / 500 / 599px out: 2.0, 2.3, 2.9, 3.3, 5.8 pages a second.
+- **The curve is squared, and that is what makes the throttle legible at all.** A straight
+  line was the first version of it and it was very nearly indistinguishable from having no
+  throttle, for a reason that is obvious once measured: half a page out is where a hand
+  rests when it has just moved the page one slot, and on a straight line from the gate to
+  the window edge that is already a third open. The rate anybody actually *held* was
+  therefore never the slow one. Squared keeps the whole middle of the travel at nearly the
+  slow rate and spends the difference next to the edge, where there is a hard stop to aim
+  at. Measured on a 1200px window at 225 / 330 / 400 / 470 / 530 / 570 / 599px out: 1.16,
+  1.25, 1.44, 1.80, 2.50, 3.59, 5.8 pages a second — where the straight line gave 2.5 at
+  the one-slot-out mark that matters most.
+- **It is the *interval* that is interpolated, not the rate**, which bends the
+  pages-per-second curve the same way again and for the same reason.
 - **The rate is read once per page, as it sets off**, which is the one place this is
-  deliberately a beat behind the finger. Opening the throttle takes effect on the page
-  after the one in flight, because a rate changed mid-page would mean either a glide that
-  stalls short of the next slot or one that jumps to catch up — and both are the hop the
-  linear timing exists to avoid.
+  deliberately a beat behind the finger — up to `SLIDE_SLOW_MS` of it. Opening the
+  throttle takes effect on the page after the one in flight, because a rate changed
+  mid-page would mean either a glide that stalls short of the next slot or one that jumps
+  to catch up, and both are the hop the linear timing exists to avoid. Retiming the page
+  in flight instead was worked through and is worse: the row would have to be advanced
+  early, which drifts the gap away from the page being held.
 - **`SLIDE_FULL` caps the throttle's travel at a page and a half**, which is past the
   window edge on every ordinary window and so does nothing at all on one. What it is for
   is the ultrawide, where the edge is nearly two thousand pixels from the handle and a
