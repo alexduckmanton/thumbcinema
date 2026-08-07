@@ -302,9 +302,10 @@ load-bearing:
 
 A tab on the top edge of the paper, dragged left or right: the drawing goes with the
 pointer, the pages either side step aside to open a gap, and letting go closes the
-flipbook up round it. `usePageReorder` is the gesture, `engine/reorder.ts` is the
-arithmetic under it, `PageHandle` is the tab, and `Scene.movePage` is the two lines
-that actually do it. Both layouts and both kinds of pointer, and the keyboard as well.
+flipbook up round it. Hold it out to one side and the rest of the flipbook comes past
+underneath. `usePageReorder` is the gesture, `engine/reorder.ts` is the arithmetic under
+it, `PageHandle` is the tab, and `Scene.movePage` is the two lines that actually do it.
+Both layouts and both kinds of pointer, and the keyboard as well.
 
 Nothing new was added to the flipbook to make it possible: the strip was already a row
 of full-size copies of the drawing laid out at a measured pitch, and this is that row
@@ -390,18 +391,73 @@ told to stand somewhere else for a moment.
 - **The keyboard gets the arrow keys, on the tab rather than beside it**, and they run
   the same settle with no drag behind them: the drawing never leaves the middle of the
   column and what moves is the page it swaps with, travelling past the canvas from one
-  side to the other. Propagation is stopped as well as the default prevented — the
-  document's own ←/→ page-turn would be refused anyway, `busy` being set by then, but a
-  control that depends on being refused elsewhere breaks when the elsewhere changes.
-- **A drag is 1:1 with the pointer, which on a phone means about one page a gesture.**
-  The pitch there is nearly the width of the window, so reaching three slots along is
-  three drags. Scaling the drag would buy the reach and cost the one thing that makes
-  this legible — the page is under your finger — and an edge-of-screen auto-advance is a
-  timer, an acceleration curve and a second way for the settle to be interrupted. Neither
-  is worth it for a gesture whose common case is nudging a frame one place.
+  side to the other. Held down, the key's own repeat carries the page along a page at a
+  time, which is the keyboard's version of holding it out to one side. Propagation is
+  stopped as well as the default prevented — the document's own ←/→ page-turn would be
+  refused anyway, `busy` being set by then, but a control that depends on being refused
+  elsewhere breaks when the elsewhere changes.
 - **`pages` and `step` are read once, at the press.** The flipbook can't change shape
   mid-gesture — everything that would change it is held — and a drag that recomputed its
   own pitch would be a drag that jumps if the window is resized under it.
+
+**Hold the page out to one side and the flipbook runs underneath it.** The drag itself is
+1:1 with the pointer, and the pitch on a phone is nearly the width of the window — so a
+gesture on its own can reach exactly one slot in either direction, which for a long
+flipbook is a lot of gestures. Holding is what reaches the rest of it: after a dwell the
+book starts coming past a page at a time, faster the longer it is held, with the page
+staying exactly where your hand is.
+
+- **It is the anchor that moves, and that is the whole mechanism.** `Reorder.anchor` is
+  the slot the strip's row is lined up on — where the *flipbook* is standing, which is not
+  where the page is. A tick advances it by one; `to` is measured from it, so the
+  destination advances with it and the gap stays under the drawing while the row slides.
+  Nothing else in the gesture knows a run is happening: `--drag` is untouched, so the page
+  does not move at all, and the settle at the end is the same settle.
+- **The gap and the book move at the same time, and one page moves twice as far.** The
+  page being passed is both scrolling with the book and crossing the gap, which is a step
+  each — so on the frame it is passed it travels two. That is correct rather than a bug
+  (it is what "passing" is), and it happens under the drawing, which is where the gap is.
+  What it needs is for both halves to share a curve and a duration, which is why
+  `.sliding` sets the timing on the row *and* on the thumbnails.
+- **The run is linear and lasts exactly as long as the gap until the next page.**
+  `--slide` is both numbers, so consecutive steps join into one continuous glide instead
+  of reading as a series of hops — the trick `PageNav`'s sweep already uses to turn twelve
+  frames a second into a moving handle. Measured over a ten-page run: no frame in which
+  the row went backwards, and none in which it stood still.
+- **`SLIDE_DWELL_MS` is what keeps a nudge a nudge.** Holding the page one slot over is
+  also how you move it exactly one place, and that is much the commoner thing to want, so
+  a gesture that goes out and comes straight back must never turn into a run.
+- **The ramp is on time, not on distance**, and that is a phone decision: there is no room
+  to hold a page *further* out down there, so distance would be a control that only exists
+  on a desktop.
+- **`SLIDE_FAST_MS` is a readability floor.** Six pages a second is quick but each page is
+  on screen long enough to be recognised, which is the point of running the flipbook past
+  you rather than jumping to an index. An unbounded ramp ends at a page every two frames,
+  which is a blur you have to stop and read afterwards.
+- **The run starts a third of a page out, where the swap needs half**, and the gap between
+  the two is a measurement rather than a taste. The handle starts in the middle of the
+  paper and the pitch on a phone is nearly the window, so a finger has about half a page
+  of travel before it runs out of glass: gating the run at half a page would mean it could
+  only be started by a swipe ending on the very edge of the screen. A third is a
+  comfortable swipe on both layouts — 134px of a 390px phone, tested — and it starts
+  *before* anything has swapped, so a hold can begin from a drag that hasn't moved a page
+  yet and walk it a slot at a time from there.
+- **The clamp has half a page of overhang, and half is exactly the right amount.** A run
+  ends with the anchor as far along as it can go while the page is still over a slot, and
+  `Math.round` leaves that up to half a step out — so without the slack the clamp would
+  tighten under a finger that hasn't moved and snatch the drawing sideways at the very end
+  of a run. Proved for every displacement in `reorder.test.ts` rather than checked at one.
+  What it buys as a side effect is that a page dragged past either end of the flipbook
+  hangs over nothing and slides home, which is a fair picture of there being nothing there.
+- **`.sliding` stays on the strip once a run has happened**, for the rest of the gesture.
+  Taking the class off would take its `transition` with it, and a transition removed
+  mid-flight does not stop — it finishes instantly, which is the last page of the run
+  snapping into place. Nothing moves the row while the run is stopped, so a rule with
+  nothing to animate costs nothing; the settle clears it in the same render that it wants
+  the other curve.
+- **Pulling back stops it where it is rather than unwinding it.** The run has genuinely
+  carried the page along, so bringing it back to the middle of the column means "drop it
+  here", not "undo the last four pages" — the anchor is where the page now lives.
 
 ### Undo and redo
 
@@ -628,7 +684,8 @@ is now true at both widths and the differences are called out where they exist.
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
 - **There is a tab on the top edge of the paper, and dragging it moves the page** to
-  another place in the flipbook. It is the only thing in the column that isn't 2013's,
+  another place in the flipbook — or holding it to one side runs the flipbook past
+  underneath. It is the only thing in the column that isn't 2013's,
   and it is deliberately not *in* the column: it hangs in the empty band above the
   drawing, so it changes no layout and `--book-reserve` is the same number it was. See
   **Rearranging pages** above for the whole of it.

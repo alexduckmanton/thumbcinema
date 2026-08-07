@@ -78,6 +78,30 @@
 }
 
 /*
+ * The flipbook running underneath a page that is being held out to one side.
+ *
+ * Linear, and exactly as long as the gap until the next page is taken — `--slide` is
+ * both, handed down from `usePageReorder`. Steps that each take precisely as long as the
+ * interval between them join up into one continuous glide; an eased one would arrive and
+ * wait, and what you would watch is a series of hops. It is the trick the page bar's
+ * sweep already uses to turn twelve frames a second into a moving handle.
+ *
+ * The thumbnails take the same timing, which matters for exactly one page per step: the
+ * one being passed. It moves twice as far as the rest — one step because the whole book
+ * is sliding, and one more because the gap has just closed behind it and opened in front
+ * — and the two halves of that only read as a single movement while they share a curve
+ * and a duration. That page crosses under the drawing, which is where the gap is.
+ *
+ * `.carrying.sliding` rather than `.sliding` alone, so it outweighs the settle's rule
+ * above by specificity rather than by which of them happens to be written last.
+ */
+.carrying.sliding,
+.carrying.sliding .page {
+	transition-duration: var(--slide);
+	transition-timing-function: linear;
+}
+
+/*
  * One page: a copy of the drawing, at the size the drawing is currently drawn at,
  * with a gutter either side.
  *
@@ -157,7 +181,9 @@
    flipbook back on the same frame, so nothing here is left mid-slide. */
 @media (prefers-reduced-motion: reduce) {
 	.carrying,
-	.carrying .page {
+	.carrying .page,
+	.carrying.sliding,
+	.carrying.sliding .page {
 		transition: none;
 	}
 }

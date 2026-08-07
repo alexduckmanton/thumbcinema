@@ -94,14 +94,16 @@ export function PageStrip({
 	/*
 	 * Which slot the row is lined up on, which is normally the page you are drawing on.
 	 *
-	 * While a page is being *carried* it stays lined up on the slot the page came out of,
-	 * so that the pages either side can step aside without the whole flipbook moving with
-	 * them. It changes to the destination at the moment the page is let go — and that,
+	 * While a page is being carried it is the gesture's, and it is what that gesture
+	 * moves: it starts at the slot the page came out of, so the pages either side can
+	 * step aside without the whole flipbook moving with them; it advances a page at a
+	 * time while the page is held out to one side, which is the book running underneath
+	 * it; and it arrives at the destination at the moment the page is let go — which,
 	 * against the drawing sliding back to the middle of the column by exactly the same
 	 * distance, is the flipbook closing up round the page as one movement. See
-	 * `usePageReorder`, which is where the arithmetic of that is written out.
+	 * `usePageReorder`, which is where the arithmetic of all three is written out.
 	 */
-	const anchor = reorder ? (reorder.settling ? reorder.to : reorder.from) : activePage
+	const anchor = reorder ? reorder.anchor : activePage
 	const left = metrics.offset - metrics.gutter - anchor * step
 
 	// Which thumbnail the canvas is standing in front of, and so which one to hide.
@@ -111,7 +113,12 @@ export function PageStrip({
 	return (
 		<div className={styles.container} ref={container} aria-hidden="true">
 			<div
-				className={[styles.strip, playing ? styles.playing : '', reorder ? styles.carrying : '']
+				className={[
+					styles.strip,
+					playing ? styles.playing : '',
+					reorder ? styles.carrying : '',
+					reorder?.slide ? styles.sliding : '',
+				]
 					.filter(Boolean)
 					.join(' ')}
 				style={
@@ -122,6 +129,9 @@ export function PageStrip({
 						// transforms go in the same render, and a rule that isn't there can't
 						// ease a transform away to nothing. Turning a page is still a cut.
 						'--settle': `${SETTLE_MS}ms`,
+						// How long one page of the run takes, which is also how long until the
+						// next one starts. See `.sliding`.
+						'--slide': `${reorder?.slide ?? 0}ms`,
 						// How wide a page is drawn. The stylesheet adds its own gutters to it
 						// and this file reads those back, so neither has to state the other's
 						// number. See `measure`.
