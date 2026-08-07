@@ -232,9 +232,17 @@ export function CreatePage() {
 					{engine && state && phase === 'drawing' ? (
 						<PageNav
 							engine={engine}
-							activePage={state.activePage}
+							// Where the page would land while one is being carried, rather than
+							// the page being drawn on — which doesn't change until the gesture
+							// ends, so the bar would sit still through the whole of it. It is
+							// the only thing on screen that says where you are against the
+							// *whole* flipbook, which is exactly what a long run needs.
+							activePage={reorder ? reorder.to : state.activePage}
 							pages={pages}
 							playback={state.playback}
+							// And it travels at the flipbook's own rate while the book is running
+							// underneath the page, rather than hopping onto each slot in turn.
+							glide={reorder?.slide ?? null}
 							// A crashed drawing being replayed arrives a page at a time exactly
 							// as a saved one does, so the bar waits the same way. Empty on a
 							// fresh page too, and there is nothing to say about a flipbook of

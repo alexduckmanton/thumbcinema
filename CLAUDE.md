@@ -407,6 +407,16 @@ flipbook is a lot of gestures. Holding is what reaches the rest of it: after a d
 book starts coming past a page at a time, faster the further out it is held, with the page
 staying exactly where your hand is.
 
+- **The page bar follows the destination, and it is the only thing that can.** Dragging
+  the tab turns no pages, so `activePage` doesn't change until the gesture commits — and
+  a bar that sits still through the whole of it is a bar that says nothing at the one
+  moment it is most wanted. A long run carries the drawing clean off the side of the
+  window, and from then on the handle is the only thing on screen saying where the page
+  would land against the *whole* flipbook. So `CreatePage` hands `PageNav` the destination
+  rather than the page being drawn on, and while the book is running it hands the run's
+  own timing down as `--glide` too, so the handle travels with the pages instead of
+  hopping a slot behind them. It reads the same value back at the commit, so the handover
+  moves it by nothing.
 - **It is the anchor that moves, and that is the whole mechanism.** `Reorder.anchor` is
   the slot the strip's row is lined up on — where the *flipbook* is standing, which is not
   where the page is. A tick advances it by one; `to` is measured from it, so the
@@ -766,7 +776,9 @@ is now true at both widths and the differences are called out where they exist.
   it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows playback as
   well as leading it, because the engine publishes every page change including the
   twelve a second that `play` makes — which is also the one time the settle's
-  transition is turned off. The two arrows stand *on* the bar rather than beside it,
+  transition is turned off. **It also follows a page being carried somewhere else**, which
+  is the one thing it points at that isn't the page being drawn on: see `.gliding`, and
+  **Rearranging pages** for why. The two arrows stand *on* the bar rather than beside it,
   and stop their own presses reaching it, or each one is also a jump to the end it sits
   at; the handle is over both and covers one when it gets there, which is the right way
   round. They wrap rather than greying out at the ends, because playback loops, and
