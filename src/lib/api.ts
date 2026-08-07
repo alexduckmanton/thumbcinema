@@ -45,11 +45,32 @@ export interface FlipbookSummary {
 	thumbnail_svg_url: string | null
 }
 
+/** What a remix was made from: enough to draw the link back, and no more. */
+export interface RemixParent {
+	id: string
+	/** Null on the archive rows that were recovered without one. */
+	title: string | null
+}
+
 /** A single flipbook, as the playback page needs it. */
 export interface Flipbook extends FlipbookSummary {
 	description: string | null
 	byline: string
 	views: number
+	/**
+	 * The flipbook this one was drawn on top of, or null if it is an original.
+	 *
+	 * The *direct* parent rather than the head of the chain, so the link says what was
+	 * actually opened in the drawing tool. The list of remixes below it is flat and
+	 * keyed on the root instead; the two answer different questions.
+	 */
+	remix_of: RemixParent | null
+	/**
+	 * Which lineage this flipbook belongs to — its own id when it is an original, the
+	 * shared root when it is a remix. It is what to ask `listRemixes` for, and it is
+	 * why a remix and its original show the same list.
+	 */
+	remix_root: string
 }
 
 export interface FlipbookPage {
@@ -122,6 +143,28 @@ export function listFlipbooks(
 	return getJson<FlipbookPage>(`/api/flipbooks?${query}`, options)
 }
 
+/**
+ * Everything made from one flipbook, newest first.
+ *
+ * The gallery listing with a different filter on it, which is why it answers with the
+ * same page of the same rows: a remix is an ordinary flipbook, it appears in the grid
+ * like any other, and the card that draws it there draws it here.
+ *
+ * `root` is a flipbook's `remix_root` rather than its id. The lineage is flat, so
+ * asking a remix for its siblings and asking the original for its children are the
+ * same question — and both pages show the same list.
+ */
+export function listRemixes(
+	root: string,
+	params: { limit: number; cursor?: string | null } = { limit: 24 },
+	options: RequestOptions = {},
+): Promise<FlipbookPage> {
+	const query = new URLSearchParams({ remix_of: root, limit: String(params.limit) })
+	if (params.cursor) query.set('cursor', params.cursor)
+
+	return getJson<FlipbookPage>(`/api/flipbooks?${query}`, options)
+}
+
 /** Metadata for one flipbook. Also increments its view counter, server side. */
 export function getFlipbook(id: string, options: RequestOptions = {}): Promise<Flipbook> {
 	return getJson<Flipbook>(`/api/flipbooks/${encodeURIComponent(id)}`, options)
@@ -173,6 +216,14 @@ export interface SavePayload {
 	 */
 	cover: number
 	nsfw: boolean
+	/**
+	 * The flipbook this was drawn on top of, when the tool was opened from one.
+	 *
+	 * Omitted from the form entirely when it's null, rather than sent empty: this is
+	 * the endpoint both deployments post to, and a field that is only ever there when
+	 * it means something is one fewer thing for the other one to have an opinion about.
+	 */
+	remixOf?: string | null
 }
 
 /**
@@ -197,6 +248,8 @@ export async function saveFlipbook(
 		cover: String(payload.cover),
 		nsfw: payload.nsfw ? '1' : '0',
 	})
+
+	if (payload.remixOf) form.set('remix_of', payload.remixOf)
 
 	const response = await fetch('/saveflipbook', {
 		method: 'POST',

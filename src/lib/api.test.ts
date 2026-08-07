@@ -152,6 +152,42 @@ describe('saveFlipbook', () => {
 		).toBe('1')
 	})
 
+	it('names what a remix was drawn on top of', async () => {
+		fetchMock.mockResolvedValue(textResponse('/f/x'))
+
+		await saveFlipbook({
+			title: 't',
+			description: '',
+			svg: '<svg/>',
+			thumbnailDataUrl: '',
+			cover: 0,
+			nsfw: false,
+			remixOf: 'original1',
+		})
+
+		const body = new URLSearchParams(String((fetchMock.mock.calls[0]![1] as RequestInit).body))
+		expect(body.get('remix_of')).toBe('original1')
+	})
+
+	it('leaves the field out altogether when it is not a remix', async () => {
+		fetchMock.mockResolvedValue(textResponse('/f/x'))
+
+		await saveFlipbook({
+			title: 't',
+			description: '',
+			svg: '<svg/>',
+			thumbnailDataUrl: '',
+			cover: 0,
+			nsfw: false,
+		})
+
+		// Absent rather than empty. This is the endpoint both deployments post to, and
+		// a field that is only ever there when it means something is one fewer thing
+		// for the other one to have an opinion about.
+		const body = new URLSearchParams(String((fetchMock.mock.calls[0]![1] as RequestInit).body))
+		expect(body.has('remix_of')).toBe(false)
+	})
+
 	it('surfaces the 413 a too-large flipbook gets', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ error: 'Flipbook is too large to save.' }, 413))
 

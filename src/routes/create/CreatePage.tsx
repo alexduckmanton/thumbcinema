@@ -11,11 +11,12 @@ import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/Flipbo
 import { settledPageCount } from '../../flipbook/engine/pages'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
-import { ApiError, saveFlipbook } from '../../lib/api'
+import { ApiError, getFlipbook, getFlipbookData, saveFlipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import { refuseMultiTouch } from '../../lib/zoom'
 import { registerMessage, showMessage } from '../../lib/messages'
-import { guardNavigation, navigate } from '../../router/Router'
+import { guardNavigation, navigate, useLocation } from '../../router/Router'
+import { remixSource } from '../../router/routes'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
 import styles from './CreatePage.module.css'
 import { Recovery } from './Recovery'
@@ -27,6 +28,12 @@ export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
 
+	// Which flipbook this is being drawn on top of, if any. Read off the URL rather
+	// than held in state, so a reload lands on the same flipbook rather than an empty
+	// page — which is also what makes the crash recovery reload work.
+	const { search } = useLocation()
+	const asked = remixSource(search)
+
 	/*
 	 * Everywhere a finger may aim from, which is the whole page rather than the drawing.
 	 *
@@ -37,11 +44,17 @@ export function CreatePage() {
 	 */
 	const field = useRef<HTMLElement | null>(null)
 
-	const crash = useCrashRecovery(engine)
+	const crash = useCrashRecovery(engine, asked)
+
+	// What a save will actually be attributed to: the recovery file's answer when there
+	// was one to restore, the URL's otherwise. See `useCrashRecovery`.
+	const remixOf = crash.remixOf
 
 	useEffect(() => {
 		document.title = 'create — thumbcinema'
 	}, [])
+
+	const remixLoaded = useRemixSource(engine, crash.decided && !crash.restored ? asked : null)
 
 	// Everything but the naming form, which has fields in it a finger may want to pan.
 	useNoScrolling(phase !== 'naming')
@@ -52,7 +65,24 @@ export function CreatePage() {
 	// Not the raw length: a page on its way off the screen is still in the list, and
 	// counting it makes the save button fade in and straight back out again.
 	const pages = state ? settledPageCount(state.pages) : 1
-	useUnsavedWarning(pages > 1 && phase !== 'sending')
+
+	/*
+	 * A remix that has been opened and not yet drawn on is not work, and warning about
+	 * it is a false alarm at the exact moment somebody is most likely to change their
+	 * mind: press Remix, look at it in the tool, press back.
+	 *
+	 * `canUndo` is what tells the two apart, and it is exact rather than approximate.
+	 * `loadSvg` clears the history, so a freshly-opened remix has nothing to undo and
+	 * anything at all done to it — a stroke, a page, a nudge — puts a step on the stack.
+	 * It reads as a proxy and isn't one: "the drawing has been changed since it was
+	 * loaded" is precisely what an undo stack with something in it means.
+	 *
+	 * It is asked only of a remix. Crash-recovered work has an empty history too — the
+	 * same `loadSvg` cleared it — and that genuinely is unsaved work, which is the whole
+	 * reason it was recovered.
+	 */
+	const untouchedRemix = remixLoaded && !state?.canUndo
+	useUnsavedWarning(pages > 1 && phase !== 'sending' && !untouchedRemix)
 
 	const handleSave = useCallback(
 		async (values: SaveFormValues) => {
@@ -72,6 +102,12 @@ export function CreatePage() {
 					thumbnailDataUrl,
 					cover,
 					nsfw: values.nsfw,
+					// Permanent, and not offered as a choice. Pressing Remix is what makes
+					// this a remix; there is no box to untick on the way out, because a
+					// drawing made on top of somebody else's is one however much of theirs
+					// is left by the end. The server checks the flipbook is really there
+					// and drops the link rather than refusing the save if it isn't.
+					remixOf,
 				})
 
 				// Left for the page we're about to land on.
@@ -96,7 +132,7 @@ export function CreatePage() {
 				showMessage({ copy: message, cta: 'Dang', type: 'error' })
 			}
 		},
-		[engine],
+		[engine, remixOf],
 	)
 
 	const contentClass = [
@@ -148,9 +184,15 @@ export function CreatePage() {
 							}
 						/>
 
+						{/* Two ways a flipbook lands in the drawing tool and they are not the
+						    same event: one is your own work coming back after a crash, the
+						    other is somebody else's arriving to be drawn on. Same overlay,
+						    same spinner, different sentence. */}
 						{state?.loading ? (
 							<div className={canvasStyles.overlay}>
-								<h2>Restoring your flipbook</h2>
+								<h2>
+									{asked && !crash.restored ? 'Opening that flipbook' : 'Restoring your flipbook'}
+								</h2>
 								<Spinner label="" />
 							</div>
 						) : null}
@@ -218,6 +260,78 @@ export function CreatePage() {
 			{crash.crashed ? <Recovery saved={crash.saved} /> : null}
 		</>
 	)
+}
+
+/**
+ * Opens the drawing tool on a flipbook that already exists.
+ *
+ * The same two fetches the playback page makes and the same `loadSvg` at the end of
+ * them, because it is the same job: a saved flipbook, replayed into a scene. What
+ * differs is only that this one can be drawn on afterwards, and that is not a property
+ * of the load.
+ *
+ * Four things worth keeping straight:
+ *
+ *  - **`null` while the crash recovery is still deciding**, and `null` forever if it
+ *    restored something. Recovered work is a drawing that already exists and already
+ *    contains whatever it was remixed from; fetching the original over the top of it
+ *    would replay two flipbooks into one scene. The URL survives the recovery reload
+ *    — `Recovery` calls `location.reload()` — so without the guard that is exactly
+ *    what would happen, every time.
+ *  - **`legacy-json` is refused.** Those are point lists that only come back through
+ *    the pencil, so what the tool would open is a resampled copy rather than the
+ *    artwork. The button isn't offered on them; this is the same answer given where it
+ *    can't be got round, and the server drops the link too.
+ *  - **A failure leaves an empty page rather than an error.** Every path out of here
+ *    is a flipbook that couldn't be fetched, and what is on screen is a working
+ *    drawing tool — so the message says the remix didn't happen and the page carries
+ *    on being what it already is. It clears `remixOf`… except that it can't, and
+ *    doesn't need to: the save resolves the parent server-side, so a flipbook that
+ *    couldn't be fetched here is one that won't be linked to there either.
+ *  - **The engine's own history is cleared by `loadSvg`**, so the pages that arrive
+ *    aren't fifty undo steps you can walk backwards out of. That is the loader's
+ *    behaviour already, and it is the right one here: undoing your way past the
+ *    beginning of a remix should not be possible. It is also what tells a remix
+ *    nobody has touched from one somebody has — see `useUnsavedWarning` below.
+ *
+ * Answers whether a flipbook is on the page because of this, which the unsaved-work
+ * guard needs and nothing else does.
+ */
+function useRemixSource(engine: FlipbookEngine | null, id: string | null): boolean {
+	const [loaded, setLoaded] = useState(false)
+
+	useEffect(() => {
+		if (!engine || !id) return
+
+		const controller = new AbortController()
+
+		getFlipbook(id, { signal: controller.signal })
+			.then(async (found) => {
+				if (controller.signal.aborted) return
+
+				if (found.format === 'legacy-json') {
+					throw new Error('A 2012 flipbook can only be redrawn, not edited.')
+				}
+
+				const text = await getFlipbookData(found.data_url, { signal: controller.signal })
+				if (controller.signal.aborted) return
+
+				await engine.loadSvg(text, controller.signal)
+				if (!controller.signal.aborted) setLoaded(true)
+			})
+			.catch(() => {
+				if (controller.signal.aborted) return
+				showMessage({
+					copy: "I couldn't open that flipbook to remix. Here's a blank one instead.",
+					cta: 'Fair enough',
+					type: 'error',
+				})
+			})
+
+		return () => controller.abort()
+	}, [engine, id])
+
+	return loaded
 }
 
 /**

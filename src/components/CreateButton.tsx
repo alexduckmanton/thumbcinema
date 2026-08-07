@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Link } from '../router/Router'
+import { createPath } from '../router/routes'
 import styles from './CreateButton.module.css'
 
 /**
@@ -8,6 +9,17 @@ import styles from './CreateButton.module.css'
  * that it has folded before the header has left the screen.
  */
 const THRESHOLD = 48
+
+export interface CreateButtonProps {
+	/**
+	 * The flipbook to open the drawing tool on, if any.
+	 *
+	 * With one, this is the Remix button: same button, same corner, same errand — the
+	 * difference is only what the tool starts with. Which is why it is one component
+	 * rather than two, and why the label changes rather than the shape.
+	 */
+	remixOf?: string
+}
 
 /**
  * Extended while you're at the top of the page, folded to a plain circle once you
@@ -17,7 +29,7 @@ const THRESHOLD = 48
  * changes twice in a whole page's worth of scrolling, so the throttle is about not
  * touching `scrollY` sixty times a second, not about the write.
  */
-export function CreateButton() {
+export function CreateButton({ remixOf }: CreateButtonProps = {}) {
 	const [scrolled, setScrolled] = useState(() => window.scrollY > THRESHOLD)
 
 	useEffect(() => {
@@ -48,14 +60,22 @@ export function CreateButton() {
 		}
 	}, [])
 
+	/*
+	 * "Remix" is a longer word than "New" and the label is capped at 120px, which is
+	 * comfortably past either at 30px Pecita — so the button simply grows to fit and
+	 * folds to the same disc on the same scroll. Nothing about the layout changes.
+	 */
+	const label = remixOf ? 'Remix' : 'New'
+	const description = remixOf ? 'Remix this flipbook' : 'New flipbook'
+
 	return (
 		<Link
-			to="/create"
+			to={createPath(remixOf)}
 			className={scrolled ? `${styles.fab} ${styles.scrolled}` : styles.fab}
-			aria-label="New flipbook"
-			title="New flipbook"
+			aria-label={description}
+			title={description}
 		>
-			<span className={styles.label}>New</span>
+			<span className={styles.label}>{label}</span>
 		</Link>
 	)
 }
