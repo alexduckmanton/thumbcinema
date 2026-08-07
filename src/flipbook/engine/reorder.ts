@@ -65,34 +65,39 @@ export const SETTLE_MS = 300
 export const SLIDE_DWELL_MS = 400
 
 /**
- * How long one page takes to pass under the held page, and how that speeds up.
+ * How long one page takes to pass under the held page: gently at the near end of the
+ * run, and up to three times quicker held out at the edge of the window.
  *
- * It ramps rather than running at one rate, because the two things this is asked for are
- * very different sizes: nudging a frame two or three places, and taking a page from the
- * end of a forty-page flipbook to the front. A single rate is either too fast to stop on
- * the page you wanted or too slow to be worth holding. So the first few pages go at
- * something you can count, and it winds up to a canter if you keep holding — full speed
- * after six or so, which is about where "a few pages along" has stopped being the
- * question.
+ * A rate rather than a speed, and that is the point of it. The two things this is asked
+ * for are very different sizes — nudging a frame two or three places, and taking a page
+ * from the end of a forty-page flipbook to the front — and one rate is either too fast to
+ * stop on the page you wanted or too slow to be worth holding. So the *distance* the page
+ * is held out is the throttle: barely past the point where the run starts is a page at a
+ * time you can count, and out at the edge is as fast as the flipbook is worth watching.
+ *
+ * Distance rather than how long it has been running, which is what this was first. A ramp
+ * on time is a control you can only push: it winds up whether you meant it to or not, and
+ * the only way to slow it down is to let go and start again. On distance it goes both
+ * ways — pull the page back towards the middle of the column and the flipbook eases off
+ * under it — which is what makes stopping on the page you wanted a thing you can aim at
+ * rather than a thing you have to catch.
  *
  * The top speed is a readability floor rather than a performance one, and it is the
- * number to change if this ever feels wrong. Six pages a second is quick, but each one
- * is on screen long enough to be recognised — which is the whole point of running the
+ * number to change if this ever feels wrong. Six pages a second is quick, but each one is
+ * on screen long enough to be recognised — which is the whole point of running the
  * flipbook past you rather than jumping to an index. A page every two frames, which is
  * where an unbounded ramp ends up, is a blur you have to stop and read afterwards.
  *
- * The ramp is on how many pages have gone by rather than on how far out the page is
- * held, and that is a phone decision: the pitch there is nearly the width of the window,
- * so there is no room to hold a page *further* out and distance would be a control that
- * only exists on a desktop. Time is the same control on both.
+ * The interval is what is interpolated, not the rate, so the pages-per-second curve is
+ * shallow at the near end and steepens towards the edge. That is the right way round: the
+ * slow half is where you are choosing a page and wants the finer control.
  */
-export const SLIDE_START_MS = 320
+export const SLIDE_SLOW_MS = 500
 export const SLIDE_FAST_MS = 170
-const SLIDE_RAMP_MS = 25
 
-/** The interval for the next page, having already slid `slid` of them this hold. */
-export function slideInterval(slid: number): number {
-	return Math.max(SLIDE_FAST_MS, SLIDE_START_MS - slid * SLIDE_RAMP_MS)
+/** The interval for the next page, `reach` being 0 at the gate and 1 at full tilt. */
+export function slideInterval(reach: number): number {
+	return SLIDE_SLOW_MS + (SLIDE_FAST_MS - SLIDE_SLOW_MS) * Math.min(1, Math.max(0, reach))
 }
 
 /**
@@ -112,6 +117,36 @@ export function slideInterval(slid: number): number {
  * wider than the screen.
  */
 const SLIDE_REACH = 1 / 3
+
+/**
+ * Where full speed is, if the window is wide enough to reach it: a page and a half out
+ * from where the page was picked up.
+ *
+ * The throttle runs from the gate to the edge of the window, because "held out at the
+ * edge" is a statement about the screen rather than about the flipbook — it is the same
+ * gesture on a phone, where the edge is 190px from the handle, and on a laptop, where it
+ * is 600. What this cap is for is the window that is wider than the gesture: on an
+ * ultrawide the edge is nearly two thousand pixels away, and a throttle you have to drag
+ * a metre of desk to open is one nobody ever finds the top of. A page and a half is past
+ * the window edge on every ordinary one, so on those this does nothing at all.
+ */
+const SLIDE_FULL = 1.5
+
+/**
+ * How far open the throttle is: 0 where the run starts, 1 held out at the edge.
+ *
+ * `room` is how much screen there was between the press and the edge it is being dragged
+ * towards, measured once, at the press — so the answer is "how far through the travel
+ * you actually had", which is the same question on both layouts and needs no breakpoint
+ * to ask it.
+ */
+export function slideReach(drag: number, room: number, step: number): number {
+	const gate = step * SLIDE_REACH
+	const full = Math.min(room, step * SLIDE_FULL)
+	if (full <= gate) return 0
+
+	return Math.min(1, Math.max(0, (Math.abs(drag) - gate) / (full - gate)))
+}
 
 /**
  * How far the page can be dragged, which is as far as there is flipbook to drag it

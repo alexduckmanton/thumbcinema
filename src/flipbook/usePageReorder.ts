@@ -10,6 +10,7 @@ import {
 	SLIDE_DWELL_MS,
 	slideDirection,
 	slideInterval,
+	slideReach,
 	targetIndex,
 } from './engine/reorder'
 
@@ -26,10 +27,16 @@ import {
  * with the pointer, and on a phone the pitch is nearly the width of the window — so on
  * its own a gesture can reach exactly one slot in either direction. What reaches the
  * rest of the flipbook is holding: after `SLIDE_DWELL_MS` the row starts advancing a
- * page at a time, faster the longer it is held, and the page stays exactly where your
- * hand is while the book goes by. See `anchor` on `Reorder`, which is the whole
- * mechanism — the row's alignment and the destination advance *together*, so the gap
- * stays under the page and being held out to one side goes on being true.
+ * page at a time, and the page stays exactly where your hand is while the book goes by.
+ * See `anchor` on `Reorder`, which is the whole mechanism — the row's alignment and the
+ * destination advance *together*, so the gap stays under the page and being held out to
+ * one side goes on being true.
+ *
+ * **How far out it is held is the throttle**, from a page at a time you can count to
+ * three times that at the edge of the window. See `slideInterval` and `slideReach`. It
+ * is a control that goes both ways, which is the whole reason it is distance and not
+ * elapsed time: pull the page back towards the middle and the flipbook eases off under
+ * it, so stopping on the page you wanted is something you aim at rather than catch.
  *
  * **How the handover at the end is invisible**, which is the part worth understanding
  * before touching any of it. Throughout the gesture the strip is anchored on the slot
@@ -122,10 +129,10 @@ export function usePageReorder(
 		held.to = to
 		held.offset = offset
 
-		if (slideDirection(offset, to, held.pages, held.step) === 0) stopRunning(held)
+		if (slideDirection(offset, to, held.pages, held.step) === 0) stopRunning()
 		else if (running.current === null) {
-			// The dwell, and only the first one: everything after it is the ramp.
-			held.slid = 0
+			// The dwell, and only ever the first one — from there the pages come at whatever
+			// rate the page is being held at, which this does not have to know about.
 			running.current = window.setTimeout(() => advance(held), SLIDE_DWELL_MS)
 		}
 
@@ -145,17 +152,22 @@ export function usePageReorder(
 	 * is also the duration the row is given to cover this one: steps that each take
 	 * exactly as long as the gap between them join into one continuous glide rather than
 	 * reading as a series of hops. Same trick the page bar's sweep uses.
+	 *
+	 * How fast is read here, once per page, off where the page is being held at the moment
+	 * the page sets off. So opening the throttle takes effect on the page after the one in
+	 * flight, which is the one place this is deliberately a beat behind the finger: a rate
+	 * changed mid-page would mean either a glide that stalls short of the next slot or one
+	 * that has to jump to catch up, and both of those are the hop this exists to avoid.
 	 */
 	function advance(held: Drag): void {
 		const direction = slideDirection(held.offset, held.to, held.pages, held.step)
 		if (direction === 0) {
-			stopRunning(held)
+			stopRunning()
 			return
 		}
 
 		held.anchor += direction
-		held.slide = slideInterval(held.slid)
-		held.slid++
+		held.slide = slideInterval(slideReach(held.offset, held.room[direction < 0 ? 0 : 1], held.step))
 
 		running.current = window.setTimeout(() => advance(held), held.slide)
 		track(held, true)
@@ -172,10 +184,9 @@ export function usePageReorder(
 	 * moves the row while the run is stopped, so a rule with nothing to animate costs
 	 * nothing, and the settle clears it in the same render that it wants the other curve.
 	 */
-	function stopRunning(held: Drag): void {
+	function stopRunning(): void {
 		if (running.current !== null) window.clearTimeout(running.current)
 		running.current = null
-		held.slid = 0
 	}
 
 	const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
@@ -201,7 +212,7 @@ export function usePageReorder(
 			offset: 0,
 			pages,
 			step: pitch,
-			slid: 0,
+			room: [event.clientX, window.innerWidth - event.clientX],
 			slide: null,
 		}
 		setReorder({ from, anchor: from, to: from, settling: false, slide: null })
@@ -222,7 +233,7 @@ export function usePageReorder(
 		if (!held) return
 
 		drag.current = null
-		stopRunning(held)
+		stopRunning()
 		settle(held.from, held.to)
 	}
 
@@ -283,7 +294,12 @@ interface Drag {
 	/** Both read once, at the press: the flipbook can't change shape mid-gesture. */
 	pages: number
 	step: number
-	/** How many pages this hold has already run through. Drives the ramp. */
-	slid: number
+	/**
+	 * How much screen there was either side of the press, `[left, right]`. What the
+	 * throttle is measured against — see `slideReach` — and read once for the same reason
+	 * the two above are: a gesture whose own scale moved under it would be a gesture that
+	 * changed speed because the browser's chrome slid away.
+	 */
+	room: [number, number]
 	slide: number | null
 }

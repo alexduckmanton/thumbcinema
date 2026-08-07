@@ -404,7 +404,7 @@ told to stand somewhere else for a moment.
 1:1 with the pointer, and the pitch on a phone is nearly the width of the window — so a
 gesture on its own can reach exactly one slot in either direction, which for a long
 flipbook is a lot of gestures. Holding is what reaches the rest of it: after a dwell the
-book starts coming past a page at a time, faster the longer it is held, with the page
+book starts coming past a page at a time, faster the further out it is held, with the page
 staying exactly where your hand is.
 
 - **It is the anchor that moves, and that is the whole mechanism.** `Reorder.anchor` is
@@ -422,14 +422,39 @@ staying exactly where your hand is.
 - **The run is linear and lasts exactly as long as the gap until the next page.**
   `--slide` is both numbers, so consecutive steps join into one continuous glide instead
   of reading as a series of hops — the trick `PageNav`'s sweep already uses to turn twelve
-  frames a second into a moving handle. Measured over a ten-page run: no frame in which
-  the row went backwards, and none in which it stood still.
+  frames a second into a moving handle. Measured at both ends of the throttle — a ten-page
+  run at full tilt and a six-page one at the slowest rate there is: no frame in which the
+  row went backwards, and none in which it stood still.
 - **`SLIDE_DWELL_MS` is what keeps a nudge a nudge.** Holding the page one slot over is
   also how you move it exactly one place, and that is much the commoner thing to want, so
   a gesture that goes out and comes straight back must never turn into a run.
-- **The ramp is on time, not on distance**, and that is a phone decision: there is no room
-  to hold a page *further* out down there, so distance would be a control that only exists
-  on a desktop.
+- **How far out the page is held is the throttle, and that is measured against the window
+  rather than the flipbook.** A page at a time you can count where the run starts, three
+  times that held out at the edge of the screen — 2.0 to 5.8 pages a second on a 1200px
+  window, 2.2 to 5.3 on a phone, measured. "Held out at the edge" is a statement about the
+  screen, and `slideReach` asks it as "how far through the travel you actually had", which
+  is the same question on both layouts and needs no breakpoint to ask it: `room` is the
+  distance from the press to the edge it is being dragged towards, taken once, at the
+  press.
+- **It was a ramp on elapsed time first, and distance is better because it goes both
+  ways.** A time ramp is a control you can only push: it winds up whether you meant it to
+  or not, and the only way to slow down is to let go and start again. Pull the page back
+  towards the middle of the column and this eases off under it — 170ms a page at the edge,
+  474ms back at 250px out — so stopping on the page you wanted is something you aim at
+  rather than something you catch.
+- **The *interval* is what is interpolated, not the rate**, so the pages-per-second curve
+  is shallow at the near end and steepens towards the edge. That is the right way round:
+  the slow half is where you are choosing a page and wants the finer control. Measured at
+  225 / 300 / 400 / 500 / 599px out: 2.0, 2.3, 2.9, 3.3, 5.8 pages a second.
+- **The rate is read once per page, as it sets off**, which is the one place this is
+  deliberately a beat behind the finger. Opening the throttle takes effect on the page
+  after the one in flight, because a rate changed mid-page would mean either a glide that
+  stalls short of the next slot or one that jumps to catch up — and both are the hop the
+  linear timing exists to avoid.
+- **`SLIDE_FULL` caps the throttle's travel at a page and a half**, which is past the
+  window edge on every ordinary window and so does nothing at all on one. What it is for
+  is the ultrawide, where the edge is nearly two thousand pixels from the handle and a
+  throttle you have to drag a metre of desk to open is one nobody finds the top of.
 - **`SLIDE_FAST_MS` is a readability floor.** Six pages a second is quick but each page is
   on screen long enough to be recognised, which is the point of running the flipbook past
   you rather than jumping to an index. An unbounded ramp ends at a page every two frames,
@@ -455,9 +480,10 @@ staying exactly where your hand is.
   snapping into place. Nothing moves the row while the run is stopped, so a rule with
   nothing to animate costs nothing; the settle clears it in the same render that it wants
   the other curve.
-- **Pulling back stops it where it is rather than unwinding it.** The run has genuinely
-  carried the page along, so bringing it back to the middle of the column means "drop it
-  here", not "undo the last four pages" — the anchor is where the page now lives.
+- **Pulling back eases off and then stops it where it is, rather than unwinding it.** The
+  run has genuinely carried the page along, so bringing it back to the middle of the column
+  means "drop it here", not "undo the last four pages" — the anchor is where the page now
+  lives.
 
 ### Undo and redo
 

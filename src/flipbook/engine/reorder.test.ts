@@ -4,9 +4,10 @@ import {
 	clampDrag,
 	pageShift,
 	SLIDE_FAST_MS,
-	SLIDE_START_MS,
+	SLIDE_SLOW_MS,
 	slideDirection,
 	slideInterval,
+	slideReach,
 	targetIndex,
 } from './reorder'
 
@@ -116,21 +117,66 @@ describe('slideDirection', () => {
 })
 
 describe('slideInterval', () => {
-	it('starts at a pace you can count and winds up', () => {
-		expect(slideInterval(0)).toBe(SLIDE_START_MS)
-		expect(slideInterval(1)).toBeLessThan(SLIDE_START_MS)
-		expect(slideInterval(4)).toBeLessThan(slideInterval(1))
+	it('is a page at a time where the run starts, and quicker further out', () => {
+		expect(slideInterval(0)).toBe(SLIDE_SLOW_MS)
+		expect(slideInterval(0.5)).toBeLessThan(SLIDE_SLOW_MS)
+		expect(slideInterval(1)).toBe(SLIDE_FAST_MS)
 	})
 
-	it('has a top speed, and holds it', () => {
-		expect(slideInterval(6)).toBe(SLIDE_FAST_MS)
-		expect(slideInterval(200)).toBe(SLIDE_FAST_MS)
+	it('has a top speed, and cannot be pushed past it', () => {
+		expect(slideInterval(4)).toBe(SLIDE_FAST_MS)
+		expect(slideInterval(-4)).toBe(SLIDE_SLOW_MS)
 	})
 
 	// The floor is about being able to read the flipbook going past, so it is worth
 	// stating in the units that matters in rather than only in milliseconds.
 	it('never runs faster than six pages a second', () => {
-		expect(1000 / slideInterval(200)).toBeLessThanOrEqual(6)
+		expect(1000 / slideInterval(1)).toBeLessThanOrEqual(6)
+	})
+})
+
+describe('slideReach', () => {
+	/*
+	 * A phone: the handle starts in the middle of a 390pt window with 190 either side of
+	 * it, and the pitch is nearly the whole window. So the throttle opens over the last
+	 * 70pt of travel a finger actually has — which is not much, and is all there is.
+	 */
+	const PHONE = { room: 190, step: 366 }
+	/** A laptop: 600 either side of the handle, and a 660 pitch. */
+	const DESK = { room: 600, step: 660 }
+
+	it('is shut where the run starts, on both layouts', () => {
+		expect(slideReach(PHONE.step / 3, PHONE.room, PHONE.step)).toBe(0)
+		expect(slideReach(-DESK.step / 3, DESK.room, DESK.step)).toBe(0)
+	})
+
+	it('is wide open at the edge of the window, on both layouts', () => {
+		expect(slideReach(PHONE.room, PHONE.room, PHONE.step)).toBe(1)
+		expect(slideReach(-DESK.room, DESK.room, DESK.step)).toBe(1)
+	})
+
+	it('opens the same either way the page is held', () => {
+		expect(slideReach(300, DESK.room, DESK.step)).toBe(slideReach(-300, DESK.room, DESK.step))
+	})
+
+	it('goes back down when the page is brought back towards the middle', () => {
+		expect(slideReach(500, DESK.room, DESK.step)).toBeGreaterThan(
+			slideReach(350, DESK.room, DESK.step),
+		)
+	})
+
+	/*
+	 * The cap. On an ultrawide the window edge is nearly two thousand pixels from the
+	 * handle, and a throttle that only opens fully out there is one nobody finds the top
+	 * of. It does nothing at all on an ordinary window, which is the point of it.
+	 */
+	it('stops needing more travel once the window is wider than the gesture', () => {
+		expect(slideReach(990, 1700, 660)).toBe(1)
+		expect(slideReach(990, DESK.room, DESK.step)).toBe(1)
+	})
+
+	it('is shut when there is no room to open it in', () => {
+		expect(slideReach(500, 10, 660)).toBe(0)
 	})
 })
 
