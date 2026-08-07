@@ -544,6 +544,13 @@ export class PointerLayer {
 		// drawing through one has been allowed since 2013.
 		if (this.engine.store.snapshot.loading) return
 
+		// And a page being carried to another slot is a page sliding about under the
+		// cursor, which is the one state where the mark and the paper genuinely aren't in
+		// the same place. Refused here rather than at `touchstart` for the same reason a
+		// load is: the layer keeps the gesture and the cursor goes on moving, so letting
+		// go of the handle leaves a tool that works rather than one you have to re-arm.
+		if (this.engine.store.snapshot.reordering) return
+
 		gesture.engaged = true
 		gesture.everEngaged = true
 		// The stroke starts wherever the *cursor* is standing, which is the one place it

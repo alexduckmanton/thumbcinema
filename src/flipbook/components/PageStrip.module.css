@@ -43,6 +43,65 @@
 }
 
 /*
+ * Except while a page is being carried to another slot, which is the one time the row
+ * has something to say by moving.
+ *
+ * Two transitions, and they are halves of one movement. The pages' `transform` is the
+ * gap opening and closing ahead of the drawing as it is dragged past them; the row's
+ * `left` is the flipbook re-centring on the page at the end, once it has been let go.
+ * Both are the same duration and the same curve because between the release and the
+ * landing they run *together* — the row slides one way by exactly as far as the drawing
+ * slides back the other — and any daylight between the two would show as the page
+ * arriving before or after the book it belongs to.
+ *
+ * `--settle` comes from `usePageReorder`, which is also what waits for it before
+ * touching the scene. And both rules hang off this class, which is only on the element
+ * while a page is in hand: the frame that hands the flipbook back swaps every transform
+ * for a slot in the row, which is the same position by construction, and a transition
+ * still on the element would be 300ms of easing that from nothing to nothing.
+ *
+ * The transform is here rather than on `.page` itself, and that is load-bearing rather
+ * than tidy: a transform makes an element the containing block for `position: fixed`
+ * descendants, and `freeze()` pins a thumbnail for a page animation by making it fixed
+ * at the coordinates it currently occupies on screen. A permanent `translate3d(0,0,0)`
+ * on every page would quietly re-base every one of those against the page it is inside.
+ * Nothing is ever frozen while a page is in hand — the page actions are held throughout
+ * — so the two can't overlap.
+ */
+.carrying .page {
+	transform: translate3d(var(--shift, 0px), 0, 0);
+	transition: transform var(--settle) cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.carrying {
+	transition: left var(--settle) cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/*
+ * The flipbook running underneath a page that is being held out to one side.
+ *
+ * Linear, and exactly as long as the gap until the next page is taken — `--slide` is
+ * both, handed down from `usePageReorder`. Steps that each take precisely as long as the
+ * interval between them join up into one continuous glide; an eased one would arrive and
+ * wait, and what you would watch is a series of hops. It is the trick the page bar's
+ * sweep already uses to turn twelve frames a second into a moving handle.
+ *
+ * The thumbnails take the same timing, which matters for exactly one page per step: the
+ * one being passed. It moves twice as far as the rest — one step because the whole book
+ * is sliding, and one more because the gap has just closed behind it and opened in front
+ * — and the two halves of that only read as a single movement while they share a curve
+ * and a duration. That page crosses under the drawing, which is where the gap is.
+ *
+ * `.carrying.sliding` rather than `.sliding` alone, so it outweighs the settle's rule
+ * above by specificity rather than by which of them happens to be written last.
+ */
+.carrying.sliding,
+.carrying.sliding .page {
+	transition-duration: var(--slide);
+	transition-timing-function: linear;
+}
+
+/*
  * One page: a copy of the drawing, at the size the drawing is currently drawn at,
  * with a gutter either side.
  *
@@ -114,5 +173,17 @@
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.page {
 		--page-gutter: 4px;
+	}
+}
+
+/* The gap still opens and the flipbook still closes up round the page — there is no
+   reading the gesture without them — but neither is eased. `usePageReorder` hands the
+   flipbook back on the same frame, so nothing here is left mid-slide. */
+@media (prefers-reduced-motion: reduce) {
+	.carrying,
+	.carrying .page,
+	.carrying.sliding,
+	.carrying.sliding .page {
+		transition: none;
 	}
 }

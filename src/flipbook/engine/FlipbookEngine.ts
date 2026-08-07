@@ -9,7 +9,7 @@ import {
 	strokeWidthFor,
 } from './formats'
 import { History, type Op, type Step } from './history'
-import type { PageState } from './pages'
+import { type PageState, settledPageCount } from './pages'
 import { encodeThumbnail } from './png'
 import { type PaperCore, Scene } from './scene'
 import { Selection } from './selection'
@@ -61,6 +61,17 @@ export interface FlipbookState {
 
 	/** True while a page animation is playing. Input is ignored until it finishes. */
 	busy: boolean
+
+	/**
+	 * True from the moment the page handle is taken hold of until the page has settled
+	 * into its new place.
+	 *
+	 * `busy` is already set throughout, which is what holds the page actions, undo and
+	 * the page bar. This says the *other* thing: the drawing is being carried about, so
+	 * nothing may be drawn on it. Separate because drawing through a page animation has
+	 * been allowed since 2013 and `busy` covers those too. See `PointerLayer.engage`.
+	 */
+	reordering: boolean
 }
 
 export interface EngineOptions {
@@ -97,7 +108,7 @@ export class FlipbookEngine {
 	private readonly thumbnails = new Map<number, HTMLCanvasElement>()
 
 	/** How far one page is from the next on screen. See `setPageStep`. */
-	private pageStep = DEFAULT_PAGE_STEP
+	private pitch = DEFAULT_PAGE_STEP
 
 	private nextPageId = 1
 	private playTimer: number | null = null
@@ -132,6 +143,7 @@ export class FlipbookEngine {
 			loading: false,
 			loadProgress: 0,
 			busy: false,
+			reordering: false,
 		})
 
 		this.history.onChange(() => {
@@ -243,7 +255,18 @@ export class FlipbookEngine {
 	 * strip that knows it. See `PageStrip`, which measures and reports it.
 	 */
 	setPageStep(step: number): void {
-		if (step > 0) this.pageStep = step
+		if (step > 0) this.pitch = step
+	}
+
+	/**
+	 * The same number, read back.
+	 *
+	 * The reorder gesture measures a drag in pages, so it needs the pitch the strip is
+	 * currently laid out at — and the strip has already told the engine what that is, so
+	 * asking here is cheaper than measuring it a second time and can't disagree.
+	 */
+	get pageStep(): number {
+		return this.pitch
 	}
 
 	/** Copies the live canvas onto the active page's thumbnail. */
@@ -464,6 +487,21 @@ export class FlipbookEngine {
 		let vacated: number | null = null
 
 		for (const op of ops) {
+			if (op.kind === 'move') {
+				// The op describes the forward journey, so undo walks it backwards. Both
+				// directions are the same call, which is most of why this is a move rather
+				// than a remove and an insert.
+				const from = direction === 'redo' ? op.from : op.to
+				const to = direction === 'redo' ? op.to : op.from
+
+				const [moved] = pages.splice(from, 1)
+				if (!moved) continue
+
+				this.scene.movePage(from, to)
+				pages.splice(to, 0, moved)
+				continue
+			}
+
 			if (op.kind === 'content') {
 				const index = pages.findIndex((page) => page.id === op.pageId)
 				if (index < 0) continue
@@ -748,6 +786,79 @@ export class FlipbookEngine {
 		this.scene.redraw()
 	}
 
+	/**
+	 * Takes hold of the page being drawn on, so it can be carried somewhere else in the
+	 * flipbook.
+	 *
+	 * Nothing moves here. What this does is settle the page before it is picked up — put
+	 * the selection down, bring its thumbnail up to date — and then hold everything else
+	 * still for the length of the gesture: `busy` stops the page actions, undo and the
+	 * page bar, and `reordering` stops the tools. The thumbnail matters because the
+	 * strip is about to be the only thing on screen saying where this page is, and a
+	 * copy of the drawing several strokes out of date is a page you would not recognise
+	 * as the one in your hand.
+	 *
+	 * Returns false if now is not the moment — a page animation in flight, a flipbook
+	 * still arriving, or a single page, which has nowhere to go. The caller does nothing
+	 * rather than starting a gesture that can't finish.
+	 */
+	beginReorder(): boolean {
+		const { busy, loading, pages, playback } = this.store.snapshot
+		if (busy || loading || playback !== 'none') return false
+		if (settledPageCount(pages) < 2) return false
+
+		this.selection.clear()
+		this.captureActivePage()
+		this.store.set({ busy: true, reordering: true })
+		return true
+	}
+
+	/** Lets go without moving anything: a gesture cancelled, or a page dropped home. */
+	endReorder(): void {
+		this.store.set({ busy: false, reordering: false })
+	}
+
+	/**
+	 * Puts the page down where it was carried to, and lets go.
+	 *
+	 * Called once, at the end of the gesture, rather than as the page passes each slot:
+	 * everything up to this point has been the strip and the canvas standing in
+	 * different places, and the scene has not been touched. So a drag that wanders
+	 * across the flipbook and comes back is one step in the history or none, and the
+	 * flipbook it is recorded against never spent a frame in a shape nobody asked for.
+	 *
+	 * `from === to` is the ordinary ending, not an edge case — most drags are somebody
+	 * looking rather than moving — and it records nothing.
+	 */
+	movePage(from: number, to: number): void {
+		const pages = [...this.store.snapshot.pages]
+		const moved = pages[from]
+
+		if (moved && from !== to && to >= 0 && to < pages.length) {
+			this.scene.movePage(from, to)
+
+			pages.splice(from, 1)
+			pages.splice(to, 0, moved)
+
+			this.history.record({
+				ops: [{ kind: 'move', pageId: moved.id, from, to }],
+				// Both directions land on the page you moved. It is the one thing on screen
+				// you were looking at, and undo putting it back somewhere you can't see it
+				// would be undo hiding its own work.
+				forward: moved.id,
+				back: moved.id,
+			})
+
+			this.store.set({ pages, activePage: this.scene.activePage })
+
+			// The page before this one has changed, and that is what the onion skin is.
+			this.refreshOnion()
+			this.scene.redraw()
+		}
+
+		this.endReorder()
+	}
+
 	goToPage(index: number): void {
 		if (this.store.snapshot.busy) return
 		if (index < 0 || index >= this.pageCount) return
@@ -791,6 +902,10 @@ export class FlipbookEngine {
 	 * turn; playing is the same question asked twelve times a second.
 	 */
 	togglePlay(): void {
+		// A page in mid-air is no place to start turning pages from, and unlike everything
+		// else the bar offers, this one isn't held by `busy`.
+		if (this.store.snapshot.reordering) return
+
 		if (this.store.snapshot.playback === 'play') {
 			this.pause()
 			return
