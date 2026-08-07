@@ -4,6 +4,7 @@ import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
 import { InkCursor } from '../../flipbook/components/InkCursor'
+import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
@@ -11,6 +12,8 @@ import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/Flipbo
 import { settledPageCount } from '../../flipbook/engine/pages'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
+import { SETTLE_MS } from '../../flipbook/engine/reorder'
+import { usePageReorder } from '../../flipbook/usePageReorder'
 import { ApiError, saveFlipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import { refuseMultiTouch } from '../../lib/zoom'
@@ -53,6 +56,19 @@ export function CreatePage() {
 	// counting it makes the save button fade in and straight back out again.
 	const pages = state ? settledPageCount(state.pages) : 1
 	useUnsavedWarning(pages > 1 && phase !== 'sending')
+
+	/*
+	 * The handle above the paper, and everything dragging it does.
+	 *
+	 * Off unless there is a flipbook to rearrange and a moment to do it in: one page has
+	 * nowhere to go, a flipbook still arriving is being written to a page at a time, and
+	 * while it is playing the strip isn't even on screen.
+	 */
+	const { reorder, bookRef, shiftFor, handleProps } = usePageReorder(engine, {
+		activePage: state?.activePage ?? 0,
+		pages,
+		enabled: phase === 'drawing' && pages > 1 && !state?.loading && state?.playback === 'none',
+	})
 
 	const handleSave = useCallback(
 		async (values: SaveFormValues) => {
@@ -134,18 +150,39 @@ export function CreatePage() {
 						playing={state.playback !== 'none'}
 						arriving={state.arriving}
 						canvasRef={canvasRef}
+						reorder={reorder}
+						shiftFor={shiftFor}
 					/>
 				) : null}
 
 				<div className="center">
-					<div className={canvasStyles.book}>
+					{/* `--settle` is the one number the drag and the stylesheet have to agree
+					    about; it is stated in `usePageReorder` and handed down here so they
+					    can't drift. */}
+					<div
+						ref={bookRef}
+						className={[
+							canvasStyles.book,
+							reorder ? canvasStyles.dragging : '',
+							reorder?.settling ? canvasStyles.settling : '',
+						]
+							.filter(Boolean)
+							.join(' ')}
+						style={{ '--settle': `${SETTLE_MS}ms` } as React.CSSProperties}
+					>
 						<canvas
 							ref={canvasRef}
-							className={
-								state?.arriving
-									? `${canvasStyles.canvas} ${canvasStyles.handedOver}`
-									: canvasStyles.canvas
-							}
+							className={[
+								canvasStyles.canvas,
+								state?.arriving ? canvasStyles.handedOver : '',
+								// A page being carried is a page sliding about under the pointer,
+								// and paper listens for a mousedown on this element directly — so
+								// the press is taken off it here rather than refused inside. The
+								// finger's half of that is in `PointerLayer.engage`.
+								state?.reordering ? canvasStyles.inert : '',
+							]
+								.filter(Boolean)
+								.join(' ')}
 						/>
 
 						{state?.loading ? (
@@ -175,6 +212,19 @@ export function CreatePage() {
 								saving={phase === 'sending'}
 								onSave={(values) => void handleSave(values)}
 								onCancel={() => setPhase('drawing')}
+							/>
+						) : null}
+
+						{/* The tab on the top edge of the sheet. Inside `.book` because it is
+						    part of the page — it hangs above the paper, and it travels with it
+						    when the page is carried. */}
+						{phase === 'drawing' ? (
+							<PageHandle
+								handleProps={handleProps}
+								page={(state?.activePage ?? 0) + 1}
+								pages={pages}
+								carrying={reorder !== null}
+								disabled={pages < 2 || !!state?.loading || state?.playback !== 'none'}
 							/>
 						) : null}
 					</div>

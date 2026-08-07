@@ -57,6 +57,48 @@
 }
 
 /*
+ * The sheet in hand: being carried to another place in the flipbook.
+ *
+ * The drawing follows the pointer, so `--drag` is written straight onto this element by
+ * the gesture rather than coming through React — a hundred pointer moves a second, each
+ * changing one number, is not a thing to re-render a page strip for. It carries the
+ * handle above it, which is what makes the gesture read as picking the page up rather
+ * than as scrubbing something.
+ *
+ * The z-index is what the transform costs. A transformed element is a stacking context
+ * painted as one thing at its parent's level, so `.book` would drop below the page
+ * thumbnails (9) and take the canvas's own 15 down with it — the drawing would slide
+ * *behind* the flipbook it is being dragged through. 15 is the canvas's own number, so
+ * the paper is lit and stacked exactly as it was, only somewhere else.
+ *
+ * Applied only while a page is in hand, and that matters twice over: the same stacking
+ * context would put the save form and its wash under the footer bar, and a permanent
+ * transform here would re-base anything `position: fixed` inside the sheet.
+ */
+.dragging {
+	z-index: 15;
+	transform: translate3d(var(--drag, 0px), 0, 0);
+}
+
+/*
+ * Let go of, and sliding home.
+ *
+ * The offset goes back to zero while the strip's row moves under it by exactly the same
+ * distance in the other direction, so what is on screen is one flipbook settling rather
+ * than a page and a book arriving separately. Same duration and same curve as the strip
+ * — see `--settle` and the longer note in `PageStrip.module.css`.
+ */
+.settling {
+	transition: transform var(--settle) cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* Picked up off the page: the gallery card's hover shadow, which is the one this site
+   already uses for "this is the thing you are holding". */
+.dragging .canvas {
+	box-shadow: var(--shadow-card-hover);
+}
+
+/*
  * The canvas standing aside while the strip does the work.
  *
  * It shows whichever page is active, and during a delete that becomes the arriving
@@ -70,6 +112,18 @@
  */
 .handedOver {
 	opacity: 0;
+}
+
+/*
+ * The drawing, while it is being carried somewhere else in the flipbook.
+ *
+ * paper.js binds `mousedown` to this element in its own constructor, which no amount of
+ * state inside the engine can talk it out of — so the press is taken off the element.
+ * A mark laid on a page that is halfway between two slots would land wherever the page
+ * happened to be at the time.
+ */
+.inert {
+	pointer-events: none;
 }
 
 /*
@@ -122,6 +176,12 @@
 @media (prefers-reduced-motion: reduce) {
 	.skeleton {
 		animation: none;
+	}
+
+	/* And the settle is instant, which the gesture already knows: `usePageReorder`
+	   waits nothing at all before handing the flipbook back. */
+	.settling {
+		transition: none;
 	}
 }
 

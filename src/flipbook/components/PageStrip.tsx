@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import type { PageState } from '../engine/pages'
+import { type Reorder, SETTLE_MS } from '../engine/reorder'
 import styles from './PageStrip.module.css'
 
 export interface PageStripProps {
@@ -14,6 +15,10 @@ export interface PageStripProps {
 	arriving: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
+	/** Where a page is being carried, if one is. See `usePageReorder`. */
+	reorder?: Reorder | null
+	/** How far page `index` stands from its own slot while that is going on. */
+	shiftFor?: (index: number) => number
 }
 
 export function PageStrip({
@@ -23,6 +28,8 @@ export function PageStrip({
 	playing,
 	arriving,
 	canvasRef,
+	reorder = null,
+	shiftFor,
 }: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
 	const firstPage = useRef<HTMLDivElement | null>(null)
@@ -84,7 +91,18 @@ export function PageStrip({
 		engine.setPageStep(step)
 	}, [engine, step])
 
-	const left = metrics.offset - metrics.gutter - activePage * step
+	/*
+	 * Which slot the row is lined up on, which is normally the page you are drawing on.
+	 *
+	 * While a page is being *carried* it stays lined up on the slot the page came out of,
+	 * so that the pages either side can step aside without the whole flipbook moving with
+	 * them. It changes to the destination at the moment the page is let go — and that,
+	 * against the drawing sliding back to the middle of the column by exactly the same
+	 * distance, is the flipbook closing up round the page as one movement. See
+	 * `usePageReorder`, which is where the arithmetic of that is written out.
+	 */
+	const anchor = reorder ? (reorder.settling ? reorder.to : reorder.from) : activePage
+	const left = metrics.offset - metrics.gutter - anchor * step
 
 	// Which thumbnail the canvas is standing in front of, and so which one to hide.
 	// Nothing, while a page is still travelling into that slot.
@@ -93,10 +111,17 @@ export function PageStrip({
 	return (
 		<div className={styles.container} ref={container} aria-hidden="true">
 			<div
-				className={playing ? `${styles.strip} ${styles.playing}` : styles.strip}
+				className={[styles.strip, playing ? styles.playing : '', reorder ? styles.carrying : '']
+					.filter(Boolean)
+					.join(' ')}
 				style={
 					{
 						left: `${left}px`,
+						// Only ever set while a page is in hand, which is what keeps the frame
+						// that hands the flipbook back from animating: the class and the
+						// transforms go in the same render, and a rule that isn't there can't
+						// ease a transform away to nothing. Turning a page is still a cut.
+						'--settle': `${SETTLE_MS}ms`,
 						// How wide a page is drawn. The stylesheet adds its own gutters to it
 						// and this file reads those back, so neither has to state the other's
 						// number. See `measure`.
@@ -115,6 +140,9 @@ export function PageStrip({
 						key={page.id}
 						ref={index === 0 ? firstPage : null}
 						className={index === covered ? `${styles.page} ${styles.covered}` : styles.page}
+						// How far out of its own slot this page has to stand to leave room for
+						// the one being carried. Zero, and unset, the rest of the time.
+						style={{ '--shift': `${shiftFor?.(index) ?? 0}px` } as React.CSSProperties}
 						onClick={() => engine.goToPage(index)}
 					>
 						{/* Sized here rather than by the engine: assigning `width` clears a

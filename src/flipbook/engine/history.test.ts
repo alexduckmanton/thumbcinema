@@ -21,9 +21,15 @@ function step(name: string): Step {
 	return { ops: [op], forward: 1, back: 1 }
 }
 
-/** The `ink` of a step's first op, which is what the fixtures above label them by. */
+/**
+ * The `ink` of a step's first op, which is what the fixtures above label them by.
+ *
+ * Guarded on the kind because a `move` op carries none: reordering pages changes
+ * nothing about what is drawn on any of them, so there is no state to hold.
+ */
 function label(taken: Step | null): string | null {
-	return taken?.ops[0]?.ink ?? null
+	const op = taken?.ops[0]
+	return op && op.kind !== 'move' ? op.ink : null
 }
 
 describe('History', () => {
