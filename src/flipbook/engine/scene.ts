@@ -306,6 +306,38 @@ export class Scene {
 	}
 
 	/**
+	 * Takes page `from` out of the sequence and puts it back at `to`, closing the gap
+	 * behind it. Everything between the two shuffles along by one.
+	 *
+	 * The reference layer is read in the *old* numbering, because that is the numbering
+	 * `from` and `to` are quoted in — but `insertAbove` removes this layer before it
+	 * reads the reference's index, so what it inserts above is the reference's position
+	 * in the gap-closed array. That is exactly `splice` out, `splice` in, and it is why
+	 * the two cases below differ by one: dragging a page forwards passes over the page
+	 * it is displacing, and dragging it back does not.
+	 *
+	 * Page zero goes above the last of the system layers, as `insertPageAt` does.
+	 */
+	movePage(from: number, to: number): void {
+		if (from === to) return
+
+		const layer = this.pageLayer(from)
+		const below = to === 0 ? this.stagingLayer : this.pageLayer(to < from ? to - 1 : to)
+
+		layer.insertAbove(below)
+
+		if (this.activeIndex === from) this.activeIndex = to
+		else if (from < this.activeIndex && to >= this.activeIndex) this.activeIndex--
+		else if (from > this.activeIndex && to <= this.activeIndex) this.activeIndex++
+
+		// paper hands `project._activeLayer` to a sibling when the layer it points at is
+		// removed, and moving a layer *is* a remove and a re-insert. Nothing here has
+		// changed which page is being drawn on, so it is handed straight back — otherwise
+		// the next stroke would land on whichever page happened to be next door.
+		this.activeLayer.activate()
+	}
+
+	/**
 	 * Shows page `index` and hides whatever was showing.
 	 *
 	 * The old layer is only hidden when it isn't also the onion skin — during

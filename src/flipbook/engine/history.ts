@@ -45,6 +45,16 @@ export type Op =
 	 * exactly the shape it was in when the step was recorded.
 	 */
 	| { kind: 'page'; added: boolean; pageId: number; index: number; ink: Ink }
+	/**
+	 * A page changed places. `from` and `to` describe the *forward* direction, so undo
+	 * runs them the other way round.
+	 *
+	 * The only op that carries no ink, because reordering is the one page operation that
+	 * doesn't touch what is drawn on anything: the layers are the same layers in a
+	 * different order, and a state to restore would be fifty copies of a drawing nobody
+	 * changed. Indices are safe for the reason the op above gives.
+	 */
+	| { kind: 'move'; pageId: number; from: number; to: number }
 
 /**
  * One press of undo.
@@ -344,6 +354,7 @@ function weighStep(step: Step | undefined): number {
 	if (!step) return 0
 
 	let total = 0
-	for (const op of step.ops) total += op.ink.length
+	// A move carries no ink — see `Op`. It is the one step the budget can ignore.
+	for (const op of step.ops) if (op.kind !== 'move') total += op.ink.length
 	return total
 }
