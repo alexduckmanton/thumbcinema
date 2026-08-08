@@ -12,6 +12,8 @@
   "rewrites": [
     { "source": "/saveflipbook", "destination": "/api?__path=/saveflipbook" },
     { "source": "/api/:path*", "destination": "/api?__path=/api/:path*" },
+    { "source": "/f/:id([^/.]+).gif", "destination": "/api?__path=/api/flipbooks/:id/gif" },
+
     { "source": "/(.*)", "destination": "/" }
   ],
 

@@ -193,6 +193,55 @@ The PNG is written by `src/flipbook/engine/png.ts` rather than by `canvas.toData
 which is 8-bit RGBA and picks its filters for speed. A cover is grey ink on white paper,
 so 8-bit greyscale is lossless here and between a third and a half the size.
 
+## Reading the artwork: three readers, one format
+
+Three things in the tree turn a saved flipbook back into a drawing, and they exist at
+different distances from paper.js:
+
+| | Has | For |
+|---|---|---|
+| `src/flipbook/engine/` | paper.js | the drawing tool, where artwork is *changed* |
+| `src/flipbook/preview/` | a 2D canvas | the gallery's hover preview |
+| `lib/gif.js` | neither | `/f/:id.gif`, in Node |
+
+The first two share `engine/formats.ts`, which is a pure function of a string and so
+can be read twice. `lib/gif.js` cannot use it — there is no build step shared between
+`lib/` and `src/`, which is the same reason `LEADING_SYSTEM_GROUPS` and the 640×360
+project size are already written twice — so it reads the format itself, on top of
+`lib/thumbnail.js`'s tag scanner rather than a fourth hand-written one.
+
+What all three agree on, and what a fourth would have to: the three leading system
+groups, the three stroke vocabularies (`<path d>`, `<polyline points>`, `<line>`), the
+width falling back from the stroke to its group to 2, and the project being 640×360
+whatever the file says. **A new stroke vocabulary would have to be added in two
+places**, `formats.ts` and `lib/gif.js`, and the symptom of missing one is a flipbook
+that plays perfectly and comes out blank as a GIF.
+
+## Serving a flipbook as a GIF
+
+`/f/:id.gif` is the flipbook as an animated GIF — the playback URL with `.gif` on the
+end. It is a `vercel.json` rewrite to `/api/flipbooks/:id/gif` rather than a route of
+its own, and the dev server's middleware states the same mapping.
+
+| | |
+|---|---|
+| Size | 640×360, the project size, always |
+| Frame rate | 12fps, as delays of 8, 8, 9 hundredths — 1/12s is 8.333 and GIF has no way to say so |
+| Colours | 16 greys, from paper `#fff` to ink `#444` |
+| Frames | one per page, whole and opaque; **not** diffed against each other |
+| Looping | forever, via the Netscape extension |
+| Caching | `immutable`, as `/data` and the thumbnails are |
+| Views | not counted |
+
+Both artwork formats render, `legacy-json` included — those rows are point lists, and
+this draws them where the engine replays them through the pencil.
+
+Typical output, measured across the archive's size distribution: **0.16 MB for a median
+flipbook, 0.81 MB at p90, 2.9 MB for a 200-page one.** Whole frames beat frame-diffing
+on this content by a wide margin, for reasons written up in `CLAUDE.md` — the short
+version is that consecutive flipbook frames are different drawings, so a diff destroys
+the runs of white paper that are the only reason a page compresses at all.
+
 ## Storage
 
 Everything is stored compressed into `bytea`, twice — gzip at level 9 in `data_gz`,
