@@ -160,16 +160,27 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 			 * already showing you a flipbook: Remix. Same button, same corner, same errand
 			 * — the drawing tool — and the only difference is that it opens on this.
 			 *
-			 * Not offered on the 2012 flipbooks. Those are point lists rather than paths
-			 * and only come back through the pencil, so what the tool could open is a
-			 * resampled copy rather than the artwork; a button that quietly handed you
-			 * something slightly different from what you were looking at is worse than no
-			 * button. They go on playing and printing here exactly as before. While the
-			 * metadata is still in flight the format is unknown, so it says New — which is
-			 * true, and is what it would have said a moment ago anyway.
+			 * **Optimistic, and that is a deliberate reversal.** It read the format first
+			 * and said "New" until the metadata landed, which meant every visit to every
+			 * flipbook showed the wrong label and then changed it — barely visible coming
+			 * from the gallery, and a long, obvious flip on a refresh, where `RouteShell`
+			 * had already been saying "New" for the whole of the route chunk's download.
+			 * A label that is right at once for almost everything beats one that is right
+			 * eventually for everything: `legacy-json` is 147 of the 585 archive rows and
+			 * none of the flipbooks saved since, so the guess is nearly always correct and
+			 * settles without moving.
+			 *
+			 * **Where the guess is wrong the button goes, rather than reverting to "New".**
+			 * Reverting would be the same flash again with the labels swapped. Those pages
+			 * still reach the drawing tool through the wordmark and the gallery behind it.
+			 *
+			 * Being wrong is safe, which is what makes the guess affordable: press Remix
+			 * on a 2012 flipbook before the format arrives and `useRemixSource` refuses it,
+			 * says so, and leaves a blank flipbook — and the server drops the link too, so
+			 * nothing can be saved claiming a parent it isn't allowed.
 			 */}
 			<SiteHeader width="narrow">
-				<CreateButton remixOf={flipbook && flipbook.format !== 'legacy-json' ? id : undefined} />
+				{flipbook?.format === 'legacy-json' ? null : <CreateButton remixOf={id} />}
 			</SiteHeader>
 
 			<main className={styles.content}>

@@ -1734,6 +1734,23 @@ partial index; no new table, no new route, no new endpoint.
   only come back through the pencil, so what the tool could open is a resampled copy
   rather than the artwork. The button is absent on those and the server refuses them
   too; they go on playing and printing exactly as before.
+- **The button guesses Remix and takes itself away if it guessed wrong**, rather than
+  waiting to be sure. It read `format` first and said "New" until the metadata landed,
+  which meant *every* visit to *every* flipbook showed the wrong label and then changed
+  it. Barely visible arriving from the gallery; a long, obvious flip on a refresh,
+  because `RouteShell` was also saying "New" for the whole of the route chunk's
+  download — two flashes, and the one nobody looked at first was the bigger. A label
+  that is right at once for almost everything beats one that is right eventually for
+  everything: `legacy-json` is 147 of the 585 archive rows and none of the flipbooks
+  saved since. Where the guess is wrong the button **goes** rather than reverting to
+  "New", which would be the same flash with the labels swapped; those pages still reach
+  the tool through the wordmark. Traced frame by frame at 20ms, throttled and not: a
+  refresh now goes blank → Remix and stops.
+- **`RouteShell` passes the id too, and that is the half that mattered.** It has it
+  already — `matchRoute` parses it out of the pathname, so the shell knows which
+  flipbook is coming without waiting for anything at all. Same rule as the disabled
+  undo/redo pair on the create shell: a header that changes at the handover is exactly
+  what that file exists to prevent.
 - **`/create?remix=<id>` is a query parameter, not a route.** It doesn't change what the
   page *is*, `matchRoute` stays a function of the pathname alone, and — the part that
   matters — the URL survives the crash-recovery reload.
