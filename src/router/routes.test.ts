@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { flipbookPath, matchRoute } from './routes'
+import { createPath, flipbookPath, matchRoute, remixSource } from './routes'
 
 describe('matchRoute', () => {
 	it('maps the four routes', () => {
@@ -34,5 +34,37 @@ describe('matchRoute', () => {
 		for (const id of ['abc123', 'a b', 'a/b', 'ünïcødé', '%%%']) {
 			expect(matchRoute(flipbookPath(id))).toEqual({ name: 'playback', id })
 		}
+	})
+})
+
+describe('createPath and remixSource', () => {
+	it('is the plain create page with nothing to remix', () => {
+		expect(createPath()).toBe('/create')
+		expect(createPath(null)).toBe('/create')
+	})
+
+	it('names the flipbook to open on', () => {
+		expect(createPath('abc123')).toBe('/create?remix=abc123')
+	})
+
+	it('round-trips any id', () => {
+		// The pair has to survive whatever it is handed, for the reason flipbookPath
+		// does: an `&` or a `=` in an unescaped id would otherwise read as a second
+		// parameter and the drawing tool would open on nothing.
+		for (const id of ['abc123', 'a b', 'a&view=all', 'a=b', 'ünïcødé', '%%%']) {
+			const path = createPath(id)
+			expect(remixSource(path.slice(path.indexOf('?')))).toBe(id)
+		}
+	})
+
+	it('is still the create route, so nothing about matching changes', () => {
+		// A query parameter rather than a route of its own: it doesn't change what the
+		// page is, and `matchRoute` stays a function of the pathname alone.
+		expect(matchRoute('/create')).toEqual({ name: 'create' })
+	})
+
+	it('is null when there is no remix to open', () => {
+		expect(remixSource('')).toBe(null)
+		expect(remixSource('?view=all')).toBe(null)
 	})
 })

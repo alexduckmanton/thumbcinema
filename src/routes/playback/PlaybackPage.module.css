@@ -126,8 +126,80 @@
 	display: none;
 }
 
+/*
+ * "Remixed from …", under the byline.
+ *
+ * Under it rather than beside the title, because it is a fact about where the drawing
+ * came from and not part of what it is called — and because the byline is already the
+ * line that says who, so the line that says what-from belongs with it. Set at the
+ * description's size and colour, so the block under the title reads as one block.
+ */
+.lineage {
+	margin-top: 4px;
+	font-size: 14px;
+	color: var(--ink-soft);
+}
+
 .missing {
 	padding: 64px 0;
+	text-align: center;
+}
+
+/*
+ * What people have made from this flipbook.
+ *
+ * Inside the column rather than spanning the window, which is what keeps it plainly
+ * subordinate to the flipbook above: this is a list *about* the drawing, and a grid
+ * wider than the drawing would read as a second gallery that happens to be on this page.
+ *
+ * The whole section is absent when there is nothing in it, so none of this ever draws
+ * an empty box — see the component.
+ */
+.remixes {
+	width: 100%;
+	padding: 0 10px 40px;
+}
+
+/*
+ * A rule over the heading, which is the one place on this page that wants one.
+ *
+ * The note in `.info` about hairlines is about a rule around the *title*, which is
+ * already plainly attached to the sheet of paper above it. This is the opposite job:
+ * a second, separate thing starting, after the page has finished saying what the
+ * flipbook is. Something has to say where one ends and the other begins.
+ */
+.remixesHeading {
+	margin-bottom: 16px;
+	padding-top: 20px;
+	border-top: 1px solid var(--line);
+	font-size: 16px;
+	color: var(--ink-soft);
+}
+
+/*
+ * Three across the 640px column, one on a phone, and the card decides its own height
+ * from its 16:9.
+ *
+ * A smaller minimum than the gallery's 320, and knowingly: at ~197px a drawing is
+ * small. It is the right trade here because the question this list answers is "how
+ * many, and roughly what" rather than "what exactly" — and every one of them plays
+ * under the pointer and is a tap away from its own page at full size.
+ *
+ * 180 rather than the 200 it reads as, and the 20px is not slack. `auto-fill` fits
+ * whole tracks at the *minimum* before it grows any of them, and the box being divided
+ * is the column less this section's own 10px either side — 620px, not 640. Three 200s
+ * and two gaps is 628, so a 200 minimum silently gives two columns and cards half the
+ * width of the flipbook above. At 180 the three tracks fit and then grow to 197 each,
+ * which is what the number in the paragraph above refers to.
+ */
+.remixGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+	gap: 14px;
+}
+
+.remixesFoot {
+	margin-top: 20px;
 	text-align: center;
 }
 

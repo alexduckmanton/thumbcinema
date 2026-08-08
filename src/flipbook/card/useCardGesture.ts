@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 
-import type { PreviewSource } from '../../flipbook/preview/cache'
+import type { PreviewSource } from '../preview/cache'
 import { loadPreview } from './preview'
 
 /**

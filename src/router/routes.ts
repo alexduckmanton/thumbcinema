@@ -42,6 +42,23 @@ export function flipbookPath(id: string): string {
 }
 
 /**
+ * The drawing tool, empty or opened on a flipbook to remix.
+ *
+ * A query parameter rather than a route of its own, because it doesn't change what the
+ * page *is* — it is the create page either way, with the same URL to reload and the
+ * same unsaved-work guard on it. `matchRoute` is a function of the pathname alone and
+ * stays that way; the create page reads this for itself.
+ */
+export function createPath(remixOf?: string | null): string {
+	return remixOf ? `/create?remix=${encodeURIComponent(remixOf)}` : '/create'
+}
+
+/** Which flipbook the create page was opened on, if any. Null on an empty one. */
+export function remixSource(search: string): string | null {
+	return new URLSearchParams(search).get('remix')
+}
+
+/**
  * Which tab the gallery is on, and the URL for each.
  *
  * Here rather than in the gallery because the boot placeholder draws the toggle too —

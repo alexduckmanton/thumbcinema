@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AdminToggles } from '../../components/AdminToggles'
 import { CreateButton } from '../../components/CreateButton'
@@ -9,10 +9,27 @@ import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { getFlipbook, getFlipbookData, type Flipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import { Link } from '../../router/Router'
+import { flipbookPath } from '../../router/routes'
 import icons from '../../styles/icons.module.css'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
 import styles from './PlaybackPage.module.css'
 import { usePrint } from './usePrint'
+import { useRemixes } from './useRemixes'
+
+/**
+ * The remixes, in their own chunk.
+ *
+ * They bring the gallery's card with them, and a plain import would put it in this
+ * route's preload set — fetched in front of the artwork on every visit to every
+ * flipbook, to draw a list most flipbooks haven't got. See `RemixList`.
+ *
+ * Not warmed the way the gallery warms its preview, because there is nothing to be
+ * ready for: this is below the fold, it is mounted only once the list has arrived, and
+ * the fetch that decides whether it exists at all is slower than the chunk.
+ */
+const RemixList = lazy(() =>
+	import('./RemixList').then((module) => ({ default: module.RemixList })),
+)
 
 export interface PlaybackPageProps {
 	id: string
@@ -42,6 +59,25 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 	const replaying = useRef(false)
 
 	const { print, container } = usePrint(engine)
+
+	// Everything made from this flipbook — including, when this one is itself a remix,
+	// its siblings. The lineage is flat, so every page in a family shows the same list.
+	const remixes = useRemixes(flipbook?.remix_root ?? null)
+
+	/*
+	 * The list, minus the flipbook already on the page.
+	 *
+	 * A remix is in its own lineage, so on its own page it would otherwise be listed
+	 * under itself — a card that plays the drawing six inches above it and links to
+	 * where you already are. Filtered here rather than in the query because it is a fact
+	 * about this page and not about the list: the same request from the original's page
+	 * wants every row of it.
+	 *
+	 * What is *not* here is the root, on the page of a remix of a remix. The lineage is
+	 * flat and the root is the one member of it that carries no `remix_root`, so it
+	 * isn't in the list — `remix_of` above is the way back up, one step at a time.
+	 */
+	const family = useMemo(() => remixes.items.filter((item) => item.id !== id), [remixes.items, id])
 
 	useKeyboardShortcuts(engine, { enabled: true, tools: false })
 
@@ -119,8 +155,32 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 
 	return (
 		<>
+			{/*
+			 * The create button, wearing the one label that makes sense on a page that is
+			 * already showing you a flipbook: Remix. Same button, same corner, same errand
+			 * — the drawing tool — and the only difference is that it opens on this.
+			 *
+			 * **Optimistic, and that is a deliberate reversal.** It read the format first
+			 * and said "New" until the metadata landed, which meant every visit to every
+			 * flipbook showed the wrong label and then changed it — barely visible coming
+			 * from the gallery, and a long, obvious flip on a refresh, where `RouteShell`
+			 * had already been saying "New" for the whole of the route chunk's download.
+			 * A label that is right at once for almost everything beats one that is right
+			 * eventually for everything: `legacy-json` is 147 of the 585 archive rows and
+			 * none of the flipbooks saved since, so the guess is nearly always correct and
+			 * settles without moving.
+			 *
+			 * **Where the guess is wrong the button goes, rather than reverting to "New".**
+			 * Reverting would be the same flash again with the labels swapped. Those pages
+			 * still reach the drawing tool through the wordmark and the gallery behind it.
+			 *
+			 * Being wrong is safe, which is what makes the guess affordable: press Remix
+			 * on a 2012 flipbook before the format arrives and `useRemixSource` refuses it,
+			 * says so, and leaves a blank flipbook — and the server drops the link too, so
+			 * nothing can be saved claiming a parent it isn't allowed.
+			 */}
 			<SiteHeader width="narrow">
-				<CreateButton />
+				{flipbook?.format === 'legacy-json' ? null : <CreateButton remixOf={id} />}
 			</SiteHeader>
 
 			<main className={styles.content}>
@@ -171,6 +231,23 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 								<div className={styles.heading}>
 									<h2>{flipbook.title}</h2>
 									<h3 className={styles.byline}>{flipbook.byline}</h3>
+
+									{/* What this was drawn on top of. The *direct* parent rather
+									    than the head of the chain, so it names the flipbook that
+									    was actually open in the drawing tool — the list below is
+									    the flat one, and the two answer different questions.
+
+									    A remix of an archive piece can point at a row that was
+									    recovered without a title, hence the fallback: the link has
+									    to go somewhere either way. */}
+									{flipbook.remix_of ? (
+										<p className={styles.lineage}>
+											Remixed from{' '}
+											<Link to={flipbookPath(flipbook.remix_of.id)}>
+												{flipbook.remix_of.title || 'an untitled flipbook'}
+											</Link>
+										</p>
+									) : null}
 								</div>
 								<p className={styles.description}>{flipbook.description}</p>
 							</div>
@@ -191,6 +268,42 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 								)}
 							</div>
 						</div>
+					) : null}
+
+					{/*
+					 * What people have made from this one.
+					 *
+					 * The gallery's card, which is the whole reason it moved out of the
+					 * gallery: a remix is an ordinary flipbook and this is an ordinary list
+					 * of them, so it hovers, plays and scrubs here exactly as it does there.
+					 * Its own `useCardGesture` rather than the grid's, because there isn't
+					 * one — and one instance drives one list.
+					 *
+					 * Absent rather than empty when there is nothing: most flipbooks have no
+					 * remixes and a permanent "Remixes (0)" heading on every page in the
+					 * archive is a feature announcing itself on 585 pages that don't use it.
+					 * A failed fetch lands here too, deliberately — see `useRemixes`.
+					 *
+					 * No admin toggles on these. They are on the cards in the grid and on the
+					 * flipbook above, which is every route to a flipbook that needs
+					 * moderating; a third copy on a card that is also on the home page is a
+					 * second place to keep the same two switches in step.
+					 */}
+					{/*
+					 * Absent rather than empty when there is nothing: most flipbooks have no
+					 * remixes, and a permanent "Remixes" heading on every page in the archive
+					 * is a feature announcing itself on 585 pages that don't use it. A failed
+					 * fetch lands here too, deliberately — see `useRemixes`.
+					 *
+					 * The fallback is null because there is nothing to stand in for. The list
+					 * was not on the page a moment ago and nothing below it moves when it
+					 * arrives, so a placeholder would be a box appearing in order to be
+					 * replaced by a box.
+					 */}
+					{family.length > 0 ? (
+						<Suspense fallback={null}>
+							<RemixList items={family} more={remixes.more} onLoadMore={remixes.loadMore} />
+						</Suspense>
 					) : null}
 				</div>
 			</main>

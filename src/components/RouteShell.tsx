@@ -56,11 +56,17 @@ export function RouteShell({ route }: RouteShellProps) {
 		case 'gallery':
 			return <GalleryShell />
 		case 'playback':
-			return <BookShell content={playbackStyles.content} action history={false} />
+			// Remix, from the first frame, and the id comes off the pathname — this shell
+			// knows which flipbook is coming without waiting for anything. Getting that
+			// right here is most of the fix: the page's own button settles as soon as the
+			// metadata lands, but this one is up for the whole of the route chunk's
+			// download, which is why a refresh showed "New" for so much longer than a
+			// navigation from the gallery did.
+			return <BookShell content={playbackStyles.content} remixOf={route.id} history={false} />
 		case 'create':
 			// No create button in the header: you are already here. What is up there
 			// instead is undo and redo, so the shell draws those. Matches `CreatePage`.
-			return <BookShell content={createStyles.content} action={false} history />
+			return <BookShell content={createStyles.content} remixOf={null} history />
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
 			// placeholder in the shape of an apology is worse than a beat of nothing.
@@ -82,17 +88,22 @@ export function RouteShell({ route }: RouteShellProps) {
  */
 function BookShell({
 	content,
-	action,
+	remixOf,
 	history,
 }: {
 	content: string | undefined
-	action: boolean
+	/**
+	 * The flipbook whose page this is standing in for, when the header should be
+	 * offering to remix it — or null for a page whose header has no create button at
+	 * all, which is the create page's own.
+	 */
+	remixOf: string | null
 	history: boolean
 }) {
 	return (
 		<>
 			<SiteHeader width="narrow">
-				{action ? <CreateButton /> : null}
+				{remixOf ? <CreateButton remixOf={remixOf} /> : null}
 				{/*
 				 * Undo and redo, as the create page has them on a desktop: two discs at the
 				 * right-hand end of the header, and there is nothing to undo yet, so they

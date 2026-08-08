@@ -104,6 +104,35 @@ ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS data_br BYTEA;
 -- is written only when it beats the gzip.
 ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS thumbnail_svg BYTEA;
 
+-- Where a remix came from: the flipbook it was drawn on top of, and the oldest
+-- ancestor at the head of that chain.
+--
+-- Two columns for what is displayed as one flat list, and both earn their place:
+--
+--   * `remix_root` is what makes the list a single indexed query. Every descendant of
+--     a flipbook — a remix of it, a remix of that remix — carries the same root, so
+--     "everything made from this" is one keyset scan of the index below rather than a
+--     recursive CTE run on every view of a playback page.
+--   * `remix_of` is what makes "remixed from" true. With the root alone, a remix of a
+--     remix credits the wrong flipbook. It is also the only one of the two that can't
+--     be reconstructed later: the root is derivable from the parent chain, the parent
+--     is not derivable from the root. Storing it costs a nullable column now and keeps
+--     a tree view possible without a data migration.
+--
+-- Set once, at insert, from the parent that was open in the drawing tool:
+-- `remix_root = parent.remix_root ?? parent.id`. Never updated — a remix is a remix of
+-- what it was made from, permanently — which is also why cycles are impossible here:
+-- the parent has to already exist to be pointed at.
+--
+-- Nullable with no default, in the way the two deployments require. `time-capsule`'s
+-- createFlipbook() knows nothing about either, so its saves land with both NULL, which
+-- is the honest answer: nothing saved over there is a remix. No foreign key, because
+-- the value is validated on the way in — the save resolves the parent row and drops
+-- the link if it isn't there — and an FK would need a DO block to stay idempotent here
+-- for a constraint the application is already enforcing.
+ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS remix_of   TEXT;
+ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS remix_root TEXT;
+
 -- The WordPress author ID, parsed from the archive filename ({post}_u{user}_...).
 -- It is the entire evidence base for the featured reconstruction, so it's kept:
 -- 84 was the `lostandfound` catch-all that anonymous saves were reassigned to, and
@@ -119,6 +148,17 @@ CREATE INDEX IF NOT EXISTS flipbooks_gallery_idx
 CREATE INDEX IF NOT EXISTS flipbooks_featured_idx
     ON flipbooks (created_at DESC, id DESC)
     WHERE featured AND NOT nsfw;
+
+-- Everything made from one flipbook, newest first.
+--
+-- Keyed on the root rather than the parent because the list is flat: a remix of a
+-- remix belongs under the same original, and one index scan answers that. Partial on
+-- the same two conditions the gallery indexes use, so it holds only the rows that can
+-- ever appear in a list — a remix that has been moderated is out of this one exactly
+-- as it is out of the other two.
+CREATE INDEX IF NOT EXISTS flipbooks_remix_idx
+    ON flipbooks (remix_root, created_at DESC, id DESC)
+    WHERE remix_root IS NOT NULL AND NOT nsfw;
 
 -- Keeps the archive import idempotent: re-running it updates rather than duplicates.
 CREATE UNIQUE INDEX IF NOT EXISTS flipbooks_legacy_id_idx

@@ -18,6 +18,8 @@ const form = new URLSearchParams({
     nsfw: payload.nsfw ? '1' : '0',
 })
 
+if (payload.remixOf) form.set('remix_of', payload.remixOf)  // what it was drawn on
+
 const response = await fetch('/saveflipbook', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -36,6 +38,13 @@ So:
   server cuts the SVG thumbnail out of that same page rather than picking one of its
   own — see **Thumbnails** below. Absent from a `time-capsule` save, and the server
   finds the busiest page itself when it is.
+- `remix_of` is new and additive, and is **set only when it means something** — the
+  field is absent from an ordinary save rather than sent empty. It is the id of the
+  flipbook the drawing tool was opened on, which is what makes the save a remix. The
+  server checks it exists and isn't `legacy-json`, and **drops the link rather than
+  refusing the save** if either fails: a field that decides which page a flipbook gets
+  listed on is not worth losing somebody's drawing over. Absent from a `time-capsule`
+  save, which is the same thing as saying nothing saved over there is a remix.
 - `draft` and `postID` are gone. Drafts needed an account to return to them with, and
   the server ignored both fields anyway.
 - `nsfw` is honoured: flagged flipbooks keep working on their own URL but are left out
