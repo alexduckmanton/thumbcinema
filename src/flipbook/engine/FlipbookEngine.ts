@@ -1,5 +1,6 @@
 import { Store } from '../../lib/store'
 import { DEFAULT_PAGE_STEP, freeze, play } from './animations'
+import { Clipboard } from './clipboard'
 import { CANVAS_HEIGHT, CANVAS_WIDTH, FPS, PENCIL_COLOR } from './constants'
 import {
 	assertLeadingGroups,
@@ -55,6 +56,17 @@ export interface FlipbookState {
 	canUndo: boolean
 	canRedo: boolean
 
+	/**
+	 * Whether there is anything to copy, and anything to paste. See `Clipboard`.
+	 *
+	 * `canCopy` is "something is selected", published at the end of a gesture rather
+	 * than as the selection changes — see `publishSelection`. `canPaste` goes true on
+	 * the first copy and stays true: the clipboard is never emptied, because a paste
+	 * you can only spend once is not what anybody means by one.
+	 */
+	canCopy: boolean
+	canPaste: boolean
+
 	loading: boolean
 	/** 0–1 while a saved flipbook is being replayed into the tool. */
 	loadProgress: number
@@ -98,6 +110,7 @@ export class FlipbookEngine {
 	private readonly scene: Scene
 	private readonly selection: Selection
 	private readonly history: History
+	private readonly clipboard: Clipboard
 
 	private readonly pencil: PencilTool
 	private readonly eraser: EraserTool | null
@@ -124,12 +137,15 @@ export class FlipbookEngine {
 		this.scene = new Scene(canvas, paperCore)
 		this.selection = new Selection(this.scene)
 		this.history = new History(this.scene)
+		this.clipboard = new Clipboard(this.scene)
 
 		// See `subscribeGrab`. The selection is what recomputes this, and it is the only
 		// thing that knows when it has.
 		this.selection.onGrabChanged = () => {
 			for (const listener of this.grabListeners) listener()
 		}
+
+		this.selection.onChange = () => this.publishSelection()
 
 		this.store = new Store<FlipbookState>({
 			pages: [{ id: this.nextPageId++, segments: 0 }],
@@ -140,6 +156,8 @@ export class FlipbookEngine {
 			playback: 'none',
 			canUndo: false,
 			canRedo: false,
+			canCopy: false,
+			canPaste: false,
 			loading: false,
 			loadProgress: 0,
 			busy: false,
@@ -435,6 +453,107 @@ export class FlipbookEngine {
 		this.selection.clear()
 		this.activeTool?.init()
 		this.captureActivePage()
+	}
+
+	// --- copy and paste ------------------------------------------------------
+
+	/*
+	 * What this is for, and why the two buttons exist at all.
+	 *
+	 * A desktop has always been able to duplicate a stroke: hold alt and drag it with
+	 * the transform tool, and a copy is left behind. That is one gesture, and it is
+	 * unreachable with a finger — there is no alt to hold — so on a phone the only way
+	 * to repeat a drawing was to draw it again. It is also confined to one page, which
+	 * is the wrong shape for a flipbook: the thing people actually want is the same
+	 * drawing on the *next* frame, moved a little.
+	 *
+	 * So the clipboard is not a phone workaround for alt-drag. It does the job alt-drag
+	 * can't: it survives a page turn, and it survives being pressed again.
+	 */
+
+	/**
+	 * Takes a copy of everything selected. Changes nothing, so it records nothing.
+	 *
+	 * Not held while a page animates or a flipbook loads, unlike paste: reading what is
+	 * in your hand is safe whatever else is going on, and refusing it would mean a press
+	 * that does nothing for reasons nothing on screen explains.
+	 */
+	copySelection(): void {
+		if (this.selection.isEmpty) return
+
+		this.clipboard.hold(this.selection.layer.children)
+		this.store.set({ canPaste: true })
+	}
+
+	/**
+	 * Puts the clipboard down in the middle of the page being drawn on, selected.
+	 *
+	 * Three decisions worth stating, because each of them is a thing that could
+	 * reasonably have gone the other way:
+	 *
+	 *  - **It lands selected**, which is the whole of how a paste says it happened. A
+	 *    drawing that arrives lying flat on a page in the same ink as everything else is
+	 *    indistinguishable from a drawing that was already there — and what you want to
+	 *    do next is move it, which needs it picked up anyway. Held, it gets the dashed
+	 *    box and the page behind it fades to a fifth, which between them are the two
+	 *    things on screen saying where it landed.
+	 *  - **It takes the transform tool if a marking tool is in hand.** A selection is
+	 *    the transform tool's state: the selection layer is *active* while something is
+	 *    held, so a pencil stroke drawn there would land in it rather than on the page.
+	 *    Pasting with a pencil in your hand and then being able to do nothing with what
+	 *    arrived is the worse of the two surprises.
+	 *  - **Held while the flipbook is busy or loading.** A page animation is 750ms in
+	 *    which the strip is mid-flight, and a load is replacing every page there is;
+	 *    dropping a drawing into either is dropping it somewhere nobody chose.
+	 */
+	pasteClipboard(): void {
+		const { busy, loading } = this.store.snapshot
+		if (busy || loading || this.clipboard.isEmpty) return
+
+		// Stopped rather than refused, as undo does: pasting onto a page that is about to
+		// be replaced twelve times a second is pasting onto no page in particular.
+		this.pause()
+
+		const index = this.scene.activePage
+		const page = this.store.snapshot.pages[index]
+		if (!page) return
+
+		this.history.begin(index, page.id)
+
+		// Whatever was already held goes back on the page first. Pasting is not a way of
+		// adding to a selection: the box that comes up is round what has just arrived,
+		// and it is what a drag would move.
+		this.selection.clear()
+		if (this.store.snapshot.tool !== 'transform') this.selectTool('transform')
+
+		this.selection.receive(this.clipboard.take())
+
+		// The tool dresses the selection its own way, and `init` is what each of them
+		// already does to make the scene its own — the dashed box for transform, the dots
+		// and the blue for push.
+		this.activeTool?.init()
+
+		this.history.commit(index)
+		this.publishSelection()
+		this.recountActivePage()
+		this.captureActivePage()
+	}
+
+	/**
+	 * Says whether there is anything to copy — but never mid-gesture.
+	 *
+	 * A marquee drag empties the selection and refills it on every pointer move, so a
+	 * store write here would be a React render at pointer rate, re-rendering a strip of
+	 * page canvases sixty times a second to change a button from grey to black and back.
+	 * The end of the gesture publishes once (see `handlePointerUp`), which is also the
+	 * first moment there is a hand free to press the button with.
+	 *
+	 * Everything that isn't a gesture — undo, a page turn, a tool change, a paste —
+	 * reaches this through `Selection.onChange` and publishes immediately.
+	 */
+	private publishSelection(): void {
+		if (this.drawing) return
+		this.store.set({ canCopy: !this.selection.isEmpty })
 	}
 
 	// --- undo ----------------------------------------------------------------
@@ -1445,6 +1564,9 @@ export class FlipbookEngine {
 		window.setTimeout(() => {
 			if (this.destroyed) return
 			this.history.commit(this.scene.activePage)
+			// The one publish for the whole gesture. Every change the tools made to the
+			// selection on the way through was held back by `publishSelection`.
+			this.publishSelection()
 			this.recountActivePage()
 			this.captureActivePage()
 		}, 0)
