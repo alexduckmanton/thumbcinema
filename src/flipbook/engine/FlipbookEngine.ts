@@ -231,10 +231,10 @@ export class FlipbookEngine {
 			return
 		}
 
-		// Deliberately does *not* size the canvas. Assigning `width` resets a
-		// canvas's bitmap, and React re-runs an inline ref callback on every render
-		// — so sizing it here wiped every page thumbnail whenever anything at all
-		// changed. The size is a JSX attribute on the element instead.
+		// Deliberately does *not* size the canvas. Assigning `width` resets a canvas's
+		// bitmap, and this runs at moments that have nothing to do with the size being
+		// wrong. The size is a JSX attribute on the element instead — see `PageStrip`,
+		// which has two of them and a rule about crossing between.
 		this.thumbnails.set(pageId, element)
 
 		// A duplicated page's thumbnail is seeded from the page it was copied from,
@@ -266,6 +266,29 @@ export class FlipbookEngine {
 	 * history — are about to change which page is at which index.
 	 */
 	private readonly owedThumbnails = new Set<number>()
+
+	/**
+	 * Draws every page's thumbnail again, now.
+	 *
+	 * The strip's own call, for the one thing that empties a thumbnail without the page
+	 * changing: assigning either dimension of a canvas resets its bitmap, and the strip
+	 * resizes all of them when it changes the scale it draws at. It has to be a call
+	 * rather than a set of ids left owed, because owing is paid by `registerThumbnail`
+	 * and that only runs when React *mounts* an element — a canvas that is resized in
+	 * place is the same element, and its ref never fires again. Which is what the strip's
+	 * layout effect is: after the resize, before the frame it would have been seen in.
+	 */
+	redrawThumbnails(): void {
+		if (this.mode !== 'create') return
+
+		for (const page of this.store.snapshot.pages) {
+			const target = this.thumbnails.get(page.id)
+			// A page React hasn't rendered yet is owed one instead, which is the same
+			// answer the loader and the history give.
+			if (target) this.capturePageById(page.id, target)
+			else this.owedThumbnails.add(page.id)
+		}
+	}
 
 	/**
 	 * How far it is from one page to the next, measured off the strip.

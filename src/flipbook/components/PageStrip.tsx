@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { PAGE_TRAVEL_MS } from '../engine/animations'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
@@ -44,6 +44,7 @@ export function PageStrip({
 	const container = useRef<HTMLDivElement | null>(null)
 	const firstPage = useRef<HTMLDivElement | null>(null)
 	const [metrics, setMetrics] = useState({ offset: 0, width: CANVAS_WIDTH, gutter: 0 })
+	const scale = useThumbnailScale(engine, pages.length)
 
 	/*
 	 * Three numbers, all read off what the browser actually laid out.
@@ -170,10 +171,13 @@ export function PageStrip({
 						onClick={() => engine.goToPage(index)}
 					>
 						{/* Sized here rather than by the engine: assigning `width` clears a
-						    canvas, and a ref callback runs again on every render. */}
+						    canvas, so the size has to be something React owns and writes only
+						    when it has actually changed. See `useThumbnailScale` for the two
+						    values it takes and what has to happen when it goes from one to the
+						    other. */}
 						<canvas
-							width={CANVAS_WIDTH}
-							height={CANVAS_HEIGHT}
+							width={Math.round(CANVAS_WIDTH * scale)}
+							height={Math.round(CANVAS_HEIGHT * scale)}
 							ref={(element) => engine.registerThumbnail(page.id, element)}
 						/>
 					</div>
@@ -181,4 +185,74 @@ export function PageStrip({
 			</div>
 		</div>
 	)
+}
+
+/**
+ * How many device pixels a thumbnail carries per project unit.
+ *
+ * The drawing canvas is 640×360 project units drawn into a backing store the device
+ * pixel ratio times that — paper sizes it, and on a retina screen it is 1280×720. A
+ * thumbnail is a copy of that canvas shown at exactly the same size, so a 640×360 one
+ * holds a quarter of the pixels it is displayed with, and the pages either side of the
+ * drawing came out visibly softer than the drawing between them. Which they must not
+ * be: the strip is the same flipbook seen again, and a page animation hands the
+ * canvas's own job to one of these for 750ms.
+ *
+ * Capped at 2, because there is nothing above it worth another doubling of the memory:
+ * a third of a device pixel is not something anyone can see, and the screens that
+ * report 3 are the phones, where a thumbnail is displayed at about half its width.
+ *
+ * Read once. paper reads the ratio once as well, when it sets the view up, so a window
+ * dragged onto a different monitor changes neither.
+ */
+const THUMBNAIL_SCALE = Math.min(
+	typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
+	2,
+)
+
+/**
+ * How long a flipbook may be before its thumbnails go back to 1:1 — 50 pages at 2×.
+ *
+ * A page is ~900 KB of backing store at 1× and four times that at 2×, and the strip
+ * holds one per page whether or not it is anywhere near the screen. Two hundred pages
+ * is what an archive flipbook can be, and opening one of those in the *drawing tool*
+ * became possible the day Remix did: 184 MB of canvas, which is heavy and survivable,
+ * against 737 MB, which is not. iOS in particular enforces a per-tab canvas budget by
+ * blanking canvases, so overrunning it doesn't fail loudly — it takes the strip away.
+ *
+ * So the ceiling is the one the strip already lived under, as many bytes as two hundred
+ * pages at 1:1, and what gives way is the scale. A flipbook long enough to reach it is
+ * one whose neighbouring pages are a thumbnail's worth of information anyway.
+ */
+const HIDPI_PAGE_LIMIT = Math.floor(200 / (THUMBNAIL_SCALE * THUMBNAIL_SCALE))
+
+/**
+ * The scale to draw thumbnails at, dropped to 1:1 once the flipbook is too long for it.
+ *
+ * It never goes back up, and that is deliberate rather than lazy: a canvas loses its
+ * bitmap the moment either dimension is assigned, so every change of scale costs a
+ * redraw of every page in the strip. Deleting back down to 49 pages to buy sharpness on
+ * pages nobody is looking at is not a trade worth making twice.
+ *
+ * Which is what the layout effect is for, and why it is a layout effect. Resizing a
+ * canvas empties it, and the strip's canvases are resized *in place* — the elements
+ * don't change, so their ref callbacks never run again and the mechanism every other
+ * page in this file leans on (owe it, pay on mount) never fires. So the engine is asked
+ * to draw them outright, in the commit that resized them and before the browser has
+ * painted it: an ordinary effect would put a frame of blank paper on the screen first.
+ */
+function useThumbnailScale(engine: FlipbookEngine, pages: number): number {
+	const [scale, setScale] = useState(THUMBNAIL_SCALE)
+
+	useEffect(() => {
+		if (scale === 1 || pages <= HIDPI_PAGE_LIMIT) return
+		setScale(1)
+	}, [pages, scale])
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `scale` is the trigger rather than a value read here — a change of it is a row of canvases that have just been emptied.
+	useLayoutEffect(() => {
+		engine.redrawThumbnails()
+	}, [engine, scale])
+
+	return scale
 }

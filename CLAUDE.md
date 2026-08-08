@@ -722,9 +722,18 @@ can't.
   `freeze(el, { lift: true })`, which sets it on the wrapper instead. The page falling
   away during a delete needs it: without it the first 300ms of the fall happen behind
   the drawing canvas, which is the whole anticipation and the start of the plunge.
-- **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and
-  React re-runs inline ref callbacks on every render. Page thumbnails take their size
-  from JSX attributes.
+- **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and a
+  ref runs at moments that have nothing to do with the size being wrong. Page thumbnails
+  take their size from JSX attributes, so React writes it only when it has changed.
+- **And a ref callback does *not* run again on a re-render**, which is the other half of
+  the same rule and was believed the other way round here until it was measured. It runs
+  when React mounts the element and when React replaces it, and that is all — a canvas
+  that is resized *in place* is the same element, so nothing fires. That is why
+  `owedThumbnails` (draw it when its canvas arrives) cannot pay for a resize and
+  `engine.redrawThumbnails()` exists: the strip calls it from a **layout** effect, in the
+  commit that resized the canvases and before the frame it would otherwise have been seen
+  in. Measured on React 19.2 by leaving every page owed a thumbnail and re-rendering the
+  strip: none of them was drawn, then or on any render after it.
 
 - **The engine is built asynchronously, and `paperCore` is not what the types say.**
   paper arrives by `import()` now, so `useFlipbookEngine` is an ordinary effect rather
@@ -1985,11 +1994,22 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   code and that is what it did. Someone on a phone who saved from `main` and then
   opened the other deployment will find the create button gone. That's the branch
   being what it is, not a bug to go and fix there.
-- **Every page in the strip is a 640×360 canvas**, ~900 KB of backing store each, on
-  both layouts — the thumbnails are displayed smaller on a phone but they are not
-  *drawn* smaller, because a page that has to stand behind the live canvas at full
-  fidelity when you're on it can't be. Fine for a flipbook you drew on a phone, worth
-  remembering if loading a 200-page one into the tool ever becomes a thing.
+- **Every page in the strip is a canvas the size of the drawing**, on both layouts — the
+  thumbnails are displayed smaller on a phone but they are not *drawn* smaller, because a
+  page that has to stand behind the live canvas at full fidelity when you're on it can't
+  be. And "full fidelity" is the *device* pixel ratio, not 640×360: a thumbnail is a copy
+  of a canvas paper draws at 1280×720 on a retina screen and shows at exactly the same
+  size, so at 640×360 it was a soft copy of a sharp drawing, standing right beside it.
+  `THUMBNAIL_SCALE` in `PageStrip` is that ratio, capped at 2 — 3.6 MB a page rather than
+  0.9.
+- **Which is why the strip has a page limit, and it is the memory that sets it.** Four
+  times the backing store is fine for a flipbook you drew by hand and is not fine for a
+  200-page archive one, which the drawing tool could not open until Remix and now can:
+  184 MB against 737 MB, and iOS enforces its per-tab canvas budget by *blanking*
+  canvases rather than by failing. So past `HIDPI_PAGE_LIMIT` — 50 pages at 2×, which is
+  the byte ceiling the strip already lived under — thumbnails go back to 1:1. The scale
+  never climbs back, because every change of it empties and redraws every canvas in the
+  strip, and buying sharpness back by deleting a page is not a trade worth making twice.
 - **The save request is capped at ~4 MB** by Vercel's request limit, and form encoding
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
   the historical archive would exceed it. The server answers 413 and the create page

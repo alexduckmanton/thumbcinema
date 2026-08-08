@@ -90,7 +90,7 @@ export const MAX_STEPS = 50
  * dropping the oldest steps.
  *
  * Roughly 12 MB of string — a few times the largest flipbook the server will accept,
- * and small next to the ~900 KB *per page* the strip's thumbnails already cost. What
+ * and small next to the megabytes *per page* the strip's thumbnails already cost. What
  * it protects against is fifty steps on a page dense enough that fifty copies of it
  * are worth noticing.
  */
