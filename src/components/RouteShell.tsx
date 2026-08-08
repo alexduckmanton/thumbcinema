@@ -65,7 +65,8 @@ export function RouteShell({ route }: RouteShellProps) {
 			return <BookShell content={playbackStyles.content} remixOf={route.id} history={false} />
 		case 'create':
 			// No create button in the header: you are already here. What is up there
-			// instead is undo and redo, so the shell draws those. Matches `CreatePage`.
+			// instead is the four edit actions, so the shell draws those. Matches
+			// `CreatePage`.
 			return <BookShell content={createStyles.content} remixOf={null} history />
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
@@ -105,23 +106,28 @@ function BookShell({
 			<SiteHeader width="narrow">
 				{remixOf ? <CreateButton remixOf={remixOf} /> : null}
 				{/*
-				 * Undo and redo, as the create page has them on a desktop: two discs at the
-				 * right-hand end of the header, and there is nothing to undo yet, so they
-				 * are drawn in the state they will actually land in. Pictures of buttons —
-				 * they are `disabled`, so they are out of the tab order and take no presses,
-				 * which is the whole difference between this and the real pair.
+				 * The edit actions, as the create page has them on a desktop: four discs at
+				 * the right-hand end of the header, and there is nothing yet to undo, redo,
+				 * copy or paste — so they are drawn in the state they will actually land in.
+				 * Pictures of buttons: they are `disabled`, so they are out of the tab order
+				 * and take no presses, which is the whole difference between this and the
+				 * real row.
 				 *
-				 * Hidden on a phone by `.historyTop`, exactly as the page's own are, so the
+				 * The glyphs are repeated here rather than shared, because anything this
+				 * file imports lands in the entry bundle and `EditActions` lives inside the
+				 * create route's chunk — which is the download this shell exists to cover.
+				 * Four characters; if they change there, they change here.
+				 *
+				 * Hidden on a phone by `.actionsTop`, exactly as the page's own are, so the
 				 * shell is the right shape at both widths from one piece of markup.
 				 */}
 				{history ? (
-					<div className={createStyles.historyTop} aria-hidden="true">
-						<button type="button" className={createStyles.step} disabled>
-							<span className={createStyles.stepGlyph}>↺</span>
-						</button>
-						<button type="button" className={createStyles.step} disabled>
-							<span className={createStyles.stepGlyph}>↻</span>
-						</button>
+					<div className={createStyles.actionsTop} aria-hidden="true">
+						{['↺', '↻', '↥', '↧'].map((glyph) => (
+							<button key={glyph} type="button" className={createStyles.action} disabled>
+								<span className={createStyles.actionGlyph}>{glyph}</span>
+							</button>
+						))}
 					</div>
 				) : null}
 			</SiteHeader>

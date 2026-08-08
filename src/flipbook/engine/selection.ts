@@ -52,6 +52,18 @@ export class Selection {
 	 */
 	onGrabChanged: (() => void) | null = null
 
+	/**
+	 * Told whenever what is selected changes — anything picked up, anything put down.
+	 *
+	 * Separate from `onGrabChanged`, which is about what a drag *would* do and fires on
+	 * every pointer move over a selection that hasn't changed at all. This one fires
+	 * only when the layer's contents do, which is a handful of times in a gesture, and
+	 * it exists because the Copy button has to know whether there is anything to copy.
+	 * Every route in and out of the selection goes through the methods below, so this is
+	 * the one place that fact is knowable.
+	 */
+	onChange: (() => void) | null = null
+
 	/** The handle under the pointer, from the last `updateTransformType`. */
 	handle: paper.HitResult | null = null
 
@@ -83,6 +95,7 @@ export class Selection {
 
 		this.layer.addChild(hit.item)
 		hit.item.strokeColor = new this.scene.scope.Color(HIGHLIGHT_COLOR)
+		this.onChange?.()
 		return true
 	}
 
@@ -92,6 +105,7 @@ export class Selection {
 		if (!hit?.item) return false
 
 		this.scene.activeLayer.addChild(hit.item)
+		this.onChange?.()
 		return true
 	}
 
@@ -112,6 +126,28 @@ export class Selection {
 				item.strokeColor = new this.scene.scope.Color(HIGHLIGHT_COLOR)
 			}
 		}
+
+		this.onChange?.()
+	}
+
+	/**
+	 * Puts a set of strokes straight into the selection, wherever they came from.
+	 *
+	 * `hold` is the other way in and takes only strokes that are already lying on the
+	 * page — it exists to pick back up what `clear` has just put down. These have never
+	 * been anywhere: they are clones off the clipboard, and this is where a paste lands.
+	 *
+	 * The box isn't drawn here. The tool in hand dresses a selection its own way — a
+	 * dashed box for transform, blue strokes and a grid of dots for push — and `init` is
+	 * what each of them already does to make the scene its own. See `pasteClipboard`.
+	 */
+	receive(items: readonly paper.Item[]): void {
+		for (const item of items) {
+			this.layer.addChild(item)
+			item.strokeColor = new this.scene.scope.Color(HIGHLIGHT_COLOR)
+		}
+
+		this.onChange?.()
 	}
 
 	/**
@@ -138,6 +174,7 @@ export class Selection {
 
 		this.type = 'none'
 		this.onGrabChanged?.()
+		this.onChange?.()
 		this.scene.redraw()
 
 		return dropped
@@ -158,6 +195,7 @@ export class Selection {
 			item.strokeColor = new this.scene.scope.Color(HIGHLIGHT_COLOR)
 		}
 
+		this.onChange?.()
 		this.reset()
 	}
 

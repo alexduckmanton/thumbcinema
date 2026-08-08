@@ -59,6 +59,7 @@ src/
       scene.ts        paper.js project + layers
       selection.ts    selecting and transforming
       history.ts      undo and redo, as a stack of pages-as-strings
+      clipboard.ts    copy and paste, and where a paste lands
       formats.ts      the two artwork formats, in and out
       png.ts          the saved thumbnail, encoded small
       pages.ts        the page list as data, and how to count it
@@ -590,6 +591,64 @@ Also worth knowing:
   trip and does not accumulate: undo/redo repeated eight times gives byte-identical
   canvases.
 
+### Copy and paste
+
+`clipboard.ts`, and two more discs in the row undo and redo already stand in. Copy takes
+what is selected; paste puts it down in the middle of the page you are on, selected, a
+little way off centre. It crosses pages, it survives being pressed again, and it takes
+as many strokes as you have picked up.
+
+What it replaces is alt-drag, which is still there and is still the quickest way to
+repeat something *on one page*: hold alt and drag a selection with the transform tool
+and a copy is left behind. That gesture has no finger version — there is no alt to hold
+— and it can't reach the next frame, which is where a flipbook wants a copy of a drawing
+to go. So the clipboard is not a phone workaround for alt-drag; it does the job alt-drag
+can't.
+
+- **A paste never lands in the exact middle, and never twice in the same place.** The
+  centre of the frame plus an offset of 4–10px on each axis, sign drawn separately —
+  which is a *ring* around the middle rather than a square, because an offset drawn
+  uniformly from ±10 is sometimes half a pixel and half a pixel is invisible. Pressing
+  paste four times has to look like four drawings rather than one, and it is the offset
+  that says so. `pasteCentre` is pure and unit-tested; the rest of the file needs paper
+  and a project to clone into.
+- **It lands selected, and that is most of how a paste announces itself.** A drawing
+  that arrives lying flat in the same ink as everything around it is indistinguishable
+  from one that was already there. What you want to do next is move it, which needs it
+  picked up anyway.
+- **Which is why pasting with the pencil in hand takes the transform tool.** A selection
+  is the transform tool's state, and the selection layer is *active* while something is
+  held — so a pencil stroke drawn from there would land in the selection rather than on
+  the page. Pasting with a pencil in your hand and then being able to do nothing with
+  what arrived is the worse of the two surprises. Push keeps push: it dresses a selection
+  its own way and `init()` is what re-dresses it, exactly as it is after a page duplicate.
+- **The clipboard holds clones, not references and not JSON.** Editing or deleting the
+  original after copying changes nothing, and every paste clones again — five pastes are
+  five drawings. JSON is what the history holds, and for a reason this hasn't got: it
+  needs one comparable string per page. A clone is what a paste has to make anyway.
+- **Several strokes copied together are one drawing.** The whole set moves by one delta,
+  so what lands keeps its own spacing and the box round it is the box round all of it.
+- **Copy is dim until something is selected and paste until something has been copied**,
+  which between them are the whole of the instructions: the pair lights up in the order
+  you have to press it.
+- **`canCopy` is published at the end of a gesture, not as the selection changes.** A
+  marquee drag empties the selection and refills it on every pointer move — a store
+  write there is a React render at pointer rate, re-rendering a strip of page canvases to
+  change a button from grey to black and back. `Selection.onChange` fires either way and
+  `publishSelection` holds it back while the pointer is down; the end of the gesture is
+  also the first moment there is a hand free to press the button with. Everything that
+  isn't a gesture — undo, a page turn, a tool change, a paste — publishes immediately.
+- **One step in the history, recorded the way `deleteSelection` records one.** Paste
+  isn't a pointer gesture, so it takes its own before-and-after rather than riding on
+  `handlePointerDown`/`Up`. Undo puts the page back without the paste on it; copy records
+  nothing, because it changes nothing.
+- **⌘C and ⌘V, and the default is prevented either way.** There is nothing on this page
+  to copy but a drawing — the one place with text in it is the save form, and the
+  shortcuts are off while that is up.
+- **There is no cut and no system clipboard.** Cut is delete-then-copy and the Delete key
+  already exists. The system clipboard would mean a permission prompt, a second artwork
+  format to read, and an answer to what happens when somebody pastes a holiday photo.
+
 ### Invariants
 
 - **`SYSTEM_LAYERS === 3`, and `LEADING_SYSTEM_GROUPS === 3` with it.** paper exports
@@ -708,8 +767,11 @@ it's one of these. Each is deliberate:
 - **The pencil-width control is a real slider** to assistive technology, and works
   from the keyboard. The 2013 one was three divs. It is desktop-only now.
 - **Undo is fifty steps deep and covers everything**, including transforms, which 2013
-  could not undo at all. See above. ⌘Z and ⇧⌘Z (and ⌘Y), plus two buttons on the phone
-  layout.
+  could not undo at all. See above. ⌘Z and ⇧⌘Z (and ⌘Y), plus two buttons on both
+  layouts.
+- **There is a clipboard.** Copy what is selected, turn the page, paste it: two buttons
+  beside undo and redo, and ⌘C/⌘V. 2013 had alt-drag and nothing else, which is one page
+  and one gesture and needs a keyboard to reach at all. See **Copy and paste** above.
 - **Duplicating a page keeps hold of what was selected.** 2013 let go, and so did this
   until now: a selected stroke lives in the selection layer rather than on the page, so
   the page has to be put down before it can be copied. But duplicating is *how* you move
@@ -913,40 +975,58 @@ is now true at both widths and the differences are called out where they exist.
   to stand it up in — and the `InkCursor` ring with it: the ring is still the size of the
   mark, but the pencil is one size now, so what it says is which of the two marking tools
   is in hand.
-- **On a phone the bottom of the window is a footer bar: undo and redo at one end, save
-  at the other.** It was the save button alone, floating in the middle; a bar is what
-  lets a second and a third control stand next to it without either looking like an
+- **On a phone the bottom of the window is a footer bar: four edit actions at one end,
+  save at the other.** It was the save button alone, floating in the middle; a bar is
+  what lets the other four stand next to it without any of them looking like an
   afterthought. Fixed 8px off the bottom, because the column ends wherever the tools
   happen to end and the rest of a phone screen is air. `transform`, not `top`, does the
   fly-away when the form goes up — a box pinned by `bottom` can't use `top` without
   being stretched between the two — and the desktop's fly-away moved to `transform` with
   it, so the two differ by the direction and nothing else.
-- **Undo and redo are on both layouts, in different corners, and are in the markup
-  twice.** Each is a white disc exactly as tall as the save button and as wide as it is
-  tall, wearing a Pecita glyph — ↺ and ↻, which that face has, set as live text for the
-  same reason the wordmark is: the icon sheet is drawings of *things*, and these two
-  aren't. Dimmed rather than hidden when there is nothing to spend, because which of the
-  two is available changes with every stroke and a button that comes and goes under a
-  resting thumb is a button pressed by accident.
+- **Undo, redo, copy and paste are on both layouts, in different corners, and are in the
+  markup twice.** Each is a white disc exactly as tall as the save button and as wide as
+  it is tall, wearing a Pecita glyph — ↺ ↻ ↥ ↧, set as live text for the same reason the
+  wordmark is: the icon sheet is drawings of *things*, and none of these four is a thing.
+  Dimmed rather than hidden when there is nothing to spend, because which of them is
+  available changes with every stroke and every tap on the drawing, and a button that
+  comes and goes under a resting thumb is a button pressed by accident.
 
-  On a phone they are the left-hand end of the footer. On a desktop they are the header's
+  **The last two glyphs are a compromise, and worth saying so.** Pecita's dingbat block
+  is hand-drawn pencils, nibs and a writing hand; it has no scissors, no clipboard and no
+  pair of overlapping sheets, which is what every other application draws here. What it
+  does have is a full set of arrows in the same weight as ↺ and ↻, and a bar under an
+  arrow reads as a surface: ↥ takes a copy up off the page, ↧ brings one back down onto
+  it. The four then look like one family rather than two borrowed from different sets,
+  which they would not in any face the rest of the site doesn't use. The tooltip and the
+  accessible name carry the actual words.
+
+  On a phone they are the left-hand end of the footer, in that order — the two that spend
+  the history, then the two that spend the clipboard. On a desktop they are the header's
   actions slot, beside the wordmark — which on this page is `narrow`, so its right-hand
   edge is the right-hand edge of the 640px column and the discs land above the corner of
-  the paper. They were phone-only at first, on the reasoning that ⌘Z is what a hand on a
-  keyboard reaches for. It is, and a fifty-step history that nothing on the screen
-  mentions is still a feature people find out about by accident. They are at the *top*
-  because the bottom of that column is the save button's, and undo standing next to save
-  is the pair you least want to confuse.
+  the paper. Undo and redo were phone-only at first, on the reasoning that ⌘Z is what a
+  hand on a keyboard reaches for. It is, and a fifty-step history that nothing on the
+  screen mentions is still a feature people find out about by accident — which is the
+  same argument for putting the clipboard up there too. They are at the *top* because the
+  bottom of that column is the save button's, and undo standing next to save is the pair
+  you least want to confuse.
 
   **Two copies with `display: none` on the wrong one**, rather than one box moved: the
   two corners are in different parts of the tree — one is inside `<SiteHeader>`, the
   other is a bar pinned to the bottom of the window — and no arrangement of CSS carries a
-  box between them. It costs a few elements and leaves exactly one pair in the
+  box between them. It costs a few elements and leaves exactly one row in the
   accessibility tree at any width. The desktop copy is **disabled while the save form is
   up**, because the footer's copy leaves with the footer and this one has nowhere to go —
   a live undo button in the corner is otherwise the one control still able to change a
-  drawing that is under the wash. `RouteShell` draws a disabled pair too, so nothing
+  drawing that is under the wash. `RouteShell` draws a disabled row too, so nothing
   appears in the header at the handover.
+
+  **The row is 6px apart on a phone and 8 on a desktop, and that is arithmetic.** Four
+  48px discs and the save button are 320px of the footer's 328 on the narrowest layout
+  that gets them at full size — a 360px Android phone. Below 360 they take the diet the
+  sideways layout already takes, 40px discs and a 40px save button, which is 264 of the
+  288 a 320px screen gives the column. A 280px folding cover screen still overruns by 16
+  and is left to: the paper there is 264px wide.
 - **The footer's ends are the paper's ends, and that needs a `max()`.** `--book-width`
   is a `min(100%, …)` and the bar is `position: fixed`, so its `100%` is the window
   where the column's is the column — upright, where the width binds, the difference
@@ -1612,8 +1692,8 @@ properties, element defaults, and two utility classes.
   for three seconds. If the preload goes, `block` has to go back to `swap`.
 - **No `letter-spacing` on the wordmark.** Pecita is a joining script; spacing it
   apart pulls the letters off each other's entry and exit strokes.
-- **Pecita signs the three buttons that are about making a flipbook**: create on the
-  gallery, save on the create page, and undo and redo beside them. All three are set at
+- **Pecita signs the buttons that are about making a flipbook**: create on the gallery,
+  save on the create page, and the four edit actions beside it. All three are set at
   30px, because Pecita runs small — a handwriting face with a shallow x-height, which at
   a UI size reads as a caption rather than a label. The create button's label was Inter
   at 16/500 until it was the last thing on that button not in the same hand as the
@@ -1748,8 +1828,8 @@ partial index; no new table, no new route, no new endpoint.
   refresh now goes blank → Remix and stops.
 - **`RouteShell` passes the id too, and that is the half that mattered.** It has it
   already — `matchRoute` parses it out of the pathname, so the shell knows which
-  flipbook is coming without waiting for anything at all. Same rule as the disabled
-  undo/redo pair on the create shell: a header that changes at the handover is exactly
+  flipbook is coming without waiting for anything at all. Same rule as the disabled row
+  of edit actions on the create shell: a header that changes at the handover is exactly
   what that file exists to prevent.
 - **`/create?remix=<id>` is a query parameter, not a route.** It doesn't change what the
   page *is*, `matchRoute` stays a function of the pathname alone, and — the part that
@@ -1908,9 +1988,11 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   applies the *pages'* own CSS modules rather than carrying copies: `--book-reserve` is
   318px on create, 240px on playback and different again in a short window, and a
   hand-written approximation would be the wrong size in three layouts and drift from
-  there. It is why the create shell also draws a disabled undo/redo pair out of
+  there. It is why the create shell also draws a disabled row of edit actions out of
   `CreatePage.module.css` — those are in the header on a desktop, and a header that
-  gains two buttons at the handover is exactly the move this exists to prevent. Applying
+  gains four buttons at the handover is exactly the move this exists to prevent. Their
+  glyphs are repeated in that file rather than shared, because anything it imports lands
+  in the entry bundle and `EditActions` lives in the create route's chunk. Applying
   another module's class to your own markup is not the cross-module *selector* the rest
   of the tree avoids. Cost: those stylesheets move into the entry, so every route carries
   ~4 kB gzipped for layouts it isn't.

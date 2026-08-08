@@ -31,15 +31,15 @@
 }
 
 /*
- * The footer bar, held against the bottom of the window: undo and redo at one end,
+ * The footer bar, held against the bottom of the window: the edit actions at one end,
  * save at the other.
  *
  * On a phone the column ends wherever the tools happen to end and the rest of the
  * screen is air, so a control in the flow sits in the middle of nothing and moves
  * about as the drawing is resized. Down here it is where a thumb already is and it
  * doesn't move. It was the save button alone, floating in the middle; a bar is what
- * lets a second and a third thing stand next to it without either of them looking
- * like an afterthought.
+ * lets the other four stand next to it without any of them looking like an
+ * afterthought.
  *
  * The padding is what keeps it on the flipbook's ruler rather than the window's: the
  * box runs the full width and is inset to the width of the drawing, so both ends of
@@ -72,35 +72,45 @@
 }
 
 /*
- * Undo and redo, in the bottom left of the window: the other end of the footer from
- * save, which is the end a right hand isn't resting on.
+ * Undo, redo, copy and paste, in the bottom left of the window: the other end of the
+ * footer from save, which is the end a right hand isn't resting on.
  *
- * The pair is in the markup twice and shown once — this is the phone's copy, and
- * `.historyTop` below is the desktop's. See `UndoRedo` for why it is done that way
+ * The row is in the markup twice and shown once — this is the phone's copy, and
+ * `.actionsTop` below is the desktop's. See `EditActions` for why it is done that way
  * round.
+ *
+ * 6px rather than the 8 the desktop's row uses, and the difference is arithmetic rather
+ * than taste. Four 48px discs and the save button are 320px of the footer's 328 on the
+ * narrowest layout that still gets this one — a 360px Android phone, whose column is the
+ * window less two 16px gutters. At 8px the four of them touch the save button; at 6 they
+ * clear it, and the two rows are never on screen together to be compared.
  */
-.history {
+.actions {
 	display: flex;
-	gap: 8px;
+	gap: 6px;
 }
 
 /* The desktop's copy, up in the header's actions. Off here, where the footer has it. */
-.historyTop {
+.actionsTop {
 	display: none;
 }
 
 /*
- * One step, either direction: a white disc exactly as tall as the save button and as
- * wide as it is tall.
+ * One action: a white disc exactly as tall as the save button and as wide as it is tall.
  *
  * The same white and the same shadow as the page bar above it and the paper above
  * that — this is a control lying on the page, and the ones it sits in a row with are
  * the ones it should be lit like.
+ *
+ * `flex-shrink: 0` because a disc is round: in a window narrow enough for the row to
+ * want the space, four squashed ovals is a worse answer than a row that reaches the
+ * save button.
  */
-.step {
+.action {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	flex-shrink: 0;
 	width: 48px;
 	height: 48px;
 	padding: 0;
@@ -116,28 +126,30 @@
 }
 
 /*
- * Nothing to undo, or nothing to redo.
+ * Nothing to undo, nothing to redo, nothing selected to copy, nothing copied to paste.
  *
- * Dimmed rather than hidden: which of the two is available changes with every stroke,
- * and a button that comes and goes under a thumb resting near it is a button you press
- * by accident. Kept at a legible weight — this says "not now", not "gone".
+ * Dimmed rather than hidden: which of the four is available changes with every stroke
+ * and every tap on the drawing, and a button that comes and goes under a thumb resting
+ * near it is a button you press by accident. Kept at a legible weight — this says "not
+ * now", not "gone". It is also the whole of the instructions for copy and paste: the
+ * pair lights up in the order you have to press them.
  */
-.step:disabled {
+.action:disabled {
 	opacity: 0.3;
 	cursor: default;
 	box-shadow: none;
 }
 
-.step:not(:disabled):hover {
+.action:not(:disabled):hover {
 	background: var(--page);
 	transform: translateY(-1px);
 }
 
-.step:not(:disabled):active {
+.action:not(:disabled):active {
 	transform: translateY(0) scale(0.94);
 }
 
-.step:focus-visible {
+.action:focus-visible {
 	outline: 2px solid var(--blue);
 	outline-offset: 3px;
 }
@@ -152,7 +164,7 @@
  * the glyph high. Smaller here than the label's 3px because a ring has no baseline to
  * speak of — it is measured, not inherited.
  */
-.stepGlyph {
+.actionGlyph {
 	position: relative;
 	top: 1px;
 	font-family: 'Pecita', cursive;
@@ -267,6 +279,44 @@
 }
 
 /*
+ * A phone too narrow for five controls at full size.
+ *
+ * Four 48px discs and the 110px save button want 320px, and a 320px screen gives the
+ * column 288 of it — so the row overran the paper it is supposed to end with, and took
+ * the save button off the right-hand edge of the screen with it. Nothing above 360px is
+ * affected, which is every phone still sold; what this is for is the 320px ones that
+ * aren't. A 280px folding phone's cover screen still overruns by 16, and is left to:
+ * the paper there is 264px wide, which is past the point where any of this is a drawing
+ * tool rather than a demonstration that it loads.
+ *
+ * The diet is the one the sideways layout already takes, and it is stated again rather
+ * than shared because that block is about *height* and brings a smaller reserve and a
+ * right-aligned bar with it, neither of which a tall narrow phone wants. Same numbers:
+ * 40px discs and a 40px save button, which is 264 of the 288 there is.
+ */
+@media screen and (max-width: 359px) {
+	.action {
+		width: 40px;
+		height: 40px;
+	}
+
+	.actionGlyph {
+		font-size: 22px;
+	}
+
+	/* The discs' height, still — see the note on the sideways rule. */
+	.saveButton {
+		height: 40px;
+		padding: 0 20px;
+		font-size: 24px;
+	}
+
+	.saveLabel {
+		top: 2px;
+	}
+}
+
+/*
  * A phone held sideways.
  *
  * The canvas is 16:9 and so is the screen, which ought to be the best this thing ever
@@ -295,12 +345,15 @@
 	 * is. Each tool is a 304px picture anchored by its tip, the picked-up one hangs
 	 * 60px lower than the rest, and the tip lands squarely on an undo button sitting at
 	 * the paper's left-hand edge. There is nothing under the page actions at the other
-	 * end, so that is where the three of these go.
+	 * end, so that is where the whole bar goes.
+	 *
+	 * It fits: four 40px discs, 6px apart, plus 12px and an 86px save button is 276px of
+	 * the 290 the drawing is wide on the shortest landscape phone there is.
 	 *
 	 * This layout has always done something of the kind: the rule it replaces put the
 	 * save button on the right to keep it off the width popover, which used to lie down
-	 * across the middle here. Same band, same problem, and now one answer for all three
-	 * controls rather than a special case for one.
+	 * across the middle here. Same band, same problem, and now one answer for every control
+	 * in the bar rather than a special case for one.
 	 */
 	.footer {
 		justify-content: flex-end;
@@ -319,12 +372,12 @@
 
 	/* The save button's height, still — they stand in a row and a disc taller than the
 	   thing beside it reads as the more important of the two. */
-	.step {
+	.action {
 		width: 40px;
 		height: 40px;
 	}
 
-	.stepGlyph {
+	.actionGlyph {
 		font-size: 22px;
 	}
 }
@@ -335,9 +388,9 @@
  * Four things differ, and all four are about there being room: the save button goes
  * back into the column, where there is somewhere for it to be that isn't the bottom
  * edge of the window; the column has air under it; the button flies *up* with the
- * tools rather than down past them; and undo and redo move from the bottom of the
- * window to the top of it, where there is a header with an empty right-hand side and
- * nothing under the drawing but the save button.
+ * tools rather than down past them; and the four edit actions move from the bottom of
+ * the window to the top of it, where there is a header with an empty right-hand side
+ * and nothing under the drawing but the save button.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
@@ -358,19 +411,19 @@
 		text-align: center;
 	}
 
-	.history {
+	.actions {
 		display: none;
 	}
 
 	/*
 	 * Up beside the wordmark. The header is `narrow` on this page, so its right-hand
-	 * edge is the right-hand edge of the 640px column — which puts these two discs
+	 * edge is the right-hand edge of the 640px column — which puts the right-hand disc
 	 * squarely above the corner of the paper rather than out at the edge of the window.
 	 *
 	 * Centred against a 70px wordmark by the header's own `align-items`, so nothing here
 	 * has to know how tall that is.
 	 */
-	.historyTop {
+	.actionsTop {
 		display: flex;
 		gap: 8px;
 	}
@@ -383,7 +436,7 @@
 @media (prefers-reduced-motion: reduce) {
 	.footer,
 	.saveButton,
-	.step {
+	.action {
 		transition: none;
 	}
 }

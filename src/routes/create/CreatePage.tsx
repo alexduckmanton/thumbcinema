@@ -161,19 +161,19 @@ export function CreatePage() {
 
 	return (
 		<>
-			{/* No create button — you are already here. What goes up there instead is
-			    undo and redo, on the desktop layout only; see `UndoRedo`.
+			{/* No create button — you are already here. What goes up there instead is the
+			    four edit actions, on the desktop layout only; see `EditActions`.
 
 			    Not offered while the save form is up: everything else on the page has
 			    either flown away or gone under the wash, and a live undo button up in the
 			    corner is the one control still able to change a drawing nobody can see.
 			    The footer's copy leaves with the footer; this one has nowhere to go, so it
-			    dims instead — which is what `.step:disabled` already says. */}
+			    dims instead — which is what `.action:disabled` already says. */}
 			<SiteHeader width="narrow">
-				<UndoRedo
+				<EditActions
 					engine={engine}
 					state={phase === 'drawing' ? state : null}
-					className={styles.historyTop}
+					className={styles.actionsTop}
 				/>
 			</SiteHeader>
 
@@ -299,7 +299,7 @@ export function CreatePage() {
 
 					<div className={styles.footer}>
 						{/* The phone's copy, at the far end of the bar from save. */}
-						<UndoRedo engine={engine} state={state} className={styles.history} />
+						<EditActions engine={engine} state={state} className={styles.actions} />
 
 						<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
 							<button
@@ -393,24 +393,29 @@ function useRemixSource(engine: FlipbookEngine | null, id: string | null): boole
 }
 
 /**
- * Undo and redo, as a pair, in whichever of the page's two corners this layout keeps
- * them: the bottom left on a phone, next to the wordmark on a desktop.
+ * The four edit actions, as a row, in whichever of the page's two corners this layout
+ * keeps them: the bottom left on a phone, next to the wordmark on a desktop.
  *
  * Rendered in both places and hidden in one, which is the whole of how it moves. The
  * two corners are in different parts of the tree — one is the site header's actions
  * slot, the other is a bar pinned to the bottom of the window — and there is no
  * arrangement of CSS that carries one box between them. Two copies with `display: none`
- * on the wrong one costs a few elements and leaves exactly one pair in the
- * accessibility tree at any width, which is the thing that actually matters.
+ * on the wrong one costs a few elements and leaves exactly one row in the accessibility
+ * tree at any width, which is the thing that actually matters.
  *
- * Why it is up there at all on a desktop, when 2013 offered no undo and this page's
- * first version offered it only on a phone: ⌘Z is genuinely the shortcut a hand on a
- * keyboard reaches for, but a fifty-step history that nothing on the screen mentions is
- * a feature people find out about by accident. The buttons say it exists. They go at the
- * top because the bottom of this column is the save button's, and undo standing next to
- * save is the pair of buttons you least want to confuse.
+ * Why they are up there at all on a desktop, when 2013 offered none of the four and this
+ * page's first version offered undo only on a phone: ⌘Z and ⌘C are genuinely what a hand
+ * on a keyboard reaches for, but a fifty-step history and a clipboard that nothing on
+ * the screen mentions are features people find out about by accident. The buttons say
+ * they exist. They go at the top because the bottom of this column is the save button's,
+ * and undo standing next to save is the pair of buttons you least want to confuse.
+ *
+ * Undo, redo, copy, paste, in that order at both widths: the two that spend the history
+ * first, then the two that spend the clipboard. Copy is dim until something is selected
+ * and paste until something has been copied, which between them are the whole of the
+ * instructions.
  */
-function UndoRedo({
+function EditActions({
 	engine,
 	state,
 	className,
@@ -421,34 +426,55 @@ function UndoRedo({
 }) {
 	return (
 		<div className={className}>
-			<StepButton
+			<ActionButton
 				label="Undo"
 				glyph="↺"
 				hint="Undo (⌘Z)"
 				enabled={state?.canUndo ?? false}
 				onPress={() => engine?.undo()}
 			/>
-			<StepButton
+			<ActionButton
 				label="Redo"
 				glyph="↻"
 				hint="Redo (⇧⌘Z)"
 				enabled={state?.canRedo ?? false}
 				onPress={() => engine?.redo()}
 			/>
+			<ActionButton
+				label="Copy"
+				glyph="↥"
+				hint="Copy (⌘C)"
+				enabled={state?.canCopy ?? false}
+				onPress={() => engine?.copySelection()}
+			/>
+			<ActionButton
+				label="Paste"
+				glyph="↧"
+				hint="Paste (⌘V)"
+				enabled={state?.canPaste ?? false}
+				onPress={() => engine?.pasteClipboard()}
+			/>
 		</div>
 	)
 }
 
 /**
- * One step back or forward: a white disc the height of the save button, wearing a
- * Pecita glyph.
+ * One edit action: a white disc the height of the save button, wearing a Pecita glyph.
  *
  * Written in the wordmark's hand rather than taken from the icon sheet, because the
- * sheet is drawings of *things* — a pencil, an eraser, a page — and these two are not
- * things. ↺ and ↻ are letters as far as this font is concerned, so they are set as
+ * sheet is drawings of *things* — a pencil, an eraser, a page — and none of these four
+ * is a thing. ↺ ↻ ↥ ↧ are letters as far as this font is concerned, so they are set as
  * text: one face, one weight, and nothing to redraw at 2×.
+ *
+ * The two new ones are a compromise and worth saying so. Pecita's dingbat block is
+ * hand-drawn pencils, nibs and a writing hand, and it has no scissors, no clipboard and
+ * no pair of overlapping sheets — the glyphs every other application uses for this. What
+ * it does have is a full set of arrows in the same weight as ↺ and ↻, and a bar under an
+ * arrow reads as a surface: ↥ takes a copy up off the page, ↧ brings one back down onto
+ * it. The four then look like one family rather than two borrowed from different sets.
+ * The tooltip and the label carry the actual words.
  */
-function StepButton({
+function ActionButton({
 	label,
 	glyph,
 	hint,
@@ -464,12 +490,12 @@ function StepButton({
 	return (
 		<button
 			type="button"
-			className={styles.step}
+			className={styles.action}
 			title={hint}
 			disabled={!enabled}
 			onClick={onPress}
 		>
-			<span className={styles.stepGlyph} aria-hidden="true">
+			<span className={styles.actionGlyph} aria-hidden="true">
 				{glyph}
 			</span>
 			<span className="visuallyHidden">{label}</span>

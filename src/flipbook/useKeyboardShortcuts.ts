@@ -52,6 +52,28 @@ export function useKeyboardShortcuts(
 				if (key === 'y') {
 					event.preventDefault()
 					engine.redo()
+					return
+				}
+
+				/*
+				 * Copy and paste, which are the same two buttons the phone layout puts in
+				 * its footer — the keyboard's way in, and the reason those buttons name a
+				 * shortcut in their tooltips.
+				 *
+				 * The default is prevented either way rather than only when something
+				 * happens. There is nothing on this page to copy but a drawing: the one
+				 * place with text in it is the save form, and the shortcuts are off while
+				 * that is up. So the browser's own copy has nothing to take, and a paste it
+				 * handled would be a picture of somebody's desktop arriving in a flipbook.
+				 */
+				if (tools && key === 'c') {
+					event.preventDefault()
+					engine.copySelection()
+					return
+				}
+				if (tools && key === 'v') {
+					event.preventDefault()
+					engine.pasteClipboard()
 				}
 				return
 			}
