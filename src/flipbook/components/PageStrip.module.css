@@ -24,22 +24,45 @@
 /*
  * The row moves instantly. Turning a page is a cut, not a slide.
  *
- * It used to ease over 0.3s, matched to the page animations' travel time — every
- * keyframe set that throws a page into the next slot arrives at offset 0.35–0.4 of its
- * 750ms and spends the rest settling, and the strip carries every page that *isn't*
- * individually animated, so the two had to cover the same ground in the same time. The
- * trouble is that it also eased on an ordinary page turn, where nothing is being
- * thrown: half a second of the whole flipbook sliding under the drawing every time you
- * step a page, which reads as the pages being dragged about rather than turned. That
- * was already switched off under a finger on the page bar, and the honest conclusion
- * was that if it is wrong there it is wrong everywhere.
+ * It used to ease over 0.3s unconditionally, and the trouble with that was ordinary
+ * page turns, where nothing is being thrown: half a second of the whole flipbook
+ * sliding under the drawing every time you step a page, which reads as the pages being
+ * dragged about rather than turned. That was already switched off under a finger on the
+ * page bar, and the honest conclusion was that if it is wrong there it is wrong
+ * everywhere.
  *
- * Add and delete still animate — those are `animations.ts`, on the individual page,
- * and they are a throw rather than a step.
+ * Adding and deleting a page are the exception, and `.throwing` below is where the
+ * 0.3s went.
  */
 .strip {
 	position: absolute;
 	width: 99999px;
+}
+
+/*
+ * Except while a page is being thrown, which is the one movement of the row that is
+ * part of an animation rather than a page turn.
+ *
+ * Adding a page throws the page you were on into the next slot along and flies the new
+ * one in on the canvas (`animations.ts`), and deleting one tumbles it off the bottom of
+ * the window while its neighbour slides over. Both leave the *rest* of the flipbook a
+ * slot out of place — every page ahead of the gap has to travel exactly as far as the
+ * thrown one, and nothing is animating those individually. The row is what carries
+ * them, so for the length of the throw it moves with it: same distance, same time, same
+ * curve as the keyframes' own `ease-in-out`.
+ *
+ * `--throw` is `PAGE_TRAVEL_MS`, which is where a thrown page *arrives* rather than how
+ * long its animation runs — the remaining 450ms of a page animation is it settling into
+ * a slot it has already reached. Without this the pages either side of the drawing
+ * jumped a whole page the instant the button was pressed, and on a short flipbook that
+ * reads as the page before the one you are on simply vanishing.
+ *
+ * On the element only while an animation is in flight, for the reason `.carrying` is:
+ * the frame that hands the flipbook back changes `left` by a step and takes the class
+ * off in the same render, and a transition still there would ease that too.
+ */
+.throwing {
+	transition: left var(--throw) ease-in-out;
 }
 
 /*
@@ -178,8 +201,11 @@
 
 /* The gap still opens and the flipbook still closes up round the page — there is no
    reading the gesture without them — but neither is eased. `usePageReorder` hands the
-   flipbook back on the same frame, so nothing here is left mid-slide. */
+   flipbook back on the same frame, so nothing here is left mid-slide. And a thrown page
+   doesn't move at all under this: `play()` returns without animating anything, so a row
+   that still slid would be the only thing travelling. */
 @media (prefers-reduced-motion: reduce) {
+	.throwing,
 	.carrying,
 	.carrying .page,
 	.carrying.sliding,

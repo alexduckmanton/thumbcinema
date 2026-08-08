@@ -21,10 +21,23 @@ const EASE = 'ease-in-out'
 /**
  * The full length of a page animation — but not how long a page takes to *travel*.
  * Each of these throws its page to the next slot by offset 0.35–0.4 and spends the
- * remainder settling, which is why the strip's own transition is 0.3s and must stay
- * there. See `.strip` in `PageStrip.module.css`.
+ * remainder settling. That travel time is `PAGE_TRAVEL_MS` below, and it is what the
+ * strip's own slide is set from. See `.throwing` in `PageStrip.module.css`.
  */
 const DURATION = 750
+
+/**
+ * How long a thrown page takes to *arrive*, as opposed to how long the animation runs.
+ *
+ * Every keyframe set below that throws a page into the next slot is there by offset
+ * 0.4 and spends the remaining 450ms settling into it. The strip carries every page
+ * that isn't individually animated — the ones ahead of the gap, which simply travel a
+ * slot — so the row and the thrown page have to cover the same ground in the same
+ * time or the flipbook comes apart in the middle of the throw. Handed to
+ * `PageStrip.module.css` as `--throw`, which is the only place a page animation eases
+ * anything other than a page.
+ */
+export const PAGE_TRAVEL_MS = 300
 
 /**
  * How far it is from one page to the next: a thumbnail's width plus its gutters.

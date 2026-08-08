@@ -306,6 +306,22 @@ load-bearing:
   each page *and show it*, which is why a loading flipbook visibly drew itself — and
   why it couldn't play until the last page landed. That effect is gone deliberately;
   it is what paid for the load starting to play at once.
+- **Which is also why a loaded page has to be *asked* for its thumbnail.** A thumbnail
+  is a copy of the live canvas — `captureActivePage` draws whatever is on screen — and
+  every page of a load but the first is built behind what is on screen and never goes
+  in front of it. So opening a flipbook in the drawing tool gave a strip of blank white
+  sheets either side of the drawing, and each one stayed blank until you turned to it
+  *and drew on it*: the capture is on the ends of a pointer gesture, and turning a page
+  isn't one. `capturePage` shows the page it is copying and hands the scene straight
+  back, the way `captureCover` already photographs the cover at save time — nothing is
+  painted in between, because the browser paints at frame boundaries and all of it runs
+  in one go. `replay` marks every page it builds as owed one and `registerThumbnail`
+  pays as React hands each canvas over, which is the mechanism the history already used
+  for a page it had just put back: the element doesn't exist until React renders it, and
+  waiting a frame for it works exactly while somebody is watching and fails when nobody
+  is. It costs one extra `view.update()` per page of a load, spread across the same
+  renders the load is already causing. `owedThumbnails` is keyed by page id rather than
+  index, because both the things that fill it are about to renumber the flipbook.
 - **Playback starts at two pages and won't lap while `loading` is set.** `scheduleFrame`
   holds the last page it has rather than looping three pages while the other forty
   arrive. So `loading` has to be cleared even when a load is abandoned — a flag left
@@ -947,12 +963,29 @@ is now true at both widths and the differences are called out where they exist.
   nothing is being thrown, and half a second of the whole flipbook sliding under the
   drawing every time you step a page reads as the pages being dragged about rather than
   turned. It was already switched off under a finger on the page bar; if it was wrong
-  there it was wrong everywhere. **Add and delete still animate** — those are
-  `animations.ts`, on the individual page, and they are a throw rather than a step;
-  verified by freezing one mid-flight, two 750ms animations and the neighbouring page
-  genuinely travelling. Gone with the transition: `scrubbing` (create page → `PageStrip`,
-  and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both of which existed only to
-  switch it off.
+  there it was wrong everywhere. Gone with the transition: `scrubbing` (create page →
+  `PageStrip`, and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both of which
+  existed only to switch it off.
+- **Except while a page is being thrown, which is `.throwing` and is where the 0.3s
+  went.** Add and delete animate — those are `animations.ts`, on the individual page,
+  and they are a throw rather than a step — but the keyframes only ever move two pages:
+  the one being thrown and the one taking its place. Everything *ahead of the gap* has
+  to travel exactly as far, and the row is the only thing carrying it. Switching the
+  transition off outright took that with it: on a three-page flipbook, adding a page
+  slid the page you were on into the next slot and teleported the one behind it clean
+  off the side of the window on the same frame, which reads as it vanishing rather than
+  leaving. So the row eases again for the length of a throw and at no other time —
+  `PAGE_TRAVEL_MS`, which is where a thrown page *arrives* (offset 0.4 of its 750ms)
+  rather than how long its animation runs, handed to the stylesheet as `--throw`. The
+  class is `state.busy && !state.reordering`: carrying a page eases the same property to
+  the gesture's own timing, and the two rules must never both be on. Measured at both
+  ends — the row now covers its 660px over ~300ms of `ease-in-out` where it used to be
+  there on the first frame, and the handover at the end of a delete still moves nothing.
+- **Frozen pages are what the slide is *for*, and they are the other half of it.** A
+  page that ends up where it started is pinned by `freeze()` so the row slides out from
+  under it; a page that is one slot from home is let go and rides the row. Which is
+  which is the whole of `freezeRange`'s two callers, and it only makes sense while the
+  row is something a page can ride.
 - **Circleplay is gone, at every width and out of the codebase.** It scrubbed the
   flipbook by drawing circles with the pointer, and it was 2013's cleverest control —
   three consecutive pointer positions making a triangle whose winding gave the direction
