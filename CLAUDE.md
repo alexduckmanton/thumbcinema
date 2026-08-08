@@ -1293,6 +1293,26 @@ grid, and a long press on the card gets Safari's own menu back.
   is null on a row that hasn't got one and the card shows the PNG. It has to be stated
   rather than guessed: a card that tried the SVG first would put a 404 in front of every
   PNG in the grid.
+
+  **A lifted page has to be given a viewBox, because the archive's artwork hasn't got
+  one.** paper 0.8 wrote a bare `<svg xmlns="…">` — no viewBox, no width, no height —
+  where 0.12 writes `width="640" height="360" viewBox="0,0,640,360"`. `coverSvg` copies
+  the root's attributes wholesale, which is right for everything saved since the rewrite
+  and left all 438 archive rows dimensionless; an `<img>` gives a dimensionless SVG the
+  300×150 default, draws the page 1:1 into it, and `object-fit: cover` enlarges whatever
+  corner survived, so the card showed about the top-left fifth of the drawing blown up.
+  `rootAttributes` states 640×360 when the file doesn't. It went unnoticed twice over:
+  every fixture in `lib/thumbnail.test.js` was the 0.12 root, and **this is the only
+  place anything asks the *file* how big it is** — the engine and the gallery's preview
+  renderer both state 640×360 themselves (`Scene.pinCoordinates`), which is why an
+  archive flipbook plays and hovers perfectly and only its card was wrong.
+
+  It is a fixed window and deliberately not a bounding box of the ink. A stroke drawn
+  off the edge keeps its whole geometry — paper clips nothing, the viewport does — so
+  archive pages hold coordinates well outside the canvas, −397 to 1279 across a
+  40-flipbook sample. Fitting the content would zoom out and show strokes the drawing
+  never did; stating the window clips them, as the PNG does and as the flipbook itself
+  does when it plays.
 - **The card's picture is an `<img>` now, not the link's `background-image`.** What
   changed is not the format, which a background would have shown perfectly well, but
   that a background image can't be lazy — the grid is an infinite scroll, and every card
