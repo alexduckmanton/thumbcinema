@@ -20,7 +20,14 @@ function apiPlugin(): Plugin {
 		configureServer(server) {
 			server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next: Connect.NextFunction) => {
 				const path = new URL(req.url ?? '/', 'http://localhost').pathname
-				if (path !== '/saveflipbook' && path !== '/api' && !path.startsWith('/api/')) return next()
+
+				// `/f/:id.gif` is the flipbook as an animated GIF, and it is a rewrite
+				// rather than a route of its own — vercel.json states the same one for
+				// production. Restated here because the two hosts express it in different
+				// languages; what must not drift is the destination.
+				const gif = /^\/f\/([^/.]+)\.gif$/.exec(path)
+				if (gif) req.url = `/api/flipbooks/${gif[1]}/gif`
+				else if (path !== '/saveflipbook' && path !== '/api' && !path.startsWith('/api/')) return next()
 
 				const { loadEnv } = await import('./scripts/lib/env.js')
 				loadEnv()
