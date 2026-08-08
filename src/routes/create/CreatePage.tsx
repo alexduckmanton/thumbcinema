@@ -185,6 +185,10 @@ export function CreatePage() {
 						activePage={state.activePage}
 						playing={state.playback !== 'none'}
 						arriving={state.arriving}
+						// A page animation, and not the other thing `busy` covers: carrying a
+						// page has the row easing to the gesture's own timing, and the two
+						// rules would be arguing about the same property.
+						throwing={state.busy && !state.reordering}
 						canvasRef={canvasRef}
 						reorder={reorder}
 						shiftFor={shiftFor}

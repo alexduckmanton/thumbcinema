@@ -231,10 +231,10 @@ export class FlipbookEngine {
 			return
 		}
 
-		// Deliberately does *not* size the canvas. Assigning `width` resets a
-		// canvas's bitmap, and React re-runs an inline ref callback on every render
-		// — so sizing it here wiped every page thumbnail whenever anything at all
-		// changed. The size is a JSX attribute on the element instead.
+		// Deliberately does *not* size the canvas. Assigning `width` resets a canvas's
+		// bitmap, and this runs at moments that have nothing to do with the size being
+		// wrong. The size is a JSX attribute on the element instead — see `PageStrip`,
+		// which has two of them and a rule about crossing between.
 		this.thumbnails.set(pageId, element)
 
 		// A duplicated page's thumbnail is seeded from the page it was copied from,
@@ -245,24 +245,50 @@ export class FlipbookEngine {
 		}
 
 		/*
-		 * A page the history has just put back, drawn the moment it has something to be
-		 * drawn on.
+		 * A page that exists in the scene but has never been drawn here, painted the
+		 * moment it has something to be painted on.
 		 *
-		 * Undoing a delete restores a page whose `<canvas>` does not exist yet — React
-		 * makes it on the next render — so the capture can't happen where the undo does.
-		 * Waiting a frame or two would work while anyone is watching and fail exactly
-		 * when nobody is: a background tab runs no animation frames at all, and the page
-		 * would come back blank. This is the moment the element exists, and there is no
-		 * waiting in it.
+		 * Two things arrive that way and neither can draw itself where it happens. A page
+		 * the history puts back has no `<canvas>` until React makes one on the next
+		 * render; so does every page of a flipbook being replayed into the tool, all of
+		 * which are built behind the one on screen. Waiting a frame or two would work
+		 * while anyone is watching and fail exactly when nobody is — a background tab runs
+		 * no animation frames at all, and the pages would come back blank. This is the
+		 * moment the element exists, and there is no waiting in it.
 		 */
-		if (this.captureOnMount === pageId) {
-			this.captureOnMount = null
-			this.captureActivePage()
-		}
+		if (this.owedThumbnails.delete(pageId)) this.capturePageById(pageId, element)
 	}
 
-	/** The page whose thumbnail is owed a drawing as soon as React renders one. */
-	private captureOnMount: number | null = null
+	/**
+	 * The pages whose thumbnails are owed a drawing as soon as React renders one.
+	 *
+	 * Ids rather than indices, because both the things that fill this — a load and the
+	 * history — are about to change which page is at which index.
+	 */
+	private readonly owedThumbnails = new Set<number>()
+
+	/**
+	 * Draws every page's thumbnail again, now.
+	 *
+	 * The strip's own call, for the one thing that empties a thumbnail without the page
+	 * changing: assigning either dimension of a canvas resets its bitmap, and the strip
+	 * resizes all of them when it changes the scale it draws at. It has to be a call
+	 * rather than a set of ids left owed, because owing is paid by `registerThumbnail`
+	 * and that only runs when React *mounts* an element — a canvas that is resized in
+	 * place is the same element, and its ref never fires again. Which is what the strip's
+	 * layout effect is: after the resize, before the frame it would have been seen in.
+	 */
+	redrawThumbnails(): void {
+		if (this.mode !== 'create') return
+
+		for (const page of this.store.snapshot.pages) {
+			const target = this.thumbnails.get(page.id)
+			// A page React hasn't rendered yet is owed one instead, which is the same
+			// answer the loader and the history give.
+			if (target) this.capturePageById(page.id, target)
+			else this.owedThumbnails.add(page.id)
+		}
+	}
 
 	/**
 	 * How far it is from one page to the next, measured off the strip.
@@ -291,26 +317,62 @@ export class FlipbookEngine {
 	captureActivePage(): void {
 		if (this.mode !== 'create') return
 
-		const page = this.store.snapshot.pages[this.scene.activePage]
+		const index = this.scene.activePage
+		const page = this.store.snapshot.pages[index]
 		const target = page ? this.thumbnails.get(page.id) : undefined
 		if (!target) return
 
-		this.scene.hideOnion()
-		this.selection.hideChrome()
-		this.scene.redraw()
+		this.capturePage(index, target)
+	}
+
+	/** The same, of whichever page carries `pageId`. */
+	private capturePageById(pageId: number, target: HTMLCanvasElement): void {
+		const index = this.store.snapshot.pages.findIndex((page) => page.id === pageId)
+		if (index >= 0) this.capturePage(index, target)
+	}
+
+	/**
+	 * Draws page `index` onto `target`.
+	 *
+	 * A thumbnail is a copy of the live canvas, so a page that isn't the one on screen
+	 * has to be *put* on screen to be copied — shown, read, and handed back, which is
+	 * what `captureCover` already does to photograph the cover page at save time.
+	 * Nothing is painted in between: the browser paints at frame boundaries and every
+	 * line of this runs in one go, so the page being drawn on never flickers.
+	 *
+	 * Which matters because it is how a loaded flipbook gets its strip. Every page but
+	 * the first is built behind whatever is showing (see `Scene.appendPage`), so a
+	 * capture that could only read the active page left forty blank thumbnails either
+	 * side of the drawing until each one had been turned to and drawn on.
+	 */
+	private capturePage(index: number, target: HTMLCanvasElement): void {
+		if (index < 0 || index >= this.scene.pageCount) return
 
 		const context = target.getContext('2d')
-		if (context) {
-			context.clearRect(0, 0, target.width, target.height)
-			// Scaled explicitly. paper.js sizes the drawing canvas's backing store by
-			// the device pixel ratio, so on a retina screen it is 1280×720 behind a
-			// 640×360 element — and an unscaled drawImage would copy the top-left
-			// quarter of it at double size.
-			context.drawImage(this.scene.canvas, 0, 0, target.width, target.height)
-		}
+		if (!context) return
+
+		// Both read the layer the reader is standing on, so both are asked before that
+		// changes underneath them and put back after it has been handed back.
+		this.selection.hideChrome()
+		this.scene.hideOnion()
+
+		const standing = this.scene.activePage
+		const elsewhere = index !== standing
+		if (elsewhere) this.scene.setActivePage(index, { playing: true })
+
+		this.scene.redraw()
+
+		context.clearRect(0, 0, target.width, target.height)
+		// Scaled explicitly. paper.js sizes the drawing canvas's backing store by
+		// the device pixel ratio, so on a retina screen it is 1280×720 behind a
+		// 640×360 element — and an unscaled drawImage would copy the top-left
+		// quarter of it at double size.
+		context.drawImage(this.scene.canvas, 0, 0, target.width, target.height)
+
+		if (elsewhere) this.scene.setActivePage(standing, { playing: true })
 
 		this.selection.showChrome()
-		this.scene.showOnion()
+		this.refreshOnion()
 		this.scene.redraw()
 	}
 
@@ -669,7 +731,7 @@ export class FlipbookEngine {
 		// already has a canvas in the strip and is drawn now; a page the step has just
 		// restored has none until React renders it, and is drawn on arrival.
 		const landed = pages[landing]
-		if (landed && !this.thumbnails.has(landed.id)) this.captureOnMount = landed.id
+		if (landed && !this.thumbnails.has(landed.id)) this.owedThumbnails.add(landed.id)
 
 		this.store.set({ pages, activePage: landing, arriving: false })
 		this.captureActivePage()
@@ -1303,7 +1365,13 @@ export class FlipbookEngine {
 				drawPage(index, layer)
 				this.scene.activeLayer.activate()
 
-				pages.push({ id: this.nextPageId++, segments: countSegments(layer) })
+				const id = this.nextPageId++
+				pages.push({ id, segments: countSegments(layer) })
+
+				// Every one of them is owed a thumbnail: they are built behind the page on
+				// screen, and the strip's canvas for this page doesn't exist until React has
+				// been told the page does. Drawn on arrival, by `registerThumbnail`.
+				if (this.mode === 'create') this.owedThumbnails.add(id)
 
 				// Yield when the budget is spent, not once per page. The 2013 loader did
 				// one page per setTimeout(0), so a 200-page flipbook cost 200 trips

@@ -308,6 +308,22 @@ load-bearing:
   each page *and show it*, which is why a loading flipbook visibly drew itself — and
   why it couldn't play until the last page landed. That effect is gone deliberately;
   it is what paid for the load starting to play at once.
+- **Which is also why a loaded page has to be *asked* for its thumbnail.** A thumbnail
+  is a copy of the live canvas — `captureActivePage` draws whatever is on screen — and
+  every page of a load but the first is built behind what is on screen and never goes
+  in front of it. So opening a flipbook in the drawing tool gave a strip of blank white
+  sheets either side of the drawing, and each one stayed blank until you turned to it
+  *and drew on it*: the capture is on the ends of a pointer gesture, and turning a page
+  isn't one. `capturePage` shows the page it is copying and hands the scene straight
+  back, the way `captureCover` already photographs the cover at save time — nothing is
+  painted in between, because the browser paints at frame boundaries and all of it runs
+  in one go. `replay` marks every page it builds as owed one and `registerThumbnail`
+  pays as React hands each canvas over, which is the mechanism the history already used
+  for a page it had just put back: the element doesn't exist until React renders it, and
+  waiting a frame for it works exactly while somebody is watching and fails when nobody
+  is. It costs one extra `view.update()` per page of a load, spread across the same
+  renders the load is already causing. `owedThumbnails` is keyed by page id rather than
+  index, because both the things that fill it are about to renumber the flipbook.
 - **Playback starts at two pages and won't lap while `loading` is set.** `scheduleFrame`
   holds the last page it has rather than looping three pages while the other forty
   arrive. So `loading` has to be cleared even when a load is abandoned — a flag left
@@ -708,9 +724,18 @@ can't.
   `freeze(el, { lift: true })`, which sets it on the wrapper instead. The page falling
   away during a delete needs it: without it the first 300ms of the fall happen behind
   the drawing canvas, which is the whole anticipation and the start of the plunge.
-- **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and
-  React re-runs inline ref callbacks on every render. Page thumbnails take their size
-  from JSX attributes.
+- **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and a
+  ref runs at moments that have nothing to do with the size being wrong. Page thumbnails
+  take their size from JSX attributes, so React writes it only when it has changed.
+- **And a ref callback does *not* run again on a re-render**, which is the other half of
+  the same rule and was believed the other way round here until it was measured. It runs
+  when React mounts the element and when React replaces it, and that is all — a canvas
+  that is resized *in place* is the same element, so nothing fires. That is why
+  `owedThumbnails` (draw it when its canvas arrives) cannot pay for a resize and
+  `engine.redrawThumbnails()` exists: the strip calls it from a **layout** effect, in the
+  commit that resized the canvases and before the frame it would otherwise have been seen
+  in. Measured on React 19.2 by leaving every page owed a thumbnail and re-rendering the
+  strip: none of them was drawn, then or on any render after it.
 
 - **The engine is built asynchronously, and `paperCore` is not what the types say.**
   paper arrives by `import()` now, so `useFlipbookEngine` is an ordinary effect rather
@@ -949,12 +974,29 @@ is now true at both widths and the differences are called out where they exist.
   nothing is being thrown, and half a second of the whole flipbook sliding under the
   drawing every time you step a page reads as the pages being dragged about rather than
   turned. It was already switched off under a finger on the page bar; if it was wrong
-  there it was wrong everywhere. **Add and delete still animate** — those are
-  `animations.ts`, on the individual page, and they are a throw rather than a step;
-  verified by freezing one mid-flight, two 750ms animations and the neighbouring page
-  genuinely travelling. Gone with the transition: `scrubbing` (create page → `PageStrip`,
-  and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both of which existed only to
-  switch it off.
+  there it was wrong everywhere. Gone with the transition: `scrubbing` (create page →
+  `PageStrip`, and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both of which
+  existed only to switch it off.
+- **Except while a page is being thrown, which is `.throwing` and is where the 0.3s
+  went.** Add and delete animate — those are `animations.ts`, on the individual page,
+  and they are a throw rather than a step — but the keyframes only ever move two pages:
+  the one being thrown and the one taking its place. Everything *ahead of the gap* has
+  to travel exactly as far, and the row is the only thing carrying it. Switching the
+  transition off outright took that with it: on a three-page flipbook, adding a page
+  slid the page you were on into the next slot and teleported the one behind it clean
+  off the side of the window on the same frame, which reads as it vanishing rather than
+  leaving. So the row eases again for the length of a throw and at no other time —
+  `PAGE_TRAVEL_MS`, which is where a thrown page *arrives* (offset 0.4 of its 750ms)
+  rather than how long its animation runs, handed to the stylesheet as `--throw`. The
+  class is `state.busy && !state.reordering`: carrying a page eases the same property to
+  the gesture's own timing, and the two rules must never both be on. Measured at both
+  ends — the row now covers its 660px over ~300ms of `ease-in-out` where it used to be
+  there on the first frame, and the handover at the end of a delete still moves nothing.
+- **Frozen pages are what the slide is *for*, and they are the other half of it.** A
+  page that ends up where it started is pinned by `freeze()` so the row slides out from
+  under it; a page that is one slot from home is let go and rides the row. Which is
+  which is the whole of `freezeRange`'s two callers, and it only makes sense while the
+  row is something a page can ride.
 - **Circleplay is gone, at every width and out of the codebase.** It scrubbed the
   flipbook by drawing circles with the pointer, and it was 2013's cleverest control —
   three consecutive pointer positions making a triangle whose winding gave the direction
@@ -2036,11 +2078,22 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   code and that is what it did. Someone on a phone who saved from `main` and then
   opened the other deployment will find the create button gone. That's the branch
   being what it is, not a bug to go and fix there.
-- **Every page in the strip is a 640×360 canvas**, ~900 KB of backing store each, on
-  both layouts — the thumbnails are displayed smaller on a phone but they are not
-  *drawn* smaller, because a page that has to stand behind the live canvas at full
-  fidelity when you're on it can't be. Fine for a flipbook you drew on a phone, worth
-  remembering if loading a 200-page one into the tool ever becomes a thing.
+- **Every page in the strip is a canvas the size of the drawing**, on both layouts — the
+  thumbnails are displayed smaller on a phone but they are not *drawn* smaller, because a
+  page that has to stand behind the live canvas at full fidelity when you're on it can't
+  be. And "full fidelity" is the *device* pixel ratio, not 640×360: a thumbnail is a copy
+  of a canvas paper draws at 1280×720 on a retina screen and shows at exactly the same
+  size, so at 640×360 it was a soft copy of a sharp drawing, standing right beside it.
+  `THUMBNAIL_SCALE` in `PageStrip` is that ratio, capped at 2 — 3.6 MB a page rather than
+  0.9.
+- **Which is why the strip has a page limit, and it is the memory that sets it.** Four
+  times the backing store is fine for a flipbook you drew by hand and is not fine for a
+  200-page archive one, which the drawing tool could not open until Remix and now can:
+  184 MB against 737 MB, and iOS enforces its per-tab canvas budget by *blanking*
+  canvases rather than by failing. So past `HIDPI_PAGE_LIMIT` — 50 pages at 2×, which is
+  the byte ceiling the strip already lived under — thumbnails go back to 1:1. The scale
+  never climbs back, because every change of it empties and redraws every canvas in the
+  strip, and buying sharpness back by deleting a page is not a trade worth making twice.
 - **The save request is capped at ~4 MB** by Vercel's request limit, and form encoding
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
   the historical archive would exceed it. The server answers 413 and the create page
