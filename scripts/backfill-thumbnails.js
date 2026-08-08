@@ -10,11 +10,20 @@
 //   npm run db:backfill-thumbnails               # everything outstanding
 //   npm run db:backfill-thumbnails -- --limit 50
 //   npm run db:backfill-thumbnails -- --dry-run  # extract and report, write nothing
+//   npm run db:backfill-thumbnails -- --force    # regenerate rows that already have one
 //
 // Rerunnable and interruptible: it only ever looks at rows where thumbnail_svg IS
 // NULL. The 147 legacy-json rows are skipped and always will be — that format is
 // point lists with no paths in it, so there is no page to lift out. Those cards go on
 // showing the PNG, which is what the fallback is for.
+//
+// `--force` is for when `coverSvg` itself changes and the rows already written are
+// the wrong ones — which is not hypothetical: the first run of this script wrote 400
+// archive covers with no viewBox on them, because paper 0.8's root has none to copy
+// and nothing had noticed. Without it the only way back is to null the column by hand,
+// and a re-run that silently skips every row it has already got wrong is the worst of
+// the available behaviours. It re-reads and re-compares everything; a row whose bytes
+// come out the same is simply written again.
 
 import { gunzip as gunzipCb, brotliDecompress as brotliDecompressCb } from 'node:zlib';
 import { promisify } from 'node:util';
@@ -32,13 +41,14 @@ const brotliDecompress = promisify(brotliDecompressCb);
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
+const FORCE = args.includes('--force');
 const LIMIT = Number(argValue('--limit')) || null;
 
 // Ids first and bodies one at a time, as the brotli backfill does: the artwork runs
 // to megabytes and there is no reason for two of them to be in memory at once.
 const { rows: pending } = await query(
 	`SELECT id FROM flipbooks
-	  WHERE thumbnail_svg IS NULL AND format = 'svg'
+	  WHERE format = 'svg'${FORCE ? '' : ' AND thumbnail_svg IS NULL'}
 	  ORDER BY created_at DESC, id DESC${LIMIT ? ` LIMIT ${LIMIT}` : ''}`
 );
 
@@ -53,12 +63,16 @@ if (!pending.length) {
 	process.exit(0);
 }
 
-console.log(`${pending.length} flipbook(s) to cut a cover from${DRY_RUN ? ' (dry run)' : ''}.`);
+console.log(
+	`${pending.length} flipbook(s) to cut a cover from` +
+	`${FORCE ? ', regenerating every one' : ''}${DRY_RUN ? ' (dry run)' : ''}.`
+);
 if (skipped?.n) console.log(`${skipped.n} legacy-json row(s) skipped — no SVG to take a page out of.`);
 console.log('');
 
 let done = 0;
 let failed = 0;
+let cleared = 0;
 let pngTotal = 0;
 let svgTotal = 0;
 
@@ -97,8 +111,23 @@ for (const { id } of pending) {
 	// The same rule the save path applies, and the same one data_br follows against
 	// the gzip: never store a thumbnail that is worse than the one already there. A
 	// row that fails it keeps its null and goes on showing the PNG.
+	//
+	// Under --force the row may already hold one, and then failing this rule has to
+	// *clear* it rather than leave it: the stored copy was written by the old code and
+	// is the thing being regenerated away from. Skipping would keep exactly the bytes
+	// the run exists to replace.
 	if (png && compressed.length >= png) {
 		console.log(`  ${id}  page ${cover.page}  ${fmt(compressed.length)} vs ${fmt(png)} of PNG — skipped, no smaller`);
+		if (FORCE && !DRY_RUN) {
+			const { rowCount } = await query(
+				'UPDATE flipbooks SET thumbnail_svg = NULL WHERE id = $1 AND thumbnail_svg IS NOT NULL',
+				[id]
+			);
+			if (rowCount) {
+				cleared++;
+				console.log(`  ${id}  cleared the one it had — back to the PNG`);
+			}
+		}
 		continue;
 	}
 
@@ -120,6 +149,7 @@ console.log(
 	`\n${done} written. ${fmt(pngTotal)} of PNG → ${fmt(svgTotal)} of SVG` +
 	(pngTotal ? ` (${((svgTotal / pngTotal) * 100).toFixed(1)}%).` : '.')
 );
+if (cleared) console.log(`${cleared} row(s) had a thumbnail that no longer beats the PNG and were cleared.`);
 if (failed) console.log(`${failed} row(s) could not be read and were left alone.`);
 console.log('The PNGs stay where they are: `time-capsule` serves them, and they are the fallback.');
 

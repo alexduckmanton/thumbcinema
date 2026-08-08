@@ -175,6 +175,20 @@ leaves on the page behind the one being drawn on, and the stroke ids, which noth
 reads. Verified rather than assumed: the lifted page and the whole artwork rasterised at
 640×360 differ by 0 pixels of 230,400.
 
+What it *adds* is a viewBox, when the artwork hasn't got one — and the archive hasn't.
+paper 0.8 wrote a bare `<svg xmlns="…">` with no viewBox, width or height on it, where
+0.12 writes `width="640" height="360" viewBox="0,0,640,360"`. A lifted page that carries
+neither has no intrinsic size, and an `<img>` gives a dimensionless SVG the 300×150
+default and draws the page 1:1 into it, so the card shows a corner of the drawing
+enlarged. This is the only place anything asks the file how big it is — the engine and
+the gallery's preview renderer both state 640×360 themselves — so it is the only place
+the omission shows. The window is stated rather than fitted to the ink: a stroke drawn
+off the edge keeps its whole geometry, and archive pages routinely hold coordinates far
+outside the canvas, which the viewBox clips exactly as the PNG and playback do.
+
+`npm run db:backfill-thumbnails -- --force` regenerates rows that already have one,
+which is what to reach for when this file changes; the plain run only fills in nulls.
+
 The PNG is written by `src/flipbook/engine/png.ts` rather than by `canvas.toDataURL`,
 which is 8-bit RGBA and picks its filters for speed. A cover is grey ink on white paper,
 so 8-bit greyscale is lossless here and between a third and a half the size.
