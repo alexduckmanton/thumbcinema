@@ -1478,6 +1478,14 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   when `init()` refuses and an id of null looks exactly like a refusal to it. Reaching for
   a *different* tool is its own answer, so `selectTool` settles without giving the old one
   back.
+- **Which is why `InkCursor` stays mounted through all of it**, drawing nothing. It is
+  what builds `PointerLayer`, and that is the only subscriber to `setToolPressed` — and on
+  a phone the tray is driven by touch with `preventDefault()`, so there is no click behind
+  it to fall back on. Rendering it only when there is a tool to draw a cursor for left the
+  three tools completely dead while a photo was being placed, and reset the standing cursor
+  to the middle of the page every time a photo was picked up. Neither is visible in a test
+  that presses the button with a synthesised click: `event.detail === 0` is the keyboard
+  path, and the keyboard path goes through `onClick` and works either way.
 - **Duplicating hands the photo to the copy, not to the page you end up on.** The copy
   takes the current page's place and you carry on drawing on the original, so the frame you
   were just tracing is the copy — and the original moves along to become the *next* frame

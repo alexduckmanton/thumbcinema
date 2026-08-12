@@ -310,10 +310,16 @@ export function CreatePage() {
 						    what the transform tool would grab. Inside `.book` because both are
 						    measured against the drawing rather than the window.
 
-						    Gone while a photo is in hand: the field over the sheet has the
-						    gesture, so there is no aiming happening and a cursor standing on the
-						    drawing would be pointing at a tool nobody can reach. */}
-						{state && phase === 'drawing' && !placing ? (
+						    **Mounted for the whole of the drawing phase, including while a trace
+						    photo is in hand.** It draws nothing then — there is no tool, and no
+						    tool is no cursor — but it is also what *builds* `PointerLayer`, and
+						    that is the only thing listening for a tool button being pressed. On a
+						    phone the tray is driven by touch events and calls `preventDefault()`,
+						    so there is no click to fall back on: unmounting this made the three
+						    tools completely dead while a photo was being placed. It would also
+						    put the standing cursor back in the middle of the page every time, for
+						    the reason the layer's own effect gives. */}
+						{state && phase === 'drawing' ? (
 							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} fieldRef={field} />
 						) : null}
 
