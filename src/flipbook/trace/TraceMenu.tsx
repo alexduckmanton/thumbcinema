@@ -19,11 +19,18 @@ export interface TraceMenuProps {
  * anywhere else to be asked.
  *
  * Escape closes it, and so does a press on the wash, both of which mean "none of those".
- * Focus goes to the first choice on the way in and is restored on the way out, because
- * the button that raised this is where a keyboard was.
+ *
+ * **Focus goes to the dialog itself rather than to the first choice**, and that is the
+ * difference between a keyboard user finding the sheet and a mouse user being shown a blue
+ * ring round "Move or resize the photo" that they did not ask for. `:focus-visible` is the
+ * browser's own judgement about whether focus arrived from a keyboard, and a programmatic
+ * `.focus()` poisons it — the same trap the gallery card's focus ring is written up for.
+ * A container with `tabIndex={-1}` takes focus without drawing anything, and Tab from
+ * there reaches the three choices in order. Focus goes back to the camera button on the
+ * way out, which is where a keyboard was.
  */
 export function TraceMenu({ onEdit, onReplace, onRemove, onCancel }: TraceMenuProps) {
-	const first = useRef<HTMLButtonElement | null>(null)
+	const panel = useRef<HTMLDivElement | null>(null)
 
 	// Read on the event rather than closed over, so the listener is bound once.
 	const dismiss = useRef(onCancel)
@@ -31,7 +38,7 @@ export function TraceMenu({ onEdit, onReplace, onRemove, onCancel }: TraceMenuPr
 
 	useEffect(() => {
 		const returnTo = document.activeElement
-		first.current?.focus()
+		panel.current?.focus({ preventScroll: true })
 
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== 'Escape') return
@@ -51,7 +58,14 @@ export function TraceMenu({ onEdit, onReplace, onRemove, onCancel }: TraceMenuPr
 	}, [])
 
 	return (
-		<div className={styles.scrim} role="dialog" aria-modal="true" aria-label="Trace photo">
+		<div
+			ref={panel}
+			className={styles.scrim}
+			role="dialog"
+			aria-modal="true"
+			aria-label="Trace photo"
+			tabIndex={-1}
+		>
 			{/* The wash, as a button rather than a click handler on the box behind it: a
 			    press out here means the same "none of those" that Cancel does, and a real
 			    button gets that for free — the press, the Enter, and no keyboard trap. It
@@ -67,7 +81,7 @@ export function TraceMenu({ onEdit, onReplace, onRemove, onCancel }: TraceMenuPr
 
 			<div className={styles.sheet}>
 				<div className={styles.group}>
-					<button ref={first} type="button" className={styles.choice} onClick={onEdit}>
+					<button type="button" className={styles.choice} onClick={onEdit}>
 						Move or resize the photo
 					</button>
 					<button type="button" className={styles.choice} onClick={onReplace}>

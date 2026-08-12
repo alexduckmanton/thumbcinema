@@ -1,31 +1,15 @@
 /**
- * Where a trace photo is standing, and what a finger does to it.
+ * What a drag and a pinch do to a trace photo's placement.
  *
  * Pure arithmetic over a placement and a pair of contacts — no DOM, no React, no
  * paper.js — for the same reason `engine/reorder.ts` is: the fiddly half of a gesture
  * is the maths, and maths can be tested without a phone in your hand.
+ *
+ * The placement itself lives in `engine/trace.ts`, because the engine is what holds one
+ * per page and puts it on the undo stack.
  */
 
-/**
- * The photo's transform, in terms the stylesheet can use directly.
- *
- * `x` and `y` are **fractions of the frame**, not pixels: the drawing is shown at
- * whatever the window can spare and a placement stated in pixels would slide across the
- * picture the moment the phone was turned over. The frame is 16:9 at every width, so
- * dividing x by the width and y by the height scales the pair by the same factor and
- * the photo stays where it was put.
- *
- * They become `translate(x%, y%)` on a box that is exactly the frame — which is why
- * that box exists and the picture is centred inside it rather than being the box. See
- * `TraceLayer`.
- */
-export interface Placement {
-	x: number
-	y: number
-	scale: number
-	/** Degrees clockwise. */
-	rotation: number
-}
+import { MAX_SCALE, MIN_SCALE, type Placement } from '../engine/trace'
 
 export interface Point {
 	x: number
@@ -36,21 +20,6 @@ export interface Box {
 	width: number
 	height: number
 }
-
-/** Centred, unrotated, and as large as the frame will take it. Where a photo lands. */
-export const CENTRED: Placement = { x: 0, y: 0, scale: 1, rotation: 0 }
-
-/**
- * How far a photo may be pinched, and it is deliberately generous at both ends.
- *
- * The floor is not "still visible" — a photo shrunk to a tenth is a thumbnail in the
- * corner of the frame, which is a fair thing to want to trace. The ceiling is what makes
- * tracing one eye out of a portrait possible. What both are actually for is the pinch
- * that gets away: a ratio is unbounded, and a photo scaled by 400 is one that cannot be
- * found again.
- */
-export const MIN_SCALE = 0.1
-export const MAX_SCALE = 10
 
 /**
  * One finger, moved by (dx, dy) pixels since the press.

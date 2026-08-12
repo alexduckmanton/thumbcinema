@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-	CENTRED,
-	MAX_SCALE,
-	MIN_SCALE,
-	type Placement,
-	type Point,
-	dragged,
-	pinched,
-} from './geometry'
+import { CENTRED, MAX_SCALE, MIN_SCALE, type Placement } from '../engine/trace'
+import { type Point, dragged, pinched } from './geometry'
 
 const BOX = { width: 640, height: 360 }
 

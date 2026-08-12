@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 
 import { TAP_SLOP, TAP_TIME } from '../pointer'
-import { type Placement, type Point, dragged, pinched } from './geometry'
-import type { TracePhoto } from './useTracePhoto'
+import type { Placement, TracePhoto } from '../engine/trace'
+import { type Point, dragged, pinched } from './geometry'
 import styles from './TraceLayer.module.css'
 
 export interface TraceLayerProps {
@@ -287,7 +287,28 @@ export function TraceLayer({ photo, placing, onPlaced, onAccept }: TraceLayerPro
 			{placing ? (
 				<div ref={edit} className={styles.edit} style={vars}>
 					<div className={styles.plate} aria-hidden="true">
-						<div className={styles.outline} style={{ width, height }} />
+						{/* An SVG rather than a `border`, and `vector-effect` is the whole reason.
+						    Everything under `.plate` is scaled with the picture, so a 2px dash
+						    pinched to 8× is a rope — and dividing the width by the scale to
+						    compensate lands on a sub-pixel border, which browsers are free to
+						    round to nothing. That is the dashes coming and going as you pinch.
+						    A non-scaling stroke is 2px on the glass at every scale, by
+						    definition, and needs no arithmetic.
+
+						    The stroke is centred on the path, so where the picture reaches the
+						    edge of the sheet its outer half is clipped and the line reads 1px
+						    rather than 2. That is deliberate rather than unfixed: an inset would
+						    have to be stated in the picture's own units, which are scaled, so it
+						    would be 1px at life size and 16px pinched to 8×. */}
+						<svg
+							className={styles.outline}
+							style={{ width, height }}
+							viewBox="0 0 100 100"
+							preserveAspectRatio="none"
+							aria-hidden="true"
+						>
+							<rect x="0" y="0" width="100" height="100" vectorEffect="non-scaling-stroke" />
+						</svg>
 					</div>
 					{/* `data-owns-touch` is what keeps the page's aiming layer off this
 					    gesture; see `CONTROLS` in `pointer.ts`. */}

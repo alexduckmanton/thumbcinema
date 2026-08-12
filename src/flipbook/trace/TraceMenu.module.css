@@ -8,6 +8,12 @@
  * over the rest of the page is light enough to read the flipbook through.
  */
 
+/* Focused on the way in — see the note in the component — so it must not draw a ring
+   of its own either. */
+.scrim:focus {
+	outline: none;
+}
+
 .scrim {
 	position: fixed;
 	inset: 0;

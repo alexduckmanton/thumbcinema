@@ -102,13 +102,25 @@
 /*
  * The dashed edge that says this photo is still in hand.
  *
- * The border is divided by the scale, because everything under `.plate` is scaled with
- * the picture and a 2px dash pinched to 8× is a rope. `--trace-scale` is a bare number
- * for exactly this: `calc(2px / 3.4)` is valid where `calc(2px / 3.4)` with a unit is
- * not.
+ * An SVG rect with `vector-effect: non-scaling-stroke`, which is the one thing that draws
+ * a 2px line on the glass whatever transform is above it. A CSS border cannot: everything
+ * under `.plate` is scaled with the picture, so a 2px dash pinched to 8× is a rope — and
+ * the obvious compensation, `calc(2px / var(--trace-scale))`, lands on a sub-pixel border
+ * width, which a browser is free to round away. That is a dashed edge that comes and goes
+ * as you pinch, and an edge missing altogether at some scales.
+ *
+ * The dash pattern is in screen units for the same reason, so it neither stretches nor
+ * shrinks — `preserveAspectRatio: none` above stretches the 100×100 viewBox to the
+ * picture's own shape, and without the vector effect that would stretch the dashes with
+ * it on whichever axis is longer.
  */
 .outline {
-	border: calc(2px / var(--trace-scale, 1)) dashed var(--blue);
+	display: block;
+	overflow: visible;
+	fill: none;
+	stroke: var(--blue);
+	stroke-width: 2;
+	stroke-dasharray: 6 4;
 }
 
 /*

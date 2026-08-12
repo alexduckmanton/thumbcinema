@@ -1,37 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { showMessage } from '../../lib/messages'
-import type { PageState } from '../engine/pages'
-import { CENTRED, type Placement } from './geometry'
-
-export interface TracePhoto {
-	/** An object URL for the downscaled copy. Revoked when it is replaced or removed. */
-	readonly url: string
-	/** The downscaled copy's own pixels, which is all anything here needs it for. */
-	readonly width: number
-	readonly height: number
-	readonly placement: Placement
-}
-
-export interface TracePhotoControls {
-	/** The photo on the page being drawn on, if there is one. */
-	photo: TracePhoto | null
-	/** True while it is still in hand rather than lying on the page. */
-	placing: boolean
-	/** True while the camera is open and the picture is being read back. */
-	busy: boolean
-
-	/** Opens the camera. What comes back lands on this page, in hand. */
-	take: () => void
-	/** Picks the photo on this page back up. */
-	edit: () => void
-	/** Puts it down where it is. */
-	accept: () => void
-	/** Takes it off this page for good. */
-	remove: () => void
-	/** Where a gesture left it. */
-	place: (placement: Placement) => void
-}
+import type { FlipbookEngine } from '../engine/FlipbookEngine'
+import { CENTRED, type TracePhoto } from '../engine/trace'
 
 /**
  * The largest a trace photo is kept at, on its long edge.
@@ -45,57 +16,65 @@ export interface TracePhotoControls {
  */
 const MAX_EDGE = 1280
 
+export interface TracePhotoControls {
+	/** True while the camera is open and the picture is being read back. */
+	busy: boolean
+	/** Opens the camera. What comes back lands on the page you are on, in hand. */
+	take: () => void
+}
+
 /**
- * The trace photos, one per page, for as long as the tab is open.
+ * The camera, and what comes back from it.
  *
- * Held here rather than in the engine, and deliberately nowhere near the artwork: a
- * photograph you are tracing over is scaffolding, and a flipbook saved with one on screen
- * has to come out byte-identical to the same flipbook saved without. Nothing in this file
- * touches paper.js, the undo history, the page thumbnails or the save. See `TraceLayer`
- * for the other half of that argument.
+ * Everything *about* a photo once it exists — which page it is on, where it is standing,
+ * whether it is in hand, what happens to it when that page is copied or deleted, and how
+ * undo puts it back — belongs to the engine. See `FlipbookState.trace`. What is left here
+ * is the part that is genuinely the browser's: a file input, a decode, a downscale, and
+ * the object URLs those mint.
  *
- * **Keyed by page id, not by page index.** Inserting, deleting or dragging a page
- * renumbers everything after it, so a photo held against an index would be looking at
- * somebody else's drawing the moment the flipbook changed shape. It is the same reason
- * `History` keys its steps by id.
- *
- * **Not persisted, and that is a decision rather than an omission.** A crash recovery
- * file is already carrying the artwork and a phone camera JPEG is megabytes; a reference
- * photo is also the one thing on this page that can be got back in two taps. So the
- * photos live for as long as the tab does and no longer.
+ * **Object URLs are held for the life of the page and revoked all at once.** Revoking one
+ * when its photo is replaced or removed is the obvious thing and is wrong: the undo stack
+ * holds steps that name it, so a photo taken away and then brought back by ⌘Z would come
+ * back as a broken image. Every URL minted here is therefore kept until the drawing tool
+ * goes away. It costs the few megabytes of however many photographs were actually taken in
+ * one sitting — each of which needed the camera opening — and it is the only version of
+ * this that undo cannot break.
  */
-export function useTracePhoto(pages: readonly PageState[], activePage: number): TracePhotoControls {
-	const [photos, setPhotos] = useState<Readonly<Record<number, TracePhoto>>>({})
+export function useTracePhoto(engine: FlipbookEngine | null): TracePhotoControls {
 	const [busy, setBusy] = useState(false)
 
-	/**
-	 * Which page's photo is in hand, rather than whether one is.
-	 *
-	 * The same fact, stated so that turning the page puts it down without anything having
-	 * to notice that the page turned: a boolean would need an effect to reset it, and an
-	 * effect runs *after* the render that changed the page — which is one frame of a
-	 * dashed border and a live gesture field over somebody else's drawing.
-	 */
-	const [inHand, setInHand] = useState<number | null>(null)
+	/** Every URL this hook has minted, so the teardown can give all of them back. */
+	const minted = useRef<string[]>([])
 
-	const pageId = pages[activePage]?.id ?? null
-	const photo = pageId === null ? null : (photos[pageId] ?? null)
-	const placing = photo !== null && inHand === pageId
+	useEffect(() => {
+		const urls = minted.current
+		return () => {
+			for (const url of urls) URL.revokeObjectURL(url)
+			urls.length = 0
+		}
+	}, [])
 
 	// Read when a picture comes back rather than closed over: the camera is a different
 	// application, and what it hands back may arrive a long time after the press.
-	const current = useRef(pageId)
-	current.current = pageId
+	const latest = useRef(engine)
+	latest.current = engine
 
-	// A mirror for the teardown, which cannot read state. Every URL here is one this
-	// hook minted and is therefore one it has to give back.
-	const live = useRef(photos)
-	live.current = photos
+	const receive = useCallback((file: File) => {
+		setBusy(true)
 
-	useEffect(() => {
-		return () => {
-			for (const held of Object.values(live.current)) URL.revokeObjectURL(held.url)
-		}
+		void loadPhoto(file)
+			.then((taken) => {
+				minted.current.push(taken.url)
+				latest.current?.setTracePhoto(taken)
+			})
+			.catch(() => {
+				showMessage({
+					copy: "I couldn't read that picture. Try taking it again.",
+					cta: 'Fair enough',
+					type: 'error',
+				})
+			})
+			.finally(() => setBusy(false))
 	}, [])
 
 	/**
@@ -107,34 +86,6 @@ export function useTracePhoto(pages: readonly PageState[], activePage: number): 
 	 * decline to open a picker for an input that isn't.
 	 */
 	const input = useRef<HTMLInputElement | null>(null)
-
-	const receive = useCallback((file: File) => {
-		setBusy(true)
-
-		void loadPhoto(file)
-			.then((taken) => {
-				const page = current.current
-				if (page === null) {
-					URL.revokeObjectURL(taken.url)
-					return
-				}
-
-				setPhotos((held) => {
-					const previous = held[page]
-					if (previous) URL.revokeObjectURL(previous.url)
-					return { ...held, [page]: taken }
-				})
-				setInHand(page)
-			})
-			.catch(() => {
-				showMessage({
-					copy: "I couldn't read that picture. Try taking it again.",
-					cta: 'Fair enough',
-					type: 'error',
-				})
-			})
-			.finally(() => setBusy(false))
-	}, [])
 
 	useEffect(() => {
 		const element = document.createElement('input')
@@ -164,75 +115,19 @@ export function useTracePhoto(pages: readonly PageState[], activePage: number): 
 		}
 	}, [receive])
 
-	/*
-	 * A page that has gone takes its photo with it.
-	 *
-	 * Deleting a page, or undoing the insert of one, drops its id out of the list for
-	 * good — and an object URL nobody can reach is a megabyte the tab keeps until it is
-	 * closed. Pages that are merely *leaving* are still in the list, so this waits for
-	 * the animation to land on its own.
-	 */
-	useEffect(() => {
-		const alive = new Set(pages.map((page) => page.id))
-
-		setPhotos((held) => {
-			const stale = Object.keys(held)
-				.map(Number)
-				.filter((key) => !alive.has(key))
-			if (stale.length === 0) return held
-
-			const next = { ...held }
-			for (const key of stale) {
-				const gone = next[key]
-				if (gone) URL.revokeObjectURL(gone.url)
-				delete next[key]
-			}
-			return next
-		})
-	}, [pages])
-
 	const take = useCallback(() => {
 		input.current?.click()
 	}, [])
 
-	const edit = useCallback(() => setInHand(current.current), [])
-	const accept = useCallback(() => setInHand(null), [])
-
-	const remove = useCallback(() => {
-		const page = current.current
-		if (page === null) return
-
-		setPhotos((held) => {
-			const previous = held[page]
-			if (!previous) return held
-
-			URL.revokeObjectURL(previous.url)
-			const next = { ...held }
-			delete next[page]
-			return next
-		})
-		setInHand(null)
-	}, [])
-
-	const place = useCallback((placement: Placement) => {
-		const page = current.current
-		if (page === null) return
-
-		setPhotos((held) => {
-			const previous = held[page]
-			if (!previous) return held
-			return { ...held, [page]: { ...previous, placement } }
-		})
-	}, [])
-
-	return { photo, placing, busy, take, edit, accept, remove, place }
+	return { busy, take }
 }
 
 /**
  * A file from the camera, decoded, turned the right way up and cut down to size.
  *
- * The original object URL is revoked either way: what is kept is the copy, and holding
- * both would defeat the point of making one.
+ * The original object URL is revoked here and only here: it is the one this function
+ * minted for its own use, and what it hands back is the copy. Holding both would defeat
+ * the point of making one.
  */
 async function loadPhoto(file: File): Promise<TracePhoto> {
 	const source = URL.createObjectURL(file)

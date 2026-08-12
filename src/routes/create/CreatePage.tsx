@@ -9,7 +9,7 @@ import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
-import { type PageState, settledPageCount } from '../../flipbook/engine/pages'
+import { settledPageCount } from '../../flipbook/engine/pages'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
 import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
@@ -29,9 +29,6 @@ import { Recovery } from './Recovery'
 import { useCrashRecovery } from './useCrashRecovery'
 
 type Phase = 'drawing' | 'naming' | 'sending'
-
-/** Module scope, so the trace photos' housekeeping doesn't run on every render. */
-const NO_PAGES: PageState[] = []
 
 export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
@@ -98,14 +95,17 @@ export function CreatePage() {
 	useUnsavedWarning(pages > 1 && phase !== 'sending' && !untouchedRemix)
 
 	/*
-	 * The photograph on the page, if there is one, and the sheet of choices about it.
+	 * The camera, and the photograph it took.
 	 *
-	 * Held here rather than in the engine because it is not part of the drawing: see the
-	 * long note in `useTracePhoto`. What the page owns is the one bit of coordination —
-	 * which of the three things the camera button does — and the two states that can't be
-	 * derived from the photo alone.
+	 * The photo itself belongs to the engine — which page it is on, where it is standing,
+	 * whether it is in hand, and how undo puts it back are all page questions, and the
+	 * engine is the only thing that can answer them. See `FlipbookState.trace`. This hook
+	 * is the camera end of it: the file input, the decode, and the object URLs.
 	 */
-	const trace = useTracePhoto(state?.pages ?? NO_PAGES, state?.activePage ?? 0)
+	const camera = useTracePhoto(engine)
+
+	const photo = state ? (state.trace[state.pages[state.activePage]?.id ?? -1] ?? null) : null
+	const placing = state?.tracePlacing ?? false
 
 	/*
 	 * The photo is a reference for the page you are drawing on, so it goes while the
@@ -114,14 +114,7 @@ export function CreatePage() {
 	 * arriving, because the pages it would be standing on are being replaced.
 	 */
 	const playing = state?.playback !== 'none'
-	const showTrace = phase === 'drawing' && !state?.loading && !playing && trace.photo !== null
-
-	// Pressing play with a photo still in hand puts it down, rather than leaving it in
-	// hand behind the flipbook to be picked back up when playback stops.
-	const { placing, accept } = trace
-	useEffect(() => {
-		if (playing && placing) accept()
-	}, [playing, placing, accept])
+	const showTrace = phase === 'drawing' && !state?.loading && !playing && photo !== null
 
 	/**
 	 * The camera button, which is three buttons depending on what is already on the page.
@@ -135,10 +128,10 @@ export function CreatePage() {
 	 * press can mean all of them.
 	 */
 	const pressTrace = useCallback(() => {
-		if (!trace.photo) trace.take()
-		else if (trace.placing) trace.accept()
+		if (!photo) camera.take()
+		else if (placing) engine?.settleTrace()
 		else setTraceMenu(true)
-	}, [trace])
+	}, [photo, placing, camera, engine])
 
 	/*
 	 * The handle above the paper, and everything dragging it does.
@@ -148,8 +141,7 @@ export function CreatePage() {
 	 * while it is playing the strip isn't even on screen — and while a photo is in hand
 	 * the sheet is somewhere a finger is already dragging something else.
 	 */
-	const reorderable =
-		phase === 'drawing' && pages > 1 && !state?.loading && !playing && !trace.placing
+	const reorderable = phase === 'drawing' && pages > 1 && !state?.loading && !playing && !placing
 
 	const { reorder, bookRef, shiftFor, handleProps } = usePageReorder(engine, {
 		activePage: state?.activePage ?? 0,
@@ -305,12 +297,12 @@ export function CreatePage() {
 						    it, which is what lets the ink stay as dark as it was drawn — see
 						    `TraceLayer`. Never part of the artwork, and never photographed into a
 						    thumbnail: it is a DOM layer, and the canvas underneath is untouched. */}
-						{showTrace && trace.photo ? (
+						{showTrace && photo && engine ? (
 							<TraceLayer
-								photo={trace.photo}
-								placing={trace.placing}
-								onPlaced={trace.place}
-								onAccept={trace.accept}
+								photo={photo}
+								placing={placing}
+								onPlaced={(placement) => engine.placeTracePhoto(placement)}
+								onAccept={() => engine.settleTrace()}
 							/>
 						) : null}
 
@@ -321,7 +313,7 @@ export function CreatePage() {
 						    Gone while a photo is in hand: the field over the sheet has the
 						    gesture, so there is no aiming happening and a cursor standing on the
 						    drawing would be pointing at a tool nobody can reach. */}
-						{state && phase === 'drawing' && !trace.placing ? (
+						{state && phase === 'drawing' && !placing ? (
 							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} fieldRef={field} />
 						) : null}
 
@@ -388,11 +380,11 @@ export function CreatePage() {
 							className={styles.actions}
 							leading={
 								<ActionButton
-									label={traceLabel(trace.photo !== null, trace.placing)}
+									label={traceLabel(photo !== null, placing)}
 									glyph="⊙"
-									hint={traceLabel(trace.photo !== null, trace.placing)}
-									enabled={phase === 'drawing' && !trace.busy}
-									pressed={trace.placing}
+									hint={traceLabel(photo !== null, placing)}
+									enabled={phase === 'drawing' && !camera.busy}
+									pressed={placing}
 									onPress={pressTrace}
 								/>
 							}
@@ -412,19 +404,19 @@ export function CreatePage() {
 				</div>
 			</main>
 
-			{traceMenu && trace.photo ? (
+			{traceMenu && photo ? (
 				<TraceMenu
 					onEdit={() => {
 						setTraceMenu(false)
-						trace.edit()
+						engine?.beginTracePlacing()
 					}}
 					onReplace={() => {
 						setTraceMenu(false)
-						trace.take()
+						camera.take()
 					}}
 					onRemove={() => {
 						setTraceMenu(false)
-						trace.remove()
+						engine?.removeTracePhoto()
 					}}
 					onCancel={() => setTraceMenu(false)}
 				/>
