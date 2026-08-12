@@ -1397,9 +1397,10 @@ opened at, where a paper-driven one's first segment is the first `onMouseDrag` �
 A sixth white disc at the left-hand end of the phone's footer takes a picture with the
 camera and lays it over the paper at 30%, on the page you are on, to be drawn on top of.
 One finger drags it, two pinch to scale and turn it; tap the drawing to accept it, and
-press the disc again to move it, replace it or take it away. **Phone layout only** — the
-disc is in `.actions`, which is `display: none` above the breakpoint, so the desktop's row
-beside the wordmark is the four it always was.
+press the disc again to move it, replace it or take it away. **Choose several and they are
+laid out one per frame**, making frames as they run off the end. **Phone layout only** —
+the disc is in `.actions`, which is `display: none` above the breakpoint, so the desktop's
+row beside the wordmark is the four it always was.
 
 It is in two halves, and the split is the thing to understand first. **The picture is a
 pair of DOM layers over the canvas; the record of it belongs to the engine.**
@@ -1545,6 +1546,43 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   so autofocusing the first choice drew a blue ring round it for anyone who had *tapped*
   the camera. A container with `tabIndex={-1}` takes focus without drawing anything, and
   Tab from there reaches the three choices in order.
+
+**Several at once, one per frame.**
+
+- **`capture` is gone and `multiple` is in its place, and the two are a choice rather
+  than a pair.** `capture="environment"` opens straight into the viewfinder, which is one
+  tap better — and it can only ever hand back one photograph, because the OS camera takes
+  one: `multiple` is *ignored* while `capture` is set. Without it both platforms show
+  their own sheet — Take Photo, or the library with multi-select — which is the only route
+  a web page has to more than one picture at a time. There is no burst capture short of
+  building a viewfinder on `getUserMedia`, which is a much larger thing.
+- **`addTracePhotos` is where a batch lands**, and it is one step in the history however
+  many photos there are. A batch is one thing you did; undoing it eight times to get back
+  where you were is not undo. The step carries a `page` op per frame it made and the whole
+  trace map either side of it, which between them are the entire operation.
+- **The frames it makes are inserted instantly rather than thrown.** `addBlankPage` plays
+  a 750ms animation and eight of those in a row is six seconds of the strip cartwheeling;
+  this is the same instant insert `applyStep` uses to put a page back.
+- **Nothing lands in hand, where a single photo does.** "In hand" is an offer to place
+  *this* one, and there is no sensible answer to which of eight that would be — so they
+  land centred and fitted, and pressing the camera on any frame picks that one up. You
+  stay where you were, which is the frame the first photo is on and the one you are about
+  to draw.
+- **Sorted by `lastModified`, not by the order the picker gave them.** `input.files` comes
+  back in *album* order on iOS however you tapped them, which for a sequence photographed
+  in one go is the wrong way round about as often as it is the right one. The sort is
+  stable, so files that all claim the same time — a download, an AirDrop — keep the
+  picker's order.
+- **Decoded one at a time**, which is why it is a loop rather than a `Promise.all`. Twelve
+  megapixels is about 48 MB decoded and two dozen of those at once is a gigabyte held for
+  as long as the slowest one takes; sequentially it is one, thrown away as soon as the
+  downscaled copy exists. A file that won't decode is skipped rather than failing the
+  batch.
+- **`MAX_BATCH` is 24.** Each photo is ~4 MB decoded *and* gets a frame, whose thumbnail
+  in the strip is a canvas the size of the drawing — both are the budget
+  `HIDPI_PAGE_LIMIT` already lives under, and iOS enforces its canvas allowance by
+  *blanking* canvases rather than by failing. Anything past 24 is dropped and said so in
+  plain words rather than silently.
 
 **Two things about the picture itself.**
 

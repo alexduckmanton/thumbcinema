@@ -828,6 +828,84 @@ export class FlipbookEngine {
 	}
 
 	/**
+	 * A batch of photographs, laid out one per frame from this one onwards.
+	 *
+	 * What a multi-select is for: shoot a sequence, choose the lot, and get a frame for
+	 * each of them with its reference already in place. Frames are made as the batch runs
+	 * off the end of the flipbook, so choosing eight photos on a one-page flipbook leaves
+	 * you with eight pages.
+	 *
+	 * Four things are deliberate:
+	 *
+	 *  - **One step in the history, however many photos.** A batch is one thing you did,
+	 *    and undoing it eight times to get back to where you were is not undo. The step
+	 *    carries a `page` op per frame it made and the whole trace map either side of it,
+	 *    which between them are the entire operation.
+	 *  - **The pages are inserted instantly rather than thrown.** `addBlankPage` plays a
+	 *    750ms animation, and eight of those in a row is six seconds of the strip
+	 *    cartwheeling. This is the same instant insert `applyStep` uses to put a page back.
+	 *  - **Nothing lands in hand, where a single photo does.** "In hand" is an offer to
+	 *    place *this* one, and there is no sensible answer to which of eight that would be.
+	 *    They all land centred and fitted, and pressing the camera on any frame picks that
+	 *    one up.
+	 *  - **You stay where you are.** The first photo is on the frame you were already on,
+	 *    which is the one you are about to draw.
+	 */
+	addTracePhotos(photos: readonly TracePhoto[]): void {
+		if (photos.length === 0) return
+		const [only] = photos
+		if (photos.length === 1 && only) {
+			this.setTracePhoto(only)
+			return
+		}
+
+		// A page mid-flight is no place to be splicing pages in. The picker is modal and
+		// takes seconds, so by the time a batch arrives nothing is animating; this is the
+		// guard rather than the expected case.
+		if (this.store.snapshot.busy) return
+		this.pause()
+
+		this.settleTrace()
+		this.selection.clear()
+		this.captureActivePage()
+
+		const start = this.store.snapshot.activePage
+		const pages = [...this.store.snapshot.pages]
+		const before = this.store.snapshot.trace
+		const after: Record<number, TracePhoto> = { ...before }
+		const ops: Op[] = []
+
+		for (const [offset, photo] of photos.entries()) {
+			let page = pages[start + offset]
+
+			if (!page) {
+				// Off the end of the flipbook: make a frame for it. Appended, so the index
+				// is the length both here and in the scene, which stay in step.
+				const index = pages.length
+				this.scene.insertPageAt(index)
+				page = { id: this.nextPageId++, segments: 0 }
+				pages.push(page)
+				ops.push({
+					kind: 'page',
+					added: true,
+					pageId: page.id,
+					index,
+					ink: this.history.inkOf(index),
+				})
+			}
+
+			after[page.id] = { ...photo, placement: CENTRED }
+		}
+
+		const here = pages[start]?.id ?? this.nextPageId
+		this.store.set({ pages, trace: after })
+		this.history.record({ ops, forward: here, back: here, trace: { before, after } })
+
+		this.refreshOnion()
+		this.scene.redraw()
+	}
+
+	/**
 	 * Where a gesture left the photo.
 	 *
 	 * One step per gesture, exactly as a stroke is — recorded here rather than as the

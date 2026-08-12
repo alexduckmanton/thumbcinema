@@ -84,8 +84,11 @@ export function TraceMenu({ onEdit, onReplace, onRemove, onCancel }: TraceMenuPr
 					<button type="button" className={styles.choice} onClick={onEdit}>
 						Move or resize the photo
 					</button>
+					{/* One replaces this frame's photo; several replace it and fill the frames
+					    after it, making them as needed. Worded for both, because the picker
+					    cannot be told to offer only one. */}
 					<button type="button" className={styles.choice} onClick={onReplace}>
-						Take a different photo
+						Take or choose photos
 					</button>
 					<button
 						type="button"

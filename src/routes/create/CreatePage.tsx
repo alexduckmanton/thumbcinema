@@ -442,7 +442,10 @@ export function CreatePage() {
  */
 function traceLabel(has: boolean, placing: boolean): string {
 	if (placing) return 'Place the trace photo'
-	return has ? 'Trace photo options' : 'Trace over a photo'
+	// Plural on the way in, because the picker takes several and a batch is laid across a
+	// run of frames — see `addTracePhotos`. Singular everywhere after, where there is only
+	// ever the one on this frame to talk about.
+	return has ? 'Trace photo options' : 'Trace over photos'
 }
 
 /**

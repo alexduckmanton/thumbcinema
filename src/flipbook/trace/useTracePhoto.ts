@@ -16,10 +16,27 @@ import { CENTRED, type TracePhoto } from '../engine/trace'
  */
 const MAX_EDGE = 1280
 
+/**
+ * How many photographs one batch may bring in.
+ *
+ * Each one is about 4 MB decoded after the downscale, and each one also gets a frame —
+ * whose thumbnail in the strip is a canvas the size of the drawing. Both budgets are the
+ * one `HIDPI_PAGE_LIMIT` already lives under, and iOS enforces its per-tab canvas
+ * allowance by *blanking* canvases rather than by failing, so overrunning it is invisible
+ * until the flipbook is full of white sheets. Twenty-four is a generous sequence and a
+ * quarter of that ceiling.
+ */
+const MAX_BATCH = 24
+
 export interface TracePhotoControls {
-	/** True while the camera is open and the picture is being read back. */
+	/** True while a batch is being decoded, which for two dozen photos is a few seconds. */
 	busy: boolean
-	/** Opens the camera. What comes back lands on the page you are on, in hand. */
+	/**
+	 * Opens the picker: the camera, or the library with multi-select.
+	 *
+	 * One photo lands on the page you are on, in hand. Several land one per frame from
+	 * this one onwards, making frames as they run off the end — see `addTracePhotos`.
+	 */
 	take: () => void
 }
 
@@ -59,22 +76,61 @@ export function useTracePhoto(engine: FlipbookEngine | null): TracePhotoControls
 	const latest = useRef(engine)
 	latest.current = engine
 
-	const receive = useCallback((file: File) => {
+	/**
+	 * Whatever the picker handed back, decoded and passed to the engine as one batch.
+	 *
+	 * **In shot order, not selection order.** `input.files` comes back in *album* order on
+	 * iOS however you tapped them, which for a sequence photographed in one go is the wrong
+	 * way round about as often as it is the right one. `lastModified` is when the shutter
+	 * fired, and a stable sort on it leaves a set of files that all claim the same time —
+	 * which is what a download or an AirDrop produces — in the order the picker gave them.
+	 *
+	 * **Decoded one at a time**, which is the whole reason this is a loop rather than a
+	 * `Promise.all`. A twelve-megapixel photo is about 48 MB decoded, and twenty-four of
+	 * them at once is a gigabyte held for as long as the slowest one takes; sequentially it
+	 * is one at a time and each is thrown away as soon as the downscaled copy exists.
+	 *
+	 * A file that won't decode is skipped rather than failing the batch: one unreadable
+	 * picture out of eight should cost you that picture, not the other seven.
+	 */
+	const receive = useCallback(async (files: File[]) => {
 		setBusy(true)
 
-		void loadPhoto(file)
-			.then((taken) => {
-				minted.current.push(taken.url)
-				latest.current?.setTracePhoto(taken)
+		const chosen = [...files].sort((a, b) => a.lastModified - b.lastModified).slice(0, MAX_BATCH)
+
+		const taken: TracePhoto[] = []
+		let failed = 0
+
+		for (const file of chosen) {
+			try {
+				const photo = await loadPhoto(file)
+				minted.current.push(photo.url)
+				taken.push(photo)
+			} catch {
+				failed++
+			}
+		}
+
+		setBusy(false)
+
+		if (taken.length > 0) latest.current?.addTracePhotos(taken)
+
+		if (files.length > MAX_BATCH) {
+			showMessage({
+				copy: `That's a lot of photos — I've taken the first ${MAX_BATCH}.`,
+				cta: 'Fair enough',
+				type: 'error',
 			})
-			.catch(() => {
-				showMessage({
-					copy: "I couldn't read that picture. Try taking it again.",
-					cta: 'Fair enough',
-					type: 'error',
-				})
+		} else if (failed > 0) {
+			showMessage({
+				copy:
+					taken.length > 0
+						? "I couldn't read one of those pictures, so I've left it out."
+						: "I couldn't read that picture. Try taking it again.",
+				cta: 'Fair enough',
+				type: 'error',
 			})
-			.finally(() => setBusy(false))
+		}
 	}, [])
 
 	/**
@@ -91,17 +147,26 @@ export function useTracePhoto(engine: FlipbookEngine | null): TracePhotoControls
 		const element = document.createElement('input')
 		element.type = 'file'
 		element.accept = 'image/*'
-		// The camera rather than a picker: on both phone platforms this opens straight
-		// into the viewfinder, which is what the button says it does.
-		element.capture = 'environment'
+		/*
+		 * No `capture`, and `multiple` instead.
+		 *
+		 * `capture="environment"` opens straight into the viewfinder, which is one tap
+		 * better — and it can only ever hand back one photograph, because the OS camera
+		 * takes one. **`multiple` is ignored while `capture` is set**, so the two are a
+		 * choice rather than a pair. Without it both platforms show their own sheet — Take
+		 * Photo, or the library with multi-select — which is the only route a web page has
+		 * to more than one picture at a time. The extra tap buys shooting a whole sequence
+		 * and laying it across a run of frames in one go.
+		 */
+		element.multiple = true
 		element.hidden = true
 
 		const onChange = () => {
-			const file = element.files?.[0]
+			const files = element.files ? [...element.files] : []
 			// Cleared before the work starts, so taking the same picture twice — or
 			// cancelling and coming back — still fires a change.
 			element.value = ''
-			if (file) receive(file)
+			if (files.length > 0) void receive(files)
 		}
 
 		element.addEventListener('change', onChange)
