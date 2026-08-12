@@ -1,0 +1,137 @@
+/*
+ * The photograph you are tracing over, and the gesture that places it.
+ *
+ * Two layers rather than one, and they are siblings inside `.book` rather than nested,
+ * for a reason worth stating before anything is moved: **`mix-blend-mode` blends with
+ * the backdrop of the parent stacking context**, and an ancestor that is itself a
+ * stacking context isolates it. Both layers need a `z-index` to stand above the canvas
+ * (15), so wrapping the pair in one positioned box would have sealed the photo in with
+ * nothing behind it and multiplied it against transparency — which is the identity, and
+ * looks exactly like the blend silently not being applied. So `.frame` carries the blend
+ * and stands alone at 16; `.edit` is the chrome and the hit area and stands at 17.
+ */
+
+/*
+ * The photo itself: multiplied into the paper at a third strength.
+ *
+ * Multiply rather than a plain overlay, and it is the whole reason the photo can sit
+ * *above* the canvas without the drawing having to be rebuilt underneath it. Over white
+ * paper, `0.7·white + 0.3·(photo × white)` is the photo washed out to a third — which is
+ * what tracing paper looks like. Over a black stroke, `photo × black` is black however
+ * bright the photo is, so **the ink stays exactly as dark as it was drawn**. The
+ * alternative was making the canvas transparent and sliding a picture in behind it,
+ * which means a white sheet on both pages, a thumbnail capture that no longer has a
+ * background, and a shadow to re-home.
+ *
+ * Clipped to the paper's own corners, so a photo dragged off the side leaves at the
+ * edge of the sheet rather than out across the page.
+ */
+.frame {
+	position: absolute;
+	inset: 0;
+	z-index: 16;
+	overflow: hidden;
+	border-radius: var(--radius-card);
+	/* There is nothing here to press: the drawing underneath it is. */
+	pointer-events: none;
+	opacity: 0.3;
+	mix-blend-mode: multiply;
+	transition: opacity 0.2s ease-out;
+}
+
+/*
+ * Stronger while it is being placed, and back to a third the moment it is accepted.
+ *
+ * A third is what you want to *draw* against and is not what you want to aim with —
+ * lining a photograph up by its edges at 30% over white is guesswork. This is the one
+ * moment the picture is the thing being looked at rather than the thing being traced.
+ */
+.placing {
+	opacity: 0.55;
+}
+
+/* The chrome, and the hand: no blending, no fade, and above the photo. */
+.edit {
+	position: absolute;
+	inset: 0;
+	z-index: 17;
+	overflow: hidden;
+	border-radius: var(--radius-card);
+	pointer-events: none;
+}
+
+/*
+ * The transform, on a box that is exactly the frame.
+ *
+ * `translate` percentages resolve against the element's own box, so making that box the
+ * whole frame is what lets the placement be stored as fractions of the drawing and
+ * survive the phone being turned over. The picture is centred *inside* it rather than
+ * being it, which puts `transform-origin: center` on the middle of the photo as well as
+ * the middle of the frame — one origin, both boxes.
+ *
+ * Both layers have one, reading the same four custom properties off their own parent, so
+ * the outline can never drift from the picture it is drawn around.
+ */
+.plate {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transform: translate(var(--trace-x, 0%), var(--trace-y, 0%)) rotate(var(--trace-rot, 0deg))
+		scale(var(--trace-scale, 1));
+}
+
+/*
+ * The picture, sized in JavaScript rather than by `object-fit: contain`.
+ *
+ * Both come to the same rectangle — but only one of them is a rectangle anything else
+ * can be drawn around. `object-fit` letterboxes *inside* the element's box, so the box
+ * stays the frame and there is nowhere to hang a dashed border but around the whole
+ * sheet. The fitted size is two `min`s given the photo's own aspect and the frame's
+ * fixed 16:9, so `.outline` below can be a plain box at the same two percentages.
+ */
+.picture {
+	display: block;
+	/* A drag on the photo is the photo being placed, not iOS offering to save it. */
+	pointer-events: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+/*
+ * The dashed edge that says this photo is still in hand.
+ *
+ * The border is divided by the scale, because everything under `.plate` is scaled with
+ * the picture and a 2px dash pinched to 8× is a rope. `--trace-scale` is a bare number
+ * for exactly this: `calc(2px / 3.4)` is valid where `calc(2px / 3.4)` with a unit is
+ * not.
+ */
+.outline {
+	border: calc(2px / var(--trace-scale, 1)) dashed var(--blue);
+}
+
+/*
+ * Everywhere a finger may place the photo from, which is the whole sheet.
+ *
+ * `data-owns-touch` in the markup is what keeps `PointerLayer` off it — see `CONTROLS`
+ * there. Without that, the page's own aiming layer would take the gesture in the capture
+ * phase and nudge the drawing cursor around instead, and none of this would ever see a
+ * finger.
+ *
+ * `touch-action: none` for the reason the canvas has it: a pinch here is a photo being
+ * scaled and never the page being zoomed, and a drag is never a scroll.
+ */
+.field {
+	position: absolute;
+	inset: 0;
+	pointer-events: auto;
+	touch-action: none;
+	cursor: move;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.frame {
+		transition: none;
+	}
+}

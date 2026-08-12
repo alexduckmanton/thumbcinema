@@ -1,0 +1,91 @@
+import { useEffect, useRef } from 'react'
+
+import styles from './TraceMenu.module.css'
+
+export interface TraceMenuProps {
+	onEdit: () => void
+	onReplace: () => void
+	onRemove: () => void
+	onCancel: () => void
+}
+
+/**
+ * The three things you can do to a trace photo that is already on the page.
+ *
+ * Raised by pressing the camera button a second time, which is the only entry point the
+ * feature has — so it has to carry all three rather than being a shortcut to one. The
+ * button cannot simply toggle back into placing, because "I want a different photo" and
+ * "I am done with this one" are at least as common as "let me nudge it", and neither has
+ * anywhere else to be asked.
+ *
+ * Escape closes it, and so does a press on the wash, both of which mean "none of those".
+ * Focus goes to the first choice on the way in and is restored on the way out, because
+ * the button that raised this is where a keyboard was.
+ */
+export function TraceMenu({ onEdit, onReplace, onRemove, onCancel }: TraceMenuProps) {
+	const first = useRef<HTMLButtonElement | null>(null)
+
+	// Read on the event rather than closed over, so the listener is bound once.
+	const dismiss = useRef(onCancel)
+	dismiss.current = onCancel
+
+	useEffect(() => {
+		const returnTo = document.activeElement
+		first.current?.focus()
+
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return
+			event.preventDefault()
+			// The create page's own shortcuts are live behind this; Escape there clears
+			// the selection, which is not what closing a menu means.
+			event.stopPropagation()
+			dismiss.current()
+		}
+
+		document.addEventListener('keydown', onKeyDown, true)
+
+		return () => {
+			document.removeEventListener('keydown', onKeyDown, true)
+			if (returnTo instanceof HTMLElement) returnTo.focus()
+		}
+	}, [])
+
+	return (
+		<div className={styles.scrim} role="dialog" aria-modal="true" aria-label="Trace photo">
+			{/* The wash, as a button rather than a click handler on the box behind it: a
+			    press out here means the same "none of those" that Cancel does, and a real
+			    button gets that for free — the press, the Enter, and no keyboard trap. It
+			    is out of the tab order and out of the accessibility tree because Cancel is
+			    directly below and says the same thing in words. */}
+			<button
+				type="button"
+				className={styles.wash}
+				tabIndex={-1}
+				aria-hidden="true"
+				onClick={onCancel}
+			/>
+
+			<div className={styles.sheet}>
+				<div className={styles.group}>
+					<button ref={first} type="button" className={styles.choice} onClick={onEdit}>
+						Move or resize the photo
+					</button>
+					<button type="button" className={styles.choice} onClick={onReplace}>
+						Take a different photo
+					</button>
+					<button
+						type="button"
+						className={`${styles.choice} ${styles.destructive}`}
+						onClick={onRemove}
+					>
+						Remove the photo
+					</button>
+				</div>
+
+				<button type="button" className={`${styles.choice} ${styles.cancel}`} onClick={onCancel}>
+					Cancel
+				</button>
+			</div>
+		</div>
+	)
+}

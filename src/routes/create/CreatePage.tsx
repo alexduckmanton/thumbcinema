@@ -9,7 +9,10 @@ import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
-import { settledPageCount } from '../../flipbook/engine/pages'
+import { type PageState, settledPageCount } from '../../flipbook/engine/pages'
+import { TraceLayer } from '../../flipbook/trace/TraceLayer'
+import { TraceMenu } from '../../flipbook/trace/TraceMenu'
+import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { SETTLE_MS } from '../../flipbook/engine/reorder'
@@ -27,9 +30,14 @@ import { useCrashRecovery } from './useCrashRecovery'
 
 type Phase = 'drawing' | 'naming' | 'sending'
 
+/** Module scope, so the trace photos' housekeeping doesn't run on every render. */
+const NO_PAGES: PageState[] = []
+
 export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
+	/** The trace photo's remove/replace/edit sheet, which is up or it isn't. */
+	const [traceMenu, setTraceMenu] = useState(false)
 
 	// Which flipbook this is being drawn on top of, if any. Read off the URL rather
 	// than held in state, so a reload lands on the same flipbook rather than an empty
@@ -62,8 +70,10 @@ export function CreatePage() {
 	// Everything but the naming form, which has fields in it a finger may want to pan.
 	useNoScrolling(phase !== 'naming')
 
-	// Shortcuts are off while the form is up, so typing a title doesn't switch tools.
-	useKeyboardShortcuts(engine, { enabled: phase === 'drawing', tools: true })
+	// Shortcuts are off while the form is up, so typing a title doesn't switch tools —
+	// and off while the trace photo's sheet is up, which is a question being asked and
+	// not a moment to be adding pages behind it.
+	useKeyboardShortcuts(engine, { enabled: phase === 'drawing' && !traceMenu, tools: true })
 
 	// Not the raw length: a page on its way off the screen is still in the list, and
 	// counting it makes the save button fade in and straight back out again.
@@ -88,16 +98,63 @@ export function CreatePage() {
 	useUnsavedWarning(pages > 1 && phase !== 'sending' && !untouchedRemix)
 
 	/*
+	 * The photograph on the page, if there is one, and the sheet of choices about it.
+	 *
+	 * Held here rather than in the engine because it is not part of the drawing: see the
+	 * long note in `useTracePhoto`. What the page owns is the one bit of coordination —
+	 * which of the three things the camera button does — and the two states that can't be
+	 * derived from the photo alone.
+	 */
+	const trace = useTracePhoto(state?.pages ?? NO_PAGES, state?.activePage ?? 0)
+
+	/*
+	 * The photo is a reference for the page you are drawing on, so it goes while the
+	 * flipbook is playing: twelve frames a second under a photograph pinned to one of
+	 * them says nothing about any of them. It also goes while a saved flipbook is still
+	 * arriving, because the pages it would be standing on are being replaced.
+	 */
+	const playing = state?.playback !== 'none'
+	const showTrace = phase === 'drawing' && !state?.loading && !playing && trace.photo !== null
+
+	// Pressing play with a photo still in hand puts it down, rather than leaving it in
+	// hand behind the flipbook to be picked back up when playback stops.
+	const { placing, accept } = trace
+	useEffect(() => {
+		if (playing && placing) accept()
+	}, [playing, placing, accept])
+
+	/**
+	 * The camera button, which is three buttons depending on what is already on the page.
+	 *
+	 * Nothing on this page has a second reading of one press — see `engagePress` — and
+	 * this doesn't either: what it does is decided entirely by the state it is pressed in,
+	 * and the button says which state that is by being lit or not. Empty page, it opens
+	 * the camera. Photo in hand, it is the "done" the drawing itself also offers, and is
+	 * the one you can find without knowing that tapping the paper works. Photo lying on
+	 * the page, it raises the sheet, because by then there are three things to want and no
+	 * press can mean all of them.
+	 */
+	const pressTrace = useCallback(() => {
+		if (!trace.photo) trace.take()
+		else if (trace.placing) trace.accept()
+		else setTraceMenu(true)
+	}, [trace])
+
+	/*
 	 * The handle above the paper, and everything dragging it does.
 	 *
 	 * Off unless there is a flipbook to rearrange and a moment to do it in: one page has
 	 * nowhere to go, a flipbook still arriving is being written to a page at a time, and
-	 * while it is playing the strip isn't even on screen.
+	 * while it is playing the strip isn't even on screen — and while a photo is in hand
+	 * the sheet is somewhere a finger is already dragging something else.
 	 */
+	const reorderable =
+		phase === 'drawing' && pages > 1 && !state?.loading && !playing && !trace.placing
+
 	const { reorder, bookRef, shiftFor, handleProps } = usePageReorder(engine, {
 		activePage: state?.activePage ?? 0,
 		pages,
-		enabled: phase === 'drawing' && pages > 1 && !state?.loading && state?.playback === 'none',
+		enabled: reorderable,
 	})
 
 	const handleSave = useCallback(
@@ -244,10 +301,27 @@ export function CreatePage() {
 							</div>
 						) : null}
 
+						{/* The photograph being traced over. Above the canvas and multiplied into
+						    it, which is what lets the ink stay as dark as it was drawn — see
+						    `TraceLayer`. Never part of the artwork, and never photographed into a
+						    thumbnail: it is a DOM layer, and the canvas underneath is untouched. */}
+						{showTrace && trace.photo ? (
+							<TraceLayer
+								photo={trace.photo}
+								placing={trace.placing}
+								onPlaced={trace.place}
+								onAccept={trace.accept}
+							/>
+						) : null}
+
 						{/* The ring that says what the stroke will be, or the shape that says
 						    what the transform tool would grab. Inside `.book` because both are
-						    measured against the drawing rather than the window. */}
-						{state && phase === 'drawing' ? (
+						    measured against the drawing rather than the window.
+
+						    Gone while a photo is in hand: the field over the sheet has the
+						    gesture, so there is no aiming happening and a cursor standing on the
+						    drawing would be pointing at a tool nobody can reach. */}
+						{state && phase === 'drawing' && !trace.placing ? (
 							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} fieldRef={field} />
 						) : null}
 
@@ -270,7 +344,7 @@ export function CreatePage() {
 								page={(state?.activePage ?? 0) + 1}
 								pages={pages}
 								carrying={reorder !== null}
-								disabled={pages < 2 || !!state?.loading || state?.playback !== 'none'}
+								disabled={!reorderable}
 							/>
 						) : null}
 					</div>
@@ -302,8 +376,27 @@ export function CreatePage() {
 					) : null}
 
 					<div className={styles.footer}>
-						{/* The phone's copy, at the far end of the bar from save. */}
-						<EditActions engine={engine} state={state} className={styles.actions} />
+						{/* The phone's copy, at the far end of the bar from save.
+
+						    The camera leads the row rather than closing it: it is the one disc
+						    here that isn't spending a stack, so it stands at the far corner where
+						    the four that are can stay adjacent — and as far from Save as the bar
+						    allows, those being the two presses least worth confusing. */}
+						<EditActions
+							engine={engine}
+							state={state}
+							className={styles.actions}
+							leading={
+								<ActionButton
+									label={traceLabel(trace.photo !== null, trace.placing)}
+									glyph="⊙"
+									hint={traceLabel(trace.photo !== null, trace.placing)}
+									enabled={phase === 'drawing' && !trace.busy}
+									pressed={trace.placing}
+									onPress={pressTrace}
+								/>
+							}
+						/>
 
 						<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
 							<button
@@ -319,9 +412,39 @@ export function CreatePage() {
 				</div>
 			</main>
 
+			{traceMenu && trace.photo ? (
+				<TraceMenu
+					onEdit={() => {
+						setTraceMenu(false)
+						trace.edit()
+					}}
+					onReplace={() => {
+						setTraceMenu(false)
+						trace.take()
+					}}
+					onRemove={() => {
+						setTraceMenu(false)
+						trace.remove()
+					}}
+					onCancel={() => setTraceMenu(false)}
+				/>
+			) : null}
+
 			{crash.crashed ? <Recovery saved={crash.saved} /> : null}
 		</>
 	)
+}
+
+/**
+ * What the camera button is offering right now, as words.
+ *
+ * It is the accessible name and the tooltip both, and it changes because the button
+ * does: a control that reads "Trace photo" while it is standing in for "done" is one
+ * nobody using it by ear can follow.
+ */
+function traceLabel(has: boolean, placing: boolean): string {
+	if (placing) return 'Place the trace photo'
+	return has ? 'Trace photo options' : 'Trace over a photo'
 }
 
 /**
@@ -423,13 +546,23 @@ function EditActions({
 	engine,
 	state,
 	className,
+	leading,
 }: {
 	engine: FlipbookEngine | null
 	state: FlipbookState | null
 	className: string | undefined
+	/**
+	 * A disc standing in front of the four, which only the phone's copy has: the camera.
+	 *
+	 * A slot rather than a fifth entry in the list below, because it belongs to neither
+	 * of the pairs and only exists at one width — the desktop's copy is up beside the
+	 * wordmark, where there is no camera to reach and the row is exactly the four.
+	 */
+	leading?: React.ReactNode
 }) {
 	return (
 		<div className={className}>
+			{leading}
 			<ActionButton
 				label="Undo"
 				glyph="↺"
@@ -483,20 +616,29 @@ function ActionButton({
 	glyph,
 	hint,
 	enabled,
+	pressed,
 	onPress,
 }: {
 	label: string
 	glyph: string
 	hint: string
 	enabled: boolean
+	/**
+	 * Set on a disc that is a toggle rather than a one-shot — only the camera, which is
+	 * lit for as long as the photo it took is still in hand. The four beside it spend a
+	 * stack and are never in a state to be *in*, so they leave this alone and get no
+	 * `aria-pressed` at all rather than a permanent "false" claiming they are toggles.
+	 */
+	pressed?: boolean
 	onPress: () => void
 }) {
 	return (
 		<button
 			type="button"
-			className={styles.action}
+			className={pressed ? `${styles.action} ${styles.actionOn}` : styles.action}
 			title={hint}
 			disabled={!enabled}
+			aria-pressed={pressed}
 			onClick={onPress}
 		>
 			<span className={styles.actionGlyph} aria-hidden="true">

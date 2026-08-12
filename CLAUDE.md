@@ -70,6 +70,11 @@ src/
       tools/          pencil, eraser, transform, push
       FlipbookEngine.ts  the façade React drives
     usePageReorder.ts the reorder gesture, and the settle at the end of it
+    trace/            the photo you trace over. No paper.js here either.
+      geometry.ts     what a drag and a pinch do to a placement
+      useTracePhoto.ts one photo per page, for as long as the tab is open
+      TraceLayer.tsx  the picture over the paper, and the hand that places it
+      TraceMenu.tsx   move it, replace it, or take it away
     components/       canvas, page strip, page arrows, the page's handle,
                       trays, save form, the cursor ring and the transform cursors
     card/             one flipbook in a list — the grid, and the remixes under one
@@ -821,6 +826,9 @@ it's one of these. Each is deliberate:
   the native cursors 2013 wrote onto the canvas.
 - **You can draw on a phone.** 2013 asked `Mobile_Detect.php` and sent phones back to
   the gallery, and the revival kept that. See below.
+- **You can trace over a photograph.** A sixth disc in the phone's footer takes a picture
+  with the camera and lays it over the paper at 30% to draw on top of. Wholly new, and
+  wholly outside the artwork — see **Tracing over a photograph** below.
 
 ## The create page
 
@@ -1019,10 +1027,14 @@ is now true at both widths and the differences are called out where they exist.
   to stand it up in — and the `InkCursor` ring with it: the ring is still the size of the
   mark, but the pencil is one size now, so what it says is which of the two marking tools
   is in hand.
-- **On a phone the bottom of the window is a footer bar: four edit actions at one end,
-  save at the other.** It was the save button alone, floating in the middle; a bar is
-  what lets the other four stand next to it without any of them looking like an
-  afterthought. Fixed 8px off the bottom, because the column ends wherever the tools
+- **On a phone the bottom of the window is a footer bar: the camera and four edit actions
+  at one end, save at the other.** It was the save button alone, floating in the middle;
+  a bar is what lets the other five stand next to it without any of them looking like an
+  afterthought. The camera leads the row — it is the one disc there that isn't spending a
+  stack, so it stands at the far corner where the four that are can stay adjacent, and as
+  far from Save as the bar allows, those being the two presses least worth confusing. See
+  **Tracing over a photograph** below, and its note on what a fifth disc did to the
+  arithmetic. Fixed 8px off the bottom, because the column ends wherever the tools
   happen to end and the rest of a phone screen is air. `transform`, not `top`, does the
   fly-away when the form goes up — a box pinned by `bottom` can't use `top` without
   being stretched between the two — and the desktop's fly-away moved to `transform` with
@@ -1376,6 +1388,111 @@ an ordinary one, so it is one history step and updates its page and thumbnail th
 way. It differs in one measurable respect: a stroke includes the point the gesture
 opened at, where a paper-driven one's first segment is the first `onMouseDrag` — about
 7px in.
+
+### Tracing over a photograph
+
+A sixth white disc at the left-hand end of the phone's footer takes a picture with the
+camera and lays it over the paper at 30%, on the page you are on, to be drawn on top of.
+Place it with your fingers, tap the drawing to accept it, and press the disc again to
+move it, replace it or take it away. **Phone layout only** — the disc is in `.actions`,
+which is `display: none` above the breakpoint, so the desktop's row beside the wordmark
+is the four it always was.
+
+`flipbook/trace/` is the whole of it, and it is the same shape as `flipbook/preview/`:
+a directory that deliberately knows nothing about paper.js.
+
+- **It is a pair of DOM layers over the canvas and nothing at all in the scene**, and
+  that is the decision the rest follows from. A `Raster` in the project would be a fourth
+  thing under `SYSTEM_LAYERS`, would be written into `exportSVG()` and so into every saved
+  flipbook, would be photographed by `captureActivePage` into the page strip and by
+  `exportForSave` into the cover, and would have to be taught to the undo history. A
+  reference you trace over is none of those: it is scaffolding, it belongs to the session
+  rather than to the drawing, and the artwork has to come out byte-identical whether or
+  not one was ever on screen. In the DOM all of that is true by construction rather than
+  by remembering to exclude it in six places.
+- **What that costs is bought back by `mix-blend-mode: multiply`.** The canvas is opaque
+  white, so a layer above it would ordinarily wash the ink out. Multiplied at 30%, paper
+  comes out as the photo at a third strength and a black stroke comes out `photo × black`,
+  which is black however bright the photo is. Measured on screen pixels rather than
+  reasoned about: the darkest pixel of a stroke reads 68 with no photo and 48 with one
+  over it — **darker, never lighter**. That 20-level shift where the photo is dark is the
+  one fidelity cost, it is only ever on screen, and it goes the moment the photo does. The
+  alternative — a transparent canvas with a white sheet slid in behind it — means a second
+  sheet on both pages, a thumbnail capture with no background left, and a shadow to
+  re-home, for a shade nobody can name.
+- **`mix-blend-mode` blends with the backdrop of the parent stacking context**, which is
+  why the photo and its chrome are two siblings inside `.book` at z-index 16 and 17 rather
+  than one box containing both. Wrapping the pair would have sealed the photo in with
+  nothing behind it and multiplied it against transparency — which is the identity, and
+  looks exactly like the blend silently not being applied. `.book` itself must *not* get
+  `isolation: isolate` for the same reason `.dragging` costs a `z-index`: it would become
+  a stacking context permanently and drop the canvas below the page strip.
+- **One photo per page, keyed by page id.** Inserting, deleting or dragging a page
+  renumbers everything after it, so a photo held against an *index* would be lying on
+  somebody else's drawing the moment the flipbook changed shape — the same reason
+  `History` keys its steps by id. A page that leaves for good takes its photo and its
+  object URL with it; a page that is merely `leaving` is still in the list and keeps both
+  until the animation lands.
+- **In hand is a page id, not a boolean.** `inHand === pageId` is what "this photo is
+  being placed" means, so turning the page puts it down without anything having to notice
+  that the page turned. A boolean would need an effect to reset it, and an effect runs
+  *after* the render that changed the page — which is one frame of a dashed border and a
+  live gesture field lying over somebody else's drawing.
+- **The pinch is absolute, not incremental.** `geometry.ts` is two pure functions of the
+  placement *at the press* and the contacts then and now, and the property they exist to
+  have is that whatever was under the middle of the two fingers when they landed is under
+  the middle of the two fingers now. Measuring from the press rather than from the last
+  event is what stops a hundred deltas a second accumulating rounding, and what stops the
+  scale clamp ratcheting: open a pinch past the ceiling, close it again, and the photo
+  comes back down with it. Both are in `geometry.test.ts`, including the pinned point at
+  the clamp.
+- **Nothing goes through React until the fingers come off.** The placement is written
+  straight onto both layers as four custom properties, the same bargain `--drag` makes.
+  `--trace-scale` is a bare number rather than a length so the dashed border can be
+  `calc(2px / var(--trace-scale))` — everything under the transform is scaled with the
+  picture, and a 2px dash pinched to 8× is a rope.
+- **The picture is sized in numbers rather than by `object-fit: contain`.** They come to
+  the same rectangle, but only one of them is a rectangle anything else can be drawn
+  around: `object-fit` letterboxes inside the element's box, so the box stays the frame and
+  there is nowhere to hang the dashed edge but around the whole sheet. The frame is 16:9 at
+  every width, so the fit is two `min`s and needs nothing measured.
+- **The placing field says `data-owns-touch`, which is how `PointerLayer` lets go.** It is
+  the same statement the page's controls make through `CONTROLS`, and without it the aiming
+  layer would take every gesture in the capture phase and nudge the drawing cursor about
+  instead. `refuseMultiTouch()` is unaffected and still wanted: it only calls
+  `preventDefault()`, so the pinch is still delivered and iOS still doesn't zoom the page.
+- **It is stronger while it is being placed** — 55% against 30% — because a third is what
+  you want to draw *against* and is not what you want to aim with. Lining a photograph up
+  by its edges at 30% over white is guesswork.
+- **It goes while the flipbook plays, and while one is still loading.** Twelve frames a
+  second under a photograph pinned to one of them says nothing about any of them; and a
+  load is replacing the pages the photo would be standing on. Pressing play with one in
+  hand puts it down rather than leaving it to be picked back up afterwards.
+- **Not persisted, and that is a decision rather than an omission.** The crash-recovery
+  file is already carrying the artwork and a phone camera JPEG is megabytes; a reference
+  photo is also the one thing on this page that can be got back in two taps.
+- **The file is downscaled to 1280 on its long edge on the way in.** Twelve megapixels
+  decodes to about 48 MB, per photo, and there can be one on every page — which is the
+  budget the page strip already lives under (`HIDPI_PAGE_LIMIT`). Redrawing it through a
+  canvas also bakes in the EXIF orientation a phone writes, rather than carrying it about.
+- **The camera button is three buttons and says which by being lit.** Empty page, it opens
+  the camera; photo in hand, it is the "done" that the drawing itself also offers, and is
+  the one you can find without knowing a tap on the paper works; photo lying on the page,
+  it raises the sheet, because by then there are three things to want and no press can mean
+  all of them. That is not a second reading of one press — the state it is pressed in has
+  already answered it, which is the same rule the transform fan follows.
+- **Five discs is what the footer's arithmetic had to be redone for.** The narrowest layout
+  that gets the row at full size is a 360px phone: a 328px column, of which "Save" measures
+  110, leaving 218. Five 38px discs 4px apart are 206 of it, 12px clear of the button —
+  against the 11px the four 48px discs had. Below 360 and held sideways they go to 36, as
+  the row already did. Measured at 390, 360, 320, 844×390, 740×360 and 667×375: no overrun
+  at any of them.
+- **Held sideways the leading disc grazes the pencil's tip, and that is not new.** The
+  sideways rule moves the whole bar right because each tool is a 304px picture anchored by
+  its tip and the leftmost of them hangs into the footer's band; a wider row reaches back
+  under it. Measured at 740×360, the overlap was 27×35px before this and is 36×31px now.
+  It cannot be closed by sizing — clearing it at 740 needs discs of about 24px — and it is
+  a decorative picture under a button that is drawn above it and stays pressable.
 
 ## The playback page
 
@@ -2094,6 +2211,12 @@ carry an **Ignored Build Step** so neither builds the other's branch.
   the byte ceiling the strip already lived under — thumbnails go back to 1:1. The scale
   never climbs back, because every change of it empties and redraws every canvas in the
   strip, and buying sharpness back by deleting a page is not a trade worth making twice.
+- **Trace photos are in that same budget, and they are held for as long as the tab is.**
+  One per page, each an object URL nobody is going to revoke on your behalf — so every
+  path that drops one revokes it: replacing it, removing it, a page leaving the flipbook
+  for good, and the hook unmounting. `MAX_EDGE` is what keeps each one to about 4 MB
+  decoded rather than the ~48 MB a phone camera hands over. See **Tracing over a
+  photograph**.
 - **The save request is capped at ~4 MB** by Vercel's request limit, and form encoding
   inflates the SVG, so the practical ceiling is roughly a 2.5 MB drawing. About 5% of
   the historical archive would exceed it. The server answers 413 and the create page
