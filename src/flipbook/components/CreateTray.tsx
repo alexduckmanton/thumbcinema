@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 
+import { type DrawMode, holdsTool } from '../drawModes'
 import type { FlipbookEngine, FlipbookState } from '../engine/FlipbookEngine'
 import type { ModalToolId } from '../engine/tools/types'
 import { setToolPressed } from '../pointer'
@@ -11,6 +12,8 @@ export interface CreateTrayProps {
 	state: FlipbookState
 	/** True while the save form is up: the controls fly away and leave it alone. */
 	stowed?: boolean
+	/** Which drawing mode is on, which is only whether holding a tool means anything. */
+	mode: DrawMode
 }
 
 /**
@@ -28,8 +31,20 @@ export interface CreateTrayProps {
  * drawing and nothing else. The pencil's width popover went the same way: see
  * `DEFAULT_PENCIL_WIDTH`.
  */
-export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
+export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayProps) {
 	const { tool, transformIndex } = state
+
+	/*
+	 * Whether these buttons are held or tapped, which is the drawing mode's answer and
+	 * not this component's.
+	 *
+	 * It changes nothing about how a press is *reported* — every mode reports it, and
+	 * `PointerLayer.onToolPressed` is the one place that decides what a press meant, so
+	 * that a mode where holding means nothing simply reads every press as an ordinary
+	 * tap. What it changes is what the tooltip claims, and a control that describes a
+	 * gesture the mode you are in doesn't have is worse than one that says nothing.
+	 */
+	const holdToUse = holdsTool(mode)
 
 	// Only while a page is actually arriving or leaving. Playing doesn't disable
 	// these — the press stops playback instead, and the next one goes through.
@@ -129,7 +144,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						ref={pencilRef}
 						type="button"
 						className={toolClass('pencil')}
-						title="Draw (b) — hold to draw"
+						title={holdToUse ? 'Draw (b) — hold to draw' : 'Draw (b)'}
 						aria-pressed={tool === 'pencil'}
 						onClick={press('pencil')}
 						{...holdProps('pencil')}
@@ -144,7 +159,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 						ref={eraserRef}
 						type="button"
 						className={toolClass('eraser')}
-						title="Erase (e) — hold to rub out"
+						title={holdToUse ? 'Erase (e) — hold to rub out' : 'Erase (e)'}
 						aria-pressed={tool === 'eraser'}
 						onClick={press('eraser')}
 						{...holdProps('eraser')}
@@ -172,7 +187,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 							ref={transformRef}
 							type="button"
 							className={styles.hand}
-							title="Transform (v) — hold to select and move"
+							title={holdToUse ? 'Transform (v) — hold to select and move' : 'Transform (v)'}
 							aria-pressed={tool === 'transform'}
 							onClick={press('transform')}
 							{...holdProps('transform')}
@@ -186,7 +201,7 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 							type="button"
 							className={styles.mode}
 							title={
-								transformIndex === 0
+								holdToUse && transformIndex === 0
 									? 'Move, scale and rotate — hold to use'
 									: 'Move, scale and rotate'
 							}
@@ -216,7 +231,9 @@ export function CreateTray({ engine, state, stowed = false }: CreateTrayProps) {
 							type="button"
 							className={styles.mode}
 							title={
-								transformIndex === 1 ? 'Push the line about — hold to use' : 'Push the line about'
+								holdToUse && transformIndex === 1
+									? 'Push the line about — hold to use'
+									: 'Push the line about'
 							}
 							aria-pressed={tool === 'transform' && transformIndex === 1}
 							disabled={tool !== 'transform'}

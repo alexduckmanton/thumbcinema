@@ -71,13 +71,16 @@ src/
       tools/          pencil, eraser, transform, push
       FlipbookEngine.ts  the façade React drives
     usePageReorder.ts the reorder gesture, and the settle at the end of it
+    pointer.ts        a finger, and what it does to the cursor and the tool
+    drawModes.ts      the ten answers to "a finger is opaque", numbered v1–v10
     trace/            the photo you trace over. No paper.js here either.
       geometry.ts     what a drag and a pinch do to a placement
       useTracePhoto.ts the camera, the decode, and the object URLs
       TraceLayer.tsx  the picture over the paper, and the hand that places it
       TraceMenu.tsx   move it, replace it, or take it away
     components/       canvas, page strip, page arrows, the page's handle,
-                      trays, save form, the cursor ring and the transform cursors
+                      trays, save form, the cursor ring and the transform cursors,
+                      the drawing-mode switch
     card/             one flipbook in a list — the grid, and the remixes under one
       FlipbookCard.tsx   the link, the preview over it, the play button
       useCardGesture.ts  hover, tap, hold and drag, mouse and finger
@@ -1166,11 +1169,12 @@ is now true at both widths and the differences are called out where they exist.
   is the only thing sure of beating one. It now covers the transform tool as well as the
   two that mark.
 
-  There was a **loupe**: 80px, twice life size, floating above the fingertip and allowed
-  to hang off the top of the paper to stay there. It went with the mode it belonged to. A
-  magnifier is the answer to a mark landing under the finger making it, and the answer
-  that won puts the cursor somewhere else entirely — with nothing under the finger to
-  see, there is nothing to magnify.
+  There is also a **loupe**: 80px, twice life size, floating above the fingertip and
+  allowed to hang off the top of the paper to stay there, or pinned in whichever top
+  corner the finger isn't. It belongs to two of the ten drawing modes and is drawn by
+  nothing else — a magnifier is the answer to a mark landing under the finger making it,
+  and the default puts the cursor somewhere else entirely, so with nothing under the
+  finger to see there is nothing to magnify. See **Drawing with a finger**.
 - **Zoom is off site-wide, and on the create page the document is held still.**
   `maximum-scale=1, user-scalable=no` in the viewport tag, which Android honours and iOS
   ignores, plus `preventPinchZoom()` in `lib/zoom.ts` for Safari's gesture events.
@@ -1226,16 +1230,34 @@ is now true at both widths and the differences are called out where they exist.
 
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
-separate families and no consensus — so rather than pick one blind, ten of them were
-built behind a switch in the corner of the create page and drawn with side by side: a
-follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that
-changed over on half a second of stillness, and four that moved the cursor off the
-fingertip altogether. **One won, and the other nine went with the switch**, along with
-`drawModes.ts` and most of what `pointer.ts` used to be. (`tc:drawMode` may still be
-sitting in somebody's `localStorage`; nothing reads it.)
+separate families and no consensus — so rather than pick one blind, ten of them are built
+behind a switch in the corner of the create page and drawn with side by side: a follower
+loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change over on
+half a second of stillness, and four that move the cursor off the fingertip altogether.
+`drawModes.ts` is the list and where each one comes from; `DrawModeSwitch` is the switch;
+`pointer.ts` is nearly all of the mechanism.
 
-What is left is this. **The cursor is a thing standing on the page, and a finger anywhere
-nudges it by however far the finger moved.** It never travels to the contact point —
+**They are numbered `v1` to `v10` rather than named, and the numbers are the point.**
+These differ from each other by a *rule* rather than by a picture, and half of them look
+identical until you touch the glass, so "the one where you hold the tool" is a slow way to
+say which is which. The numbers are stable handles that survive reordering the list and
+survive a different one winning; each entry keeps the name it went under while the testbed
+first ran (`was`), so a note written then still resolves. The caption under the switch is
+permanently on and leads with the number, because a mode you can't name is a mode you
+can't report on. They are grouped rather than ordered by history: **v1–v5 keep the finger
+as the pointer**, and **v6–v10 stand the cursor away from the hand** and differ only in
+how the tool is told to start working.
+
+**v10 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
+rather than "whichever is last in the list". The rest of this section describes v10; the
+switch is scaffolding and the other nine are there to be compared against it.
+(`tc:drawMode` is where the choice is remembered. It is the key the first testbed used and
+its values were names, so anything left over from then reads as unrecognised and falls
+back to the default — which is the same thing that happens to a mode that is later
+deleted, and is why `read` validates against the list rather than casting.)
+
+So, v10. **The cursor is a thing standing on the page, and a finger anywhere nudges it by
+however far the finger moved.** It never travels to the contact point —
 that is the whole idea, and it has to hold from the first event of every gesture or the
 cursor would jump under the hand and back — and it survives the gesture that moved it,
 because a cursor you have carefully placed and then lost by lifting your finger is worse
@@ -1247,17 +1269,22 @@ contacts the browser reports as having moved.
 
 Things worth knowing before touching anything nearby:
 
-- **paper drives no touch on this page at all.** paper 0.12 is single-pointer by
-  construction — it reads `targetTouches[0]`, has one drag in flight and no notion of a
-  pointer id — so it cannot see a second contact, and it works at the *fingertip*, which
-  here is neither the cursor nor anywhere on the drawing. `PointerLayer` listens in the
-  **capture** phase, which runs before the canvas's own listeners and before anything can
-  bubble as far as the document, calls `stopPropagation()`, and drives whichever tool is
-  in hand through `engine.toolDown`/`toolDrag`/`toolUp`. It is *touch* events that are
-  intercepted and not pointer events: the two are separate streams, and stopping a
-  `pointerdown` does nothing at all to the `touchstart` paper is listening for.
-- **The field is the whole page, not the drawing.** A cursor that is nudged rather than
-  placed doesn't care where the nudge comes from, and a phone's create page is a column
+- **paper drives no touch here at all**, and in six of the ten modes it drives none.
+  paper 0.12 is single-pointer by construction — it reads `targetTouches[0]`, has one drag
+  in flight and no notion of a pointer id — so it cannot see a second contact, and it
+  works at the *fingertip*, which in those six is neither the cursor nor anywhere on the
+  drawing. `PointerLayer` listens in the **capture** phase, which runs before the canvas's
+  own listeners and before anything can bubble as far as the document, calls
+  `stopPropagation()`, and drives whichever tool is in hand through
+  `engine.toolDown`/`toolDrag`/`toolUp`. It is *touch* events that are intercepted and not
+  pointer events: the two are separate streams, and stopping a `pointerdown` does nothing
+  at all to the `touchstart` paper is listening for. The four modes that mark at the
+  fingertip need none of it — paper draws as it always has and this layer only watches, so
+  that the ring and the loupe have somewhere to read the pointer from. `intercepts()` is
+  the one place that question is asked.
+- **The field is the whole page, not the drawing** — in the modes that nudge, which is
+  what `aimsFromWholePage` answers and `ownsTouch` enforces. A cursor that is nudged
+  rather than placed doesn't care where the nudge comes from, and a phone's create page is a column
   of drawing with a band of empty white under it — which is where a thumb already is, and
   which nothing else on the page wants. So the touch listeners are on `<main>`, and
   dragging down there aims exactly as dragging on the paper does. What keeps that from
@@ -1359,7 +1386,8 @@ Things worth knowing before touching anything nearby:
 - **Changing tool part-way through a gesture puts the old one down first.** `engagePress`
   disengages before it selects, because a stroke left open while the tool underneath it
   is swapped gets finished by whichever tool answers the release.
-- **Interception asks which tool, and nothing about what the engine is doing.** It used
+- **Interception asks which mode and which tool, and nothing about what the engine is
+  doing.** It used
   to hand the gesture back to paper while a page animation or a load was in flight, and
   handing a gesture to paper here is wrong by construction: paper works at the fingertip,
   and the fingertip is not the cursor and is not on the drawing at all. So touching the

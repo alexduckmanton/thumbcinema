@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
+import { DrawModeSwitch } from '../../flipbook/components/DrawModeSwitch'
 import { InkCursor } from '../../flipbook/components/InkCursor'
 import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
@@ -10,6 +11,7 @@ import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
+import { useDrawMode } from '../../flipbook/drawModes'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
 import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
@@ -42,13 +44,19 @@ export function CreatePage() {
 	const { search } = useLocation()
 	const asked = remixSource(search)
 
+	// Which answer to "a finger is opaque" is switched on. Scaffolding: see
+	// `drawModes.ts` for the ten of them, and `DrawModeSwitch` for how one is picked.
+	const drawMode = useDrawMode()
+
 	/*
-	 * Everywhere a finger may aim from, which is the whole page rather than the drawing.
+	 * Everywhere a finger may aim from, which in the default mode is the whole page
+	 * rather than the drawing.
 	 *
 	 * The cursor is nudged rather than placed — see `PointerLayer` — so it doesn't care
 	 * where the nudge comes from, and on a phone the band of white under the tools is
 	 * where a thumb already is and is the only part of this page nothing else wants.
-	 * Controls standing on it keep their own touches.
+	 * Controls standing on it keep their own touches. The modes that mark at the fingertip
+	 * ignore this and keep to the drawing; the layer decides, not this file.
 	 */
 	const field = useRef<HTMLElement | null>(null)
 
@@ -226,6 +234,10 @@ export function CreatePage() {
 				/>
 			</SiteHeader>
 
+			{/* Scaffolding, and above everything so it stays reachable in all ten modes —
+			    including the two that park a magnifier under the top edge of the window. */}
+			<DrawModeSwitch mode={drawMode} />
+
 			<main className={contentClass} ref={field}>
 				{engine && state ? (
 					<PageStrip
@@ -320,7 +332,13 @@ export function CreatePage() {
 						    put the standing cursor back in the middle of the page every time, for
 						    the reason the layer's own effect gives. */}
 						{state && phase === 'drawing' ? (
-							<InkCursor engine={engine} canvasRef={canvasRef} tool={state.tool} fieldRef={field} />
+							<InkCursor
+								engine={engine}
+								canvasRef={canvasRef}
+								tool={state.tool}
+								mode={drawMode}
+								fieldRef={field}
+							/>
 						) : null}
 
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
@@ -370,7 +388,12 @@ export function CreatePage() {
 					) : null}
 
 					{engine && state ? (
-						<CreateTray engine={engine} state={state} stowed={phase !== 'drawing'} />
+						<CreateTray
+							engine={engine}
+							state={state}
+							stowed={phase !== 'drawing'}
+							mode={drawMode}
+						/>
 					) : null}
 
 					<div className={styles.footer}>

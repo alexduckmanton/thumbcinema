@@ -1,6 +1,7 @@
 /*
  * The pointer, over the drawing: a ring the size of the stroke, or one of four shapes
- * saying what the transform tool would grab.
+ * saying what the transform tool would grab — and, in the two drawing modes that have
+ * one, the loupe at the bottom of this file.
  *
  * Both are positioned against `.book`, which is exactly the size the canvas is being
  * shown at — so a percentage here is a percentage of the artwork, and the ring can be
@@ -94,9 +95,35 @@
 }
 
 /*
- * There was a loupe here: an 80px circle floating above the fingertip, showing the
- * drawing under it at twice the size. It went with the mode it belonged to. A magnifier
- * is what you need when the mark lands under the finger making it, and the cursor
- * standing away from the hand is the answer that won — with nothing under the finger to
- * see, there is nothing to magnify.
+ * The loupe: the drawing under the finger, repeated above it at twice the size.
+ *
+ * Only two of the ten drawing modes have one — v1, which is what the tool shipped with,
+ * and v3, which pins it in a corner. A magnifier is the answer to a mark landing under
+ * the finger making it, so the modes where the cursor stands away from the hand have
+ * nothing for it to do: with nothing under the finger to see, there is nothing to
+ * magnify.
+ *
+ * A circle rather than a rectangle because what it shows is centred rather than framed —
+ * the middle of it is the thing being aimed at, and corners would suggest an area that
+ * mattered. The hairline is the same one the ring wears; the shadow is the card's,
+ * because this is a small sheet of paper held over a larger one and every other sheet on
+ * this site is lit that way.
+ *
+ * Above the site header, which is the highest thing on the page at 100 and the only thing
+ * this ever reaches. The loupe is allowed to hang off the top of the paper to stay above
+ * the finger — see `liftAbove`, which is the whole reason it gets that far up the window
+ * — and drawing near the top of a phone's canvas put it behind the wordmark. A magnifier
+ * that goes behind something is not showing you what is under your finger.
  */
+.loupe {
+	position: absolute;
+	z-index: 101;
+	width: 80px;
+	height: 80px;
+	transform: translate(-50%, -50%);
+	border: 1px solid rgba(34, 34, 34, 0.12);
+	border-radius: 50%;
+	background: var(--white);
+	box-shadow: var(--shadow-card);
+	pointer-events: none;
+}
