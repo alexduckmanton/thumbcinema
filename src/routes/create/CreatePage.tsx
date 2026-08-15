@@ -417,7 +417,16 @@ export function CreatePage() {
 					    there a stage" is then one measurement rather than a media query
 					    written out again in JavaScript. */}
 					{isZoomStageMode(drawMode) && phase === 'drawing' ? (
-						<ZoomStage layer={layer} canvasRef={canvasRef} tool={state?.tool ?? null} />
+						<ZoomStage
+							layer={layer}
+							canvasRef={canvasRef}
+							tool={state?.tool ?? null}
+							// The same photo the paper is showing, under the same condition — so
+							// the two either both have it or neither does. It is drawn into the
+							// stage rather than laid over it: see `paintTrace`.
+							photo={showTrace ? photo : null}
+							placing={placing}
+						/>
 					) : null}
 
 					<div className={styles.footer}>

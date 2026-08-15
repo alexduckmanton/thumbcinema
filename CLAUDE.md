@@ -1444,6 +1444,21 @@ own because v11 shares none of the machinery the other ten do.
   page's own units. The outline, the magnified copy and where a finger lands in the
   artwork are three readings of those four, so there is one thing to be right about rather
   than three.
+- **The trace photograph is drawn into the stage, not laid over it.** On the paper the
+  picture is a sibling of the canvas with `mix-blend-mode: multiply`, and it can be,
+  because the paper *is* the whole page and a layer can simply cover it. Down here the
+  stage is a window on the page, so the photo has to go through the placement and then
+  through the window, with only the part inside it drawn — `paintTrace` does that with the
+  same transform chain `.plate` states in CSS, in the page's own units, and clips to the
+  sheet because the paper's layer is `overflow: hidden`. A DOM layer would need every one
+  of those numbers anyway and would then be a second thing able to disagree with the copy
+  underneath it about where the page is. `fittedSize` is the one expression both surfaces
+  size the picture from; a photo that sat at one size on the paper and another in the
+  stage is a photo you cannot trace. Verified rather than eyeballed: with the photo
+  dragged, scaled 1.84× and turned 12.5°, fifty points sampled across the window all land
+  in the part of the picture the paper's own transform puts there. The blend is the same
+  arithmetic too — `(1−α)·dst + α·blend(src, dst)` is what CSS and a canvas both do — so
+  the ink stays as dark as it was drawn down here as well.
 - **The stage is a copy, not a second drawing.** One `drawImage` per frame out of the live
   canvas — the loupe's mechanism at a larger size — and a finger's position handed back
   through the same window the other way. So there is nothing here for the save path, the
@@ -1657,7 +1672,10 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   the same rectangle, but only one of them is a rectangle anything else can be drawn
   around: `object-fit` letterboxes inside the element's box, so the box stays the frame and
   there is nowhere to hang an outline but around the whole sheet. The frame is 16:9 at every
-  width, so the fit is two `min`s and needs nothing measured.
+  width, so the fit is two `min`s and needs nothing measured. It is `fittedSize` in
+  `engine/trace.ts` rather than an expression here, because **three things read it**: the
+  picture, the dashed outline, and v11's magnified stage, which draws the same photograph
+  into a canvas from the same numbers.
 - **It is stronger while it is being placed** — 55% against 30% — because a third is what
   you want to draw *against* and is not what you want to aim with. Lining a photograph up
   by its edges at 30% over white is guesswork.
@@ -1707,6 +1725,12 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   `HIDPI_PAGE_LIMIT` already lives under, and iOS enforces its canvas allowance by
   *blanking* canvases rather than by failing. Anything past 24 is dropped and said so in
   plain words rather than silently.
+
+**And v11 draws it a second time.** The picture stays a pair of DOM layers over the paper
+— nothing here goes near the artwork, and that is the decision the whole feature is built
+on — but the zoom stage is a canvas showing a window on the page, so it composites the same
+photograph itself from the same placement. Placing is still the paper's: you drag and pinch
+it up there, and the stage follows. See **v11** above.
 
 **Two things about the picture itself.**
 

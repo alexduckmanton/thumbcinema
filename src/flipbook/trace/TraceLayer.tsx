@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { TAP_SLOP, TAP_TIME } from '../pointer'
-import type { Placement, TracePhoto } from '../engine/trace'
+import { fittedSize, type Placement, type TracePhoto } from '../engine/trace'
 import { type Point, dragged, pinched } from './geometry'
 import styles from './TraceLayer.module.css'
 
@@ -265,11 +265,11 @@ export function TraceLayer({ photo, placing, onPlaced, onAccept }: TraceLayerPro
 	} as React.CSSProperties
 
 	// `object-fit: contain`, done in numbers so the dashed outline can be drawn at the
-	// same two percentages. The frame is 16:9 at every width — see `Scene.pinCoordinates`
-	// — so this needs nothing measured.
-	const ratio = photo.width / photo.height
-	const width = `${Math.min(1, ratio / (16 / 9)) * 100}%`
-	const height = `${Math.min(1, 16 / 9 / ratio) * 100}%`
+	// same two percentages — and so that v11's magnified stage can draw the same picture
+	// at the same size from the same expression. See `fittedSize`.
+	const fit = fittedSize(photo)
+	const width = `${fit.width * 100}%`
+	const height = `${fit.height * 100}%`
 
 	return (
 		<>

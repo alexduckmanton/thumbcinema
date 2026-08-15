@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CENTRED, type TracePhoto, type TracePhotos, sameTrace } from './trace'
+import { CENTRED, fittedSize, type TracePhoto, type TracePhotos, sameTrace } from './trace'
 
 const photo = (url: string, placement = CENTRED): TracePhoto => ({
 	url,
@@ -46,5 +46,51 @@ describe('sameTrace', () => {
 	 */
 	it('notices a photo handed to a different page', () => {
 		expect(sameTrace({ 1: photo('a') }, { 2: photo('a') })).toBe(false)
+	})
+})
+
+/*
+ * The one expression two surfaces size the same photograph from — the DOM layer over the
+ * paper, and v11's magnified stage, which draws it into a canvas. They agree only while
+ * this does, so it is worth pinning rather than trusting.
+ */
+describe('fittedSize', () => {
+	it('fills the frame exactly when the photo is already 16:9', () => {
+		expect(fittedSize({ width: 1600, height: 900 })).toEqual({ width: 1, height: 1 })
+	})
+
+	it('is bound by the height when the photo is squarer than the frame', () => {
+		// 4:3 into 16:9: full height, and three quarters of the width.
+		expect(fittedSize({ width: 1200, height: 900 })).toEqual({ width: 0.75, height: 1 })
+	})
+
+	it('is bound by the width when the photo is wider than the frame', () => {
+		// 32:9 into 16:9: full width, and half the height.
+		expect(fittedSize({ width: 3200, height: 900 })).toEqual({ width: 1, height: 0.5 })
+	})
+
+	it('never overflows the frame, whatever shape the photo is', () => {
+		const shapes: ReadonlyArray<readonly [number, number]> = [
+			[4000, 30],
+			[30, 4000],
+			[1, 1],
+			[1920, 1080],
+			[3024, 4032],
+		]
+
+		for (const [width, height] of shapes) {
+			const fit = fittedSize({ width, height })
+			expect(fit.width).toBeGreaterThan(0)
+			expect(fit.height).toBeGreaterThan(0)
+			expect(fit.width).toBeLessThanOrEqual(1)
+			expect(fit.height).toBeLessThanOrEqual(1)
+			// And it is a *fit*: one of the two axes is filled, or the photo would float.
+			expect(Math.max(fit.width, fit.height)).toBeCloseTo(1, 10)
+		}
+	})
+
+	it('answers rather than dividing by a picture with no size', () => {
+		expect(fittedSize({ width: 0, height: 0 })).toEqual({ width: 1, height: 1 })
+		expect(fittedSize({ width: 100, height: 0 })).toEqual({ width: 1, height: 1 })
 	})
 })

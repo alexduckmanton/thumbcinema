@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
+import { fittedSize, type TracePhoto } from '../engine/trace'
 import type { ModalToolId } from '../engine/tools/types'
 import type { PointerLayer } from '../pointer'
 import { useCursor } from '../usePointerLayer'
@@ -14,6 +15,15 @@ export interface ZoomStageProps {
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Null while a page animation holds the tools. */
 	tool: ModalToolId | null
+	/**
+	 * The photograph this page is being traced over, if there is one and the paper is
+	 * showing it. Null is "draw nothing", which covers no photo, a flipbook still
+	 * arriving and a flipbook playing — the same condition the paper's own layer is
+	 * rendered under, handed down rather than worked out again.
+	 */
+	photo: TracePhoto | null
+	/** True while it is being placed, which is the one thing that changes how it looks. */
+	placing: boolean
 }
 
 /**
@@ -43,7 +53,7 @@ export interface ZoomStageProps {
  * round. Below `MIN_STAGE_HEIGHT`, or on a layout where the stylesheet hides this
  * outright, `measureStage` reports no stage at all and v11 falls back to v2.
  */
-export function ZoomStage({ layer, canvasRef, tool }: ZoomStageProps) {
+export function ZoomStage({ layer, canvasRef, tool, photo, placing }: ZoomStageProps) {
 	const host = useRef<HTMLDivElement | null>(null)
 	const canvas = useRef<HTMLCanvasElement | null>(null)
 	const { view } = useStage()
@@ -112,11 +122,44 @@ export function ZoomStage({ layer, canvasRef, tool }: ZoomStageProps) {
 		}
 	}, [])
 
+	/*
+	 * The photograph, as something `drawImage` will take.
+	 *
+	 * A second `Image` on the same object URL as the one `TraceLayer` renders, rather than
+	 * reaching across the tree for its `<img>`: the URL is already in memory, so the
+	 * browser serves this out of its cache and decodes once. Rebuilt only when the *url*
+	 * changes — a placement changes sixty times a second during a pinch and none of those
+	 * is a different picture.
+	 */
+	const picture = useRef<HTMLImageElement | null>(null)
+	const url = photo?.url ?? null
+
+	useEffect(() => {
+		if (!url) {
+			picture.current = null
+			return
+		}
+
+		const image = new Image()
+		image.src = url
+		picture.current = image
+
+		return () => {
+			picture.current = null
+		}
+	}, [url])
+
 	// Read by the frame loop rather than closed over, so a pinch — which changes this
 	// sixty times a second — doesn't tear down and rebuild the loop on every frame of
 	// itself. Same bargain `InkCursor` makes with the pointer.
 	const showing = useRef(view)
 	showing.current = view
+
+	// And the same for the photo's placement, for exactly the same reason: a drag on the
+	// paper writes it straight onto the DOM without going through React, and the stage has
+	// to follow that at the same rate.
+	const trace = useRef<{ photo: TracePhoto; placing: boolean } | null>(null)
+	trace.current = photo ? { photo, placing } : null
 
 	/*
 	 * One frame of the copy, every frame.
@@ -131,7 +174,10 @@ export function ZoomStage({ layer, canvasRef, tool }: ZoomStageProps) {
 
 		let frame = 0
 		const draw = () => {
-			paint(canvas.current, canvasRef.current, showing.current)
+			paint(canvas.current, canvasRef.current, showing.current, {
+				picture: picture.current,
+				...trace.current,
+			})
 			frame = requestAnimationFrame(draw)
 		}
 		draw()
@@ -168,6 +214,7 @@ function paint(
 	stage: HTMLCanvasElement | null,
 	source: HTMLCanvasElement | null,
 	view: Viewport | null,
+	trace: Trace,
 ): void {
 	if (!stage || !source || !view || source.width === 0) return
 
@@ -192,7 +239,100 @@ function paint(
 		stage.width,
 		stage.height,
 	)
+
+	paintTrace(context, stage, view, trace)
 }
+
+/**
+ * The photograph being traced over, in the stage, at the size and place the paper has it.
+ *
+ * **Drawn here rather than laid over the canvas in the DOM**, which is how the paper does
+ * it. Up there the picture is a sibling of the canvas with `mix-blend-mode: multiply`, and
+ * it can be, because the paper is the whole page and the layer can simply cover it. Down
+ * here the stage is a *window* on the page: the photo has to be transformed by the same
+ * placement and then by the window, and only the part inside the window drawn. A DOM layer
+ * would need every one of those numbers anyway, and would then be a second thing that
+ * could disagree with the copy underneath it about where the page is.
+ *
+ * The transform chain is the paper's, in the paper's own units, read from the outside in:
+ * the window maps project units onto this canvas, the placement is
+ * `translate(t) rotate(θ) scale(s)` about the frame's centre — which is exactly what
+ * `.plate` does and what `pinched` solves against — and the picture is drawn centred at
+ * `fittedSize`, which is the one expression both surfaces size it from.
+ *
+ * `multiply` at the layer's own opacity, which is the same arithmetic CSS does: a
+ * separable blend mode composited with source alpha is `(1−α)·dst + α·blend(src, dst)`,
+ * whichever of the two applies it. Over white paper that is the photo washed out to a
+ * third; over a black stroke it is black however bright the photo is — which is the whole
+ * reason the paper blends rather than fades, and it has to hold down here or the stage
+ * would be showing a lighter drawing than the one being made.
+ */
+function paintTrace(
+	context: CanvasRenderingContext2D,
+	stage: HTMLCanvasElement,
+	view: Viewport,
+	{ picture, photo, placing }: Trace,
+): void {
+	if (!picture || !photo || !picture.complete || picture.naturalWidth === 0) return
+
+	// Backing-store pixels per project unit. Both axes, because rounding the canvas to
+	// whole device pixels leaves the two a hair apart and a photo drawn at the mean of
+	// them would sit a fraction off the ink it is under.
+	const kx = stage.width / view.w
+	const ky = stage.height / view.h
+
+	const fit = fittedSize(photo)
+	const width = fit.width * CANVAS_WIDTH
+	const height = fit.height * CANVAS_HEIGHT
+	const at = photo.placement
+
+	context.save()
+
+	context.scale(kx, ky)
+	context.translate(-view.x, -view.y)
+
+	// The paper's own layer is `overflow: hidden` on the sheet — a photo dragged off the
+	// side leaves at the edge of the page rather than out across it — and the stage has to
+	// clip in the same place or a window at the edge of the page would show picture where
+	// the paper shows none.
+	context.beginPath()
+	context.rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+	context.clip()
+
+	context.translate(
+		CANVAS_WIDTH / 2 + at.x * CANVAS_WIDTH,
+		CANVAS_HEIGHT / 2 + at.y * CANVAS_HEIGHT,
+	)
+	context.rotate((at.rotation * Math.PI) / 180)
+	context.scale(at.scale, at.scale)
+
+	context.globalCompositeOperation = 'multiply'
+	// Stronger while it is being placed, exactly as the paper's is: a third is what you
+	// draw against and is not what you line a photograph up by.
+	context.globalAlpha = placing ? PLACING_OPACITY : TRACE_OPACITY
+	context.drawImage(picture, -width / 2, -height / 2, width, height)
+
+	context.restore()
+}
+
+interface Trace {
+	/** The decoded picture, or null when there is nothing to draw. */
+	picture?: HTMLImageElement | null
+	photo?: TracePhoto
+	placing?: boolean
+}
+
+/**
+ * The two opacities the paper uses, restated here because a canvas cannot read a
+ * stylesheet.
+ *
+ * The one place in this feature where a number is written down twice — `.frame` and
+ * `.placing` in `TraceLayer.module.css` are the other copy. Kept as named constants next
+ * to the code that needs them rather than threaded through as props, and worth a glance if
+ * either of those rules is ever retuned.
+ */
+const TRACE_OPACITY = 0.3
+const PLACING_OPACITY = 0.55
 
 /**
  * The outline on the paper: which part of the page the stage is showing.
