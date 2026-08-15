@@ -721,8 +721,14 @@ export class PointerLayer {
  * Everything on this page that takes a press is one of these: the tray's six buttons,
  * the page bar's two arrows and its slider, every thumbnail in the page strip, and undo,
  * redo and save. What is left over is the drawing and the air around it.
+ *
+ * `[data-owns-touch]` is the same statement made by something that isn't a control: the
+ * trace photo's placing field, which covers the whole sheet while a photograph is being
+ * moved about on it and drives its own pinch. A gesture there is not aiming — the cursor
+ * has nothing to do with it — so this layer stands down entirely and leaves the events
+ * to bubble, propagation and default included. See `TraceLayer`.
  */
-const CONTROLS = 'button, a, input, select, textarea, [role="slider"]'
+const CONTROLS = 'button, a, input, select, textarea, [role="slider"], [data-owns-touch]'
 
 /**
  * What counts as a tap of a finger on the glass: a press that goes nowhere, quickly.

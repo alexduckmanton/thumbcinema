@@ -1,5 +1,6 @@
 import { PENCIL_COLOR } from './constants'
 import type { Scene } from './scene'
+import type { TracePhotos } from './trace'
 
 /**
  * Undo and redo.
@@ -68,11 +69,26 @@ export type Op =
  * on the page you asked for it from, and redoing it puts you on the blank one.
  * They're page ids, so a step that names a page it has just taken away simply doesn't
  * find it — which is the signal to stand in the slot the page left.
+ *
+ * `trace` is the trace photos on either side of the step, and it is present only on the
+ * steps that changed them: taking one, moving one, removing one, and the page operations
+ * that hand a photo to a different page or take its page away. Three things about it:
+ *
+ *  - **It is the whole map, both directions, rather than a diff or a swap.** The same
+ *    argument the ink makes one line up — a state cannot be subtly wrong — except that
+ *    here it is nearly free: the map is a handful of entries of a URL and four numbers,
+ *    where a page of ink is megabytes. It is held both ways round rather than swapped in
+ *    place because there is nothing to read back out of the store cheaply enough to be
+ *    worth the asymmetry.
+ *  - **Absent means "leave them alone", not "empty".** Every drawing gesture records a
+ *    step with no `trace` on it, and undoing a stroke must not put a photo back.
+ *  - **`weighStep` ignores it**, as it ignores a `move`. The budget is about ink.
  */
 export interface Step {
 	ops: Op[]
 	forward: number
 	back: number
+	trace?: { before: TracePhotos; after: TracePhotos }
 }
 
 /**

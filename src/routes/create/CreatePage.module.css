@@ -77,17 +77,23 @@
  *
  * The row is in the markup twice and shown once — this is the phone's copy, and
  * `.actionsTop` below is the desktop's. See `EditActions` for why it is done that way
- * round.
+ * round. It leads with a fifth disc the desktop's hasn't got: the camera, which is the
+ * whole of the trace-photo feature's front door and exists only at this width.
  *
- * 6px rather than the 8 the desktop's row uses, and the difference is arithmetic rather
- * than taste. Four 48px discs and the save button are 320px of the footer's 328 on the
- * narrowest layout that still gets this one — a 360px Android phone, whose column is the
- * window less two 16px gutters. At 8px the four of them touch the save button; at 6 they
- * clear it, and the two rows are never on screen together to be compared.
+ * 4px rather than the 8 the desktop's row uses, and the difference is arithmetic rather
+ * than taste. The narrowest layout that gets this row at full size is a 360px Android
+ * phone, whose column is the window less two 16px gutters — 328px, of which "Save" set
+ * in Pecita at 30px inside 26px of padding either side measures 110. That leaves 218 for
+ * the discs, and five 38px discs 4px apart are 206 of it: 12px clear of the save button,
+ * against the 11 the four-disc row this replaces had.
+ *
+ * The 38 is why there is a whole media query for it below rather than a number here —
+ * `.actionsTop` shares `.action` and stays at 48, having only four of them and a header
+ * to itself.
  */
 .actions {
 	display: flex;
-	gap: 6px;
+	gap: 4px;
 }
 
 /* The desktop's copy, up in the header's actions. Off here, where the footer has it. */
@@ -152,6 +158,25 @@
 .action:focus-visible {
 	outline: 2px solid var(--blue);
 	outline-offset: 3px;
+}
+
+/*
+ * The camera, while the photo it took is still in hand.
+ *
+ * The one disc in this row that is a state rather than a press, so it is the one that
+ * needs to look pressed — and while it does, what it does is "done", which is a
+ * different thing from what it does the rest of the time. The tray's tools say the same
+ * thing by sliding down out of the row; there is nowhere for a disc pinned to the bottom
+ * of the window to slide to, so it takes the ink instead.
+ *
+ * After the hover rule rather than before it, and the second selector is not decoration:
+ * `.action:not(:disabled):hover` outweighs a bare class, so a lit disc under a mouse
+ * would otherwise go grey — which reads as the state having been let go of.
+ */
+.actionOn,
+.actionOn:not(:disabled):hover {
+	background: var(--ink-strong);
+	color: var(--white);
 }
 
 /*
@@ -279,35 +304,57 @@
 }
 
 /*
- * A phone too narrow for five controls at full size.
+ * The phone layout's discs, which are five where the desktop's are four.
  *
- * Four 48px discs and the 110px save button want 320px, and a 320px screen gives the
- * column 288 of it — so the row overran the paper it is supposed to end with, and took
- * the save button off the right-hand edge of the screen with it. Nothing above 360px is
- * affected, which is every phone still sold; what this is for is the 320px ones that
- * aren't. A 280px folding phone's cover screen still overruns by 16, and is left to:
- * the paper there is 264px wide, which is past the point where any of this is a drawing
- * tool rather than a demonstration that it loads.
+ * 48px is the size a disc wants to be and is the size the header's row up there still
+ * is; down here the camera button made a five-across row out of a four-across one, and
+ * 48 stopped fitting. The arithmetic is on `.actions` above: 38 is the largest size at
+ * which five of them plus "Save" still clear each other by the width of a gutter inside
+ * the 328px column a 360px phone gives, which is the narrowest layout this block holds.
  *
- * The diet is the one the sideways layout already takes, and it is stated again rather
- * than shared because that block is about *height* and brings a smaller reserve and a
- * right-aligned bar with it, neither of which a tall narrow phone wants. Same numbers:
- * 40px discs and a 40px save button, which is 264 of the 288 there is.
+ * Stated as its own query rather than as the base value because `.action` is shared with
+ * `.actionsTop`, which has four discs, a header to itself and no reason to shrink.
  */
-@media screen and (max-width: 359px) {
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.action {
-		width: 40px;
-		height: 40px;
+		width: 38px;
+		height: 38px;
 	}
 
 	.actionGlyph {
 		font-size: 22px;
 	}
+}
+
+/*
+ * A phone too narrow for five controls at that size either.
+ *
+ * Five 38px discs and the 88px save button want 294px, and a 320px screen gives the
+ * column 288 of it — so the row runs into the button it is supposed to end short of, and
+ * takes it off the right-hand edge of the screen with it. Nothing above 360px is affected, which is every phone still sold; what this is
+ * for is the 320px ones that aren't. A 280px folding phone's cover screen still overruns,
+ * and is left to: the paper there is 264px wide, which is past the point where any of
+ * this is a drawing tool rather than a demonstration that it loads.
+ *
+ * The diet is the one the sideways layout also takes, and it is stated again rather than
+ * shared because that block is about *height* and brings a smaller reserve and a
+ * right-aligned bar with it, neither of which a tall narrow phone wants. Same numbers: 36px
+ * discs and a 36px save button, which is 276 of the 288 there is.
+ */
+@media screen and (max-width: 359px) {
+	.action {
+		width: 36px;
+		height: 36px;
+	}
+
+	.actionGlyph {
+		font-size: 20px;
+	}
 
 	/* The discs' height, still — see the note on the sideways rule. */
 	.saveButton {
-		height: 40px;
-		padding: 0 20px;
+		height: 36px;
+		padding: 0 18px;
 		font-size: 24px;
 	}
 
@@ -347,8 +394,10 @@
 	 * the paper's left-hand edge. There is nothing under the page actions at the other
 	 * end, so that is where the whole bar goes.
 	 *
-	 * It fits: four 40px discs, 6px apart, plus 12px and an 86px save button is 276px of
-	 * the 290 the drawing is wide on the shortest landscape phone there is.
+	 * It fits, but only just, and the camera button is what made it tight: five 36px discs,
+	 * 4px apart, plus 10px and an 80px save button is 286px of the 290 the drawing is wide
+	 * on the shortest landscape phone there is. The gap between the two groups came down
+	 * from 12 to buy the last four pixels of that.
 	 *
 	 * This layout has always done something of the kind: the rule it replaces put the
 	 * save button on the right to keep it off the width popover, which used to lie down
@@ -357,12 +406,12 @@
 	 */
 	.footer {
 		justify-content: flex-end;
-		gap: 12px;
+		gap: 10px;
 	}
 
 	.saveButton {
-		height: 40px;
-		padding: 0 20px;
+		height: 36px;
+		padding: 0 18px;
 		font-size: 24px;
 	}
 
@@ -373,12 +422,12 @@
 	/* The save button's height, still — they stand in a row and a disc taller than the
 	   thing beside it reads as the more important of the two. */
 	.action {
-		width: 40px;
-		height: 40px;
+		width: 36px;
+		height: 36px;
 	}
 
 	.actionGlyph {
-		font-size: 22px;
+		font-size: 20px;
 	}
 }
 

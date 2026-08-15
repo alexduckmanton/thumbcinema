@@ -51,6 +51,13 @@ export function InkCursor({ engine, canvasRef, tool, fieldRef }: InkCursorProps)
 	 * One layer for the life of the page, not one per tool. Rebuilding it to change a
 	 * setting would drop whatever gesture was in flight and put the standing cursor back
 	 * in the middle of the page.
+	 *
+	 * Which is why this component stays mounted even when it draws nothing — with no tool
+	 * in hand there is no cursor, and `shown` below is false, but the layer is still the
+	 * only subscriber to `setToolPressed`. On a phone the tray is driven by touch and
+	 * calls `preventDefault()`, so there is no click behind it: unmount this and the three
+	 * tools stop responding altogether. See the create page, where a trace photo being
+	 * placed is exactly that state.
 	 */
 	useEffect(() => {
 		const canvas = canvasRef.current

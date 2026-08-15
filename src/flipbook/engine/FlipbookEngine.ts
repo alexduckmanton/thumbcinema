@@ -13,6 +13,7 @@ import { History, type Op, type Step } from './history'
 import { type PageState, settledPageCount } from './pages'
 import { encodeThumbnail } from './png'
 import { type PaperCore, Scene } from './scene'
+import { CENTRED, type Placement, type TracePhoto, type TracePhotos, sameTrace } from './trace'
 import { Selection } from './selection'
 import { EraserTool } from './tools/eraser'
 import { DEFAULT_PENCIL_WIDTH, PencilTool } from './tools/pencil'
@@ -84,6 +85,30 @@ export interface FlipbookState {
 	 * been allowed since 2013 and `busy` covers those too. See `PointerLayer.engage`.
 	 */
 	reordering: boolean
+
+	/**
+	 * The photograph each page is being traced over, by page id. See `engine/trace.ts`.
+	 *
+	 * The engine holds these rather than React, and the reason is every page operation
+	 * below: a photo has to stay with the frame it was placed on when a page is inserted
+	 * before it, travel with that frame when it is dragged elsewhere, leave when it is
+	 * deleted, and come back when the delete is undone. React could mirror all of that
+	 * and would be wrong about one of them within a week.
+	 *
+	 * What is *not* here is the picture. That is a DOM layer over the canvas — see
+	 * `TraceLayer` — and no part of a trace photo ever reaches the scene, a page
+	 * thumbnail, the printed booklet or the save.
+	 */
+	trace: TracePhotos
+
+	/**
+	 * True while the photo on the active page is in hand rather than lying on it.
+	 *
+	 * The tool is put down for the length of it — a photograph being moved about is not
+	 * a moment to also be drawing, and a tray showing a tool selected says the drawing is
+	 * live when it isn't — and every page operation settles it. See `settleTrace`.
+	 */
+	tracePlacing: boolean
 }
 
 export interface EngineOptions {
@@ -130,6 +155,9 @@ export class FlipbookEngine {
 	/** Held while alt or shift is down; the transform tool reads them on every event. */
 	private modifiers = { alt: false, shift: false }
 
+	/** The tool put down while a trace photo is in hand, to be given back. See `settleTrace`. */
+	private toolBeforeTrace: ModalToolId | null = null
+
 	/** `paperCore` is passed in rather than imported — see the note on `PaperCore`. */
 	constructor(canvas: HTMLCanvasElement, options: EngineOptions, paperCore: PaperCore) {
 		this.mode = options.mode
@@ -162,6 +190,8 @@ export class FlipbookEngine {
 			loadProgress: 0,
 			busy: false,
 			reordering: false,
+			trace: {},
+			tracePlacing: false,
 		})
 
 		this.history.onChange(() => {
@@ -403,6 +433,11 @@ export class FlipbookEngine {
 	 * and the previous tool did the work.
 	 */
 	selectTool(id: ModalToolId): void {
+		// Reaching for a tool is done with the photo: it settles, and the tool asked for
+		// wins over the one that was put down to make room for it.
+		this.toolBeforeTrace = null
+		if (this.store.snapshot.tracePlacing) this.store.set({ tracePlacing: false })
+
 		if (this.store.snapshot.tool === id) return
 
 		this.activeTool?.deactivate()
@@ -733,8 +768,247 @@ export class FlipbookEngine {
 		const landed = pages[landing]
 		if (landed && !this.thumbnails.has(landed.id)) this.owedThumbnails.add(landed.id)
 
-		this.store.set({ pages, activePage: landing, arriving: false })
+		// The trace photos travel with the step rather than being recomputed from it:
+		// whole map, both directions, and absent on every step that didn't touch them.
+		// See `Step.trace`. Put down first, because what a step restores is a drawing
+		// with nothing held on it — a photograph included.
+		this.settleTrace()
+		const trace = step.trace
+			? direction === 'undo'
+				? step.trace.before
+				: step.trace.after
+			: this.store.snapshot.trace
+
+		this.store.set({ pages, activePage: landing, arriving: false, trace })
 		this.captureActivePage()
+	}
+
+	// --- the trace photo -----------------------------------------------------
+
+	/**
+	 * The photograph the page being drawn on is being traced over, if there is one.
+	 *
+	 * The engine holds these because everything that can happen to one is a page
+	 * operation: a photo has to stay with the frame it was placed on when a page is
+	 * inserted before it, go with that frame when it is dragged somewhere else, leave
+	 * when it is deleted, and come back when the delete is undone. React could mirror all
+	 * of that and would be wrong about one of them within a week.
+	 *
+	 * What is *not* here is the picture. See `TraceLayer`: it is a DOM layer over the
+	 * canvas, blended into it, and no part of a trace photo is ever written into the
+	 * scene, a page thumbnail, the printed booklet or the save.
+	 */
+	get tracePhoto(): TracePhoto | null {
+		const id = this.activePageId
+		return id === null ? null : (this.store.snapshot.trace[id] ?? null)
+	}
+
+	private get activePageId(): number | null {
+		return this.store.snapshot.pages[this.store.snapshot.activePage]?.id ?? null
+	}
+
+	/**
+	 * A photograph has arrived from the camera: it lands centred on this page, in hand.
+	 *
+	 * One step on the undo stack, and it replaces whatever was on this page — which is
+	 * what "take a different photo" is. The step carries the whole map both ways round,
+	 * so undoing it puts the previous photo back rather than merely clearing this one.
+	 */
+	setTracePhoto(photo: TracePhoto): void {
+		const id = this.activePageId
+		if (id === null) return
+
+		const before = this.store.snapshot.trace
+		const after = { ...before, [id]: { ...photo, placement: CENTRED } }
+
+		this.store.set({ trace: after })
+		this.history.record({ ops: [], forward: id, back: id, trace: { before, after } })
+
+		this.pickUpTrace()
+	}
+
+	/**
+	 * A batch of photographs, laid out one per frame from this one onwards.
+	 *
+	 * What a multi-select is for: shoot a sequence, choose the lot, and get a frame for
+	 * each of them with its reference already in place. Frames are made as the batch runs
+	 * off the end of the flipbook, so choosing eight photos on a one-page flipbook leaves
+	 * you with eight pages.
+	 *
+	 * Four things are deliberate:
+	 *
+	 *  - **One step in the history, however many photos.** A batch is one thing you did,
+	 *    and undoing it eight times to get back to where you were is not undo. The step
+	 *    carries a `page` op per frame it made and the whole trace map either side of it,
+	 *    which between them are the entire operation.
+	 *  - **The pages are inserted instantly rather than thrown.** `addBlankPage` plays a
+	 *    750ms animation, and eight of those in a row is six seconds of the strip
+	 *    cartwheeling. This is the same instant insert `applyStep` uses to put a page back.
+	 *  - **Nothing lands in hand, where a single photo does.** "In hand" is an offer to
+	 *    place *this* one, and there is no sensible answer to which of eight that would be.
+	 *    They all land centred and fitted, and pressing the camera on any frame picks that
+	 *    one up.
+	 *  - **You stay where you are.** The first photo is on the frame you were already on,
+	 *    which is the one you are about to draw.
+	 */
+	addTracePhotos(photos: readonly TracePhoto[]): void {
+		if (photos.length === 0) return
+		const [only] = photos
+		if (photos.length === 1 && only) {
+			this.setTracePhoto(only)
+			return
+		}
+
+		// A page mid-flight is no place to be splicing pages in. The picker is modal and
+		// takes seconds, so by the time a batch arrives nothing is animating; this is the
+		// guard rather than the expected case.
+		if (this.store.snapshot.busy) return
+		this.pause()
+
+		this.settleTrace()
+		this.selection.clear()
+		this.captureActivePage()
+
+		const start = this.store.snapshot.activePage
+		const pages = [...this.store.snapshot.pages]
+		const before = this.store.snapshot.trace
+		const after: Record<number, TracePhoto> = { ...before }
+		const ops: Op[] = []
+
+		for (const [offset, photo] of photos.entries()) {
+			let page = pages[start + offset]
+
+			if (!page) {
+				// Off the end of the flipbook: make a frame for it. Appended, so the index
+				// is the length both here and in the scene, which stay in step.
+				const index = pages.length
+				this.scene.insertPageAt(index)
+				page = { id: this.nextPageId++, segments: 0 }
+				pages.push(page)
+				ops.push({
+					kind: 'page',
+					added: true,
+					pageId: page.id,
+					index,
+					ink: this.history.inkOf(index),
+				})
+			}
+
+			after[page.id] = { ...photo, placement: CENTRED }
+		}
+
+		const here = pages[start]?.id ?? this.nextPageId
+		this.store.set({ pages, trace: after })
+		this.history.record({ ops, forward: here, back: here, trace: { before, after } })
+
+		this.refreshOnion()
+		this.scene.redraw()
+	}
+
+	/**
+	 * Where a gesture left the photo.
+	 *
+	 * One step per gesture, exactly as a stroke is — recorded here rather than as the
+	 * fingers move, because a pinch is one thing you did and fifty steps of it is a
+	 * history nobody can walk back through.
+	 */
+	placeTracePhoto(placement: Placement): void {
+		const id = this.activePageId
+		if (id === null) return
+
+		const before = this.store.snapshot.trace
+		const held = before[id]
+		if (!held) return
+
+		const after = { ...before, [id]: { ...held, placement } }
+		if (sameTrace(before, after)) return
+
+		this.store.set({ trace: after })
+		this.history.record({ ops: [], forward: id, back: id, trace: { before, after } })
+	}
+
+	/** Takes the photo off this page. Undoable, and it settles whatever was in hand. */
+	removeTracePhoto(): void {
+		const id = this.activePageId
+		if (id === null) return
+
+		const before = this.store.snapshot.trace
+		if (!before[id]) return
+
+		const after = { ...before }
+		delete after[id]
+
+		this.store.set({ trace: after, tracePlacing: false })
+		this.history.record({ ops: [], forward: id, back: id, trace: { before, after } })
+		this.giveToolBack()
+	}
+
+	/** Picks the photo on this page back up, so it can be moved again. */
+	beginTracePlacing(): void {
+		if (!this.tracePhoto) return
+		this.pickUpTrace()
+	}
+
+	/**
+	 * Puts the photo down and gives the tool back.
+	 *
+	 * Called by everything that is plainly not "still placing this": turning a page,
+	 * adding, duplicating or deleting one, picking a page up to move it, pressing play,
+	 * loading a flipbook, and — through `selectTool`, which does its own version — asking
+	 * for a tool. Nothing is recorded, because the placement was recorded at the end of
+	 * the gesture that made it.
+	 */
+	settleTrace(): void {
+		if (!this.store.snapshot.tracePlacing) return
+		this.store.set({ tracePlacing: false })
+		this.giveToolBack()
+	}
+
+	/**
+	 * The photo comes up and the tool goes down.
+	 *
+	 * A tool in hand while a photograph is being moved about under it is two things
+	 * answering the same finger, and the tray showing one selected says the drawing is
+	 * live when it isn't. It is handed back on the way out — unless the way out was
+	 * reaching for a different tool, which is its own answer. See `selectTool`.
+	 */
+	private pickUpTrace(): void {
+		if (!this.store.snapshot.tracePlacing) {
+			this.toolBeforeTrace = this.store.snapshot.tool
+			this.putToolDown()
+		}
+		this.store.set({ tracePlacing: true })
+	}
+
+	private giveToolBack(): void {
+		const tool = this.toolBeforeTrace
+		this.toolBeforeTrace = null
+		if (tool) this.selectTool(tool)
+	}
+
+	/**
+	 * No tool at all, which `selectTool` cannot express.
+	 *
+	 * That one falls back to the pencil when `init()` refuses, and an id of null looks
+	 * exactly like a refusal to it — so asking it for "nothing" hands back a pencil.
+	 */
+	private putToolDown(): void {
+		if (this.store.snapshot.tool === null) return
+		this.activeTool?.deactivate()
+		this.store.set({ tool: null, transformIndex: 0 })
+		this.scene.redraw()
+	}
+
+	/**
+	 * The trace photos on either side of a page operation, or nothing if it left them
+	 * alone — which is most operations.
+	 *
+	 * Handed to `history.record` so that undoing a delete brings the page's photo back
+	 * with its ink, in the same step and therefore in the same press.
+	 */
+	private traceDelta(before: TracePhotos): { before: TracePhotos; after: TracePhotos } | undefined {
+		const after = this.store.snapshot.trace
+		return sameTrace(before, after) ? undefined : { before, after }
 	}
 
 	// --- pages ---------------------------------------------------------------
@@ -755,6 +1029,9 @@ export class FlipbookEngine {
 	 */
 	private beginPageChange(): boolean {
 		if (this.store.snapshot.busy) return false
+
+		// Adding, duplicating or deleting a page is done with the photo on this one.
+		this.settleTrace()
 
 		if (this.store.snapshot.playback !== 'none') {
 			this.pause()
@@ -813,17 +1090,37 @@ export class FlipbookEngine {
 
 		const from = this.scene.activePage
 		const original = this.store.snapshot.pages[from]
+		const traceBefore = this.store.snapshot.trace
 		this.scene.duplicatePage(from)
 
 		// The copy takes the current page's place; you carry on drawing on the original.
 		const source = this.thumbnailFor(from)
 		const id = this.insertPageState(from, original?.segments ?? 0, source)
+
+		/*
+		 * The trace photo stays in the slot it was placed in, which is now the copy.
+		 *
+		 * Duplicating is how you carry a drawing on to the next frame, and the copy is
+		 * the frame you were just tracing — it holds the same ink, in the same place, at
+		 * the index the photo was lined up against. The original moves along to become
+		 * the *next* frame and arrives clean, ready for the next pose. Without this the
+		 * photo travels with the page id, which is the original, and reads as having
+		 * jumped forwards onto the new frame while the one you traced loses its
+		 * reference.
+		 */
+		if (original && traceBefore[original.id]) {
+			const trace = { ...traceBefore, [id]: traceBefore[original.id] as TracePhoto }
+			delete trace[original.id]
+			this.store.set({ trace })
+		}
+
 		this.history.record({
 			ops: [{ kind: 'page', added: true, pageId: id, index: from, ink: this.history.inkOf(from) }],
 			// The active page doesn't move: the copy went in underneath it. So both
 			// directions land on the page you were drawing on, which is still this one.
 			forward: original?.id ?? id,
 			back: original?.id ?? id,
+			trace: this.traceDelta(traceBefore),
 		})
 		this.refreshOnion()
 
@@ -854,6 +1151,7 @@ export class FlipbookEngine {
 		// the time the page is actually removed the drawing on it is the only part of
 		// this the history can't reconstruct.
 		const ink = this.history.inkOf(index)
+		const traceBefore = this.store.snapshot.trace
 
 		// Marked from the moment it starts to fall. It has to stay in the list to be
 		// rendered on its way out, but it stops counting towards the flipbook now —
@@ -934,10 +1232,21 @@ export class FlipbookEngine {
 		this.scene.removePage(index)
 		this.thumbnails.delete(doomed.id)
 
+		// The page's trace photo goes with it, and comes back with it: the step below
+		// carries the map both ways round, so one press of undo restores the drawing and
+		// the photograph it was traced from together.
+		const trace = { ...this.store.snapshot.trace }
+		delete trace[doomed.id]
+
 		// The arriving page has landed exactly where the canvas is, so handing the
 		// slot back to it — which hides its thumbnail — can't be seen happening.
 		const remaining = this.store.snapshot.pages.filter((page) => page.id !== doomed.id)
-		this.store.set({ pages: remaining, activePage: this.scene.activePage, arriving: false })
+		this.store.set({
+			pages: remaining,
+			activePage: this.scene.activePage,
+			arriving: false,
+			trace,
+		})
 
 		for (const undo of pinned) undo()
 		this.setBusy(false)
@@ -961,7 +1270,12 @@ export class FlipbookEngine {
 				ink: this.history.inkOf(index),
 			})
 		}
-		this.history.record({ ops, forward: replacing ? replacementId : siblingId, back: doomed.id })
+		this.history.record({
+			ops,
+			forward: replacing ? replacementId : siblingId,
+			back: doomed.id,
+			trace: this.traceDelta(traceBefore),
+		})
 
 		this.refreshOnion()
 		this.scene.redraw()
@@ -988,6 +1302,7 @@ export class FlipbookEngine {
 		if (busy || loading || playback !== 'none') return false
 		if (settledPageCount(pages) < 2) return false
 
+		this.settleTrace()
 		this.selection.clear()
 		this.captureActivePage()
 		this.store.set({ busy: true, reordering: true })
@@ -1045,6 +1360,10 @@ export class FlipbookEngine {
 		if (index < 0 || index >= this.pageCount) return
 		if (index === this.scene.activePage) return
 
+		// The photo belongs to the page it was placed on, so turning the page puts it
+		// down rather than carrying it — and rather than leaving it in hand behind a
+		// drawing it is no longer over.
+		this.settleTrace()
 		this.selection.clear()
 		this.scene.setActivePage(index, { playing: this.store.snapshot.playback !== 'none' })
 		// The history is not reset here, as the one-step snapshot was: it belongs to the
@@ -1093,6 +1412,9 @@ export class FlipbookEngine {
 		}
 		if (this.pageCount < 2) return
 
+		// Same reasoning as the selection below it: a photo left in hand while the
+		// flipbook runs is chrome standing over forty frames it belongs to one of.
+		this.settleTrace()
 		this.clearSelection()
 		this.stopPlayback()
 		this.store.set({ playback: 'play' })
@@ -1392,6 +1714,11 @@ export class FlipbookEngine {
 				pages: pages.length ? pages : [{ id: this.nextPageId++, segments: 0 }],
 				loading: false,
 				loadProgress: 1,
+				// The pages these belonged to are gone — a load replaces the flipbook
+				// outright — and a photo keyed against an id nobody holds any more would
+				// simply never be shown again.
+				trace: {},
+				tracePlacing: false,
 			})
 
 			// A restored flipbook is where the session starts, not something to be

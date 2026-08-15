@@ -1,0 +1,117 @@
+/*
+ * What to do with the photo already on this page.
+ *
+ * An action sheet rather than a dialogue in the middle of the window: the button that
+ * raises it is in the bottom-left corner, the choices are all about the picture behind
+ * the sheet, and the drawing is the thing you want to still be able to see while
+ * choosing. So it stands off the bottom edge where the thumb already is, and the wash
+ * over the rest of the page is light enough to read the flipbook through.
+ */
+
+/* Focused on the way in — see the note in the component — so it must not draw a ring
+   of its own either. */
+.scrim:focus {
+	outline: none;
+}
+
+.scrim {
+	position: fixed;
+	inset: 0;
+	z-index: 40;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	padding: 16px;
+	padding-bottom: calc(16px + env(safe-area-inset-bottom));
+	background: rgba(34, 34, 34, 0.4);
+	animation: fade 0.15s ease-out;
+}
+
+/* The dim over the drawing, and the "none of those" you can press. It is the whole
+   window rather than the scrim's own background so that the sheet can sit above it. */
+.wash {
+	position: absolute;
+	inset: 0;
+	border: none;
+	background: none;
+	cursor: default;
+}
+
+.sheet {
+	position: relative;
+	width: 100%;
+	max-width: 420px;
+	margin: 0 auto;
+}
+
+/*
+ * The three choices, as one card of rows.
+ *
+ * A card rather than three separate buttons because they are one question with three
+ * answers; Cancel is a separate card underneath for the same reason — it answers a
+ * different question, which is "none of those".
+ */
+.group {
+	overflow: hidden;
+	border-radius: 14px;
+	background: var(--white);
+	box-shadow: var(--shadow-card);
+}
+
+.choice {
+	display: block;
+	width: 100%;
+	padding: 16px;
+	border: none;
+	background: none;
+	color: var(--ink-strong);
+	font-size: 17px;
+	line-height: 1.3;
+	text-align: center;
+	cursor: pointer;
+}
+
+.choice + .choice {
+	border-top: 1px solid var(--page);
+}
+
+.choice:hover {
+	background: var(--page);
+}
+
+.choice:active {
+	background: #e6e6e6;
+}
+
+.choice:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: -2px;
+}
+
+/* Taking somebody's reference away is the one choice here that cannot be undone — the
+   history knows nothing about these — so it is coloured like the delete it is. */
+.destructive {
+	color: #d3202f;
+}
+
+/* Applied alongside `.choice` in the markup rather than composed from it: this is the
+   same row in a card of its own. */
+.cancel {
+	margin-top: 8px;
+	border-radius: 14px;
+	background: var(--white);
+	box-shadow: var(--shadow-card);
+	font-weight: 600;
+}
+
+@keyframes fade {
+	from {
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.scrim {
+		animation: none;
+	}
+}
