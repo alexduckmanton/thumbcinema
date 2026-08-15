@@ -37,7 +37,16 @@ export const MIN_STAGE_HEIGHT = 64
  */
 export const MAX_ZOOM = 4
 
-/** Where a fresh stage starts: the middle of the page at twice life size. */
+/**
+ * Where a fresh stage starts, which is not the same question for the two modes that have
+ * one — so it is the caller's answer rather than a constant. See `startingZoom`.
+ *
+ * v11 opens at twice life size, because the paper above it is showing the whole page and
+ * a stage that opened at 1× would be a second copy of the same view. v12 opens at the
+ * whole page, because it *is* the page: there is nothing else to find your bearings in,
+ * and a drawing tool that starts somewhere you didn't ask to be is a drawing tool you
+ * have to un-zoom before you can start.
+ */
 export const DEFAULT_ZOOM = 2
 
 /**
@@ -78,9 +87,9 @@ export function clampViewport(view: Viewport, aspect: number): Viewport {
 	}
 }
 
-/** The middle of the page at `DEFAULT_ZOOM`, or as near to it as the limits allow. */
-export function defaultViewport(aspect: number): Viewport {
-	const w = CANVAS_WIDTH / DEFAULT_ZOOM
+/** The middle of the page at `zoom`, or as near to it as the limits allow. */
+export function defaultViewport(aspect: number, zoom = DEFAULT_ZOOM): Viewport {
+	const w = CANVAS_WIDTH / zoom
 	const h = w / aspect
 
 	return clampViewport({ w, h, x: (CANVAS_WIDTH - w) / 2, y: (CANVAS_HEIGHT - h) / 2 }, aspect)
@@ -209,7 +218,7 @@ export function stageElement(): HTMLElement | null {
  * your place because the address bar collapsed would be the same bug the page strip
  * avoids by measuring rather than stating its pitch.
  */
-export function measureStage(box: Box): void {
+export function measureStage(box: Box, zoom = DEFAULT_ZOOM): void {
 	const current = store.snapshot
 	// Nothing has changed, so nothing is written. Not an optimisation: this is called from
 	// a `ResizeObserver`, and a write here is a React render, which is a layout, which is
@@ -226,7 +235,10 @@ export function measureStage(box: Box): void {
 
 	const aspect = box.width / box.height
 	const previous = current.view
-	store.set({ box, view: previous ? clampViewport(previous, aspect) : defaultViewport(aspect) })
+	store.set({
+		box,
+		view: previous ? clampViewport(previous, aspect) : defaultViewport(aspect, zoom),
+	})
 }
 
 /** The stage is going away — the mode was switched off, or the page left. */

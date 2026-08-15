@@ -11,6 +11,7 @@ import {
 	isRelativeMode,
 	isTimedMode,
 	isZoomStageMode,
+	stageOnPaper,
 	TRAIL_DISTANCE,
 } from './drawModes'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
@@ -389,6 +390,13 @@ export class PointerLayer {
 
 		const element = stageElement()
 		if (element?.contains(target)) return 'stage'
+
+		// v12 has no overview: its stage stands in the paper's place and covers it, so
+		// nothing on the paper is anybody's but the stage's. Said outright rather than left
+		// to the stage's box happening to reach every corner — the `book` branch drags a
+		// window that mode hasn't got, and a gap in the covering would find it.
+		if (stageOnPaper(this.mode)) return null
+
 		return this.book.contains(target) ? 'book' : null
 	}
 
@@ -752,22 +760,27 @@ export class PointerLayer {
 	// --- the zoom stage ------------------------------------------------------
 
 	/*
-	 * v11, which is the one mode whose answer is a second canvas rather than a different
+	 * v11 and v12, the two modes whose answer is a zoomed canvas rather than a different
 	 * gesture, and whose touch handling is therefore a different shape from every other
 	 * mode's rather than a branch inside it.
 	 *
-	 * Two surfaces, and each does exactly one job. The **stage** — the magnified canvas in
-	 * the band under the tools — is where you draw, one finger, directly under the
-	 * fingertip, which is v2's rule; what makes it answer the occlusion problem is that
-	 * the drawing under the finger is two to four times life size, so the tip covers
-	 * proportionally less of it. The **paper** above is the whole page with an outline on
-	 * it saying which part the stage is showing, and a finger up there moves that outline
-	 * and makes no mark at all.
+	 * The **stage** is where you draw: one finger, directly under the fingertip, which is
+	 * v2's rule. What makes it answer the occlusion problem is that the drawing under the
+	 * finger is up to four times life size, so the tip covers proportionally less of it.
+	 * Two fingers on it pinch and pan the window.
 	 *
-	 * Two fingers on either surface resize the window, and the two read in opposite
-	 * senses on purpose: see `zoomViewport`. Nothing here goes near `others`, `holdTimer`
-	 * or the standing cursor — v11 shares none of that machinery, and interleaving it
-	 * with the code above would make both harder to follow than keeping them apart.
+	 * That much is both modes. What differs is the *other* surface. In v11 the stage is a
+	 * second canvas in the band under the tools, and the **paper** above it is the whole
+	 * page with an outline saying which part the stage is showing — a finger up there
+	 * moves that outline and makes no mark at all, and a pinch up there reads in the
+	 * opposite sense, because the thing under your fingers is the rectangle rather than
+	 * the drawing (see `zoomViewport`). In v12 the stage stands in the paper's own place
+	 * and there is no overview at all, so `surfaceOf` never answers `book` and everything
+	 * below that deals with the paper is simply never reached.
+	 *
+	 * Nothing here goes near `others`, `holdTimer` or the standing cursor — neither mode
+	 * shares that machinery, and interleaving it with the code above would make both
+	 * harder to follow than keeping them apart.
 	 */
 
 	private zoomTouchStart(event: TouchEvent): void {
@@ -796,6 +809,23 @@ export class PointerLayer {
 
 		this.surface = surface
 		this.gesture = this.open(touch, surface === 'stage', false, this.boxOf(surface))
+
+		/*
+		 * Two fingers in one event, which is a pinch that never had a one-finger phase.
+		 *
+		 * A browser is allowed to report several contacts as changed in a single
+		 * `touchstart` and some do — anything that synthesises touch certainly does. Opened
+		 * here rather than left to the second finger's own event, because otherwise the
+		 * extra contacts are simply dropped and the gesture goes on being a stroke: two
+		 * fingers landing together would draw rather than pinch, and nothing would ever
+		 * correct it. Doing it before `engage` is also what means there is no dot to take
+		 * back off the page afterwards.
+		 */
+		const second = Array.from(event.changedTouches).find((t) => t.identifier !== touch.identifier)
+		if (second) {
+			this.beginPinch(this.gesture, second)
+			return
+		}
 
 		// The stage marks from the frame it is touched, which is v2's rule and the whole
 		// of what this mode takes from it. The paper only ever moves the window.

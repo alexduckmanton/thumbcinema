@@ -127,6 +127,21 @@
 }
 
 /*
+ * Hidden while v12's zoomed stage is standing in front of it.
+ *
+ * paper goes on rendering into this canvas exactly as it always has — a hidden element
+ * still has a backing store, which is what the stage copies from and what the page strip
+ * photographs — so nothing about the drawing, the thumbnails or the save knows this
+ * happened. `visibility` rather than `opacity`, for two reasons that are both the point:
+ * a hidden element is not a hit target, so paper's own `mousedown` on this canvas can
+ * never fire while something else is driving the tools; and it casts no shadow, which is
+ * why the stage carries the paper's.
+ */
+.staged {
+	visibility: hidden;
+}
+
+/*
  * A flipbook that hasn't arrived.
  *
  * It replaced a blue screen with a spinner on it, which hid the flipbook behind a

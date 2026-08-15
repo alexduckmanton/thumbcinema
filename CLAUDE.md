@@ -72,8 +72,8 @@ src/
       FlipbookEngine.ts  the façade React drives
     usePageReorder.ts the reorder gesture, and the settle at the end of it
     pointer.ts        a finger, and what it does to the cursor and the tool
-    drawModes.ts      the answers to "a finger is opaque", numbered v1–v11
-    zoomStage.ts      v11's window on the page: the maths, and where it is kept
+    drawModes.ts      the answers to "a finger is opaque", numbered v1–v12
+    zoomStage.ts      v11 and v12's window on the page: the maths, and where it is kept
     trace/            the photo you trace over. No paper.js here either.
       geometry.ts     what a drag and a pinch do to a placement
       useTracePhoto.ts the camera, the decode, and the object URLs
@@ -1172,7 +1172,7 @@ is now true at both widths and the differences are called out where they exist.
 
   There is also a **loupe**: 80px, twice life size, floating above the fingertip and
   allowed to hang off the top of the paper to stay there, or pinned in whichever top
-  corner the finger isn't. It belongs to two of the eleven drawing modes and is drawn by
+  corner the finger isn't. It belongs to two of the twelve drawing modes and is drawn by
   nothing else — a magnifier is the answer to a mark landing under the finger making it,
   and the default puts the cursor somewhere else entirely, so with nothing under the
   finger to see there is nothing to magnify. See **Drawing with a finger**.
@@ -1231,11 +1231,11 @@ is now true at both widths and the differences are called out where they exist.
 
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
-separate families and no consensus — so rather than pick one blind, eleven of them are
+separate families and no consensus — so rather than pick one blind, twelve of them are
 built behind a switch in the corner of the create page and drawn with side by side: a
 follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
 over on half a second of stillness, four that move the cursor off the fingertip
-altogether, and one that leaves the finger where it is and magnifies the drawing under it
+altogether, and two that leave the finger where it is and magnify the drawing under it
 instead. `drawModes.ts` is the list and where each one comes from; `DrawModeSwitch` is the
 switch; `pointer.ts` is nearly all of the mechanism, and `zoomStage.ts` is the last one's
 own.
@@ -1250,7 +1250,7 @@ next number rather than displacing anybody. The caption under the switch is perm
 and leads with the number, because a mode you can't name is a mode you can't report on.
 They are grouped rather than ordered by history: **v1–v5 keep the finger as the pointer**,
 **v6–v10 stand the cursor away from the hand** and differ only in how the tool is told to
-start working, and **v11 moves the canvas instead of the cursor** — see below.
+start working, and **v11 and v12 move the canvas instead of the cursor** — see below.
 
 **v10 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
 rather than "whichever is last in the list". The rest of this section describes v10; the
@@ -1273,7 +1273,7 @@ contacts the browser reports as having moved.
 
 Things worth knowing before touching anything nearby:
 
-- **paper drives no touch here at all**, and in seven of the eleven modes it drives none.
+- **paper drives no touch here at all**, and in eight of the twelve modes it drives none.
   paper 0.12 is single-pointer by construction — it reads `targetTouches[0]`, has one drag
   in flight and no notion of a pointer id — so it cannot see a second contact, and it
   works at the *fingertip*, which in those six is neither the cursor nor anywhere on the
@@ -1424,10 +1424,18 @@ way. It differs in one measurable respect: a stroke includes the point the gestu
 opened at, where a paper-driven one's first segment is the first `onMouseDrag` — about
 7px in.
 
-### v11, which moves the canvas instead of the cursor
+### v11 and v12, which move the canvas instead of the cursor
 
-The one mode whose answer is a **layout** rather than a gesture, and the odd one out in
-every list above. The page carries two canvases. The **paper** is the whole drawing at the
+The two modes whose answer is a **layout** rather than a gesture, and the odd ones out in
+every list above. Both put the drawing under the finger at up to four times life size, so
+the fingertip covers proportionally less of it — the answer photo editors and CAD tools
+reached for long before anybody tried a magnifier. They share `zoomStage.ts`, the section
+of `PointerLayer` that owns their gestures, and the paint loop in `ZoomStage`; what differs
+is only whether there is an overview.
+
+#### v11: two canvases
+
+The page carries two canvases. The **paper** is the whole drawing at the
 size it has always been, with a rectangle on it saying which part is magnified; you don't
 draw there. The **stage** is a second canvas in the band under the tools, showing the
 inside of that rectangle blown up, and it is the surface you draw on — one finger,
@@ -1531,6 +1539,51 @@ own because v11 shares none of the machinery the other ten do.
   what tells them which cursor is theirs, and `--span` on the ring is how the same
   three-unit pencil draws four times the size down there, which is the truth about the
   mark it is about to make.
+#### v12: one canvas, which is the page
+
+The same window with the overview taken away. One canvas, in the place the drawing has
+always been: **two fingers pinch and pan it, one finger draws in it.** Nothing else about
+the column changes — the strip, the page bar, the tray and the footer are at the pixel
+they are in every other mode, measured.
+
+- **It starts at the whole page, where v11 starts at 2×.** With no second view to find
+  your bearings in, arriving already magnified would be arriving somewhere you didn't ask
+  to be — so until you pinch, v12 *is* v2, and the first stroke of a session lands exactly
+  where a finger touched. `startingZoom` is the difference and it is the mode's answer
+  rather than a constant; `defaultViewport` takes it.
+- **The live canvas is still the drawing, and is hidden.** paper renders into it exactly
+  as always — a hidden element still has a backing store, which is what the stage copies
+  from and what the page strip photographs — so the artwork, the thumbnails, the history
+  and the save know nothing about any of this. `visibility` rather than `opacity` for two
+  reasons that are both the point: a hidden element is not a hit target, so paper's own
+  `mousedown` on that canvas can never fire while something else drives the tools; and it
+  casts no shadow, which is why the stage carries the paper's.
+- **`surfaceOf` never answers `book` here**, said outright rather than left to the stage's
+  box happening to cover every corner. The `book` branch drags a window this mode hasn't
+  got, and a gap in the covering would find it.
+- **Two fingers in one `touchstart` open a pinch directly.** A browser may report several
+  contacts as changed in a single event and anything synthesising touch certainly does —
+  and without this the extras were dropped, so two fingers landing together drew instead of
+  pinching and nothing ever corrected it. Opening the pinch before `engage` is also what
+  means there is no dot to take back off the page afterwards.
+- **A trace photo is placed at 1×.** The stage and the placing layer are the same box up
+  here, and the placing layer's gestures are stated in the paper's own pixels — so a stage
+  showing a magnified window underneath it would have the photo moving at one rate and the
+  drawing at another. `suspended` stands the window back at the whole page for the length
+  of the placement and leaves the photograph to the DOM layer, which is what every other
+  mode does; the moment it settles the stage takes the photo back and the stored zoom
+  returns. The two are never both drawing it.
+- **Above the breakpoint it is v2**, by the same one condition v11 uses: the stylesheet
+  hides the stage, the measurement comes back empty, `stageView()` is null and the live
+  canvas is visible again.
+
+Measured rather than eyeballed: a mark drawn at 1× lands at project 70,70 for a touch at
+71,71; a pure two-finger drag of 30×18 screen pixels moves the drawing 8.38% and 8.96% of
+the paper where the fingers moved 8.38% and 8.94%, with the magnification unchanged to
+three figures; and a pinch out and back returns the mark to exactly the width it started
+at. A pinch that takes the fingers *through* each other ratchets against the zoom clamp —
+that is the clamp working, not a bug, and it is not a gesture a hand can make.
+
 ### Tracing over a photograph
 
 A sixth white disc at the left-hand end of the phone's footer takes a picture with the

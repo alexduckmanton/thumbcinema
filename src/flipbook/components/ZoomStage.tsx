@@ -24,6 +24,29 @@ export interface ZoomStageProps {
 	photo: TracePhoto | null
 	/** True while it is being placed, which is the one thing that changes how it looks. */
 	placing: boolean
+	/**
+	 * Where this stage is standing, which is the whole difference between v11 and v12.
+	 *
+	 * `band` is v11's: the leftover under the tools, with the paper above it showing the
+	 * whole page and an outline saying which part this is. `paper` is v12's: the stage
+	 * *is* the drawing, in the place the drawing has always been, with the live canvas
+	 * hidden underneath it and no overview anywhere.
+	 */
+	surface: 'band' | 'paper'
+	/** How far in it starts, which differs between the two. See `startingZoom`. */
+	startZoom: number
+	/**
+	 * Shows the whole page and leaves the photograph to the DOM layer over the paper.
+	 *
+	 * v12 only, and only while a trace photo is being placed. Up there the stage and the
+	 * placing layer are the same box, and the placing layer's gestures are stated in the
+	 * paper's own pixels — so a stage showing a magnified window underneath it would have
+	 * the photo moving at one rate and the drawing at another. Standing the window back at
+	 * 1× for the length of the placement makes the two agree without either of them
+	 * knowing about the other. The zoom is not *lost*: the window is drawn differently for
+	 * a moment, and the stored one comes back the instant the photo settles.
+	 */
+	suspended?: boolean
 }
 
 /**
@@ -53,7 +76,16 @@ export interface ZoomStageProps {
  * round. Below `MIN_STAGE_HEIGHT`, or on a layout where the stylesheet hides this
  * outright, `measureStage` reports no stage at all and v11 falls back to v2.
  */
-export function ZoomStage({ layer, canvasRef, tool, photo, placing }: ZoomStageProps) {
+export function ZoomStage({
+	layer,
+	canvasRef,
+	tool,
+	photo,
+	placing,
+	surface,
+	startZoom,
+	suspended = false,
+}: ZoomStageProps) {
 	const host = useRef<HTMLDivElement | null>(null)
 	const canvas = useRef<HTMLCanvasElement | null>(null)
 	const { view } = useStage()
@@ -70,6 +102,11 @@ export function ZoomStage({ layer, canvasRef, tool, photo, placing }: ZoomStageP
 	 * the page strip gives: a rectangle reports whatever transform is mid-flight, and a
 	 * layout box doesn't.
 	 */
+	// Read at measuring time rather than closed over: the effect runs once and the mode
+	// can only change by unmounting this, but a value read through a ref cannot go stale.
+	const zoom = useRef(startZoom)
+	zoom.current = startZoom
+
 	useEffect(() => {
 		const element = host.current
 		if (!element) return
@@ -79,7 +116,7 @@ export function ZoomStage({ layer, canvasRef, tool, photo, placing }: ZoomStageP
 		const read = () => {
 			const width = element.clientWidth
 			const height = element.clientHeight
-			measureStage({ width, height })
+			measureStage({ width, height }, zoom.current)
 
 			const dpr = Math.min(window.devicePixelRatio || 1, 3)
 			const next = { width: Math.round(width * dpr), height: Math.round(height * dpr) }
@@ -153,13 +190,13 @@ export function ZoomStage({ layer, canvasRef, tool, photo, placing }: ZoomStageP
 	// sixty times a second — doesn't tear down and rebuild the loop on every frame of
 	// itself. Same bargain `InkCursor` makes with the pointer.
 	const showing = useRef(view)
-	showing.current = view
+	showing.current = suspended && view ? { x: 0, y: 0, w: CANVAS_WIDTH, h: CANVAS_HEIGHT } : view
 
 	// And the same for the photo's placement, for exactly the same reason: a drag on the
 	// paper writes it straight onto the DOM without going through React, and the stage has
 	// to follow that at the same rate.
 	const trace = useRef<{ photo: TracePhoto; placing: boolean } | null>(null)
-	trace.current = photo ? { photo, placing } : null
+	trace.current = photo && !suspended ? { photo, placing } : null
 
 	/*
 	 * One frame of the copy, every frame.
@@ -186,7 +223,7 @@ export function ZoomStage({ layer, canvasRef, tool, photo, placing }: ZoomStageP
 	}, [canvasRef, store.width, store.height])
 
 	return (
-		<div className={styles.stage} ref={host}>
+		<div className={surface === 'paper' ? styles.onPaper : styles.stage} ref={host}>
 			{view ? (
 				<canvas ref={canvas} className={styles.canvas} width={store.width} height={store.height} />
 			) : null}

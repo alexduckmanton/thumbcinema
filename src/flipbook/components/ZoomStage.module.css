@@ -1,6 +1,7 @@
 /*
- * v11's second canvas, in the band under the tools, and the outline on the paper that
- * says which part of the page it is showing.
+ * The zoomed drawing surface: v11's second canvas in the band under the tools, with the
+ * outline on the paper that says which part of the page it is showing — and v12's, which
+ * is the same canvas standing in the paper's own place with no outline anywhere.
  *
  * Scaffolding, like the mode switch — this belongs to one of eleven answers to "a finger is
  * opaque" and goes if that answer loses — but unlike the switch it is dressed as part of
@@ -42,6 +43,34 @@
 	box-shadow: var(--shadow-card);
 	/* A stroke is never a scroll and never a pinch: the pinch here is ours. */
 	touch-action: none;
+}
+
+/*
+ * v12's, which is the same stage standing in the paper's place.
+ *
+ * No flex and nothing measured about its shape: it fills `.book`, so it is 16:9 and the
+ * window it shows is 16:9 with it — the one case where the rectangle's aspect is the
+ * page's own. It carries the paper's white, rounding and shadow because the canvas
+ * underneath it is `visibility: hidden` while this is up, and a hidden element casts no
+ * shadow; between them they are one sheet of paper, and only one of them is ever visible.
+ *
+ * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: over
+ * the page thumbnails at 9, under the cursor at 17 and under the trace photo's placing
+ * chrome at 17 — which is what lets a photograph be placed on top of it in the one mode
+ * where the two share a box.
+ */
+.onPaper {
+	position: absolute;
+	z-index: 15;
+	inset: 0;
+	border-radius: var(--radius-card);
+	background: var(--white);
+	box-shadow: var(--shadow-card);
+	/* A stroke is never a scroll, and two fingers here are a pinch of ours rather than
+	   the browser's. */
+	touch-action: none;
+	user-select: none;
+	-webkit-touch-callout: none;
 }
 
 /*
@@ -114,7 +143,8 @@
  * zoom control, which is a different feature.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
-	.stage {
+	.stage,
+	.onPaper {
 		display: none;
 	}
 }

@@ -33,17 +33,26 @@ import { Store, useStore } from '../lib/store'
  *    finger like a brush with long bristles, which both smooths the line and leaves it
  *    somewhere you can see it.
  *
- *  - **v11 stands apart from both**, and is the only one that changes the page rather
- *    than the gesture. There are two canvases: the paper, which is the whole page with a
- *    rectangle on it saying which part is magnified, and a second canvas in the empty
- *    band under the tools, which shows the inside of that rectangle blown up and is the
- *    one you draw on. The finger is still the pointer and the mark is still under the
- *    fingertip — that is v2 — but the drawing is bigger than the fingertip, so the tip
- *    covers proportionally less of it. It is the answer photo editors and CAD tools
- *    reached for long before magnifiers: don't move the cursor, move the canvas. The
- *    rectangle's shape is *measured* rather than stated, because the band's is: whatever
- *    the column has left over after the strip, the paper, the page bar and the tray have
- *    taken theirs. See `zoomStage.ts`.
+ *  - **v11 and v12 stand apart from both**, and are the only two that change the page
+ *    rather than the gesture. The finger is still the pointer and the mark is still under
+ *    the fingertip — that is v2 exactly — but the drawing is *bigger* than the fingertip,
+ *    so the tip covers proportionally less of it. It is the answer photo editors and CAD
+ *    tools reached for long before anybody tried a magnifier: don't move the cursor, move
+ *    the canvas.
+ *
+ *    **v11 shows both at once.** The paper is the whole page with a rectangle on it saying
+ *    which part is magnified, and a second canvas in the empty band under the tools shows
+ *    the inside of that rectangle blown up and is the one you draw on. The rectangle's
+ *    shape is *measured* rather than stated, because the band's is: whatever the column
+ *    has left over once the strip, the paper, the page bar and the tray have taken theirs.
+ *
+ *    **v12 is the same window with the overview taken away.** One canvas, in the place the
+ *    drawing has always been: two fingers pinch and pan it, one finger draws in it. What
+ *    it gives up is the view that shows everything; what it buys is a drawing surface the
+ *    full size of the paper rather than whatever was left over, which on a phone is nearly
+ *    twice the height. It starts at the whole page rather than magnified — with nothing
+ *    else to see the drawing in, arriving already zoomed would be arriving somewhere you
+ *    didn't ask to be — so until you pinch, v12 *is* v2. See `zoomStage.ts`.
  *
  *  - **v6–v10 give up on direct manipulation altogether**, and are the answer rather
  *    than a workaround: the cursor is a thing standing on the page, a finger anywhere
@@ -68,7 +77,19 @@ import { Store, useStore } from '../lib/store'
  * paper — paper has one drag in flight and reads `targetTouches[0]`, so a second finger
  * is invisible to it.
  */
-export type DrawMode = 'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8' | 'v9' | 'v10' | 'v11'
+export type DrawMode =
+	| 'v1'
+	| 'v2'
+	| 'v3'
+	| 'v4'
+	| 'v5'
+	| 'v6'
+	| 'v7'
+	| 'v8'
+	| 'v9'
+	| 'v10'
+	| 'v11'
+	| 'v12'
 
 export interface DrawModeInfo {
 	id: DrawMode
@@ -146,6 +167,12 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 		name: 'Zoom stage',
 		was: 'zoomStage',
 		hint: 'You draw in the second canvas under the tools, magnified. The rectangle on the paper says which part of it that is: drag it to move, or pinch either canvas to zoom.',
+	},
+	{
+		id: 'v12',
+		name: 'Pinch the page itself',
+		was: 'zoomPage',
+		hint: 'One finger draws. Two fingers pinch to zoom into the page and drag to pan around it. No second canvas — the drawing you are looking at is the one you are working in.',
 	},
 ]
 
@@ -226,7 +253,29 @@ export function isMultiTouchMode(mode: DrawMode): boolean {
  * here has to know what the media query says.
  */
 export function isZoomStageMode(mode: DrawMode): boolean {
-	return mode === 'v11'
+	return mode === 'v11' || mode === 'v12'
+}
+
+/**
+ * Whether the zoomed view *is* the paper, rather than a second canvas below it.
+ *
+ * v12, which is v11 with the overview taken away: the same window on the same page and
+ * the same gestures on it, drawn in the place the drawing has always been. What that
+ * costs is the view that shows everything — there is no second canvas saying where you
+ * are — and what it buys is that the surface you draw on is the full size of the paper
+ * rather than whatever the column had left, which on a phone is nearly twice the height.
+ *
+ * It also starts where every other mode does, at the whole page: with nothing else to
+ * see the drawing in, arriving already magnified would be arriving somewhere you didn't
+ * ask to be. Until you pinch, v12 *is* v2. See `DEFAULT_ZOOM` and `startingZoom`.
+ */
+export function stageOnPaper(mode: DrawMode): boolean {
+	return mode === 'v12'
+}
+
+/** How far in a mode's stage starts. v11 has the paper above it; v12 has nothing else. */
+export function startingZoom(mode: DrawMode): number {
+	return stageOnPaper(mode) ? 1 : 2
 }
 
 /**
