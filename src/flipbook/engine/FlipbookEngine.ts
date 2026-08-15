@@ -660,6 +660,11 @@ export class FlipbookEngine {
 		this.spend(this.history.takeUndo(), 'undo')
 	}
 
+	/** How many steps have ever been recorded. See `History.recorded`, and its one caller. */
+	get recordedSteps(): number {
+		return this.history.recorded
+	}
+
 	redo(): void {
 		if (this.store.snapshot.busy) return
 		this.spend(this.history.takeRedo(), 'redo')

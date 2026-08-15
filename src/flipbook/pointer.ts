@@ -920,14 +920,22 @@ export class PointerLayer {
 	 * A second finger arriving, which turns whatever was happening into a pinch.
 	 *
 	 * **A stroke it interrupted is taken back off the page, but only if it had just
-	 * started.** The two halves of that are separate judgements. A second finger landing
-	 * within a moment of the first is a pinch that the browser delivered as two events —
-	 * nobody puts two fingers down simultaneously — and the dot the first one left is not
-	 * a mark anybody asked for; the step exists by then, so undoing it is exact rather
-	 * than approximate, and it costs one entry on the redo stack. A second finger landing
-	 * a second later is somebody who has finished a stroke and now wants to zoom, and
-	 * throwing that stroke away would be much the worse mistake. So the stroke is always
-	 * *ended* and only sometimes undone.
+	 * started, and only if it actually put something there.** Three judgements, and the
+	 * third was a bug before it was a rule. A second finger landing within a moment of the
+	 * first is a pinch the browser delivered as two events — nobody puts two fingers down
+	 * simultaneously — and the dot the first one left is not a mark anybody asked for. A
+	 * second finger landing a second later is somebody who has finished a stroke and now
+	 * wants to zoom, and throwing that away would be much the worse mistake. So the stroke
+	 * is always *ended* and only sometimes undone.
+	 *
+	 * And the undo is aimed at this gesture's own step rather than at whatever is on top of
+	 * the stack. **A two-finger tap records nothing at all** — `History.commit` refuses a
+	 * step for a gesture that left the page as it found it, which a pencil put down and
+	 * lifted without moving does — so an undo issued on the strength of `canUndo` spent
+	 * itself on the *previous* stroke, and tapping the stage with two fingers wiped the
+	 * last thing you drew. `recordedSteps` only ever goes up, so comparing it across the
+	 * tick answers "did this gesture leave a step" exactly, where `canUndo` answered a
+	 * different question that happened to be true.
 	 *
 	 * Refusing the pinch until the hand comes off the glass was the other option and is
 	 * worse than both: it is a mode you cannot zoom while you are drawing in it.
@@ -935,18 +943,19 @@ export class PointerLayer {
 	private beginPinch(gesture: Gesture, second: Touch): void {
 		if (gesture.engaged) {
 			const brief = performance.now() - gesture.openedAt <= PINCH_GRACE
+			const recorded = this.engine.recordedSteps
 			this.disengage()
 
 			/*
-			 * A tick later, because that is when there is a step to take back.
+			 * A tick later, because that is when there is a step to take back — or not.
 			 * `handlePointerUp` commits on a `setTimeout(0)` of its own — paper dispatches
 			 * its own mouseup on the document and the stroke may not be finished when ours
-			 * lands — so an undo issued here reads `canUndo: false`, does nothing at all,
-			 * and the mark stays. Same delay, scheduled second, so it runs second.
+			 * lands — so an undo issued here would find nothing recorded yet. Same delay,
+			 * scheduled second, so it runs second and can see what the commit decided.
 			 */
 			if (brief) {
 				window.setTimeout(() => {
-					if (this.engine.store.snapshot.canUndo) this.engine.undo()
+					if (this.engine.recordedSteps > recorded) this.engine.undo()
 				}, 0)
 			}
 		}
