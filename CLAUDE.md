@@ -72,8 +72,8 @@ src/
       FlipbookEngine.ts  the façade React drives
     usePageReorder.ts the reorder gesture, and the settle at the end of it
     pointer.ts        a finger, and what it does to the cursor and the tool
-    drawModes.ts      the answers to "a finger is opaque", numbered v1–v12
-    zoomStage.ts      v11 and v12's window on the page: the maths, and where it is kept
+    drawModes.ts      the answers to "a finger is opaque", numbered v1–v13
+    zoomStage.ts      v11–v13's window on the page: the maths, and where it is kept
     trace/            the photo you trace over. No paper.js here either.
       geometry.ts     what a drag and a pinch do to a placement
       useTracePhoto.ts the camera, the decode, and the object URLs
@@ -1172,7 +1172,7 @@ is now true at both widths and the differences are called out where they exist.
 
   There is also a **loupe**: 80px, twice life size, floating above the fingertip and
   allowed to hang off the top of the paper to stay there, or pinned in whichever top
-  corner the finger isn't. It belongs to two of the twelve drawing modes and is drawn by
+  corner the finger isn't. It belongs to two of the thirteen drawing modes and is drawn by
   nothing else — a magnifier is the answer to a mark landing under the finger making it,
   and the default puts the cursor somewhere else entirely, so with nothing under the
   finger to see there is nothing to magnify. See **Drawing with a finger**.
@@ -1231,14 +1231,15 @@ is now true at both widths and the differences are called out where they exist.
 
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
-separate families and no consensus — so rather than pick one blind, twelve of them are
+separate families and no consensus — so rather than pick one blind, thirteen of them are
 built behind a switch in the corner of the create page and drawn with side by side: a
 follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
 over on half a second of stillness, four that move the cursor off the fingertip
-altogether, and two that leave the finger where it is and magnify the drawing under it
-instead. `drawModes.ts` is the list and where each one comes from; `DrawModeSwitch` is the
-switch; `pointer.ts` is nearly all of the mechanism, and `zoomStage.ts` is the last one's
-own.
+altogether, two that leave the finger where it is and magnify the drawing under it
+instead, and one that is both of those last two families at once depending on where you
+put your finger. `drawModes.ts` is the list and where each one comes from;
+`DrawModeSwitch` is the switch; `pointer.ts` is nearly all of the mechanism, and
+`zoomStage.ts` is the last three's own.
 
 **They are numbered `v1` upwards rather than named, and the numbers are the point.**
 These differ from each other by a *rule* rather than by a picture, and half of them look
@@ -1250,11 +1251,12 @@ next number rather than displacing anybody. The caption under the switch is perm
 and leads with the number, because a mode you can't name is a mode you can't report on.
 They are grouped rather than ordered by history: **v1–v5 keep the finger as the pointer**,
 **v6–v10 stand the cursor away from the hand** and differ only in how the tool is told to
-start working, and **v11 and v12 move the canvas instead of the cursor** — see below.
+start working, and **v11–v13 move the canvas instead of the cursor** — see below. v13 is
+the one that belongs to two groups at once, being v12 on the drawing and v10 off it.
 
 **v10 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
 rather than "whichever is last in the list". The rest of this section describes v10; the
-switch is scaffolding and the other nine are there to be compared against it.
+switch is scaffolding and the other twelve are there to be compared against it.
 (`tc:drawMode` is where the choice is remembered. It is the key the first testbed used and
 its values were names, so anything left over from then reads as unrecognised and falls
 back to the default — which is the same thing that happens to a mode that is later
@@ -1273,7 +1275,7 @@ contacts the browser reports as having moved.
 
 Things worth knowing before touching anything nearby:
 
-- **paper drives no touch here at all**, and in eight of the twelve modes it drives none.
+- **paper drives no touch here at all**, and in nine of the thirteen modes it drives none.
   paper 0.12 is single-pointer by construction — it reads `targetTouches[0]`, has one drag
   in flight and no notion of a pointer id — so it cannot see a second contact, and it
   works at the *fingertip*, which in those six is neither the cursor nor anywhere on the
@@ -1424,14 +1426,14 @@ way. It differs in one measurable respect: a stroke includes the point the gestu
 opened at, where a paper-driven one's first segment is the first `onMouseDrag` — about
 7px in.
 
-### v11 and v12, which move the canvas instead of the cursor
+### v11, v12 and v13, which move the canvas instead of the cursor
 
-The two modes whose answer is a **layout** rather than a gesture, and the odd ones out in
-every list above. Both put the drawing under the finger at up to four times life size, so
-the fingertip covers proportionally less of it — the answer photo editors and CAD tools
+The three modes whose answer is a **layout** rather than a gesture, and the odd ones out in
+every list above. All three put the drawing under the finger at up to four times life size,
+so the fingertip covers proportionally less of it — the answer photo editors and CAD tools
 reached for long before anybody tried a magnifier. They share `zoomStage.ts`, the section
 of `PointerLayer` that owns their gestures, and the paint loop in `ZoomStage`; what differs
-is only whether there is an overview.
+is whether there is an overview, and whether the space around the drawing does anything.
 
 #### v11: two canvases
 
@@ -1583,6 +1585,75 @@ the paper where the fingers moved 8.38% and 8.94%, with the magnification unchan
 three figures; and a pinch out and back returns the mark to exactly the width it started
 at. A pinch that takes the fingers *through* each other ratchets against the zoom clamp —
 that is the clamp working, not a bug, and it is not a gesture a hand can make.
+
+#### v13: v12 on the drawing, v10 everywhere else
+
+The same canvas and the same gestures on it, plus the band of white under the tools, where
+a finger nudges a cursor around the page and a second one down there sets it working. So
+the two families stop being rivals: **draw directly where the drawing is now big enough to
+draw directly on, and reach below it for the mark that has to land where your hand already
+is.** Nothing is visualised down there and nothing needs to be — the band is the empty part
+of the column, it is where a thumb already rests, and the only thing that moves when you
+touch it is the cursor up on the drawing.
+
+The point is that neither half answers the question on its own. Magnifying the page makes a
+mark big enough to place under a fingertip, which is most of the job and is no help at all
+with the mark that lands under the hand making it — the bottom edge of a stroke you are
+extending, a handle on the near side of a selection. Aiming from below has nothing to say
+about how big the mark is. `aimsOffStage` is the mode's whole predicate, and
+`--- v13's aiming band ---` in `pointer.ts` is the mechanism.
+
+- **A gesture belongs to the surface it opened on, and the two never mix.** `surfaceOf`
+  answers `stage` or `field` at the `touchstart` and the gesture is that for the rest of
+  its life, so a finger that starts below and slides up onto the drawing is still aiming
+  and a stroke that wanders off the bottom of the canvas is still a stroke. One gesture at
+  a time: a finger arriving on the other surface is swallowed. What that gives up is
+  drawing on the paper and aiming below it simultaneously, which is two hands doing
+  different things to the same drawing and is not a thing anybody asked for; what it buys
+  is that neither half has to know the other exists.
+- **The cursor is kept in the page's own units, not in pixels.** v6–v10 stand theirs on a
+  canvas showing the whole page, where the two are the same thing scaled; v13's stands on a
+  page being shown through a window that moves and resizes under it. In project units the
+  cursor stays on the part of the drawing it was put on when the window pans, and the zoom
+  decides how far a pixel of finger carries it — both of which are what a thing standing on
+  the page would do, and neither of which survives being stored as a position on the glass.
+  `stagePlace` is the inverse of `stagePoint` and is what puts it back on the glass to be
+  drawn; it is unit-tested as a round trip at every zoom.
+- **Which is also the whole of why the two halves compose.** The cursor moves 1:1 with the
+  finger *on the screen* at every magnification — measured at 1× and zoomed, in both
+  directions — because the window's scale cancels between the nudge and the drawing of it.
+  In *artwork* units it therefore moves four times less at 4×, so the same comfortable drag
+  places the mark four times as precisely. That falls out of holding the cursor in project
+  units rather than being arranged for.
+- **It is clamped to the window rather than to the page.** Clamping to the page is more
+  faithful to "a thing standing on the drawing" and is worse to use: a cursor you cannot
+  see is one you have to go and find, and the only way to find it is to pan back. Being
+  nudged along by the edge of the window costs nothing by comparison — it was going to be
+  moved before it was next used anyway. `clampCursor` runs after a pinch and after the
+  stage is re-measured.
+- **`onStageChanged` exists because the cursor has to be there before anything is
+  touched.** The stage is measured a frame or two after the page mounts, and v13's cursor
+  is published from `PointerLayer`'s store rather than the stage's — so without a
+  subscription there is no cursor at all until the first finger lands. It stands down while
+  a gesture is in flight, that path clamping and publishing for itself.
+- **A held tray tool engages only the aiming gesture.** `holdsTool` is v8's, v10's and now
+  v13's, but a stroke on the stage is the finger's own from end to end: a tool button
+  pressed part-way through one must neither claim to have started it nor end it on the way
+  back up, which is exactly what the release branch would otherwise do, the stroke being
+  `engaged` by then either way. `holdsAtCursor` is that one extra question.
+- **The mouse gets none of it.** `onStagePointerDown` refuses the `field` surface outright,
+  the same stand-down the relative modes make: a mouse has its own arrow and asking
+  somebody to shove a cursor about with a device that already points at things is testing a
+  different idea.
+- **Above the breakpoint it is v2**, by the same one condition v11 and v12 use — and with
+  no stage there is no field either, because `ownsTouch` falls back to the drawing alone.
+
+Measured on an iPhone 13: a drag in the band moves the cursor by exactly the finger's
+delta and marks nothing; the cursor survives the lift; a second finger down there draws
+(916 px) and either finger steers; a held pencil in the tray with one aiming finger draws
+(2267 px); a stroke drawn entirely from the band lands 1816 px of ink; the transform tool
+marqueed from the band selects (1060 blue px) and a bare tap down there puts it down again;
+and on the stage a one-finger stroke and a two-finger pinch behave exactly as v12's.
 
 ### Tracing over a photograph
 

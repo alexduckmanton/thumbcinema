@@ -33,7 +33,7 @@ import { Store, useStore } from '../lib/store'
  *    finger like a brush with long bristles, which both smooths the line and leaves it
  *    somewhere you can see it.
  *
- *  - **v11 and v12 stand apart from both**, and are the only two that change the page
+ *  - **v11 to v13 stand apart from both**, and are the only three that change the page
  *    rather than the gesture. The finger is still the pointer and the mark is still under
  *    the fingertip — that is v2 exactly — but the drawing is *bigger* than the fingertip,
  *    so the tip covers proportionally less of it. It is the answer photo editors and CAD
@@ -53,6 +53,15 @@ import { Store, useStore } from '../lib/store'
  *    twice the height. It starts at the whole page rather than magnified — with nothing
  *    else to see the drawing in, arriving already zoomed would be arriving somewhere you
  *    didn't ask to be — so until you pinch, v12 *is* v2. See `zoomStage.ts`.
+ *
+ *    **v13 is v12 with v10 bolted onto the space around it.** On the drawing it is v12
+ *    exactly: one finger marks under the fingertip, two pinch and pan. Off it — the band
+ *    of white under the tools, which is where a thumb already is and which nothing else
+ *    on the page wants — it is v10: a finger nudges a cursor standing on the page, and a
+ *    second finger down there, or a tool held in the tray, sets that cursor working. So
+ *    the two families are not rivals in it. Draw directly where the drawing is big
+ *    enough to draw directly on, and reach for the band when the mark has to land
+ *    somewhere your hand would be covering.
  *
  *  - **v6–v10 give up on direct manipulation altogether**, and are the answer rather
  *    than a workaround: the cursor is a thing standing on the page, a finger anywhere
@@ -90,6 +99,7 @@ export type DrawMode =
 	| 'v10'
 	| 'v11'
 	| 'v12'
+	| 'v13'
 
 export interface DrawModeInfo {
 	id: DrawMode
@@ -174,6 +184,12 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 		was: 'zoomPage',
 		hint: 'One finger draws. Two fingers pinch to zoom into the page and drag to pan around it. No second canvas — the drawing you are looking at is the one you are working in.',
 	},
+	{
+		id: 'v13',
+		name: 'Pinch the page, aim from below',
+		was: 'zoomPageAim',
+		hint: 'v12 on the drawing: one finger marks, two pinch and pan. Below it, v10: drag anywhere in the white to nudge the cursor around the page, and put a second finger down there — or hold a tool in the tray — to set it working.',
+	},
 ]
 
 /**
@@ -237,7 +253,7 @@ export function drivesAllTools(mode: DrawMode): boolean {
 
 /** Whether a gesture is opened and closed by fingers other than the steering one. */
 export function isMultiTouchMode(mode: DrawMode): boolean {
-	return mode === 'v9' || mode === 'v10'
+	return mode === 'v9' || mode === 'v10' || mode === 'v13'
 }
 
 /**
@@ -253,7 +269,7 @@ export function isMultiTouchMode(mode: DrawMode): boolean {
  * here has to know what the media query says.
  */
 export function isZoomStageMode(mode: DrawMode): boolean {
-	return mode === 'v11' || mode === 'v12'
+	return mode === 'v11' || mode === 'v12' || mode === 'v13'
 }
 
 /**
@@ -270,12 +286,32 @@ export function isZoomStageMode(mode: DrawMode): boolean {
  * ask to be. Until you pinch, v12 *is* v2. See `DEFAULT_ZOOM` and `startingZoom`.
  */
 export function stageOnPaper(mode: DrawMode): boolean {
-	return mode === 'v12'
+	return mode === 'v12' || mode === 'v13'
 }
 
 /** How far in a mode's stage starts. v11 has the paper above it; v12 has nothing else. */
 export function startingZoom(mode: DrawMode): number {
 	return stageOnPaper(mode) ? 1 : 2
+}
+
+/**
+ * Whether the space around the drawing nudges a cursor standing on it.
+ *
+ * v13 alone, and it is the one mode that runs two of these families at once: v12 on the
+ * drawing and v10 everywhere else on the page. The two never meet, because a gesture
+ * belongs to the surface it opened on — a finger on the drawing marks under itself and a
+ * finger below it moves the cursor, whatever either of them goes on to do.
+ *
+ * What that is *for* is that neither family answers the whole question on its own. Zooming
+ * in makes the mark big enough to place under a fingertip, which is most of the job, and
+ * it cannot help you at all with the one that has to land where your hand already is —
+ * the bottom edge of a stroke you are extending, or a handle on the near side of a
+ * selection. Aiming from below has nothing to say about how big the mark is. Together they
+ * are the two halves, and reaching for the second costs nothing but moving your thumb off
+ * the paper.
+ */
+export function aimsOffStage(mode: DrawMode): boolean {
+	return mode === 'v13'
 }
 
 /**
@@ -291,7 +327,7 @@ export function startingZoom(mode: DrawMode): number {
  * the tool is whichever holder is left: see `releaseHold`.
  */
 export function holdsTool(mode: DrawMode): boolean {
-	return mode === 'v8' || mode === 'v10'
+	return mode === 'v8' || mode === 'v10' || mode === 'v13'
 }
 
 /**

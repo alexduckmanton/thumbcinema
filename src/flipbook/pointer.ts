@@ -1,6 +1,7 @@
 import { isTouch } from '../lib/device'
 import { Store } from '../lib/store'
 import {
+	aimsOffStage,
 	CURSOR_OFFSET,
 	type DrawMode,
 	drivesAllTools,
@@ -14,6 +15,7 @@ import {
 	stageOnPaper,
 	TRAIL_DISTANCE,
 } from './drawModes'
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from './engine/constants'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
 import type { ModalToolId } from './engine/tools/types'
 import {
@@ -21,9 +23,12 @@ import {
 	centreViewport,
 	paperPoint,
 	panViewport,
+	type Point,
 	setViewport,
 	stage,
 	stageElement,
+	subscribeStage,
+	stagePlace,
 	stagePoint,
 	type Viewport,
 	zoomViewport,
@@ -174,14 +179,16 @@ export class PointerLayer {
 	private holdTimer: number | null = null
 
 	/**
-	 * Which canvas the gesture in hand started on. v11's, and only ever `book` elsewhere.
+	 * Which surface the gesture in hand started on. The zoomed modes', and only ever
+	 * `book` elsewhere.
 	 *
 	 * A gesture belongs to the surface it opened on for the whole of its life: a stroke
-	 * that starts on the stage and wanders up over the paper is still a stroke, and a
-	 * drag of the outline that wanders down over the stage is still a drag. Deciding it
-	 * per event would mean a gesture that changed its mind halfway.
+	 * that starts on the stage and wanders up over the paper is still a stroke, a drag of
+	 * the outline that wanders down over the stage is still a drag, and in v13 a finger
+	 * that starts in the band below and slides up onto the drawing is still aiming.
+	 * Deciding it per event would mean a gesture that changed its mind halfway.
 	 */
-	private surface: Surface = 'book'
+	private surface: GestureSurface = 'book'
 
 	/** Two fingers moving and resizing the window. v11 only; see `applyPinch`. */
 	private pinch: Pinch | null = null
@@ -189,9 +196,10 @@ export class PointerLayer {
 	/** Whether a mouse is over the stage, which is the only thing that draws its ring. */
 	private stageOver = false
 
-	/** Drops the two subscriptions. Assigned in the constructor. */
+	/** Drops the three subscriptions. Assigned in the constructor. */
 	private releaseTool: (() => void) | null = null
 	private releaseGrab: (() => void) | null = null
+	private releaseStage: (() => void) | null = null
 
 	/** The tool button that is held down in the tray. See `onToolPressed`. */
 	private pressed: Press | null = null
@@ -221,6 +229,20 @@ export class PointerLayer {
 	 */
 	private cursorX = 0
 	private cursorY = 0
+
+	/**
+	 * And where v13's is, which is kept in the *page's* own units rather than in pixels.
+	 *
+	 * The two are the same idea and cannot be the same field. v6–v10 have a cursor
+	 * standing on a canvas that shows the whole page, so pixels on that canvas and units
+	 * of artwork are the same thing scaled; v13's stands on a page that is being shown
+	 * through a window which moves and changes size under it. Held in project units, the
+	 * cursor stays on the part of the drawing it was put on when the window pans, and the
+	 * zoom decides how far a pixel of finger carries it — both of which are what you would
+	 * expect of a thing standing on the page, and neither of which survives being stored
+	 * as a position on the glass.
+	 */
+	private cursorPage: Point = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
 
 	constructor(
 		field: HTMLElement,
@@ -268,6 +290,8 @@ export class PointerLayer {
 		// And what the transform tool would grab, which changes without the pointer
 		// moving — see `onGrab`.
 		this.releaseGrab = engine.subscribeGrab(this.onGrab)
+		// And the window itself, for v13 — see `onStageChanged`.
+		this.releaseStage = subscribeStage(this.onStageChanged)
 
 		this.applyMode()
 	}
@@ -326,6 +350,8 @@ export class PointerLayer {
 		this.releaseTool = null
 		this.releaseGrab?.()
 		this.releaseGrab = null
+		this.releaseStage?.()
+		this.releaseStage = null
 
 		this.engine.setTouchOffset(0)
 		this.store.set({ cursor: null })
@@ -348,6 +374,11 @@ export class PointerLayer {
 			const box = this.canvas.getBoundingClientRect()
 			this.cursorX = box.width / 2
 			this.cursorY = box.height / 2
+		}
+
+		// And the middle of the *page* for v13's, for the same reason and in its own units.
+		if (aimsOffStage(this.mode)) {
+			this.cursorPage = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
 		}
 
 		this.publish()
@@ -383,13 +414,19 @@ export class PointerLayer {
 		return current.view ? { box: current.box, view: current.view } : null
 	}
 
-	/** Which of v11's two canvases a touch landed on, or null for neither. */
-	private surfaceOf(target: EventTarget | null): Surface | null {
+	/** Which of a zoomed mode's surfaces a touch landed on, or null for none of them. */
+	private surfaceOf(target: EventTarget | null): GestureSurface | null {
 		if (!(target instanceof Element)) return null
 		if (target.closest(CONTROLS)) return null
 
 		const element = stageElement()
 		if (element?.contains(target)) return 'stage'
+
+		// v13's aiming band, which is everywhere the stage and the page's own controls have
+		// not already claimed — the white under the tools, and the air either side of the
+		// column. Asked before the paper, because in v13 the stage covers the paper and
+		// there is no `book` surface left for anything to land on anyway.
+		if (aimsOffStage(this.mode)) return 'field'
 
 		// v12 has no overview: its stage stands in the paper's place and covers it, so
 		// nothing on the paper is anybody's but the stage's. Said outright rather than left
@@ -400,10 +437,22 @@ export class PointerLayer {
 		return this.book.contains(target) ? 'book' : null
 	}
 
-	/** Where a surface is on screen, which is what a touch has to be measured against. */
-	private boxOf(surface: Surface): DOMRect {
+	/**
+	 * Where a surface is on screen, which is what a touch has to be measured against.
+	 *
+	 * The band has no box of its own and needs none: nothing about a gesture down there is
+	 * a position on anything, only a delta, so it is measured in client coordinates and
+	 * the origin cancels. See `openField`.
+	 */
+	private boxOf(surface: GestureSurface): DOMRect {
+		if (surface === 'field') return ORIGIN
 		const element = surface === 'stage' ? stageElement() : this.book
 		return (element ?? this.book).getBoundingClientRect()
+	}
+
+	/** True while the gesture in hand is v13's aiming drag in the band below the drawing. */
+	private get aiming(): boolean {
+		return this.gesture !== null && this.surface === 'field'
 	}
 
 	// --- touch ---------------------------------------------------------------
@@ -795,9 +844,16 @@ export class PointerLayer {
 
 		const gesture = this.gesture
 		if (gesture) {
-			// A second finger on the *other* canvas is not half of anything — the two
-			// surfaces are separate controls — so it is swallowed rather than paired.
+			// A second finger on the *other* surface is not half of anything — they are
+			// separate controls — so it is swallowed rather than paired.
 			if (surface !== this.surface) return
+
+			// Down in the band a second finger is the on-switch rather than half of a pinch:
+			// there is nothing to pinch there, and this is exactly v10's changeover.
+			if (surface === 'field') {
+				this.holdField(event, gesture)
+				return
+			}
 
 			const second = Array.from(event.changedTouches).find((t) => t.identifier !== gesture.id)
 			if (second) this.beginPinch(gesture, second)
@@ -808,6 +864,21 @@ export class PointerLayer {
 		if (!touch) return
 
 		this.surface = surface
+		this.others.clear()
+
+		if (surface === 'field') {
+			this.gesture = this.openField(touch)
+			// The other hand may have been holding a tool down before this finger landed,
+			// which is v8's mechanism and v10's second answer. `onToolPressed` asks the same
+			// question from the other side.
+			if (this.pressed) this.engagePress()
+			// And several contacts in one event, which down here is the on-switch arriving
+			// whole rather than a pinch. Same reason `zoomTouchStart` looks for one below.
+			this.holdField(event, this.gesture)
+			this.publish()
+			return
+		}
+
 		this.gesture = this.open(touch, surface === 'stage', false, this.boxOf(surface))
 
 		/*
@@ -843,6 +914,11 @@ export class PointerLayer {
 
 		const gesture = this.gesture
 		if (!gesture) return
+
+		if (this.surface === 'field') {
+			this.moveField(event, zoom, gesture)
+			return
+		}
 
 		const box = this.boxOf(this.surface)
 		let moved = false
@@ -902,7 +978,14 @@ export class PointerLayer {
 		}
 
 		const gesture = this.gesture
-		if (!gesture || !ids.includes(gesture.id)) return
+		if (!gesture) return
+
+		if (this.surface === 'field') {
+			this.endField(event, gesture)
+			return
+		}
+
+		if (!ids.includes(gesture.id)) return
 
 		event.stopPropagation()
 
@@ -911,6 +994,206 @@ export class PointerLayer {
 
 		this.gesture = null
 		this.publish()
+	}
+
+	// --- v13's aiming band ---------------------------------------------------
+
+	/*
+	 * v10, run against the zoomed page rather than against the paper, and reached only
+	 * from the space around the drawing.
+	 *
+	 * Everything about it is v10's — a cursor nudged by a delta rather than placed, a
+	 * second contact or a held tool button to set it working, either finger steering and
+	 * the average of whichever moved — with one substitution: the cursor is a point on the
+	 * *page* rather than on the canvas, so the window the stage is showing decides how far
+	 * a pixel of finger carries it and where on the glass it is drawn. `cursorPage` has
+	 * the reasoning; `stagePlace` is the drawing half of it.
+	 *
+	 * It is written here rather than shared with the relative modes above because the two
+	 * agree about the rule and about nothing else: those measure against the canvas, gate
+	 * on `intercepts()`, run the hold timers and can hand the gesture to paper, none of
+	 * which is true down here. What they do share is the two constants and `releaseHold`.
+	 */
+
+	/**
+	 * The gesture in the band, which is measured in client coordinates.
+	 *
+	 * Nothing about it is a position on a surface — only a delta, and only ever applied to
+	 * the cursor — so there is no box to measure against and no box to keep up to date.
+	 * `inkX`/`inkY` go unread for the whole of its life: where the mark lands is
+	 * `cursorPage`, which belongs to the layer rather than to any one gesture.
+	 */
+	private openField(touch: Touch): Gesture {
+		return {
+			id: touch.identifier,
+			// paper is cut out of this gesture as thoroughly as it is on the stage: the
+			// fingertip is not on the drawing at all, and a mousedown at it would land
+			// somewhere near the tray.
+			intercepted: true,
+			engaged: false,
+			everEngaged: false,
+			openedAt: performance.now(),
+			travel: 0,
+			x: touch.clientX,
+			y: touch.clientY,
+			inkX: touch.clientX,
+			inkY: touch.clientY,
+			anchorX: touch.clientX,
+			anchorY: touch.clientY,
+		}
+	}
+
+	/** Extra fingers in the band, which are the on-switch. v10's `others`, exactly. */
+	private holdField(event: TouchEvent, gesture: Gesture): void {
+		for (const touched of Array.from(event.changedTouches)) {
+			if (touched.identifier === gesture.id) continue
+			this.others.set(touched.identifier, { x: touched.clientX, y: touched.clientY })
+		}
+
+		if (this.others.size > 0) this.engage()
+		this.publish()
+	}
+
+	private moveField(event: TouchEvent, zoom: Zoom, gesture: Gesture): void {
+		let sumX = 0
+		let sumY = 0
+		let movers = 0
+		let sawSteering = false
+
+		for (const touched of Array.from(event.changedTouches)) {
+			if (touched.identifier === gesture.id) {
+				sumX += touched.clientX - gesture.x
+				sumY += touched.clientY - gesture.y
+				gesture.travel += Math.hypot(touched.clientX - gesture.x, touched.clientY - gesture.y)
+				gesture.x = touched.clientX
+				gesture.y = touched.clientY
+				sawSteering = true
+				movers++
+				continue
+			}
+
+			const other = this.others.get(touched.identifier)
+			if (!other) continue
+
+			sumX += touched.clientX - other.x
+			sumY += touched.clientY - other.y
+			other.x = touched.clientX
+			other.y = touched.clientY
+			movers++
+		}
+
+		// Nothing of ours moved — a finger that started on a control, which owns its own
+		// gesture. Left alone entirely, propagation included.
+		if (!sawSteering && movers === 0) return
+
+		event.stopPropagation()
+		event.preventDefault()
+
+		if (movers > 0) {
+			// Read afresh: a pinch on the stage may have moved the window since `zoom` was
+			// taken, and the cursor has to be nudged against the view it is being drawn in.
+			const view = stage().view ?? zoom.view
+
+			/*
+			 * Screen pixels into page units through that window, which is what makes the
+			 * cursor travel under the finger at the rate the drawing is being *shown* at
+			 * rather than at the rate the artwork is stored in. At 1× a pixel of finger is a
+			 * pixel of cursor, exactly as it is in v10; at 4× it is a quarter of a page unit,
+			 * so the same drag places the mark four times as precisely. That is the whole
+			 * bargain of running these two modes together, and it falls out of holding the
+			 * cursor in project units rather than being arranged for.
+			 */
+			const perX = zoom.box.width === 0 ? 0 : view.w / zoom.box.width
+			const perY = zoom.box.height === 0 ? 0 : view.h / zoom.box.height
+
+			this.cursorPage = {
+				x: clamp(this.cursorPage.x + (sumX / movers) * perX, view.x, view.x + view.w),
+				y: clamp(this.cursorPage.y + (sumY / movers) * perY, view.y, view.y + view.h),
+			}
+		}
+
+		const point = this.engine.inProject(this.cursorPage.x, this.cursorPage.y)
+
+		if (gesture.engaged) this.engine.toolDrag(point)
+		// A cursor moving with nothing held down is a hover, which is what puts the
+		// transform tool's handles and push's dots under it before you commit to either.
+		else this.engine.toolHover(point)
+
+		this.publish()
+	}
+
+	/**
+	 * A finger leaving the band, which is `onTouchEnd`'s three cases again.
+	 *
+	 * One of the extras going stops the tool, unless the other hand is still holding it.
+	 * The steering finger going hands the cursor to whichever extra is left rather than
+	 * ending the gesture — lifting the first of two fingers must not pull the rug out from
+	 * under the second — and only when nothing is left does the gesture end.
+	 */
+	private endField(event: TouchEvent, gesture: Gesture): void {
+		let steeringLeft = false
+		let ours = false
+		for (const touched of Array.from(event.changedTouches)) {
+			if (touched.identifier === gesture.id) {
+				steeringLeft = true
+				ours = true
+			} else if (this.others.delete(touched.identifier)) ours = true
+		}
+
+		if (!ours) return
+		event.stopPropagation()
+
+		if (steeringLeft) {
+			const next = this.others.entries().next()
+			if (next.done) {
+				this.disengage()
+
+				// A bare tap down here puts the selection down, exactly as it does in v10: a
+				// finger that engaged nothing only ever moved the cursor, so a press that went
+				// nowhere had no other meaning — and without it there is no way to let go of a
+				// selection except by doing something that changes the drawing. Both halves of
+				// the test are needed; see `TAP_TIME`.
+				if (!gesture.everEngaged) {
+					const quick = performance.now() - gesture.openedAt <= TAP_TIME
+					if (quick && gesture.travel <= TAP_SLOP) this.engine.clearSelection()
+				}
+
+				this.gesture = null
+				this.others.clear()
+				this.publish()
+				return
+			}
+
+			const [id, at] = next.value
+			this.others.delete(id)
+			gesture.id = id
+			gesture.x = at.x
+			gesture.y = at.y
+		}
+
+		this.releaseHold()
+		this.publish()
+	}
+
+	/**
+	 * Keeps v13's cursor inside the window, so panning never leaves it off the screen.
+	 *
+	 * The alternative is to clamp it to the *page* and let the window slide off it, which
+	 * is more faithful to "a thing standing on the drawing" and is worse to use: a cursor
+	 * you cannot see is a cursor you have to go and find, and the only way to find it is to
+	 * pan back. Being nudged along by the edge of the window costs nothing by comparison —
+	 * the cursor was going to be moved before it was next used anyway.
+	 */
+	private clampCursor(): void {
+		if (!aimsOffStage(this.mode)) return
+
+		const view = stage().view
+		if (!view) return
+
+		this.cursorPage = {
+			x: clamp(this.cursorPage.x, view.x, view.x + view.w),
+			y: clamp(this.cursorPage.y, view.y, view.y + view.h),
+		}
 	}
 
 	/** Puts the tool to work at the point on the page the finger is over on the stage. */
@@ -1062,6 +1345,9 @@ export class PointerLayer {
 			setViewport(panViewport(zoomed, to.x - from.x, to.y - from.y, aspect))
 		}
 
+		// The window has moved under v13's cursor, which is standing on the page rather
+		// than on the glass and may now be off the side of it.
+		this.clampCursor()
 		this.publish()
 	}
 
@@ -1082,6 +1368,11 @@ export class PointerLayer {
 
 		const surface = this.surfaceOf(event.target)
 		if (!surface) return
+		// v13's aiming band is a finger's answer to a problem a mouse hasn't got, and this
+		// is the same stand-down the relative modes make: a mouse has its own arrow, and
+		// asking somebody to shove a cursor about with a device that already points at
+		// things would be testing a different idea.
+		if (surface === 'field') return
 
 		event.stopPropagation()
 		this.source = 'mouse'
@@ -1262,7 +1553,7 @@ export class PointerLayer {
 		if (id !== null) {
 			this.pressed = { id, used: false }
 			// Held before the finger arrived: `onTouchStart` will ask again.
-			if (holdsTool(this.mode) && this.gesture?.intercepted) this.engagePress()
+			if (this.holdsAtCursor && this.gesture?.intercepted) this.engagePress()
 			return
 		}
 
@@ -1270,7 +1561,7 @@ export class PointerLayer {
 		this.pressed = null
 		if (!press) return
 
-		if (holdsTool(this.mode) && this.gesture?.engaged) {
+		if (this.holdsAtCursor && this.gesture?.engaged) {
 			this.releaseHold()
 			this.publish()
 			return
@@ -1279,6 +1570,20 @@ export class PointerLayer {
 		// Nothing happened while it was down, so it was an ordinary tap on the tray and
 		// picks the tool up.
 		if (!press.used) this.engine.selectTool(press.id)
+	}
+
+	/**
+	 * Whether a tool held down in the tray works at the cursor right now.
+	 *
+	 * `holdsTool` for the modes that have one cursor, and in v13 only while the gesture in
+	 * hand is the aiming one. A stroke on the stage is the finger's own from end to end,
+	 * and a tool button pressed part-way through it must neither claim to have started it
+	 * nor end it on the way back up — which is exactly what the release branch below would
+	 * do, the stroke being `engaged` by then either way.
+	 */
+	private get holdsAtCursor(): boolean {
+		if (!holdsTool(this.mode)) return false
+		return !aimsOffStage(this.mode) || this.aiming || this.gesture === null
 	}
 
 	/**
@@ -1359,6 +1664,13 @@ export class PointerLayer {
 		if (zoom && this.surface === 'stage') {
 			const at = stagePoint(zoom.view, gesture.inkX, gesture.inkY, zoom.box)
 			this.engine.toolDown(this.engine.inProject(at.x, at.y))
+			return
+		}
+
+		// And v13's band works from the cursor, which is already in those units — the
+		// fingertip means nothing here, exactly as it means nothing in v10.
+		if (zoom && this.surface === 'field') {
+			this.engine.toolDown(this.engine.inProject(this.cursorPage.x, this.cursorPage.y))
 			return
 		}
 
@@ -1511,27 +1823,48 @@ export class PointerLayer {
 	private publishZoom(): void {
 		const gesture = this.gesture
 
-		if (!gesture) {
-			// A mouse resting on the stage still wants a ring: it is a pointer over a
-			// drawing surface, which is the one thing this mode has in common with the rest.
-			if (this.source === 'mouse' && this.stageOver) {
-				this.store.set({ cursor: this.stageCursor(this.mouseX, this.mouseY, false) })
+		// A pinch has two fingers on the drawing and is moving the page rather than marking
+		// on it, so there is nothing to draw a pointer at.
+		if (this.pinch) {
+			this.store.set({ cursor: null })
+			return
+		}
+
+		// A finger on the stage: the ring goes under the fingertip, which is v2's rule and
+		// what both of these modes take from it.
+		if (gesture && this.surface === 'stage') {
+			this.store.set({ cursor: this.stageCursor(gesture.inkX, gesture.inkY, gesture.engaged) })
+			return
+		}
+
+		/*
+		 * v13's standing cursor, which is on the page whether anything is touching the
+		 * glass or not — the whole of what the mode takes from v10, and the reason this is
+		 * published with no gesture in hand. Drawn on the stage, because in v13 the stage
+		 * *is* the drawing: `stagePlace` is what puts a point of artwork back on the glass.
+		 *
+		 * Only for a finger. A mouse has its own arrow and is dealt with below.
+		 */
+		if (aimsOffStage(this.mode) && this.source === 'touch') {
+			const zoom = this.zoom
+			if (zoom) {
+				const at = stagePlace(zoom.view, this.cursorPage, zoom.box)
+				this.store.set({ cursor: this.stageCursor(at.x, at.y, gesture?.engaged ?? false, true) })
 				return
 			}
+		}
 
-			this.store.set({ cursor: null })
+		// A mouse resting on the stage still wants a ring: it is a pointer over a drawing
+		// surface, which is the one thing these modes have in common with the rest.
+		if (!gesture && this.source === 'mouse' && this.stageOver) {
+			this.store.set({ cursor: this.stageCursor(this.mouseX, this.mouseY, false) })
 			return
 		}
 
-		if (this.pinch || this.surface !== 'stage') {
-			this.store.set({ cursor: null })
-			return
-		}
-
-		this.store.set({ cursor: this.stageCursor(gesture.inkX, gesture.inkY, gesture.engaged) })
+		this.store.set({ cursor: null })
 	}
 
-	private stageCursor(x: number, y: number, marking: boolean): Cursor {
+	private stageCursor(x: number, y: number, marking: boolean, standing = false): Cursor {
 		const box = this.boxOf('stage')
 
 		return {
@@ -1542,13 +1875,34 @@ export class PointerLayer {
 			size: box.width,
 			top: box.top,
 			touching: this.source === 'touch',
-			// Not a standing cursor: it is under the fingertip, exactly as v2's is. The
-			// grey/black pair says "the tool is not working yet", and here it always is.
-			standing: false,
+			// Not a standing cursor in v11 or v12: it is under the fingertip, exactly as v2's
+			// is, and the grey/black pair says "the tool is not working yet" where here it
+			// always is. v13's aiming cursor is the exception and asks for it.
+			standing,
 			surface: 'stage',
 			marking,
 			affordance: this.engine.transformAffordance(),
 		}
+	}
+
+	/**
+	 * The window has changed shape or moved, with no finger of ours involved.
+	 *
+	 * Two things do that: the stage being measured for the first time, which is a frame or
+	 * two after the page mounts, and a rotation or an address bar re-measuring it. Only
+	 * v13 cares, and it cares twice — its cursor is drawn at a place on the *page*, so
+	 * where that lands on the glass has just changed, and it has to be published for the
+	 * cursor to appear at all before anything is touched.
+	 *
+	 * A pinch does it too and does not come through here: that path clamps and publishes
+	 * for itself, so this stands down while a gesture is in flight rather than publishing
+	 * twice a frame through the whole of one.
+	 */
+	private onStageChanged = (): void => {
+		if (!aimsOffStage(this.mode) || this.gesture) return
+
+		this.clampCursor()
+		this.publish()
 	}
 
 	private onGrab = (): void => {
@@ -1699,6 +2053,18 @@ function clamp(value: number, low: number, high: number): number {
 
 /** Which of v11's two canvases something is measured against. See `Cursor.surface`. */
 export type Surface = 'book' | 'stage'
+
+/**
+ * And where a gesture in one of the zoomed modes began, which is one more place than that.
+ *
+ * `field` is v13's band — everywhere on the page that isn't the drawing or a control — and
+ * it is deliberately not a `Surface`: nothing is ever *drawn* down there, so no cursor is
+ * ever measured against it and the two components that render one need never hear of it.
+ */
+type GestureSurface = Surface | 'field'
+
+/** A box at the origin, for the band, which is measured in client coordinates. */
+const ORIGIN = new DOMRect(0, 0, 0, 0)
 
 /** The stage as `PointerLayer` needs it: a window, and the box it is being shown in. */
 interface Zoom {

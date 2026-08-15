@@ -142,6 +142,22 @@ export function stagePoint(view: Viewport, x: number, y: number, box: Box): Poin
 	}
 }
 
+/**
+ * And the other way: a point in the artwork, as a point on the stage.
+ *
+ * The inverse of `stagePoint`, and it exists for one thing — v13's standing cursor, which
+ * is kept in the page's own units so that panning and zooming carry it about with the
+ * drawing it is standing on, and has to be drawn somewhere on the glass. Not clamped, for
+ * the same reason its inverse isn't: a cursor pushed off the edge of the window is a
+ * position, and it is the caller's business what to do about it.
+ */
+export function stagePlace(view: Viewport, at: Point, box: Box): Point {
+	return {
+		x: view.w === 0 ? 0 : ((at.x - view.x) / view.w) * box.width,
+		y: view.h === 0 ? 0 : ((at.y - view.y) / view.h) * box.height,
+	}
+}
+
 /** And a point on the paper, in its CSS pixels, the same way. The paper is the page. */
 export function paperPoint(x: number, y: number, box: Box): Point {
 	return {

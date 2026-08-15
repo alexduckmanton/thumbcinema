@@ -10,6 +10,7 @@ import {
 	minWidth,
 	paperPoint,
 	panViewport,
+	stagePlace,
 	stagePoint,
 	type Viewport,
 	zoomViewport,
@@ -177,5 +178,52 @@ describe('a point on the stage, in the artwork', () => {
 		const view = defaultViewport(WIDE)
 		expect(stagePoint(view, 10, 10, { width: 0, height: 0 })).toEqual({ x: view.x, y: view.y })
 		expect(paperPoint(10, 10, { width: 0, height: 0 })).toEqual({ x: 0, y: 0 })
+	})
+})
+
+describe('a point in the artwork, on the stage', () => {
+	const box = { width: 358, height: 150 }
+
+	it('is the other half of the same mapping, at every zoom', () => {
+		for (const zoom of [1, 1.5, 2, MAX_ZOOM]) {
+			const view = defaultViewport(WIDE, zoom)
+
+			for (const at of [
+				{ x: 0, y: 0 },
+				{ x: 17, y: 350 },
+				{ x: CANVAS_WIDTH, y: CANVAS_HEIGHT },
+				{ x: view.x + view.w / 3, y: view.y + view.h / 4 },
+			]) {
+				const back = stagePoint(view, at.x, at.y, box)
+				const there = stagePlace(view, at, box)
+				const round = stagePoint(view, there.x, there.y, box)
+
+				expect(round.x).toBeCloseTo(at.x, 6)
+				expect(round.y).toBeCloseTo(at.y, 6)
+				// And not accidentally the identity: the two directions genuinely differ
+				// wherever the window is not the whole page.
+				if (view.w !== CANVAS_WIDTH) expect(back.x).not.toBeCloseTo(there.x, 3)
+			}
+		}
+	})
+
+	it('puts the window’s corners at the stage’s corners', () => {
+		const view = defaultViewport(WIDE)
+		expect(stagePlace(view, { x: view.x, y: view.y }, box)).toEqual({ x: 0, y: 0 })
+
+		const far = stagePlace(view, { x: view.x + view.w, y: view.y + view.h }, box)
+		expect(far.x).toBeCloseTo(box.width, 6)
+		expect(far.y).toBeCloseTo(box.height, 6)
+	})
+
+	it('answers off the edge rather than clamping, as its inverse does', () => {
+		const view = defaultViewport(WIDE, MAX_ZOOM)
+		const off = stagePlace(view, { x: view.x - view.w, y: view.y }, box)
+		expect(off.x).toBeCloseTo(-box.width, 6)
+	})
+
+	it('says something rather than dividing by a window with no width', () => {
+		const flat = { x: 10, y: 10, w: 0, h: 0 }
+		expect(stagePlace(flat, { x: 20, y: 20 }, box)).toEqual({ x: 0, y: 0 })
 	})
 })
