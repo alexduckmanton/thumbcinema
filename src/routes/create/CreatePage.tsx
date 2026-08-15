@@ -5,16 +5,18 @@ import { Spinner } from '../../components/Spinner'
 import { CreateTray } from '../../flipbook/components/CreateTray'
 import { DrawModeSwitch } from '../../flipbook/components/DrawModeSwitch'
 import { InkCursor } from '../../flipbook/components/InkCursor'
+import { ZoomStage, ZoomWindow } from '../../flipbook/components/ZoomStage'
 import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
-import { useDrawMode } from '../../flipbook/drawModes'
+import { isZoomStageMode, useDrawMode } from '../../flipbook/drawModes'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
 import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
+import { usePointerLayer } from '../../flipbook/usePointerLayer'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { SETTLE_MS } from '../../flipbook/engine/reorder'
@@ -45,7 +47,7 @@ export function CreatePage() {
 	const asked = remixSource(search)
 
 	// Which answer to "a finger is opaque" is switched on. Scaffolding: see
-	// `drawModes.ts` for the ten of them, and `DrawModeSwitch` for how one is picked.
+	// `drawModes.ts` for the list of them, and `DrawModeSwitch` for how one is picked.
 	const drawMode = useDrawMode()
 
 	/*
@@ -59,6 +61,22 @@ export function CreatePage() {
 	 * ignore this and keep to the drawing; the layer decides, not this file.
 	 */
 	const field = useRef<HTMLElement | null>(null)
+
+	/*
+	 * The one `PointerLayer` this page has, which two canvases now read.
+	 *
+	 * It used to be built inside `InkCursor`, which was right while the cursor was the
+	 * only thing that needed it. v11 puts a second drawing surface on the page with a
+	 * cursor of its own, and two components cannot each own the object that decides what
+	 * a finger means.
+	 */
+	const layer = usePointerLayer({
+		engine,
+		canvasRef,
+		mode: drawMode,
+		tool: state?.tool ?? null,
+		fieldRef: field,
+	})
 
 	const crash = useCrashRecovery(engine, asked)
 
@@ -234,8 +252,8 @@ export function CreatePage() {
 				/>
 			</SiteHeader>
 
-			{/* Scaffolding, and above everything so it stays reachable in all ten modes —
-			    including the two that park a magnifier under the top edge of the window. */}
+			{/* Scaffolding, and above everything so it stays reachable in every mode — including
+			    the two that park a magnifier under the top edge of the window. */}
 			<DrawModeSwitch mode={drawMode} />
 
 			<main className={contentClass} ref={field}>
@@ -256,7 +274,7 @@ export function CreatePage() {
 					/>
 				) : null}
 
-				<div className="center">
+				<div className={`center ${styles.column}`}>
 					{/* `--settle` is the one number the drag and the stylesheet have to agree
 					    about; it is stated in `usePageReorder` and handed down here so they
 					    can't drift. */}
@@ -322,24 +340,22 @@ export function CreatePage() {
 						    what the transform tool would grab. Inside `.book` because both are
 						    measured against the drawing rather than the window.
 
-						    **Mounted for the whole of the drawing phase, including while a trace
-						    photo is in hand.** It draws nothing then — there is no tool, and no
-						    tool is no cursor — but it is also what *builds* `PointerLayer`, and
-						    that is the only thing listening for a tool button being pressed. On a
-						    phone the tray is driven by touch events and calls `preventDefault()`,
-						    so there is no click to fall back on: unmounting this made the three
-						    tools completely dead while a photo was being placed. It would also
-						    put the standing cursor back in the middle of the page every time, for
-						    the reason the layer's own effect gives. */}
+						    It draws nothing while a trace photo is in hand — there is no tool
+						    then, and no tool is no cursor. That used to matter a great deal,
+						    because this component also *built* `PointerLayer` and the layer is
+						    the only thing listening for a tool button being pressed: unmounting
+						    it made the three tools completely dead while a photo was being
+						    placed. The layer is `usePointerLayer`'s now, called above and outside
+						    every one of these conditions, so the tray goes on working whatever
+						    this renders. */}
 						{state && phase === 'drawing' ? (
-							<InkCursor
-								engine={engine}
-								canvasRef={canvasRef}
-								tool={state.tool}
-								mode={drawMode}
-								fieldRef={field}
-							/>
+							<InkCursor layer={layer} canvasRef={canvasRef} tool={state.tool} mode={drawMode} />
 						) : null}
+
+						{/* v11's outline: which part of the page the stage below is showing.
+						    Inside `.book` because it is measured against the drawing, exactly
+						    as the cursor above it is. */}
+						{phase === 'drawing' ? <ZoomWindow /> : null}
 
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
 
@@ -394,6 +410,14 @@ export function CreatePage() {
 							stowed={phase !== 'drawing'}
 							mode={drawMode}
 						/>
+					) : null}
+
+					{/* And v11's second canvas, in whatever the column has left. It is rendered
+					    on every layout and hides itself where there is no room, because "is
+					    there a stage" is then one measurement rather than a media query
+					    written out again in JavaScript. */}
+					{isZoomStageMode(drawMode) && phase === 'drawing' ? (
+						<ZoomStage layer={layer} canvasRef={canvasRef} tool={state?.tool ?? null} />
 					) : null}
 
 					<div className={styles.footer}>

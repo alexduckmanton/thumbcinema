@@ -10,10 +10,23 @@ import {
 	isMultiTouchMode,
 	isRelativeMode,
 	isTimedMode,
+	isZoomStageMode,
 	TRAIL_DISTANCE,
 } from './drawModes'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
 import type { ModalToolId } from './engine/tools/types'
+import {
+	type Box,
+	centreViewport,
+	paperPoint,
+	panViewport,
+	setViewport,
+	stage,
+	stageElement,
+	stagePoint,
+	type Viewport,
+	zoomViewport,
+} from './zoomStage'
 
 /**
  * Where the pointer is and what it is doing, in the terms the cursor is drawn in.
@@ -41,6 +54,15 @@ export interface Cursor {
 	top: number
 	/** True when a finger put it there rather than a mouse. The loupe's condition. */
 	touching: boolean
+	/**
+	 * Which canvas these coordinates are measured against.
+	 *
+	 * The paper in every mode but v11, and in v11 the magnified stage under the tools —
+	 * which is a different box, at a different scale, in a different part of the tree. So
+	 * the two components that draw a cursor each render only their own surface's, and
+	 * neither has to know the other exists.
+	 */
+	surface: Surface
 	/**
 	 * True when this is the standing cursor rather than a picture of a pointer.
 	 *
@@ -88,7 +110,7 @@ export interface Cursor {
  * finger steers, and the cursor follows the average of whichever contacts the browser
  * reports as having moved.
  *
- * **Six of the ten cannot be built on paper.js**, and it is worth being precise about
+ * **Seven of the eleven cannot be built on paper.js**, and it is worth being precise about
  * why. paper 0.12 is single-pointer by construction: on a touch device it listens for
  * `touchstart` on the canvas and `touchmove`/`touchend` on the document, and
  * `DomEvent.getPoint` reads `event.targetTouches[0]` — there is one drag in flight and no
@@ -97,7 +119,7 @@ export interface Cursor {
  * (v5), wait for the other hand (v8) or watch a *second finger* (v9, v10) has nowhere to
  * say so. The last two are the plainest case: paper cannot see a second contact at all.
  *
- * So those six are taken away from paper entirely. This layer listens in the **capture**
+ * So those seven are taken away from paper entirely. This layer listens in the **capture**
  * phase, which runs before the canvas's own listeners and before anything can bubble as
  * far as the document, and calls `stopPropagation()` — paper then sees no part of the
  * gesture, and the tool in hand is driven directly through
@@ -106,7 +128,8 @@ export interface Cursor {
  * stopping a `pointerdown` does nothing at all to the `touchstart` paper is actually
  * listening for. The other four modes don't need any of that — paper draws as it always
  * has, and this layer only watches, so that the ring and the loupe have somewhere to read
- * the pointer from.
+ * the pointer from. v11 is the seventh, and takes its gestures away for a different reason
+ * again: the finger is on a second canvas that paper has never heard of.
  *
  * **In the relative modes the field is the whole page, not the drawing.** A cursor that
  * is nudged rather than placed doesn't care where the nudge comes from, and a phone's
@@ -148,6 +171,22 @@ export class PointerLayer {
 	 */
 	private readonly others = new Map<number, { x: number; y: number }>()
 	private holdTimer: number | null = null
+
+	/**
+	 * Which canvas the gesture in hand started on. v11's, and only ever `book` elsewhere.
+	 *
+	 * A gesture belongs to the surface it opened on for the whole of its life: a stroke
+	 * that starts on the stage and wanders up over the paper is still a stroke, and a
+	 * drag of the outline that wanders down over the stage is still a drag. Deciding it
+	 * per event would mean a gesture that changed its mind halfway.
+	 */
+	private surface: Surface = 'book'
+
+	/** Two fingers moving and resizing the window. v11 only; see `applyPinch`. */
+	private pinch: Pinch | null = null
+
+	/** Whether a mouse is over the stage, which is the only thing that draws its ring. */
+	private stageOver = false
 
 	/** Drops the two subscriptions. Assigned in the constructor. */
 	private releaseTool: (() => void) | null = null
@@ -209,6 +248,14 @@ export class PointerLayer {
 		book.addEventListener('pointermove', this.onPointerMove)
 		book.addEventListener('pointerenter', this.onPointerMove)
 		book.addEventListener('pointerleave', this.onPointerLeave)
+
+		// And the stage's own mouse, on the field because the stage is built by a
+		// component this one doesn't own and may not exist yet. Capture, so a press lands
+		// here before anything under it; they stand down unless v11 has a stage up.
+		field.addEventListener('pointerdown', this.onStagePointerDown, { capture: true })
+		field.addEventListener('pointermove', this.onStagePointerMove, { capture: true })
+		document.addEventListener('pointerup', this.onStagePointerUp)
+		document.addEventListener('pointercancel', this.onStagePointerUp)
 		// On the document, because a drag can be released anywhere — the same reason
 		// the engine listens for mouseup there rather than on the canvas.
 		document.addEventListener('pointerup', this.onPointerUp)
@@ -266,6 +313,11 @@ export class PointerLayer {
 		this.book.removeEventListener('pointermove', this.onPointerMove)
 		this.book.removeEventListener('pointerenter', this.onPointerMove)
 		this.book.removeEventListener('pointerleave', this.onPointerLeave)
+
+		this.field.removeEventListener('pointerdown', this.onStagePointerDown, options)
+		this.field.removeEventListener('pointermove', this.onStagePointerMove, options)
+		document.removeEventListener('pointerup', this.onStagePointerUp)
+		document.removeEventListener('pointercancel', this.onStagePointerUp)
 		document.removeEventListener('pointerup', this.onPointerUp)
 		document.removeEventListener('pointercancel', this.onPointerUp)
 
@@ -313,6 +365,39 @@ export class PointerLayer {
 		return isMultiTouchMode(this.mode)
 	}
 
+	/**
+	 * The magnified stage, when v11 is on and the layout has left room for one.
+	 *
+	 * Everything about v11 hangs off this being non-null, and it is asked of the *stage*
+	 * rather than of the mode on purpose. The band under the tools is whatever the column
+	 * has left over, the stylesheet hides it outright above the breakpoint, and a phone
+	 * held sideways has none of it — so "is there a second canvas" is a measurement, and
+	 * the mode falls back to v2 whenever the answer is no. One condition, read in one
+	 * place, rather than a media query written out again in JavaScript.
+	 */
+	private get zoom(): { box: Box; view: Viewport } | null {
+		if (!isZoomStageMode(this.mode)) return null
+
+		const current = stage()
+		return current.view ? { box: current.box, view: current.view } : null
+	}
+
+	/** Which of v11's two canvases a touch landed on, or null for neither. */
+	private surfaceOf(target: EventTarget | null): Surface | null {
+		if (!(target instanceof Element)) return null
+		if (target.closest(CONTROLS)) return null
+
+		const element = stageElement()
+		if (element?.contains(target)) return 'stage'
+		return this.book.contains(target) ? 'book' : null
+	}
+
+	/** Where a surface is on screen, which is what a touch has to be measured against. */
+	private boxOf(surface: Surface): DOMRect {
+		const element = surface === 'stage' ? stageElement() : this.book
+		return (element ?? this.book).getBoundingClientRect()
+	}
+
 	// --- touch ---------------------------------------------------------------
 
 	/**
@@ -337,6 +422,7 @@ export class PointerLayer {
 	private ownsTouch(target: EventTarget | null): boolean {
 		const element = target instanceof Element ? target : null
 		if (element?.closest(CONTROLS)) return false
+		if (this.zoom) return this.surfaceOf(target) !== null
 		if (!this.relative && !(element && this.book.contains(element))) return false
 		return true
 	}
@@ -344,7 +430,7 @@ export class PointerLayer {
 	/**
 	 * Whether this mode has to take the gesture away from paper.
 	 *
-	 * The marking tools in the six that move the ink off the fingertip, and every tool in
+	 * The marking tools in the modes that move the ink off the fingertip, and every tool in
 	 * the three whose changeover is a button press in all but name — a held tray button,
 	 * or a second finger. The difference is what each mode's changeover *is*: the timed
 	 * ones and v5 gate ink, and there is no sensible way to half-press a rotation, but a
@@ -386,6 +472,11 @@ export class PointerLayer {
 		if (!this.ownsTouch(event.target)) return
 
 		this.source = 'touch'
+
+		if (this.zoom) {
+			this.zoomTouchStart(event)
+			return
+		}
 
 		if (!this.intercepts()) {
 			// Paper's gesture, watched rather than taken: `engaged` is true from the first
@@ -445,6 +536,12 @@ export class PointerLayer {
 	}
 
 	private onTouchMove = (event: TouchEvent): void => {
+		const zoom = this.zoom
+		if (zoom) {
+			this.zoomTouchMove(event, zoom)
+			return
+		}
+
 		const gesture = this.gesture
 		if (!gesture) return
 
@@ -586,6 +683,11 @@ export class PointerLayer {
 	 * gesture end.
 	 */
 	private onTouchEnd = (event: TouchEvent): void => {
+		if (this.zoom) {
+			this.zoomTouchEnd(event)
+			return
+		}
+
 		const gesture = this.gesture
 		if (!gesture) return
 
@@ -644,6 +746,400 @@ export class PointerLayer {
 		// Down to one finger: whatever the second one was switching on is over, unless
 		// the other hand is holding a tool down as well.
 		if (this.multiTouch) this.releaseHold()
+		this.publish()
+	}
+
+	// --- the zoom stage ------------------------------------------------------
+
+	/*
+	 * v11, which is the one mode whose answer is a second canvas rather than a different
+	 * gesture, and whose touch handling is therefore a different shape from every other
+	 * mode's rather than a branch inside it.
+	 *
+	 * Two surfaces, and each does exactly one job. The **stage** — the magnified canvas in
+	 * the band under the tools — is where you draw, one finger, directly under the
+	 * fingertip, which is v2's rule; what makes it answer the occlusion problem is that
+	 * the drawing under the finger is two to four times life size, so the tip covers
+	 * proportionally less of it. The **paper** above is the whole page with an outline on
+	 * it saying which part the stage is showing, and a finger up there moves that outline
+	 * and makes no mark at all.
+	 *
+	 * Two fingers on either surface resize the window, and the two read in opposite
+	 * senses on purpose: see `zoomViewport`. Nothing here goes near `others`, `holdTimer`
+	 * or the standing cursor — v11 shares none of that machinery, and interleaving it
+	 * with the code above would make both harder to follow than keeping them apart.
+	 */
+
+	private zoomTouchStart(event: TouchEvent): void {
+		const surface = this.surfaceOf(event.target)
+		if (!surface) return
+
+		event.stopPropagation()
+		event.preventDefault()
+
+		// A third finger has nothing left to say: two of them are already a pinch.
+		if (this.pinch) return
+
+		const gesture = this.gesture
+		if (gesture) {
+			// A second finger on the *other* canvas is not half of anything — the two
+			// surfaces are separate controls — so it is swallowed rather than paired.
+			if (surface !== this.surface) return
+
+			const second = Array.from(event.changedTouches).find((t) => t.identifier !== gesture.id)
+			if (second) this.beginPinch(gesture, second)
+			return
+		}
+
+		const touch = event.changedTouches[0]
+		if (!touch) return
+
+		this.surface = surface
+		this.gesture = this.open(touch, surface === 'stage', false, this.boxOf(surface))
+
+		// The stage marks from the frame it is touched, which is v2's rule and the whole
+		// of what this mode takes from it. The paper only ever moves the window.
+		if (surface === 'stage') this.engage()
+
+		this.publish()
+	}
+
+	private zoomTouchMove(event: TouchEvent, zoom: Zoom): void {
+		const pinch = this.pinch
+		if (pinch) {
+			this.applyPinch(event, pinch, zoom)
+			return
+		}
+
+		const gesture = this.gesture
+		if (!gesture) return
+
+		const box = this.boxOf(this.surface)
+		let moved = false
+
+		for (const touched of Array.from(event.changedTouches)) {
+			if (touched.identifier !== gesture.id) continue
+
+			const x = touched.clientX - box.left
+			const y = touched.clientY - box.top
+			gesture.travel += Math.hypot(x - gesture.x, y - gesture.y)
+
+			if (this.surface === 'book') {
+				// The outline goes where the finger goes: a delta on the paper is a delta on
+				// the page, scaled by however small the paper is being shown. Read from the
+				// store rather than from `zoom`, which is a frame old by now.
+				const view = stage().view
+				const from = paperPoint(gesture.x, gesture.y, box)
+				const to = paperPoint(x, y, box)
+				if (view) setViewport(panViewport(view, to.x - from.x, to.y - from.y, aspectOf(zoom.box)))
+			}
+
+			gesture.x = x
+			gesture.y = y
+			gesture.inkX = x
+			gesture.inkY = y
+			moved = true
+		}
+
+		// Nothing of ours moved: a finger that started on a control, which owns it.
+		if (!moved) return
+
+		event.stopPropagation()
+		event.preventDefault()
+
+		if (this.surface === 'stage') this.workStage(gesture)
+
+		this.publish()
+	}
+
+	private zoomTouchEnd(event: TouchEvent): void {
+		const ids = Array.from(event.changedTouches).map((touched) => touched.identifier)
+
+		const pinch = this.pinch
+		if (pinch) {
+			if (!ids.includes(pinch.a.id) && !ids.includes(pinch.b.id)) return
+
+			event.stopPropagation()
+
+			// One finger of a pinch leaving ends the gesture rather than handing the window
+			// to the finger that is left: that finger has been steering half of a pinch, and
+			// treating its next move as a drag would throw the window sideways at the exact
+			// moment somebody is letting go of it.
+			this.pinch = null
+			this.gesture = null
+			this.publish()
+			return
+		}
+
+		const gesture = this.gesture
+		if (!gesture || !ids.includes(gesture.id)) return
+
+		event.stopPropagation()
+
+		if (this.surface === 'stage') this.disengage()
+		else this.tapPaper(gesture)
+
+		this.gesture = null
+		this.publish()
+	}
+
+	/** Puts the tool to work at the point on the page the finger is over on the stage. */
+	private workStage(gesture: Gesture): void {
+		const view = stage().view
+		const zoom = this.zoom
+		if (!view || !zoom) return
+
+		const at = stagePoint(view, gesture.inkX, gesture.inkY, zoom.box)
+		const point = this.engine.inProject(at.x, at.y)
+
+		if (gesture.engaged) this.engine.toolDrag(point)
+		// A cursor moving with nothing down is a hover, which on the stage is what puts the
+		// transform tool's handles and push's dots under the fingertip before you commit.
+		else this.engine.toolHover(point)
+	}
+
+	/**
+	 * A tap on the paper puts the window where you tapped.
+	 *
+	 * The outline is dragged rather than aimed at — a press anywhere on the paper takes
+	 * hold of it, which is forgiving and is what you want of a control the size of a
+	 * postage stamp — so a press that goes nowhere would otherwise do nothing at all. A
+	 * tap is the fast way across the page, and it costs a gesture that was already spent.
+	 */
+	private tapPaper(gesture: Gesture): void {
+		const zoom = this.zoom
+		if (!zoom) return
+		if (gesture.travel > TAP_SLOP) return
+		if (performance.now() - gesture.openedAt > TAP_TIME) return
+
+		const at = paperPoint(gesture.x, gesture.y, this.boxOf('book'))
+		setViewport(centreViewport(zoom.view, at, aspectOf(zoom.box)))
+	}
+
+	/**
+	 * A second finger arriving, which turns whatever was happening into a pinch.
+	 *
+	 * **A stroke it interrupted is taken back off the page, but only if it had just
+	 * started.** The two halves of that are separate judgements. A second finger landing
+	 * within a moment of the first is a pinch that the browser delivered as two events —
+	 * nobody puts two fingers down simultaneously — and the dot the first one left is not
+	 * a mark anybody asked for; the step exists by then, so undoing it is exact rather
+	 * than approximate, and it costs one entry on the redo stack. A second finger landing
+	 * a second later is somebody who has finished a stroke and now wants to zoom, and
+	 * throwing that stroke away would be much the worse mistake. So the stroke is always
+	 * *ended* and only sometimes undone.
+	 *
+	 * Refusing the pinch until the hand comes off the glass was the other option and is
+	 * worse than both: it is a mode you cannot zoom while you are drawing in it.
+	 */
+	private beginPinch(gesture: Gesture, second: Touch): void {
+		if (gesture.engaged) {
+			const brief = performance.now() - gesture.openedAt <= PINCH_GRACE
+			this.disengage()
+
+			/*
+			 * A tick later, because that is when there is a step to take back.
+			 * `handlePointerUp` commits on a `setTimeout(0)` of its own — paper dispatches
+			 * its own mouseup on the document and the stroke may not be finished when ours
+			 * lands — so an undo issued here reads `canUndo: false`, does nothing at all,
+			 * and the mark stays. Same delay, scheduled second, so it runs second.
+			 */
+			if (brief) {
+				window.setTimeout(() => {
+					if (this.engine.store.snapshot.canUndo) this.engine.undo()
+				}, 0)
+			}
+		}
+
+		const box = this.boxOf(this.surface)
+		this.pinch = {
+			a: { id: gesture.id, x: gesture.x, y: gesture.y },
+			b: { id: second.identifier, x: second.clientX - box.left, y: second.clientY - box.top },
+		}
+
+		this.publish()
+	}
+
+	/**
+	 * Two fingers, one frame: how much they spread and how far they carried.
+	 *
+	 * Incremental rather than measured against where the pinch began, which matters once
+	 * the window hits a limit: an absolute pinch goes on accumulating scale against a
+	 * window that has stopped moving, so the fingers have to travel all the way back
+	 * before anything happens again. Frame by frame the clamp simply eats the surplus.
+	 */
+	private applyPinch(event: TouchEvent, pinch: Pinch, zoom: Zoom): void {
+		const box = this.boxOf(this.surface)
+		const before = spread(pinch)
+
+		let moved = false
+		for (const touched of Array.from(event.changedTouches)) {
+			const point =
+				touched.identifier === pinch.a.id
+					? pinch.a
+					: touched.identifier === pinch.b.id
+						? pinch.b
+						: null
+			if (!point) continue
+
+			point.x = touched.clientX - box.left
+			point.y = touched.clientY - box.top
+			moved = true
+		}
+
+		if (!moved) return
+
+		event.stopPropagation()
+		event.preventDefault()
+
+		const view = stage().view
+		if (!view) return
+
+		const after = spread(pinch)
+		const ratio = before.distance > 0 ? after.distance / before.distance : 1
+		const aspect = aspectOf(zoom.box)
+
+		if (this.surface === 'stage') {
+			// Handling the drawing: fingers apart is a closer look, which is a *smaller*
+			// window, and the page under the fingers travels with them — so the window goes
+			// the other way.
+			const anchor = stagePoint(view, before.x, before.y, zoom.box)
+			const zoomed = zoomViewport(view, aspect, 1 / ratio, anchor)
+			setViewport(
+				panViewport(
+					zoomed,
+					(-(after.x - before.x) * zoomed.w) / (zoom.box.width || 1),
+					(-(after.y - before.y) * zoomed.h) / (zoom.box.height || 1),
+					aspect,
+				),
+			)
+		} else {
+			// Handling the outline: fingers apart makes the rectangle bigger, which is a
+			// wider view, and the rectangle follows the fingers rather than fleeing them.
+			const anchor = paperPoint(before.x, before.y, box)
+			const zoomed = zoomViewport(view, aspect, ratio, anchor)
+			const from = paperPoint(before.x, before.y, box)
+			const to = paperPoint(after.x, after.y, box)
+			setViewport(panViewport(zoomed, to.x - from.x, to.y - from.y, aspect))
+		}
+
+		this.publish()
+	}
+
+	/**
+	 * The mouse, in v11, on whichever of the two canvases it is over.
+	 *
+	 * The stage is a phone control and the stylesheet hides it above the breakpoint, so
+	 * this is the laptop with a touchscreen, the narrow window, and the person testing the
+	 * mode without a phone in their hand. It borrows the touch path wholesale by
+	 * synthesising a gesture with an impossible identifier — `Touch.identifier` is never
+	 * negative — so `engage`, `disengage`, `tapPaper` and `publish` need to know nothing
+	 * about it. What it hasn't got is a pinch: a mouse has one contact, and the wheel would
+	 * be a control this mode doesn't otherwise have.
+	 */
+	private onStagePointerDown = (event: PointerEvent): void => {
+		if (event.pointerType === 'touch') return
+		if (!this.zoom || this.gesture) return
+
+		const surface = this.surfaceOf(event.target)
+		if (!surface) return
+
+		event.stopPropagation()
+		this.source = 'mouse'
+		this.surface = surface
+
+		const box = this.boxOf(surface)
+		const x = event.clientX - box.left
+		const y = event.clientY - box.top
+
+		this.gesture = {
+			id: MOUSE_GESTURE,
+			intercepted: surface === 'stage',
+			engaged: false,
+			everEngaged: false,
+			openedAt: performance.now(),
+			travel: 0,
+			x,
+			y,
+			inkX: x,
+			inkY: y,
+			anchorX: x,
+			anchorY: y,
+		}
+
+		if (surface === 'stage') this.engage()
+		this.publish()
+	}
+
+	private onStagePointerMove = (event: PointerEvent): void => {
+		if (event.pointerType === 'touch') return
+
+		const zoom = this.zoom
+		if (!zoom) return
+
+		const gesture = this.gesture
+		if (!gesture) {
+			// Hovering. Only the stage has a cursor to move; the paper's half of this mode
+			// is an outline, and there is nothing up there to draw at an arrow.
+			const on = this.surfaceOf(event.target) === 'stage'
+			if (!on) {
+				if (!this.stageOver) return
+				this.stageOver = false
+				this.publish()
+				return
+			}
+
+			this.source = 'mouse'
+			this.surface = 'stage'
+			this.stageOver = true
+
+			const box = this.boxOf('stage')
+			this.hoverStage(event.clientX - box.left, event.clientY - box.top, zoom)
+			return
+		}
+
+		if (gesture.id !== MOUSE_GESTURE) return
+
+		const box = this.boxOf(this.surface)
+		const x = event.clientX - box.left
+		const y = event.clientY - box.top
+		gesture.travel += Math.hypot(x - gesture.x, y - gesture.y)
+
+		if (this.surface === 'book') {
+			const view = stage().view
+			const from = paperPoint(gesture.x, gesture.y, box)
+			const to = paperPoint(x, y, box)
+			if (view) setViewport(panViewport(view, to.x - from.x, to.y - from.y, aspectOf(zoom.box)))
+		}
+
+		gesture.x = x
+		gesture.y = y
+		gesture.inkX = x
+		gesture.inkY = y
+
+		if (this.surface === 'stage') this.workStage(gesture)
+
+		this.publish()
+	}
+
+	private onStagePointerUp = (): void => {
+		const gesture = this.gesture
+		if (!gesture || gesture.id !== MOUSE_GESTURE) return
+
+		if (this.surface === 'stage') this.disengage()
+		else this.tapPaper(gesture)
+
+		this.gesture = null
+		this.publish()
+	}
+
+	/** A mouse over the stage with nothing pressed: a ring, and the tool's own hover. */
+	private hoverStage(x: number, y: number, zoom: Zoom): void {
+		this.mouseX = x
+		this.mouseY = y
+
+		const at = stagePoint(zoom.view, x, y, zoom.box)
+		this.engine.toolHover(this.engine.inProject(at.x, at.y))
 		this.publish()
 	}
 
@@ -816,6 +1312,17 @@ export class PointerLayer {
 
 		gesture.engaged = true
 		gesture.everEngaged = true
+
+		// v11 works in the stage's own coordinates, which are a window on the page rather
+		// than a scaled copy of the whole of it — so the point is mapped through the
+		// window and handed over in project units, not through the canvas.
+		const zoom = this.zoom
+		if (zoom && this.surface === 'stage') {
+			const at = stagePoint(zoom.view, gesture.inkX, gesture.inkY, zoom.box)
+			this.engine.toolDown(this.engine.inProject(at.x, at.y))
+			return
+		}
+
 		// The stroke starts wherever the *cursor* is standing in the relative modes,
 		// which is the one place it can start there: the finger's position means nothing,
 		// and a stroke that opened under the fingertip and then jumped to the ring would
@@ -839,14 +1346,17 @@ export class PointerLayer {
 		this.disengage()
 		this.gesture = null
 		this.others.clear()
+		this.pinch = null
+		this.surface = 'book'
 		this.pressed = null
 		this.over = false
 		this.held = false
+		this.stageOver = false
 		this.publish()
 	}
 
-	private open(touch: Touch, intercepted: boolean, engaged: boolean): Gesture {
-		const box = this.canvas.getBoundingClientRect()
+	private open(touch: Touch, intercepted: boolean, engaged: boolean, against?: DOMRect): Gesture {
+		const box = against ?? this.canvas.getBoundingClientRect()
 		const x = touch.clientX - box.left
 		const y = touch.clientY - box.top
 
@@ -951,6 +1461,57 @@ export class PointerLayer {
 	 * Hence a signal rather than a read. The equality check is what keeps it from
 	 * doubling every publish a moving mouse already makes.
 	 */
+	/**
+	 * v11's cursor, which is only ever on the stage.
+	 *
+	 * The paper's half of this mode is an outline rather than a pointer: a finger up
+	 * there moves the window and makes no mark, so there is nothing to draw at the
+	 * fingertip and drawing one would say there was. What the paper gets instead is
+	 * `ZoomWindow`, which reads the same viewport out of the same store.
+	 */
+	private publishZoom(): void {
+		const gesture = this.gesture
+
+		if (!gesture) {
+			// A mouse resting on the stage still wants a ring: it is a pointer over a
+			// drawing surface, which is the one thing this mode has in common with the rest.
+			if (this.source === 'mouse' && this.stageOver) {
+				this.store.set({ cursor: this.stageCursor(this.mouseX, this.mouseY, false) })
+				return
+			}
+
+			this.store.set({ cursor: null })
+			return
+		}
+
+		if (this.pinch || this.surface !== 'stage') {
+			this.store.set({ cursor: null })
+			return
+		}
+
+		this.store.set({ cursor: this.stageCursor(gesture.inkX, gesture.inkY, gesture.engaged) })
+	}
+
+	private stageCursor(x: number, y: number, marking: boolean): Cursor {
+		const box = this.boxOf('stage')
+
+		return {
+			x,
+			y,
+			inkX: x,
+			inkY: y,
+			size: box.width,
+			top: box.top,
+			touching: this.source === 'touch',
+			// Not a standing cursor: it is under the fingertip, exactly as v2's is. The
+			// grey/black pair says "the tool is not working yet", and here it always is.
+			standing: false,
+			surface: 'stage',
+			marking,
+			affordance: this.engine.transformAffordance(),
+		}
+	}
+
 	private onGrab = (): void => {
 		const current = this.store.snapshot.cursor
 		if (!current) return
@@ -962,6 +1523,11 @@ export class PointerLayer {
 	}
 
 	private publish(box?: DOMRect): void {
+		if (this.zoom) {
+			this.publishZoom()
+			return
+		}
+
 		const rect = box ?? this.canvas.getBoundingClientRect()
 		const gesture = this.gesture
 
@@ -978,6 +1544,7 @@ export class PointerLayer {
 							top: rect.top,
 							touching: false,
 							standing: false,
+							surface: 'book',
 							marking: this.held,
 							affordance: this.engine.transformAffordance(),
 						}
@@ -1001,6 +1568,7 @@ export class PointerLayer {
 							top: rect.top,
 							touching: false,
 							standing: true,
+							surface: 'book',
 							marking: false,
 							affordance: this.engine.transformAffordance(),
 						}
@@ -1022,6 +1590,7 @@ export class PointerLayer {
 				top: rect.top,
 				touching: true,
 				standing: this.relative,
+				surface: 'book',
 				marking: gesture.engaged,
 				affordance: this.engine.transformAffordance(),
 			},
@@ -1087,6 +1656,46 @@ export const subscribeToolPressed = pressed.subscribe
 
 function clamp(value: number, low: number, high: number): number {
 	return Math.min(Math.max(value, low), high)
+}
+
+/** Which of v11's two canvases something is measured against. See `Cursor.surface`. */
+export type Surface = 'book' | 'stage'
+
+/** The stage as `PointerLayer` needs it: a window, and the box it is being shown in. */
+interface Zoom {
+	box: Box
+	view: Viewport
+}
+
+interface Pinch {
+	a: { id: number; x: number; y: number }
+	b: { id: number; x: number; y: number }
+}
+
+/**
+ * How soon after a stroke starts a second finger is read as "I meant to pinch".
+ *
+ * Nobody puts two fingers down at the same instant, so the browser delivers a pinch as
+ * two `touchstart`s a few tens of milliseconds apart and the first of them has already
+ * drawn a dot. A quarter of a second is comfortably longer than that gap and comfortably
+ * shorter than a stroke somebody meant. See `beginPinch`.
+ */
+const PINCH_GRACE = 250
+
+/** A gesture the mouse is driving. `Touch.identifier` is never negative. */
+const MOUSE_GESTURE = -1
+
+function aspectOf(box: Box): number {
+	return box.height === 0 ? 1 : box.width / box.height
+}
+
+/** Two fingers as one thing: where they are between them, and how far apart. */
+function spread(pinch: Pinch): { x: number; y: number; distance: number } {
+	return {
+		x: (pinch.a.x + pinch.b.x) / 2,
+		y: (pinch.a.y + pinch.b.y) / 2,
+		distance: Math.hypot(pinch.a.x - pinch.b.x, pinch.a.y - pinch.b.y),
+	}
 }
 
 interface Press {

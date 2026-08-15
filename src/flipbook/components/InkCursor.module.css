@@ -28,7 +28,12 @@
 .ring {
 	position: absolute;
 	z-index: 17;
-	width: max(6px, calc(var(--ink) * 100% / 640));
+	/* `--span` is how many project units the box this is in is showing: the whole 640 on
+	   the paper, and as few as 160 on v11's magnified stage. So the same three-unit
+	   pencil draws a ring four times the size down there, which is the truth about the
+	   mark it is going to make. Defaulted rather than required, because every surface
+	   but that one shows the whole page. */
+	width: max(6px, calc(var(--ink) * 100% / var(--span, 640)));
 	/* From the width, and it has to be said this way round: a percentage height
 	   resolves against the *height* of the box it is in, and this box is 16:9 — so the
 	   same expression on both axes drew an ellipse nearly twice as wide as it was tall.
@@ -97,7 +102,7 @@
 /*
  * The loupe: the drawing under the finger, repeated above it at twice the size.
  *
- * Only two of the ten drawing modes have one — v1, which is what the tool shipped with,
+ * Only two of the eleven drawing modes have one — v1, which is what the tool shipped with,
  * and v3, which pins it in a corner. A magnifier is the answer to a mark landing under
  * the finger making it, so the modes where the cursor stands away from the hand have
  * nothing for it to do: with nothing under the finger to see, there is nothing to

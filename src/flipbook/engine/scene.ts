@@ -206,6 +206,17 @@ export class Scene {
 	}
 
 	/**
+	 * A point that is already in project units, as one of paper's own.
+	 *
+	 * The zoom stage works in project units from the start — it is a window on the page
+	 * expressed in the page's own coordinates — so it has nothing for `toProject` to
+	 * convert and would be undone by the display scale if it went through it.
+	 */
+	point(x: number, y: number): paper.Point {
+		return new this.scope.Point(x, y)
+	}
+
+	/**
 	 * Brings the canvas up to date *now*.
 	 *
 	 * paper redraws on its own on the next animation frame, so this is only needed

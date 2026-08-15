@@ -2,7 +2,7 @@
  * The drawing-mode switch: scaffolding, and dressed as scaffolding.
  *
  * It sits above everything — the header is 100 and the loupe 101, which is the
- * highest thing the page draws — because it has to be reachable in all ten modes,
+ * highest thing the page draws — because it has to be reachable in every mode,
  * including the two that put a magnifier under the top edge of the window.
  */
 .switcher {

@@ -1,31 +1,22 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef } from 'react'
 
 import type { DrawMode } from '../drawModes'
 import { CANVAS_WIDTH, PENCIL_COLOR } from '../engine/constants'
-import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { ERASE_TOLERANCE } from '../engine/tools/eraser'
 import { DEFAULT_PENCIL_WIDTH } from '../engine/tools/pencil'
 import type { ModalToolId } from '../engine/tools/types'
-import { type Cursor, PointerLayer } from '../pointer'
+import type { Cursor } from '../pointer'
+import type { PointerLayer } from '../pointer'
+import { useCursor } from '../usePointerLayer'
 import styles from './InkCursor.module.css'
 
 export interface InkCursorProps {
-	engine: FlipbookEngine | null
+	layer: PointerLayer | null
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Null while a page animation holds the tools. */
 	tool: ModalToolId | null
-	/** Which of the ten answers to "a finger is opaque" is switched on. */
+	/** Which of the drawing modes is switched on. Two of them draw a magnifier. */
 	mode: DrawMode
-	/**
-	 * Everywhere a finger may aim from — the page, less the controls on it.
-	 *
-	 * In the modes where the cursor is nudged rather than placed it doesn't care where
-	 * the nudge comes from, and the empty band under the drawing on a phone is where a
-	 * thumb already is. The modes that mark at the fingertip ignore it and keep to the
-	 * drawing; that is `PointerLayer.ownsTouch`, not something decided here. Defaults to
-	 * the drawing itself.
-	 */
-	fieldRef?: React.RefObject<HTMLElement | null>
 }
 
 /**
@@ -47,71 +38,19 @@ export interface InkCursorProps {
  * isn't marking yet. The ones that change where the ink goes rather than what you can see
  * are in `pointer.ts`, and the two halves meet in the `Cursor` this subscribes to.
  *
+ * **This is the paper's cursor and only the paper's.** v11 draws in a second canvas under
+ * the tools with a cursor of its own, and `Cursor.surface` is what tells them apart — see
+ * `ZoomStage`, which renders the same two shapes at a different scale.
+ *
  * Nothing here reads the scene: the magnifier is drawn from the live canvas, so what it
  * shows is exactly what is on the paper — the stroke in progress, the onion skin, the
  * selection, all of it — and this file knows nothing about paper.js.
  */
-export function InkCursor({ engine, canvasRef, tool, mode, fieldRef }: InkCursorProps) {
+export function InkCursor({ layer, canvasRef, tool, mode }: InkCursorProps) {
 	const loupe = useRef<HTMLCanvasElement | null>(null)
-	const [layer, setLayer] = useState<PointerLayer | null>(null)
+	const cursor = useCursor(layer)
 
-	// The pencil and the eraser mark the page; the transform tool moves what is already
-	// on it. A ring there would be describing a stroke nobody is about to draw.
-	const marking = tool === 'pencil' || tool === 'eraser'
-	const aiming = tool === 'transform'
-	const shown = marking || aiming
-
-	/*
-	 * One layer for the life of the page, not one per tool.
-	 *
-	 * It has to outlive the cursor it feeds: v4's offset is applied inside the scene, and
-	 * a layer that came and went with the transform tool would put it back to zero every
-	 * time you picked that tool up. The mode is handed over separately, below, for the
-	 * same reason — rebuilding the layer to change a setting would drop whatever gesture
-	 * was in flight and put the standing cursor back in the middle of the page.
-	 *
-	 * Which is also why this component stays mounted even when it draws nothing — with no
-	 * tool in hand there is no cursor, and `shown` below is false, but the layer is still
-	 * the only subscriber to `setToolPressed`. On a phone the tray is driven by touch and
-	 * calls `preventDefault()`, so there is no click behind it: unmount this and the three
-	 * tools stop responding altogether. See the create page, where a trace photo being
-	 * placed is exactly that state.
-	 */
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `mode` is the starting value only; `setMode` below carries changes across. See above.
-	useEffect(() => {
-		const canvas = canvasRef.current
-		// `.book`, which wraps the canvas. The listeners have to be on an ancestor to be
-		// sure of running before paper's own — at the target element, capture and bubble
-		// listeners are called in the order they were added, so registering on the canvas
-		// itself would be a race against whichever ran first.
-		const book = canvas?.parentElement
-		if (!engine || !canvas || !book) return
-
-		const created = new PointerLayer(fieldRef?.current ?? book, book, canvas, engine, mode)
-		setLayer(created)
-
-		return () => {
-			created.destroy()
-			setLayer(null)
-		}
-	}, [engine, canvasRef, fieldRef])
-
-	useEffect(() => {
-		layer?.setMode(mode)
-	}, [layer, mode])
-
-	// Picking a tool up changes what the cursor is, and on a desktop that is a button
-	// press rather than a pointer moving — so nothing would republish until it did.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `tool` is the trigger rather than a value the effect reads; that is the whole point of it.
-	useEffect(() => {
-		layer?.refresh()
-	}, [layer, tool])
-
-	const cursor = useSyncExternalStore(
-		layer ? layer.subscribe : NO_SUBSCRIBE,
-		() => layer?.snapshot ?? null,
-		() => null,
-	)
+	const shown = marks(tool) || tool === 'transform'
 
 	useEffect(() => {
 		const canvas = canvasRef.current
@@ -130,15 +69,6 @@ export function InkCursor({ engine, canvasRef, tool, mode, fieldRef }: InkCursor
 		}
 	}, [canvasRef, shown])
 
-	/**
-	 * What the tool is about to put down, in project units — 640 of them across.
-	 *
-	 * The pencil is one width now, so what this still says is which of the two marking
-	 * tools is in hand: an eraser's bite is 20 units against a stroke's 3, and the ring
-	 * changing size is the clearest statement either makes about itself.
-	 */
-	const ink = tool === 'eraser' ? ERASE_TOLERANCE * 2 : DEFAULT_PENCIL_WIDTH
-
 	/*
 	 * The magnifier is a finger's, in the two modes that have one, and it is asked of the
 	 * *pointer* rather than of the device. `isTouch` answers for the whole machine — a
@@ -146,12 +76,15 @@ export function InkCursor({ engine, canvasRef, tool, mode, fieldRef }: InkCursor
 	 * somebody is using the trackpad — and what matters here is what is on the glass right
 	 * now. A mouse gets the ring and nothing else.
 	 */
-	const magnifying = marking && cursor?.touching && (mode === 'v1' || mode === 'v3')
+	const magnifying =
+		marks(tool) && cursor?.touching && cursor.surface === 'book' && (mode === 'v1' || mode === 'v3')
 
 	// The frame loop below reads this rather than closing over `cursor`, so a moving
 	// pointer doesn't restart the loop sixty times a second.
 	const cursorRef = useRef(cursor)
 	cursorRef.current = cursor
+
+	const ink = inkWidth(tool)
 
 	// Redrawn every frame rather than on every move: the magnifier is showing a stroke
 	// being drawn, and most of what changes inside it between two pointer events is the
@@ -169,38 +102,11 @@ export function InkCursor({ engine, canvasRef, tool, mode, fieldRef }: InkCursor
 		return () => cancelAnimationFrame(frame)
 	}, [magnifying, canvasRef, ink])
 
-	if (!shown || !cursor) return null
-
-	/*
-	 * The standing cursor is also a state: light grey while a gesture is only aiming,
-	 * black the moment the tool starts working. That is the whole feedback for a
-	 * changeover you can't otherwise see — half a second of stillness, a second finger
-	 * somewhere else on the page, or a tool button held by the other hand, none of which
-	 * is something you are looking at.
-	 *
-	 * Only the modes that have one. Everywhere else a cursor means the same thing whether
-	 * the pointer is down or not, and one that changed colour under a resting mouse or a
-	 * drawing finger would be saying something it doesn't mean.
-	 */
-	const state = cursor.standing ? (cursor.marking ? styles.inking : styles.waiting) : ''
-
-	if (aiming) {
-		return (
-			<TransformCursor
-				at={cursor}
-				affordance={cursor.affordance}
-				className={state ? `${styles.grip} ${state}` : styles.grip}
-			/>
-		)
-	}
+	if (!shown || !cursor || cursor.surface !== 'book') return null
 
 	return (
 		<>
-			<span
-				className={state ? `${styles.ring} ${state}` : styles.ring}
-				aria-hidden="true"
-				style={{ left: cursor.inkX, top: cursor.inkY, '--ink': ink } as React.CSSProperties}
-			/>
+			<DrawnCursor at={cursor} tool={tool} />
 
 			{/* No `aria-hidden` on the canvas, unlike the ring above it: a `<canvas>` can
 			    take focus, and hiding a focusable element from the tree is worse than
@@ -217,6 +123,80 @@ export function InkCursor({ engine, canvasRef, tool, mode, fieldRef }: InkCursor
 			) : null}
 		</>
 	)
+}
+
+/**
+ * The cursor itself: a ring for the two tools that mark, a shape for the one that grabs.
+ *
+ * Shared by the two surfaces that have a pointer on them — the paper, and v11's magnified
+ * stage — because a tool that drew itself differently depending on which canvas it was
+ * over would be a tool you had to learn twice. What differs between the two is only
+ * `span`: the ring is stated in project units and drawn as a fraction of the box it is
+ * in, so a box showing 160 units of a 640-unit page draws the same stroke four times the
+ * size, which is exactly what the zoomed drawing does with it.
+ */
+export function DrawnCursor({
+	at,
+	tool,
+	span = CANVAS_WIDTH,
+}: {
+	at: Cursor
+	tool: ModalToolId | null
+	span?: number
+}) {
+	/*
+	 * The standing cursor is also a state: light grey while a gesture is only aiming,
+	 * black the moment the tool starts working. That is the whole feedback for a
+	 * changeover you can't otherwise see — half a second of stillness, a second finger
+	 * somewhere else on the page, or a tool button held by the other hand, none of which
+	 * is something you are looking at.
+	 *
+	 * Only the modes that have one. Everywhere else a cursor means the same thing whether
+	 * the pointer is down or not, and one that changed colour under a resting mouse or a
+	 * drawing finger would be saying something it doesn't mean.
+	 */
+	const state = at.standing ? (at.marking ? styles.inking : styles.waiting) : ''
+
+	if (tool === 'transform') {
+		return (
+			<TransformCursor
+				at={at}
+				affordance={at.affordance}
+				className={state ? `${styles.grip} ${state}` : styles.grip}
+			/>
+		)
+	}
+
+	return (
+		<span
+			className={state ? `${styles.ring} ${state}` : styles.ring}
+			aria-hidden="true"
+			style={
+				{
+					left: at.inkX,
+					top: at.inkY,
+					'--ink': inkWidth(tool),
+					'--span': span,
+				} as React.CSSProperties
+			}
+		/>
+	)
+}
+
+/**
+ * What the tool is about to put down, in project units — 640 of them across the page.
+ *
+ * The pencil is one width now, so what this still says is which of the two marking tools
+ * is in hand: an eraser's bite is 20 units against a stroke's 3, and the ring changing
+ * size is the clearest statement either makes about itself.
+ */
+function inkWidth(tool: ModalToolId | null): number {
+	return tool === 'eraser' ? ERASE_TOLERANCE * 2 : DEFAULT_PENCIL_WIDTH
+}
+
+/** The pencil and the eraser mark the page; the transform tool moves what is on it. */
+function marks(tool: ModalToolId | null): boolean {
+	return tool === 'pencil' || tool === 'eraser'
 }
 
 /**
@@ -291,8 +271,6 @@ function TransformCursor({
 		</svg>
 	)
 }
-
-const NO_SUBSCRIBE = () => () => {}
 
 /** The loupe, in CSS pixels. Big enough to aim with, small enough not to be the page. */
 const LOUPE = 80

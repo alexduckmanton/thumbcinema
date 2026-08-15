@@ -14,6 +14,16 @@
 .content {
 	position: relative;
 	width: 100%;
+	/*
+	 * A column, so that v11's second canvas can take what is left of it.
+	 *
+	 * Only one thing in here is in the flow — the strip is `position: absolute` — so this
+	 * changes nothing about where anything stands: `.center` doesn't grow, and the stage
+	 * that does is only rendered in the one mode that has one. Measured both ways round
+	 * rather than assumed: the paper is at the same pixel with the stage up as without it.
+	 */
+	display: flex;
+	flex-direction: column;
 	/* And stretched to the bottom of the window while the tool is up, because the empty
 	   white under the tools is the field a finger aims from. That is `html.locked main`
 	   in base.css, which is also where it says why it isn't a `min-height` here. */
@@ -28,6 +38,24 @@
 	 * list, so the number comes down and each of the parts it counts comes down with it.
 	 */
 	--book-reserve: 318px;
+}
+
+/*
+ * The column, when it has to hand the bottom of itself to something.
+ *
+ * Applied to the same element as the global `.center`, and only on this page: v11's
+ * second canvas is sized by what the column has *left*, which needs both this box and the
+ * one above it to be columns that can distribute height. Every other mode renders no
+ * stage at all, and with nothing in here able to grow this is the block layout it was.
+ *
+ * The stage's own `flex: 1` is in `ZoomStage.module.css`, beside the rest of what makes
+ * it a sheet of paper.
+ */
+.column {
+	display: flex;
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
 }
 
 /*
@@ -444,6 +472,18 @@
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
 		padding-bottom: 0;
+	}
+
+	/*
+	 * And the column goes back to block flow, because up here nothing needs it to hand
+	 * out height: v11's stage is a phone control and the stylesheet hides it at this
+	 * width. Not tidiness — a flex column doesn't collapse margins, and the tray's 15px
+	 * bottom margin and the save button's 15px top margin are a single 15px gap in flow
+	 * and 30 in flex. Measured: the footer sat 15px lower with this left on.
+	 */
+	.content,
+	.column {
+		display: block;
 	}
 
 	/* `static` undoes the four properties that pinned it, and the padding goes with

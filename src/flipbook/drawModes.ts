@@ -5,16 +5,16 @@ import { Store, useStore } from '../lib/store'
  *
  * A finger is opaque, and the thing you are aiming at on a phone is underneath the thing
  * you are aiming with. There is no settled answer to that — the survey of what other
- * drawing tools do turned up four separate families of answer and no consensus — so all
- * ten candidates are here behind a switch, and drawing with them side by side is how one
- * of them is chosen.
+ * drawing tools do turned up four separate families of answer and no consensus — so every
+ * candidate is here behind a switch, and drawing with them side by side is how one of them
+ * is chosen.
  *
  * **They are numbered rather than named, and the numbers are the point.** These differ
  * from each other by a *rule* rather than by a picture, and half of them look identical
  * until you touch the glass — so "the one where you hold the tool" and "the one with the
- * second finger" are a slow and error-prone way to say which is which. `v1` to `v10` are
- * stable handles: the number never changes, whatever happens to the ordering or to which
- * one wins. Each entry keeps the name it went under while the testbed first ran, so a
+ * second finger" are a slow and error-prone way to say which is which. The numbers are
+ * stable handles: one never changes, whatever happens to the ordering or to which one
+ * wins, and a new candidate takes the next one rather than displacing anybody. Each entry keeps the name it went under while the testbed first ran, so a
  * note written then still resolves to a mode now.
  *
  * The ordering is by family rather than by history, so neighbouring numbers are related
@@ -32,6 +32,18 @@ import { Store, useStore } from '../lib/store'
  *    finger drawing as the case it was built for — the ink is dragged along behind the
  *    finger like a brush with long bristles, which both smooths the line and leaves it
  *    somewhere you can see it.
+ *
+ *  - **v11 stands apart from both**, and is the only one that changes the page rather
+ *    than the gesture. There are two canvases: the paper, which is the whole page with a
+ *    rectangle on it saying which part is magnified, and a second canvas in the empty
+ *    band under the tools, which shows the inside of that rectangle blown up and is the
+ *    one you draw on. The finger is still the pointer and the mark is still under the
+ *    fingertip — that is v2 — but the drawing is bigger than the fingertip, so the tip
+ *    covers proportionally less of it. It is the answer photo editors and CAD tools
+ *    reached for long before magnifiers: don't move the cursor, move the canvas. The
+ *    rectangle's shape is *measured* rather than stated, because the band's is: whatever
+ *    the column has left over after the strip, the paper, the page bar and the tray have
+ *    taken theirs. See `zoomStage.ts`.
  *
  *  - **v6–v10 give up on direct manipulation altogether**, and are the answer rather
  *    than a workaround: the cursor is a thing standing on the page, a finger anywhere
@@ -56,7 +68,7 @@ import { Store, useStore } from '../lib/store'
  * paper — paper has one drag in flight and reads `targetTouches[0]`, so a second finger
  * is invisible to it.
  */
-export type DrawMode = 'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8' | 'v9' | 'v10'
+export type DrawMode = 'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8' | 'v9' | 'v10' | 'v11'
 
 export interface DrawModeInfo {
 	id: DrawMode
@@ -129,6 +141,12 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 		was: 'twoFinger',
 		hint: 'Two fingers down means the tool is working. Move either one and the cursor follows it; move both and it follows the average. Holding a tool in the tray does the same job, so one finger on the page and the other hand on the pencil works too.',
 	},
+	{
+		id: 'v11',
+		name: 'Zoom stage',
+		was: 'zoomStage',
+		hint: 'You draw in the second canvas under the tools, magnified. The rectangle on the paper says which part of it that is: drag it to move, or pinch either canvas to zoom.',
+	},
 ]
 
 /**
@@ -196,6 +214,22 @@ export function isMultiTouchMode(mode: DrawMode): boolean {
 }
 
 /**
+ * Whether the page carries a second, magnified canvas to draw in.
+ *
+ * v11 alone, and it is the one mode whose answer is a *layout* rather than a gesture —
+ * so it is also the one that can find itself without the room to be what it says it is.
+ * Where the band under the tools is too short, or the layout hides it outright (which is
+ * every window above the breakpoint: a mouse has a precise pointer and no occlusion
+ * problem, so the whole mode is answering a question it hasn't got), there is no stage
+ * and v11 falls back to v2. `stageView()` returning null is that condition, and it is
+ * asked of the stage rather than of the mode — one question, one answer, and nothing
+ * here has to know what the media query says.
+ */
+export function isZoomStageMode(mode: DrawMode): boolean {
+	return mode === 'v11'
+}
+
+/**
  * Whether holding a tool down in the tray sets it working at the cursor.
  *
  * v8's whole mechanism, and v10 has it as well as its own. The two answers to "how does
@@ -214,7 +248,7 @@ export function holdsTool(mode: DrawMode): boolean {
 /**
  * Whether the cursor moves by the finger's delta rather than standing under it.
  *
- * Five of the ten. Named here rather than in `pointer.ts` because the cursor is drawn
+ * Five of them. Named here rather than in `pointer.ts` because the cursor is drawn
  * differently in these — it says which state the gesture is in, and it is on the page
  * whether anything is touching the glass or not — so `InkCursor` has to ask the same
  * question, and two lists of mode ids would drift.

@@ -72,7 +72,8 @@ src/
       FlipbookEngine.ts  the façade React drives
     usePageReorder.ts the reorder gesture, and the settle at the end of it
     pointer.ts        a finger, and what it does to the cursor and the tool
-    drawModes.ts      the ten answers to "a finger is opaque", numbered v1–v10
+    drawModes.ts      the answers to "a finger is opaque", numbered v1–v11
+    zoomStage.ts      v11's window on the page: the maths, and where it is kept
     trace/            the photo you trace over. No paper.js here either.
       geometry.ts     what a drag and a pinch do to a placement
       useTracePhoto.ts the camera, the decode, and the object URLs
@@ -1171,7 +1172,7 @@ is now true at both widths and the differences are called out where they exist.
 
   There is also a **loupe**: 80px, twice life size, floating above the fingertip and
   allowed to hang off the top of the paper to stay there, or pinned in whichever top
-  corner the finger isn't. It belongs to two of the ten drawing modes and is drawn by
+  corner the finger isn't. It belongs to two of the eleven drawing modes and is drawn by
   nothing else — a magnifier is the answer to a mark landing under the finger making it,
   and the default puts the cursor somewhere else entirely, so with nothing under the
   finger to see there is nothing to magnify. See **Drawing with a finger**.
@@ -1230,23 +1231,26 @@ is now true at both widths and the differences are called out where they exist.
 
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
-separate families and no consensus — so rather than pick one blind, ten of them are built
-behind a switch in the corner of the create page and drawn with side by side: a follower
-loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change over on
-half a second of stillness, and four that move the cursor off the fingertip altogether.
-`drawModes.ts` is the list and where each one comes from; `DrawModeSwitch` is the switch;
-`pointer.ts` is nearly all of the mechanism.
+separate families and no consensus — so rather than pick one blind, eleven of them are
+built behind a switch in the corner of the create page and drawn with side by side: a
+follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
+over on half a second of stillness, four that move the cursor off the fingertip
+altogether, and one that leaves the finger where it is and magnifies the drawing under it
+instead. `drawModes.ts` is the list and where each one comes from; `DrawModeSwitch` is the
+switch; `pointer.ts` is nearly all of the mechanism, and `zoomStage.ts` is the last one's
+own.
 
-**They are numbered `v1` to `v10` rather than named, and the numbers are the point.**
+**They are numbered `v1` upwards rather than named, and the numbers are the point.**
 These differ from each other by a *rule* rather than by a picture, and half of them look
 identical until you touch the glass, so "the one where you hold the tool" is a slow way to
 say which is which. The numbers are stable handles that survive reordering the list and
 survive a different one winning; each entry keeps the name it went under while the testbed
-first ran (`was`), so a note written then still resolves. The caption under the switch is
-permanently on and leads with the number, because a mode you can't name is a mode you
-can't report on. They are grouped rather than ordered by history: **v1–v5 keep the finger
-as the pointer**, and **v6–v10 stand the cursor away from the hand** and differ only in
-how the tool is told to start working.
+first ran (`was`), so a note written then still resolves, and a new candidate takes the
+next number rather than displacing anybody. The caption under the switch is permanently on
+and leads with the number, because a mode you can't name is a mode you can't report on.
+They are grouped rather than ordered by history: **v1–v5 keep the finger as the pointer**,
+**v6–v10 stand the cursor away from the hand** and differ only in how the tool is told to
+start working, and **v11 moves the canvas instead of the cursor** — see below.
 
 **v10 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
 rather than "whichever is last in the list". The rest of this section describes v10; the
@@ -1269,7 +1273,7 @@ contacts the browser reports as having moved.
 
 Things worth knowing before touching anything nearby:
 
-- **paper drives no touch here at all**, and in six of the ten modes it drives none.
+- **paper drives no touch here at all**, and in seven of the eleven modes it drives none.
   paper 0.12 is single-pointer by construction — it reads `targetTouches[0]`, has one drag
   in flight and no notion of a pointer id — so it cannot see a second contact, and it
   works at the *fingertip*, which in those six is neither the cursor nor anywhere on the
@@ -1420,6 +1424,98 @@ way. It differs in one measurable respect: a stroke includes the point the gestu
 opened at, where a paper-driven one's first segment is the first `onMouseDrag` — about
 7px in.
 
+### v11, which moves the canvas instead of the cursor
+
+The one mode whose answer is a **layout** rather than a gesture, and the odd one out in
+every list above. The page carries two canvases. The **paper** is the whole drawing at the
+size it has always been, with a rectangle on it saying which part is magnified; you don't
+draw there. The **stage** is a second canvas in the band under the tools, showing the
+inside of that rectangle blown up, and it is the surface you draw on — one finger,
+directly under the fingertip, which is v2's rule exactly. What answers the occlusion
+problem is that the drawing is two to four times life size, so the tip covers
+proportionally less of it. It is what photo editors and CAD tools reached for long before
+anybody tried a magnifier.
+
+`zoomStage.ts` is the window and the arithmetic on it, unit-tested; `ZoomStage` is the
+canvas and the outline; and the gestures are `PointerLayer`'s, kept in a section of their
+own because v11 shares none of the machinery the other ten do.
+
+- **The whole of the state is four numbers**: a rectangle on the 640×360 page, in the
+  page's own units. The outline, the magnified copy and where a finger lands in the
+  artwork are three readings of those four, so there is one thing to be right about rather
+  than three.
+- **The stage is a copy, not a second drawing.** One `drawImage` per frame out of the live
+  canvas — the loupe's mechanism at a larger size — and a finger's position handed back
+  through the same window the other way. So there is nothing here for the save path, the
+  history or the page strip to know about: a gesture that arrives from down there is one
+  history step and one thumbnail, and the artwork is still 640×360 whatever is on screen.
+  Copying is also what keeps it honest, because what you see is the live canvas: the
+  stroke in progress, the onion skin and a selected stroke's blue are all in it without
+  this code knowing any of them exist. **What it costs is sharpness at the far end of the
+  zoom** — the source is the paper's backing store, 640 units across at the device's pixel
+  ratio, so at 4× the copy magnifies about 2:1. On a phone that is a soft edge on a
+  hand-drawn line.
+- **Its size is measured, and its shape falls out of the measurement.** The stage takes
+  what the column has left once the strip, the paper, the page bar and the tray have taken
+  theirs — nothing above it moves, and `--book-reserve` is the number it always was — so
+  its aspect ratio is whatever the phone leaves it, and **the rectangle takes its shape
+  from the stage rather than the other way round**. Which is why the rectangle is not
+  16:9 and cannot be: on a 390pt phone the band comes out about 2.2:1, so the largest
+  window is the full width of the page and about two thirds of its height. That is not a
+  limitation to work around — the paper above is the view that shows everything.
+- **`flex: 1 1 0`, and the zero is load-bearing.** A basis of `auto` takes the item's
+  content size, and the content is a canvas whose element height is its backing store —
+  897px on a three-times screen — so the column grew to fit it, ran off the bottom of the
+  window, and settled whenever the observer next measured the overflow.
+- **The paper wears a transparent sheet, and that is what takes the presses.** Dragging
+  anywhere on it moves the window, which is far more forgiving than asking anybody to hit
+  a rectangle that may be 60px across, and a tap centres the window on the point tapped.
+  The sheet is also the only thing that keeps paper.js out of a canvas that is no longer a
+  drawing surface: paper binds `mousedown` to that element in its own constructor.
+  `pointer-events: none` on the canvas was the first attempt and is wrong — it drops the
+  touch through to the *page thumbnails* standing behind the drawing, which are not in
+  `.book` and so are nobody's surface at all.
+- **Pinch works on both canvases and reads in opposite senses, deliberately.** On the
+  stage you are handling the drawing: fingers apart is a closer look, which is a smaller
+  window. On the paper you are handling the rectangle: fingers apart makes the rectangle
+  bigger, and the view underneath wider. Both are what the thing under your fingers would
+  do if you could pick it up, which is the only test either has to pass. It is the
+  *interval* that is incremental rather than measured from where the pinch began — an
+  absolute pinch goes on accumulating scale against a window that has stopped at a limit,
+  so the fingers have to travel all the way back before anything happens again.
+- **A second finger cancels the stroke it interrupts, but only if that stroke had just
+  started.** Nobody puts two fingers down at the same instant, so a pinch arrives as two
+  `touchstart`s a few tens of milliseconds apart and the first has already drawn a dot;
+  within `PINCH_GRACE` that dot is taken back off the page, and after it the stroke is
+  somebody's work and is kept. The stroke is always *ended* and only sometimes undone.
+  **And the undo has to be deferred a tick**, because `handlePointerUp` commits its
+  history step on a `setTimeout(0)` of its own — an undo issued in the same turn reads
+  `canUndo: false`, does nothing at all, and the mark stays.
+- **A `ResizeObserver` that measures and then writes puts the red screen up.** Chrome
+  reports the leftover as `ResizeObserver loop completed with undelivered notifications` —
+  an `error` event with no exception behind it, harmless everywhere except this page,
+  where `useCrashRecovery` listens for exactly that. The read is deferred a frame and the
+  write is guarded on the numbers actually changing; both halves are needed.
+- **Where there is no room, v11 is v2.** Above the breakpoint the stylesheet hides the
+  stage outright — a mouse has a visible cursor a pixel wide and occludes nothing, so the
+  whole mode is answering a question a desktop hasn't got — and on a phone held sideways
+  the band is nothing at all. Either way the measurement comes back under
+  `MIN_STAGE_HEIGHT`, `stageView()` is null, and every branch in `PointerLayer` falls back
+  to marking at the fingertip on the paper. One condition, read in one place, and no media
+  query written out again in JavaScript.
+- **The column had to become a flex column, and only on the phone layout.** `.content` and
+  `.center` distribute height so the stage can take what is left; above the breakpoint
+  both go back to block flow, because a flex column doesn't collapse margins and the
+  tray's 15px bottom margin and the save button's 15px top margin are a single 15px gap in
+  flow and 30 in flex. Measured both ways round: with the stage up and without it, in
+  three modes and on both layouts, the paper, the page bar, the tray, the strip and the
+  footer are at the same pixel they were before any of this.
+- **The `PointerLayer` moved out of `InkCursor`.** Two components now draw a cursor — the
+  paper's and the stage's — and neither can own the object that decides what a finger
+  means. `usePointerLayer` builds it and the page hands it to both; `Cursor.surface` is
+  what tells them which cursor is theirs, and `--span` on the ring is how the same
+  three-unit pencil draws four times the size down there, which is the truth about the
+  mark it is about to make.
 ### Tracing over a photograph
 
 A sixth white disc at the left-hand end of the phone's footer takes a picture with the

@@ -1748,9 +1748,9 @@ export class FlipbookEngine {
 	// --- drawing without paper's help ----------------------------------------
 
 	/*
-	 * A finger's gesture is taken away from paper entirely in six of the ten drawing
+	 * A finger's gesture is taken away from paper entirely in seven of the eleven drawing
 	 * modes — the default among them — because paper 0.12 has one drag in flight, cannot
-	 * see a second contact and works at the fingertip, which in those six is not where
+	 * see a second contact and works at the fingertip, which in those seven is not where
 	 * the cursor is. `PointerLayer` intercepts those touches and drives whichever tool is
 	 * in hand through the methods below.
 	 *
@@ -1769,6 +1769,11 @@ export class FlipbookEngine {
 	/** Lifts a *touch* off the mark it makes. Zero except in the v4 drawing mode. */
 	setTouchOffset(pixels: number): void {
 		this.scene.touchOffsetY = pixels
+	}
+
+	/** A point already in project units. The zoom stage's, which works in them. */
+	inProject(x: number, y: number): paper.Point {
+		return this.scene.point(x, y)
 	}
 
 	/** Where the intercepted gesture started, was, and is. See `synthesise`. */

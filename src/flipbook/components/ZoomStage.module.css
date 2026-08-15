@@ -1,0 +1,120 @@
+/*
+ * v11's second canvas, in the band under the tools, and the outline on the paper that
+ * says which part of the page it is showing.
+ *
+ * Scaffolding, like the mode switch — this belongs to one of eleven answers to "a finger is
+ * opaque" and goes if that answer loses — but unlike the switch it is dressed as part of
+ * the tool, because it *is* the tool while it is on. It is a sheet of paper you draw on,
+ * so it takes the paper's shadow and the paper's rounding, exactly as the drawing above
+ * it and every card in the gallery do.
+ */
+
+/*
+ * The leftover.
+ *
+ * `flex: 1` against a column that has been stretched to the bottom of the window, so this
+ * is whatever the strip, the paper, the page bar and the tray have not already taken —
+ * which is the whole design of the mode: the drawing surface is sized to the room there
+ * is, and the outline above takes its shape from this rather than the other way round.
+ * `min-height: 0` because a flex item's floor is its content and a canvas would otherwise
+ * refuse to be squeezed.
+ *
+ * The bottom margin is the footer's, which is `position: fixed` and would otherwise lie
+ * across the bottom of the drawing: 48px of button, 8px off the bottom of the window, and
+ * 8px of air between the two.
+ */
+.stage {
+	position: relative;
+	width: var(--book-width);
+	min-height: 0;
+	/*
+	 * `1 1 0`, and the zero is load-bearing. A basis of `auto` takes the item's *content*
+	 * size, and the content here is a canvas whose element height is its backing store —
+	 * 897px on a three-times screen — so the column grew to fit it, ran off the bottom of
+	 * the window, and settled at whatever the resize observer measured of the overflow.
+	 * From zero the size is the free space, which is the only thing it should ever be.
+	 */
+	flex: 1 1 0;
+	margin: 0 auto 64px;
+	/* The same white the paper is, for the frame between measuring and the first paint. */
+	border-radius: var(--radius-card);
+	background: var(--white);
+	box-shadow: var(--shadow-card);
+	/* A stroke is never a scroll and never a pinch: the pinch here is ours. */
+	touch-action: none;
+}
+
+/*
+ * Taken out of the flow as well, for the same reason: a canvas is a replaced element with
+ * an intrinsic size, and one in the flow would be arguing with the box that is measuring
+ * it to decide how big it should be.
+ */
+.canvas {
+	position: absolute;
+	display: block;
+	width: 100%;
+	height: 100%;
+	border-radius: var(--radius-card);
+	inset: 0;
+}
+
+/*
+ * The sheet the outline is drawn on, which covers the paper and takes every press on it.
+ *
+ * Two jobs, and the second is the one that isn't obvious. It is the *control* — dragging
+ * anywhere on the paper moves the window, which is much more forgiving than asking for a
+ * rectangle that may be 60px across — and it is what stands between paper.js and a canvas
+ * that is no longer a drawing surface. paper binds `mousedown` to that canvas in its own
+ * constructor and nothing inside the engine talks it out of that; a sheet on top of it is
+ * the answer, and unlike `pointer-events: none` on the canvas it doesn't drop the touch
+ * through to the page thumbnails standing behind the drawing.
+ *
+ * Under the page's own handle at 101 and over the canvas at 15.
+ */
+.overview {
+	position: absolute;
+	z-index: 16;
+	inset: 0;
+	/* A stroke is never a scroll: the drag here is the window's. */
+	touch-action: none;
+}
+
+/*
+ * The window on the paper: two hairlines, white behind ink.
+ *
+ * One line would be invisible wherever it runs along a stroke, which on a full page is
+ * most of where it runs — so the outline carries its own paper with it, the way the
+ * cursor ring doesn't have to because the ring is never more than a few pixels long.
+ *
+ * `pointer-events: none` because the paper is the control rather than this: a press
+ * anywhere up there takes hold of the window, which is forgiving in a way that aiming at
+ * a rectangle this size is not.
+ */
+.window {
+	position: absolute;
+	z-index: 16;
+	border: 1px solid rgba(34, 34, 34, 0.55);
+	border-radius: 2px;
+	box-shadow:
+		0 0 0 1px rgba(255, 255, 255, 0.85),
+		inset 0 0 0 1px rgba(255, 255, 255, 0.85);
+	pointer-events: none;
+}
+
+/*
+ * Above the breakpoint there is no stage at all, and the mode falls back to v2.
+ *
+ * Not a decision made in JavaScript: the element renders either way and `measureStage`
+ * reads a height of zero, which is the same "no room for one" a phone held sideways
+ * reports. One condition, one place, and no media query written out twice.
+ *
+ * Why not offer it up here, where there is room for a second canvas and then some: a
+ * mouse has a visible cursor a pixel wide and occludes nothing, so every part of this
+ * mode is answering a question a desktop hasn't got. What it would be up there is a
+ * zoom control, which is a different feature.
+ */
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.stage {
+		display: none;
+	}
+}
