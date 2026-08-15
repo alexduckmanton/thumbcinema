@@ -362,6 +362,7 @@ export function CreatePage() {
 						{onPaper && phase === 'drawing' ? (
 							<ZoomStage
 								layer={layer}
+								engine={engine}
 								canvasRef={canvasRef}
 								tool={state?.tool ?? null}
 								photo={showTrace ? photo : null}
@@ -460,6 +461,7 @@ export function CreatePage() {
 					{isZoomStageMode(drawMode) && !onPaper && phase === 'drawing' ? (
 						<ZoomStage
 							layer={layer}
+							engine={engine}
 							canvasRef={canvasRef}
 							tool={state?.tool ?? null}
 							// The same photo the paper is showing, under the same condition — so

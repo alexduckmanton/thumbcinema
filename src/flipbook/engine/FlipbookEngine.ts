@@ -1781,6 +1781,20 @@ export class FlipbookEngine {
 		return this.scene.point(x, y)
 	}
 
+	/**
+	 * Brings the canvas up to date, for anything about to read its pixels back.
+	 *
+	 * `view.update()` only draws when something has changed, so this is cheap when
+	 * nothing has. It is needed at all for the reason the thumbnails and the saved cover
+	 * need it: paper schedules its redraw rather than doing it where the change was made,
+	 * so a reader that runs first in a frame copies the frame before. v11 and v12's stage
+	 * is a reader — `drawImage` out of this canvas, once a frame — and was the one that
+	 * did it without asking.
+	 */
+	redraw(): void {
+		this.scene.redraw()
+	}
+
 	/** Where the intercepted gesture started, was, and is. See `synthesise`. */
 	private gestureDown: paper.Point | null = null
 	private gesturePrevious: paper.Point | null = null

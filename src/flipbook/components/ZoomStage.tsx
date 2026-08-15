@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
+import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { fittedSize, type TracePhoto } from '../engine/trace'
 import type { ModalToolId } from '../engine/tools/types'
 import type { PointerLayer } from '../pointer'
@@ -11,6 +12,8 @@ import styles from './ZoomStage.module.css'
 
 export interface ZoomStageProps {
 	layer: PointerLayer | null
+	/** Asked to bring the canvas up to date before its pixels are read. See `paint`. */
+	engine: FlipbookEngine | null
 	/** The drawing itself, which this is a magnified copy of. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Null while a page animation holds the tools. */
@@ -78,6 +81,7 @@ export interface ZoomStageProps {
  */
 export function ZoomStage({
 	layer,
+	engine,
 	canvasRef,
 	tool,
 	photo,
@@ -192,6 +196,9 @@ export function ZoomStage({
 	const showing = useRef(view)
 	showing.current = suspended && view ? { x: 0, y: 0, w: CANVAS_WIDTH, h: CANVAS_HEIGHT } : view
 
+	const live = useRef(engine)
+	live.current = engine
+
 	// And the same for the photo's placement, for exactly the same reason: a drag on the
 	// paper writes it straight onto the DOM without going through React, and the stage has
 	// to follow that at the same rate.
@@ -211,6 +218,11 @@ export function ZoomStage({
 
 		let frame = 0
 		const draw = () => {
+			// Bring the canvas up to date *first*: this is a reader of its pixels, and
+			// paper schedules its own redraw rather than doing it where the change was
+			// made. See `FlipbookEngine.redraw`.
+			live.current?.redraw()
+
 			paint(canvas.current, canvasRef.current, showing.current, {
 				picture: picture.current,
 				...trace.current,
