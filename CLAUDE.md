@@ -1603,6 +1603,18 @@ extending, a handle on the near side of a selection. Aiming from below has nothi
 about how big the mark is. `aimsOffStage` is the mode's whole predicate, and
 `--- v13's aiming band ---` in `pointer.ts` is the mechanism.
 
+- **The cursor belongs to the band, and touching the drawing puts it away.** It is drawn
+  from the moment a finger lands below and stays where it is left; a finger on the canvas
+  hides it for the whole of that gesture *and after it*, until the next touch in the band
+  brings it back where it was. So the two halves read as two tools rather than as one tool
+  with something flickering in it, which is what `half` is for — and it is sticky rather
+  than a property of the gesture in flight, which is the whole point: a cursor drawn only
+  while a band gesture was live came back at the end of every stroke made on the canvas, in
+  a place the hand that drew the stroke had nothing to do with, at the exact moment you are
+  looking at what you just drew. A pinch counts as touching the drawing, for the same
+  reason. What it gives up is v12's ring on the stage saying how wide the mark will be —
+  which said it under a fingertip, where a 6px ring is 40px of finger away from being
+  visible, so there was nothing there to lose.
 - **A gesture belongs to the surface it opened on, and the two never mix.** `surfaceOf`
   answers `stage` or `field` at the `touchstart` and the gesture is that for the rest of
   its life, so a finger that starts below and slides up onto the drawing is still aiming
@@ -1649,7 +1661,9 @@ about how big the mark is. `aimsOffStage` is the mode's whole predicate, and
   no stage there is no field either, because `ownsTouch` falls back to the drawing alone.
 
 Measured on an iPhone 13: a drag in the band moves the cursor by exactly the finger's
-delta and marks nothing; the cursor survives the lift; a second finger down there draws
+delta and marks nothing; the cursor goes the instant a finger lands on the canvas and is
+still gone after the stroke, after the release and after a pinch, and comes back on the
+next touch in the band at the pixel it was parked on; it survives the lift; a second finger down there draws
 (916 px) and either finger steers; a held pencil in the tray with one aiming finger draws
 (2267 px); a stroke drawn entirely from the band lands 1816 px of ink; the transform tool
 marqueed from the band selects (1060 blue px) and a bare tap down there puts it down again;

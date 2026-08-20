@@ -244,6 +244,22 @@ export class PointerLayer {
 	 */
 	private cursorPage: Point = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
 
+	/**
+	 * And which half of v13 the hand is in: the drawing, or the band below it.
+	 *
+	 * The two halves are two different tools and the cursor belongs to the second of them,
+	 * so touching the drawing puts it away and touching the band brings it back — standing
+	 * where it was left, because it never went anywhere.
+	 *
+	 * It is **sticky rather than a property of the gesture in flight**, and that is the
+	 * whole of what it is for. A cursor drawn only while a band gesture was live came back
+	 * at the end of every stroke made on the canvas, in a place the hand that drew the
+	 * stroke had nothing to do with — which reads as it having jumped there, and is a thing
+	 * to look at in the moment you are looking at what you just drew. Under the fingertip
+	 * it costs nothing to hide: the ring is 6px and a fingertip is nearer 40.
+	 */
+	private half: 'stage' | 'field' = 'field'
+
 	constructor(
 		field: HTMLElement,
 		book: HTMLElement,
@@ -379,6 +395,7 @@ export class PointerLayer {
 		// And the middle of the *page* for v13's, for the same reason and in its own units.
 		if (aimsOffStage(this.mode)) {
 			this.cursorPage = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
+			this.half = 'field'
 		}
 
 		this.publish()
@@ -867,6 +884,9 @@ export class PointerLayer {
 		this.others.clear()
 
 		if (surface === 'field') {
+			// Back into the half the cursor belongs to, and it is drawn from this line on —
+			// before anything has moved, so what you see first is where it was left.
+			this.half = 'field'
 			this.gesture = this.openField(touch)
 			// The other hand may have been holding a tool down before this finger landed,
 			// which is v8's mechanism and v10's second answer. `onToolPressed` asks the same
@@ -878,6 +898,12 @@ export class PointerLayer {
 			this.publish()
 			return
 		}
+
+		// A finger on the drawing is v13's other half, and the cursor goes for as long as
+		// the hand stays in it. A pinch counts: it is the drawing being handled, and a
+		// cursor reappearing at the end of one is the same surprise as at the end of a
+		// stroke.
+		if (surface === 'stage') this.half = 'stage'
 
 		this.gesture = this.open(touch, surface === 'stage', false, this.boxOf(surface))
 
@@ -1830,32 +1856,45 @@ export class PointerLayer {
 			return
 		}
 
+		/*
+		 * v13 under a finger, which is the whole of the mode's answer and takes the branch
+		 * before either of the others.
+		 *
+		 * There is exactly one cursor here and it belongs to the band: it is on the page
+		 * whether anything is touching the glass or not — that is what it takes from v10 —
+		 * and it is nowhere at all while the hand is on the drawing, which is what `half`
+		 * says. So drawing on the canvas is v12 with no cursor in it, and there is no
+		 * moment where one arrives somewhere the hand hasn't been. Drawn on the stage,
+		 * because in v13 the stage *is* the drawing: `stagePlace` puts a point of artwork
+		 * back on the glass.
+		 *
+		 * What that gives up is v12's ring on the stage, which says how wide the mark will
+		 * be. It says it under a fingertip, where a 6px ring is 40px of finger away from
+		 * being visible, so there is nothing there to lose.
+		 */
+		if (aimsOffStage(this.mode) && this.source === 'touch') {
+			const zoom = this.zoom
+			if (!zoom || this.half !== 'field') {
+				this.store.set({ cursor: null })
+				return
+			}
+
+			const at = stagePlace(zoom.view, this.cursorPage, zoom.box)
+			this.store.set({ cursor: this.stageCursor(at.x, at.y, gesture?.engaged ?? false, true) })
+			return
+		}
+
 		// A finger on the stage: the ring goes under the fingertip, which is v2's rule and
-		// what both of these modes take from it.
+		// what v11 and v12 take from it.
 		if (gesture && this.surface === 'stage') {
 			this.store.set({ cursor: this.stageCursor(gesture.inkX, gesture.inkY, gesture.engaged) })
 			return
 		}
 
-		/*
-		 * v13's standing cursor, which is on the page whether anything is touching the
-		 * glass or not — the whole of what the mode takes from v10, and the reason this is
-		 * published with no gesture in hand. Drawn on the stage, because in v13 the stage
-		 * *is* the drawing: `stagePlace` is what puts a point of artwork back on the glass.
-		 *
-		 * Only for a finger. A mouse has its own arrow and is dealt with below.
-		 */
-		if (aimsOffStage(this.mode) && this.source === 'touch') {
-			const zoom = this.zoom
-			if (zoom) {
-				const at = stagePlace(zoom.view, this.cursorPage, zoom.box)
-				this.store.set({ cursor: this.stageCursor(at.x, at.y, gesture?.engaged ?? false, true) })
-				return
-			}
-		}
-
 		// A mouse resting on the stage still wants a ring: it is a pointer over a drawing
-		// surface, which is the one thing these modes have in common with the rest.
+		// surface, which is the one thing these modes have in common with the rest. v13's
+		// band is a finger's answer and a mouse never reaches this with one, so up here it
+		// is v12 exactly.
 		if (!gesture && this.source === 'mouse' && this.stageOver) {
 			this.store.set({ cursor: this.stageCursor(this.mouseX, this.mouseY, false) })
 			return
