@@ -50,6 +50,36 @@ export type TracePhotos = Readonly<Record<number, TracePhoto>>
 export const CENTRED: Placement = { x: 0, y: 0, scale: 1, rotation: 0 }
 
 /**
+ * How much of the frame the picture covers before any placement is applied, as fractions.
+ *
+ * `object-fit: contain`, done in numbers — the frame is 16:9 at every width, so the fit is
+ * two `min`s and needs nothing measured. It is here rather than in the layer that draws it
+ * because **two surfaces draw the same photograph now**: the DOM layer over the paper,
+ * which turns these into percentages, and v11's magnified stage, which turns them into
+ * project units for a `drawImage`. A photo that sat at one size on the paper and another
+ * in the stage would be a photo you cannot trace, and one expression in one place is what
+ * stops that. The dashed outline is the third reading, which is why the layer wants the
+ * pair rather than an `object-fit`.
+ */
+export function fittedSize(photo: { width: number; height: number }): {
+	width: number
+	height: number
+} {
+	// A picture with no height is not one anything can fit; `useTracePhoto` won't produce
+	// one, and answering with the whole frame beats answering with NaN if it ever does.
+	if (!(photo.width > 0) || !(photo.height > 0)) return { width: 1, height: 1 }
+
+	const ratio = photo.width / photo.height
+	return {
+		width: Math.min(1, ratio / FRAME_RATIO),
+		height: Math.min(1, FRAME_RATIO / ratio),
+	}
+}
+
+/** The paper's shape, which every placement is stated against. See `Scene.pinCoordinates`. */
+const FRAME_RATIO = 16 / 9
+
+/**
  * How far a photo may be pinched, and it is deliberately generous at both ends.
  *
  * The floor is not "still visible" — a photo shrunk to a tenth is a thumbnail in the

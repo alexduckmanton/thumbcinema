@@ -72,6 +72,20 @@ export class Scene {
 	private displayScale = 1
 	private readonly resizeObserver: ResizeObserver | null = null
 
+	/**
+	 * CSS pixels lifted off a *touch* point before it becomes a project point.
+	 *
+	 * Zero except in the v4 drawing mode, where the whole idea is that the mark lands
+	 * clear of the fingertip covering it. It belongs here rather than in the layer that
+	 * owns that mode, because `getEventPoint` below is already the one place a pointer
+	 * becomes a project point — for the tools, the hit tests and the selection alike —
+	 * and a second place would have to be right about all three.
+	 *
+	 * Touch only: a mouse occludes nothing, and moving its cursor 40px off the arrow
+	 * would be a bug rather than a mode.
+	 */
+	touchOffsetY = 0
+
 	constructor(canvas: HTMLCanvasElement, paperCore: PaperCore) {
 		this.canvas = canvas
 		canvas.width = CANVAS_WIDTH
@@ -142,7 +156,15 @@ export class Scene {
 		// Untyped parameter on purpose: paper declares this as taking its own `Event`
 		// class and hands it a DOM one, and naming either of them here is a lie. The
 		// contextual type from the assignment is exactly what `toProject` accepts.
-		view.getEventPoint = (event) => toProject(event).divide(this.displayScale)
+		view.getEventPoint = (event) => {
+			const point = toProject(event).divide(this.displayScale)
+			if (!this.touchOffsetY || !isTouchEvent(event)) return point
+
+			// The offset is stated in CSS pixels and applied in project units, so it has
+			// to be scaled the same way the point was: 40px is 40 units on a desktop and
+			// nearer 75 on a phone showing 640 of them in 343.
+			return point.subtract(new this.scope.Point(0, this.touchOffsetY / this.displayScale))
+		}
 
 		// Read once up front as well as watched: this runs in a layout effect, so the
 		// canvas is already laid out, and the observer's first callback is a frame away.
@@ -181,6 +203,17 @@ export class Scene {
 	 */
 	toProject(x: number, y: number): paper.Point {
 		return new this.scope.Point(x / this.displayScale, y / this.displayScale)
+	}
+
+	/**
+	 * A point that is already in project units, as one of paper's own.
+	 *
+	 * The zoom stage works in project units from the start — it is a window on the page
+	 * expressed in the page's own coordinates — so it has nothing for `toProject` to
+	 * convert and would be undone by the display scale if it went through it.
+	 */
+	point(x: number, y: number): paper.Point {
+		return new this.scope.Point(x, y)
 	}
 
 	/**
@@ -404,4 +437,20 @@ export class Scene {
 		view?.remove()
 		project?.remove()
 	}
+}
+
+/**
+ * Whether paper handed us a touch event rather than a mouse one.
+ *
+ * paper picks its event set once at load and, on anything current, picks touch: the
+ * pointer-events branch is guarded by `navigator.pointerEnabled`, which was IE11's
+ * and Edge's and exists in no browser shipping today. So on a phone every event
+ * through `getEventPoint` is a `TouchEvent`, and on a desktop none of them are.
+ *
+ * Asked of the event rather than of the device, for the reason `InkCursor` gives:
+ * a tablet with a trackpad is a touch device all day, including while somebody is
+ * using the trackpad.
+ */
+function isTouchEvent(event: unknown): boolean {
+	return typeof event === 'object' && event !== null && 'targetTouches' in event
 }

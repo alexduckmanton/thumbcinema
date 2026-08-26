@@ -191,7 +191,21 @@ which is what to reach for when this file changes; the plain run only fills in n
 
 The PNG is written by `src/flipbook/engine/png.ts` rather than by `canvas.toDataURL`,
 which is 8-bit RGBA and picks its filters for speed. A cover is grey ink on white paper,
-so 8-bit greyscale is lossless here and between a third and a half the size.
+so 8-bit greyscale is lossless here and between a third and a half the size — 10,060
+bytes to 2,626 on the same page. It falls back to `toDataURL` if the picture turns out
+to have a colour in it, or if the browser has no `CompressionStream`.
+
+**One filter for the whole image, chosen by trying all five**, where the specification's
+per-row heuristic is beaten on this content by doing nothing at all: 36,494 bytes against
+27,514 on a dense cover. A page is long runs of identical white, which deflate matches
+better than any predictor can, and every filter but `none` breaks them up. Five deflates,
+once, on a save that is about to wait on a network round trip anyway.
+
+Which page the PNG is of is **stated by the client**, as `cover`, and the server cuts the
+SVG out of that same page. The server could find the busiest page perfectly well on its
+own; what it could not do is agree with the client about it, and two pictures of two
+different pages is a card that changes drawing depending on which deployment you are
+looking at.
 
 ## Reading the artwork: three readers, one format
 
@@ -238,7 +252,7 @@ this draws them where the engine replays them through the pencil.
 
 Typical output, measured across the archive's size distribution: **0.16 MB for a median
 flipbook, 0.81 MB at p90, 2.9 MB for a 200-page one.** Whole frames beat frame-diffing
-on this content by a wide margin, for reasons written up in `CLAUDE.md` — the short
+on this content by a wide margin, for reasons written up in [`gif.md`](gif.md) — the short
 version is that consecutive flipbook frames are different drawings, so a diff destroys
 the runs of white paper that are the only reason a page compresses at all.
 
@@ -246,7 +260,7 @@ the runs of white paper that are the only reason a page compresses at all.
 
 Everything is stored compressed into `bytea`, twice — gzip at level 9 in `data_gz`,
 brotli at quality 11 in `data_br` — and served back with whichever `Content-Encoding`
-the client asked for. See `docs/architecture.md` for why both, and why brotli is worth
+the client asked for. See [`architecture.md`](architecture.md) for why both, and why brotli is worth
 so much more than usual on this particular data.
 
 Measured over the archive: **247 MB of artwork → 62 MB of gzip → 18 MB of brotli.**

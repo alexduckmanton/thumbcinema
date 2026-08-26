@@ -115,6 +115,9 @@ export const BUDGET = 12_000_000
 export class History {
 	private readonly scene: Scene
 
+	/** Steps ever recorded, never decremented. See `recorded`. */
+	private records = 0
+
 	private readonly undoStack: Step[] = []
 	private readonly redoStack: Step[] = []
 
@@ -138,6 +141,21 @@ export class History {
 
 	get canRedo(): boolean {
 		return this.redoStack.length > 0
+	}
+
+	/**
+	 * How many steps have ever been recorded — which is not how many are on the stack.
+	 *
+	 * For the one caller that has to know whether a *particular* gesture put a step on the
+	 * history, rather than whether there is anything to undo: `PointerLayer.beginPinch`,
+	 * which takes back the dot a pinch's first finger leaves and must take back nothing at
+	 * all when that finger left none. `canUndo` cannot answer it — it was already true —
+	 * and neither can the stack's length, because `trim` drops the oldest step when the
+	 * stack is full, so a step can be added without the count changing. A number that only
+	 * ever goes up can't be wrong about either.
+	 */
+	get recorded(): number {
+		return this.records
 	}
 
 	// --- recording -----------------------------------------------------------
@@ -193,6 +211,7 @@ export class History {
 	}
 
 	private push(step: Step): void {
+		this.records++
 		this.undoStack.push(step)
 		// Anything undone is unreachable the moment something new is done, which is
 		// what every undo stack does and what stops the two histories disagreeing.

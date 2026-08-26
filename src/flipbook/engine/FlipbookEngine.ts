@@ -660,6 +660,11 @@ export class FlipbookEngine {
 		this.spend(this.history.takeUndo(), 'undo')
 	}
 
+	/** How many steps have ever been recorded. See `History.recorded`, and its one caller. */
+	get recordedSteps(): number {
+		return this.history.recorded
+	}
+
 	redo(): void {
 		if (this.store.snapshot.busy) return
 		this.spend(this.history.takeRedo(), 'redo')
@@ -1748,10 +1753,11 @@ export class FlipbookEngine {
 	// --- drawing without paper's help ----------------------------------------
 
 	/*
-	 * A finger's gesture is taken away from paper entirely, because paper 0.12 has one
-	 * drag in flight, cannot see a second contact and works at the fingertip — which on
-	 * this page is not where the cursor is. `PointerLayer` intercepts every touch and
-	 * drives whichever tool is in hand through the methods below.
+	 * A finger's gesture is taken away from paper entirely in seven of the eleven drawing
+	 * modes — the default among them — because paper 0.12 has one drag in flight, cannot
+	 * see a second contact and works at the fingertip, which in those seven is not where
+	 * the cursor is. `PointerLayer` intercepts those touches and drives whichever tool is
+	 * in hand through the methods below.
 	 *
 	 * They are deliberately the *same* two ends the ordinary path uses —
 	 * `handlePointerDown` and `handlePointerUp` — so an intercepted gesture is one
@@ -1763,6 +1769,30 @@ export class FlipbookEngine {
 	/** A point on the canvas, in CSS pixels from its top left, in project units. */
 	toProject(x: number, y: number): paper.Point {
 		return this.scene.toProject(x, y)
+	}
+
+	/** Lifts a *touch* off the mark it makes. Zero except in the v4 drawing mode. */
+	setTouchOffset(pixels: number): void {
+		this.scene.touchOffsetY = pixels
+	}
+
+	/** A point already in project units. The zoom stage's, which works in them. */
+	inProject(x: number, y: number): paper.Point {
+		return this.scene.point(x, y)
+	}
+
+	/**
+	 * Brings the canvas up to date, for anything about to read its pixels back.
+	 *
+	 * `view.update()` only draws when something has changed, so this is cheap when
+	 * nothing has. It is needed at all for the reason the thumbnails and the saved cover
+	 * need it: paper schedules its redraw rather than doing it where the change was made,
+	 * so a reader that runs first in a frame copies the frame before. v11 and v12's stage
+	 * is a reader — `drawImage` out of this canvas, once a frame — and was the one that
+	 * did it without asking.
+	 */
+	redraw(): void {
+		this.scene.redraw()
 	}
 
 	/** Where the intercepted gesture started, was, and is. See `synthesise`. */

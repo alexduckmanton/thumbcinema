@@ -99,8 +99,9 @@ consistency question between "the row exists" and "the file exists".
 
 ### And why brotli beside it
 
-Every row is stored twice — `data_gz` and `data_br` — and the API serves whichever
-the client asked for. Neither is ever decompressed server side; the only time `gunzip`
+Every row is stored twice — `data_gz` and `data_br` — and `sendFlipbookData` hands back
+whichever the client's `Accept-Encoding` asked for: brotli first, gzip if it won't take
+brotli or the row hasn't got one. Neither is ever decompressed server side; the only time `gunzip`
 runs is the rare client that advertises no encoding at all.
 
 Brotli takes the same 62 MB down to **18 MB**, and not a coordinate of it changes.
@@ -120,7 +121,13 @@ Both copies are kept because `time-capsule` reads `data_gz` directly and knows n
 about the other column — see the note in `db/schema.sql`. `data_br` is nullable for
 the same reason: a save made on that branch simply doesn't have one, and is served as
 gzip. `npm run db:backfill-brotli` fills in whatever is outstanding and is safe to
-re-run.
+re-run, and is what to run after an archive import — which deliberately nulls `data_br`
+on the rows it replaces rather than leaving a brotli copy of artwork that is no longer
+there. Getting that wrong would serve one drawing to everyone who takes brotli and a
+different one to everyone who doesn't, which is invisible from either side.
+
+A brotli copy is only written when it is **smaller**. On the very smallest rows it isn't,
+and those keep `data_br` null on purpose — the same rule the two thumbnails follow.
 
 Artwork is immutable (a flipbook is never edited), so `/data`, `/thumbnail` and
 `/thumbnail.svg` are served with `Cache-Control: immutable` and the CDN absorbs repeat
@@ -132,7 +139,7 @@ The same reasoning one step further: a thumbnail is one page of a flipbook, and 
 of a flipbook is a few hundred coordinates. Stored as the drawing rather than as pixels
 it is 718 bytes where the PNG of it is 10,060, and it is sharp at whatever size the card
 is drawn at. Both are kept — the PNG is what `time-capsule` serves and what every row
-without an SVG falls back to. See `docs/data-formats.md`.
+without an SVG falls back to. See [`data-formats.md`](data-formats.md).
 
 ## Where PHP used to be
 
@@ -160,7 +167,7 @@ there was no build step to share it with. There is one now, and it's a component
 - **No server rendering at all.** The gallery is a fetch behind an empty grid, which
   costs a beat on a cold load. Worth revisiting only if the site ever needs to be
   found by something that doesn't run JavaScript.
-- **~4 MB save limit**, imposed by Vercel's request body cap. See `docs/data-formats.md`.
+- **~4 MB save limit**, imposed by Vercel's request body cap. See [`data-formats.md`](data-formats.md).
 - **No rate limiting** on save. Deliberate, matching the original. `saveFlipbook()` in
   `lib/router.js` is the single place a throttle would go. New saves default to not
   featured, so the worst case is junk on the All tab rather than the front page, and
@@ -168,3 +175,45 @@ there was no build step to share it with. There is one now, and it's a component
 - **Admin auth is one shared secret**, not accounts. Proportionate for one
   administrator toggling two booleans, and accounts are precisely what this rebuild
   deleted. It fails closed: no `ADMIN_TOKEN`, no admin API.
+
+## Code splitting
+
+paper.js is ~210 KB and only two of the four routes need it, so the routes are lazy
+and paper is a manual chunk. The gallery — the page most visits land on — downloads
+neither. Check this hasn't regressed after touching imports: `npm run build` prints
+the chunk table.
+
+**A lazy route waits for everything its chunk statically imports, and that used to
+include paper.** `scene.ts` imported it at the top, so `import('./routes/playback/…')`
+did not resolve — and the metadata and artwork fetches *inside* that route did not
+start — until 71 kB gzipped of paper had downloaded and evaluated. It was 77% of the
+playback route's second wave and the whole of the wait people were watching. paper is
+now fetched by `useFlipbookEngine` and passed down (see `PaperCore` in `scene.ts`), so
+it is in no route's preload set and downloads alongside the artwork rather than in
+front of it. The route's second wave went from 93 kB to 18 kB; from the gallery, where
+the shared chunks are already in memory, from 88 kB to 15 kB.
+
+The trap is that a plain `import` of anything large, anywhere under a route, silently
+puts it back. The chunk table won't say so — paper is still its own chunk either way.
+What to check is the entry bundle's dependency list for each route: nothing that only
+the drawing tool needs belongs in it.
+
+**The gallery's hover preview is split for the same reason and warmed rather than
+awaited.** `FlipbookPreview` is `lazy()` and its chunk is 1.8 kB gzipped, but it drags
+`engine/formats.ts` along with it — and that file is also in both paper routes' chunks,
+so leaving it in the entry would have every visit to every page carry a copy of it. The
+factory is named (`loadPreview`) so a page with cards on it can call it in an effect on
+mount: by the time a pointer lands on a card the module is in memory and `lazy` resolves
+out of the module cache, so the Suspense boundary never shows. What must stay true is
+that neither the gallery's chunk nor the preview's reaches paper — `grep from\"
+dist/assets/GalleryPage-*.js` after a build is the check, and today it is six imports,
+none of them paper. (Six rather than five since the card moved into `flipbook/card/`
+and became a chunk of its own, shared with the playback page.)
+
+**The remix list on the playback page is `lazy()` for the same reason at a smaller
+scale.** It brings the card and its gestures with it — 1.7 kB gzipped — and a plain
+import would put that in the playback route's *preload set*, fetched in front of the
+artwork on every visit to every flipbook in order to draw a list most of them haven't
+got. `RemixList.tsx` exists to be that boundary; it is deliberately not warmed, because
+it is below the fold and the fetch that decides whether it exists at all is slower than
+the chunk. The check is the same one: `PlaybackPage-*.js` must not import the card.
