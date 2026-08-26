@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { isAdmin } from '../../lib/admin'
 import { DRAW_MODES, type DrawMode, label, setDrawMode } from '../drawModes'
 import styles from './DrawModeSwitch.module.css'
 
@@ -12,6 +13,17 @@ const HINT_DURATION = 5000
 
 /**
  * The switch between the drawing modes, in the top right of the window.
+ *
+ * **Admin only.** The site ships `DEFAULT_DRAW_MODE` and nothing on the page says so:
+ * the other twelve modes are a question being asked rather than a setting, and a picker
+ * offering a stranger thirteen ways to hold a pencil is a worse first thirty seconds than
+ * any of them is an improvement. It is gated on the same shared secret the gallery's
+ * moderation toggles are, for the same reason and by the same one line — see
+ * `lib/admin.ts` and `AdminToggles`.
+ *
+ * The gate is in two halves and both are needed: this control goes, and `read` in
+ * `drawModes.ts` stops honouring what is in storage. Hiding the switch alone would strand
+ * anybody who picked a mode while holding the token and then lost it.
  *
  * A native `<select>` rather than anything built here, and that is the whole design: it
  * is the one control on either platform that can show a dozen options in a list a thumb can
@@ -40,6 +52,12 @@ export function DrawModeSwitch({ mode }: DrawModeSwitchProps) {
 		const timer = window.setTimeout(() => setHinting(false), HINT_DURATION)
 		return () => window.clearTimeout(timer)
 	}, [hinting])
+
+	// After the hooks, not before them: an early return above `useState`/`useEffect` is a
+	// different number of hooks on the two paths. `isAdmin()` is settled at import and
+	// never changes under a live page, so this branch is stable for the page's life —
+	// which is the same thing `AdminToggles` relies on.
+	if (!isAdmin()) return null
 
 	return (
 		<div className={styles.switcher}>

@@ -1,3 +1,4 @@
+import { isAdmin } from '../lib/admin'
 import { Store, useStore } from '../lib/store'
 
 /**
@@ -193,14 +194,15 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 ]
 
 /**
- * v10, which is the one the tool ships with.
+ * v13, which is the one the tool ships with.
  *
- * The default matters more than it looks: it is what somebody arriving on the create page
- * for the first time gets, and what every measurement of "is this any good" is taken
- * against. It is stated here rather than being "whichever is last in the list", so
- * reordering the list can't quietly change what the site does.
+ * The default matters more than it looks: it is what everybody on a phone gets, and what
+ * every measurement of "is this any good" is taken against. It is stated here rather than
+ * being "whichever is last in the list", so reordering the list can't quietly change what
+ * the site does — and since the switch is now admin-only, it is the *only* thing that
+ * decides what the site does for anybody else. See `read`.
  */
-export const DEFAULT_DRAW_MODE: DrawMode = 'v10'
+export const DEFAULT_DRAW_MODE: DrawMode = 'v13'
 
 /** What the switch and the caption call a mode: `v4 — Offset cursor`, and `(current)`. */
 export function label(info: DrawModeInfo): string {
@@ -375,6 +377,19 @@ const KEY = 'tc:drawMode'
 
 function read(): DrawMode {
 	if (typeof localStorage === 'undefined') return DEFAULT_DRAW_MODE
+
+	/*
+	 * The other twelve belong to the switch, and the switch belongs to admin mode — so a
+	 * browser that cannot see the switch gets what the site ships, whatever is in storage.
+	 *
+	 * Ignoring the stored choice rather than merely hiding the control is the point.
+	 * Without this, anybody who was once holding the token and picked v7 stays in v7 for
+	 * good: there is nothing on the page saying which mode is on and no way to get out of
+	 * it. The token comes and goes — it is one shared secret in one `localStorage` key —
+	 * and a preference that outlives it is a phone that draws differently for reasons its
+	 * owner cannot see.
+	 */
+	if (!isAdmin()) return DEFAULT_DRAW_MODE
 
 	try {
 		const stored = localStorage.getItem(KEY)

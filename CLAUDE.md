@@ -1232,7 +1232,8 @@ is now true at both widths and the differences are called out where they exist.
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
 separate families and no consensus — so rather than pick one blind, thirteen of them are
-built behind a switch in the corner of the create page and drawn with side by side: a
+built behind an **admin-only** switch in the corner of the create page and drawn with side
+by side: a
 follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
 over on half a second of stillness, four that move the cursor off the fingertip
 altogether, two that leave the finger where it is and magnify the drawing under it
@@ -1254,17 +1255,31 @@ They are grouped rather than ordered by history: **v1–v5 keep the finger as th
 start working, and **v11–v13 move the canvas instead of the cursor** — see below. v13 is
 the one that belongs to two groups at once, being v12 on the drawing and v10 off it.
 
-**v10 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
-rather than "whichever is last in the list". The rest of this section describes v10; the
-switch is scaffolding and the other twelve are there to be compared against it.
-(`tc:drawMode` is where the choice is remembered. It is the key the first testbed used and
-its values were names, so anything left over from then reads as unrecognised and falls
-back to the default — which is the same thing that happens to a mode that is later
-deleted, and is why `read` validates against the list rather than casting.)
+**v13 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
+rather than "whichever is last in the list" — and since the switch is admin-only it is now
+the only thing that decides what anybody else gets. See **v13** below for the mode itself.
 
-So, v10. **The cursor is a thing standing on the page, and a finger anywhere nudges it by
-however far the finger moved.** It never travels to the contact point —
-that is the whole idea, and it has to hold from the first event of every gesture or the
+**The switch is gated on the admin token**, the same shared secret the gallery's
+moderation toggles use and by the same one line (`isAdmin()`, `lib/admin.ts`). The other
+twelve modes are a question being asked rather than a setting: a picker offering a stranger
+thirteen ways to hold a pencil is a worse first thirty seconds than any of them is an
+improvement, and nothing on the page says a choice exists. The gate is in **two halves and
+both are needed** — `DrawModeSwitch` renders nothing, *and* `read` stops honouring what is
+in storage. Hiding the control alone would strand anybody who picked a mode while holding
+the token and then lost it: there would be nothing on the page saying which mode was on and
+no way out of it. Ignoring storage rather than clearing it is deliberate too, so an admin
+who comes back gets their choice back.
+
+(`tc:drawMode` is where that choice is remembered, per browser rather than per flipbook. It
+is the key the first testbed used and its values were names, so anything left over from then
+reads as unrecognised and falls back to the default — which is the same thing that happens
+to a mode that is later deleted, and is why `read` validates against the list rather than
+casting.)
+
+**v10 is described here in full** even though it no longer ships, because half of what
+follows reads as branching around it and v13 is built out of it: **the cursor is a thing
+standing on the page, and a finger anywhere nudges it by however far the finger moved.**
+It never travels to the contact point — that is the whole idea, and it has to hold from the first event of every gesture or the
 cursor would jump under the hand and back — and it survives the gesture that moved it,
 because a cursor you have carefully placed and then lost by lifting your finger is worse
 than no cursor. So the hand and the mark are never in the same place, which is the
@@ -2551,6 +2566,12 @@ Admin mode is a single shared secret in `ADMIN_TOKEN` — there are no accounts.
   404 the same as 401 and signs out.
 - **The token also affects reads.** It's what makes NSFW rows visible in the All tab,
   so anything moderated can still be found and un-moderated.
+- **And it gates the drawing-mode switch**, which is the one thing it does that has
+  nothing to do with moderation. The create page ships one mode and says nothing about
+  there being others; holding the token is what puts the picker in the corner and what
+  makes a stored choice count. Two halves, both needed — see **Drawing with a finger**.
+  It is on the same secret rather than a second one because there is only ever one person
+  holding it, and a second flag would be a second thing to set on two deployments.
 
 ## Two deployments, one database
 
