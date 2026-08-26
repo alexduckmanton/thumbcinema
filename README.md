@@ -88,14 +88,21 @@ api/index.js     Vercel entry point
 lib/router.js    the entire API
 db/schema.sql    one table
 scripts/         migrate, archive import, stats
-docs/            architecture, data formats, archive, deployment
+docs/            the long-form documentation — one file per part of the app
 _original/       the WordPress backups (gitignored, read-only, do not delete)
 ```
 
 ## Docs
 
-- [`CLAUDE.md`](CLAUDE.md) — conventions, invariants, and what the paper.js upgrade changed
-- [`docs/architecture.md`](docs/architecture.md) — how it fits together, and why WordPress went
-- [`docs/data-formats.md`](docs/data-formats.md) — the save contract and the two artwork formats
+- [`CLAUDE.md`](CLAUDE.md) — the map and the rules, and the index to everything below
+- [`docs/architecture.md`](docs/architecture.md) — how it fits together, why WordPress went, and how the bundle is split
+- [`docs/drawing-tool.md`](docs/drawing-tool.md) — the paper.js engine: the upgrade, loading, undo, the invariants
+- [`docs/drawing-modes.md`](docs/drawing-modes.md) — thirteen answers to "a finger is opaque", and the one that ships
+- [`docs/create-page.md`](docs/create-page.md) — the create page, tracing over a photograph, and playback
+- [`docs/gallery.md`](docs/gallery.md) — the grid, the hover preview, and the play button
+- [`docs/remixes.md`](docs/remixes.md) — editable copies, and how a lineage is stored
+- [`docs/gif.md`](docs/gif.md) — `/f/:id.gif`, rendered in Node with no dependency
+- [`docs/styling.md`](docs/styling.md) — the CSS conventions, the tokens, the type
+- [`docs/data-formats.md`](docs/data-formats.md) — the save contract, the two artwork formats, thumbnails, storage
 - [`docs/archive.md`](docs/archive.md) — what survived the old server
 - [`docs/deployment.md`](docs/deployment.md) — Vercel + Neon setup
