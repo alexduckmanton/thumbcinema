@@ -27,7 +27,8 @@
 	 * **16px wider than the drawing, and centred on it.** Not the same width, which is what
 	 * it was: a pad exactly as wide as the thumbnails read as another page in the column
 	 * rather than as a thing lying on top of them. 8px past either edge is enough to say it
-	 * is in front. The centre is the middle of the stage, which is the window less the rail.
+	 * is in front. The centre is the middle of the stage, which is the window less whatever
+	 * the rail has taken off the left of it.
 	 *
 	 * Over the flipbook: the pages carry `z-index: 9` and the drawing 15, so 14 puts the pad
 	 * above the column and still below the sheet — on a short window the two overlap, and a
@@ -35,7 +36,7 @@
 	 */
 	position: fixed;
 	bottom: var(--pad-air, 0);
-	left: calc(var(--panel-width, 0px) + (100vw - var(--panel-width, 0px)) / 2);
+	left: calc(var(--stage-left, 0px) + (100vw - var(--stage-left, 0px)) / 2);
 	z-index: 14;
 	width: calc(var(--book-width) + 16px);
 	transform: translateX(-50%);

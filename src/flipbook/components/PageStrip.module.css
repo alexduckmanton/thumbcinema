@@ -92,6 +92,17 @@
 	height: auto;
 	background: var(--white);
 	cursor: pointer;
+
+	/*
+	 * Half strength, so the drawing is the one page at full weight.
+	 *
+	 * The column is a dozen identical white rectangles and the sheet you are working on is
+	 * one of them; the shadow says which, and on a page that is mostly white paper a shadow
+	 * is a thin argument. Faded, the flipbook reads as context — what came before and what
+	 * comes after — and the drawing reads as the thing in front of you, which is what they
+	 * respectively are. The one directly under the drawing is covered by it either way.
+	 */
+	opacity: 0.5;
 	/*
 	 * The flipbook's corners, and deliberately none of its shadow.
 	 *
@@ -133,6 +144,19 @@
  */
 .playing .page {
 	visibility: hidden;
+}
+
+/*
+ * The page in hand, while it is in hand.
+ *
+ * Gone rather than faded, and instantly: a drag lifts the drawing out of its slot, and the
+ * thumbnail it uncovers is a second copy of the page you are holding, sitting in the place
+ * you are trying to move it out of. No transition, because there is nothing to watch — the
+ * copy should never be seen at all, and easing it away would be showing it on purpose for
+ * a fifth of a second at the start of every drag.
+ */
+.carried canvas {
+	opacity: 0;
 }
 
 /*

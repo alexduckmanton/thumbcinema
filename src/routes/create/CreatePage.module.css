@@ -37,7 +37,7 @@
 	 *
 	 * `100vw` is safe because the root scroller's bar is hidden; see `html.tool`.
 	 */
-	--stage-width: calc(100vw - var(--panel-width) - var(--stage-gutter) * 2);
+	--stage-width: calc(100vw - var(--stage-left) - var(--stage-gutter) * 2);
 	--book-width: min(
 		var(--stage-width),
 		var(--book-max),
@@ -51,10 +51,30 @@
 	 */
 	--book-reserve: 236px;
 
-	/* The rail's width, stated here because the boot shell reserves the same space before
-	   the panel's own stylesheet has been downloaded. See `RouteShell`. */
-	--panel-width: 56px;
+	/*
+	 * The rail's box, and how much room the layout keeps clear for it.
+	 *
+	 * Two numbers because they are two questions, and on a desktop they have different
+	 * answers. `--rail-width` is how wide the panel is. `--stage-left` is how far in from the
+	 * left the flipbook starts — the rail's width on a phone, where it is a column down the
+	 * edge, and *zero* on a desktop, where the drawing is centred in the window and the rail
+	 * floats beside it. What keeps the two from colliding up there is `--stage-gutter`, which
+	 * takes the rail's lane out of the drawing's width on **both** sides so the paper stays
+	 * centred and the rail always has somewhere to be.
+	 *
+	 * `--rail-width` is stated here rather than in the panel's own stylesheet because two
+	 * things need it and only one of them is the panel: the drawing's own position is drawn
+	 * off it.
+	 */
+	--rail-width: 56px;
+	--stage-left: var(--rail-width);
 	--stage-gutter: 16px;
+
+	/* The middle of the stage: what the desktop rail is centred on, so it lines up with the
+	   drawing rather than with the window. */
+	--stage-mid: calc(
+		var(--chrome-top) + (100svh - var(--chrome-top) - var(--chrome-bottom)) / 2
+	);
 
 	/* The two bands at the ends of the window: the header, and the aiming pad. Stated
 	   rather than measured because they are furniture that does not move, and a fixed box
@@ -108,7 +128,7 @@
 	position: fixed;
 	top: var(--chrome-top);
 	right: 0;
-	left: var(--panel-width);
+	left: var(--stage-left);
 	z-index: 15;
 	display: flex;
 	height: calc(100svh - var(--chrome-top) - var(--chrome-bottom));
@@ -274,34 +294,15 @@
 }
 
 /*
- * The rail's space and the aiming pad's, in the boot shell: two empty boxes exactly the
- * shape of the things that are coming.
+ * The boot shell needs no placeholder boxes any more, and that is worth writing down.
  *
- * The shell may not import either component's stylesheet — it is in the entry bundle and
- * they are in the route's chunk — so both sizes are declared here, on a stylesheet the
- * shell already reads, and both components take them from the same place. Drawn as nothing
- * rather than as grey panels: a control that appeared before there was anything to use it
- * on would be a page that is loading twice.
- *
- * They matter because the drawing is centred between them. A shell missing either would put
- * the sheet of paper somewhere the page does not, and the whole point of the shell is that
- * nothing moves at the handover.
+ * It used to render two — a rail-shaped one and a pad-shaped one — because the layout was a
+ * flex row and the drawing was centred in whatever those two left. Everything is
+ * `position: fixed` off custom properties now, so the stage sits where `--stage-left`,
+ * `--chrome-top` and `--chrome-bottom` put it whether or not anything is actually standing
+ * in those places. The shell sets the same properties by using the same class, and the
+ * sheet of paper lands on the same pixel with nothing else on the page at all.
  */
-.shellPanel {
-	position: fixed;
-	top: var(--chrome-top);
-	bottom: 0;
-	left: 0;
-	width: var(--panel-width);
-}
-
-.shellPad {
-	position: fixed;
-	right: 0;
-	bottom: 0;
-	left: 0;
-	height: calc(var(--pad-height) + var(--pad-air));
-}
 
 /*
  * A phone held sideways.
@@ -325,16 +326,25 @@
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
-		--panel-width: 72px;
-		--stage-gutter: 20px;
+		/*
+		 * The rail is not a column down the edge of the window up here. It stands beside the
+		 * drawing — vertically centred on it, 16px off its left edge — so the two read as one
+		 * object rather than as a toolbar and a document at opposite ends of a wide screen.
+		 *
+		 * Which means the flipbook is centred in the *window* (`--stage-left: 0`) and the
+		 * rail's lane is taken out of the drawing's width on both sides instead. That keeps
+		 * the paper centred and guarantees the rail has somewhere to be: at the narrowest
+		 * desktop this layout holds — 731px — the drawing comes out at 547 and the rail sits
+		 * 20px from the left edge, where without the symmetry it would have been at -26.
+		 */
+		--stage-left: 0px;
+		--rail-gap: 16px;
+		--stage-gutter: calc(20px + var(--rail-width) + var(--rail-gap));
+
 		--chrome-top: 132px;
 		--chrome-bottom: 32px;
 		--book-max: 640px;
 		--book-reserve: 212px;
-	}
-
-	.shellPad {
-		display: none;
 	}
 }
 

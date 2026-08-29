@@ -26,6 +26,14 @@ What it is now, at both widths:
 
 ## The panel
 
+- **On a desktop the rail stands beside the drawing**, vertically centred on it and 16px
+  off its left edge, rather than pinned to the edge of the window. On a wide screen a column
+  in the far corner is a toolbar in a different postcode from the thing it works on. What
+  makes it fit is that the drawing is centred in the *window* up here and the rail's lane is
+  taken out of the paper's width on **both** sides — so the sheet stays centred and the rail
+  always has somewhere to be. At the narrowest desktop this layout holds, 731px, that gives
+  a 547px drawing and puts the rail 20px from the left edge; without the symmetry it would
+  have been at -26.
 - **It is a rail at every width, and it lay down into a bar along the bottom for exactly
   one version.** Two things were wrong with the bar. Twelve 40px tiles cannot fit across a
   360px screen, so it had to scroll sideways — and a list that runs off the right-hand edge
@@ -195,16 +203,14 @@ What it is now, at both widths:
   this list: it holds every flick to a single page, and a flipbook is fifty pages as often
   as it is five. Momentum carries as far as it was thrown and the snap catches whichever
   page it ends nearest.
-- **A wheel over the drawing is forwarded, a page per notch.** The canvas is pinned over
-  the column rather than inside it, so it swallows every wheel event that lands on it —
-  which is most of them. `WHEEL_STEP` is 100 because that is one notch of an ordinary
-  mouse; it was 50 first, which turned two pages per notch, and a page turn nobody asked
-  for is a worse fault than one that waits for the whole notch. **What it spends is a
-  `goToPage`, not a `scrollTop`,** and getting that wrong is the one bug this had:
-  `PageStrip` suppresses its own scroll handler while it is the one steering, so a wheel
-  spent by scrolling directly arrived at the right slot with the flipbook still on the
-  page it started on. Turning the page instead puts the wheel on the path the page bar and
-  the arrow keys are already on, and the scroll follows from it.
+- **There is no wheel handler on the drawing, and its absence is the feature.** There was
+  one, and while the strip was a *nested* scroll container it had to exist: a wheel landing
+  on the canvas reached nothing and the flipbook sat still under the pointer, so it was
+  forwarded a page per notch. That was the right answer to the wrong layout, and it left the
+  page with two feels — natural scrolling with momentum and CSS snapping everywhere else, a
+  hard page-per-notch cut over the drawing itself. The scroller is the document now and a
+  `position: fixed` element is still in the document's scroll chain, so a wheel over the
+  canvas scrolls the page by itself. Doing nothing is what makes the two the same gesture.
 - **A finger on the paper draws; a finger on the strip either side of it scrolls.** The
   overlay the drawing sits in is `pointer-events: none` with the sheet putting them back,
   so the exposed column stays a place you can take hold of the flipbook. On a desktop that
@@ -245,18 +251,25 @@ What it is now, at both widths:
   them — and **semi-opaque with a 16px backdrop blur**, so the pages passing underneath are
   a texture rather than content competing with the dots. The fill is 0.72 because at 0.88
   there was nothing left underneath for the blur to work on.
-- **The animated scrolls are run by hand, and they are what replaced the page
-  animations.** Adding or deleting a page moves every page after it, and the scroll is the
-  only thing carrying them — so `scrollToPage` animates the position a frame at a time on
-  2013's own `ease-in-out`, over the 300ms a thrown page always took to cross a slot. The
-  reorder settle takes its own cubic-bezier for the same reason. Everything else is
-  instant, because turning a page is a cut.
+- **Every page change is a cut, including adding one.** Adding a page eased the scroll down
+  to the new one for a version, on the reasoning that the page had *moved* and the column
+  should be seen carrying it. Watched, it is the other way round: you press add and then
+  wait a third of a second while the flipbook slides, between asking for a page and being on
+  it. A new page is a page turn like any other.
 
-  **How the strip knows which is which is the page count**, not a flag from the engine.
-  `busy` used to be true for the length of a page animation and the strip eased for exactly
-  that long; there are no page animations now, so what is left is one question — was this a
-  page *turn* or a change of shape — and the flipbook's length is the fact rather than a
-  second copy of it.
+  **The reorder gesture is the only thing left that animates the scroll**, and only because
+  it is not a page turn: the run under a held page glides linearly for exactly as long as
+  the gap until the next one, and the settle eases home on the same curve the thumbnails
+  either side of the gap are using. Those two are movements you are watching on purpose.
+- **A cancelled scroll animation used to leave the snapping switched off for good, and that
+  is the worst bug this layout has had.** `html.tool.unsnapped` goes on the root element for
+  the length of an animated scroll and came off on the frame it finished — and an animation
+  that is *cancelled* never reaches that frame. A reorder cancels one on every page of its
+  run and again at the settle, so a single drag could strand the class: scroll snapping
+  silently dead for the rest of the session, page turns no longer landing on a page, and
+  nothing in the console. It came back on a reload, which is exactly what a stuck class
+  looks like from the outside. Every exit from `scrollToPage` goes through `stop()` now,
+  including the two early returns and the unmount.
 - **Every thumbnail is visible, including the one the drawing is standing on.** It used to
   be hidden — `opacity: 0` on the covered page — so the column read as one flipbook rather
   than as a filmstrip with a hole punched in it. That was true while the strip was
@@ -267,6 +280,17 @@ What it is now, at both widths:
   the drawing, which is opaque and is the only sheet carrying a shadow. Nothing is lost: the
   thumbnail under the drawing is a pixel-exact copy of it, which is what made hiding it
   invisible in the first place. `arriving` is no longer the strip's business at all.
+- **The thumbnails are at half strength.** The column is a dozen identical white rectangles
+  and the sheet you are working on is one of them; the shadow says which, and on a page that
+  is mostly white paper a shadow is a thin argument. At 0.5 the flipbook reads as context —
+  what came before and what comes after — and the drawing reads as the thing in front of
+  you, which is what they respectively are.
+- **The page in hand disappears from the column, instantly.** A reorder is the one gesture
+  where a visible thumbnail under the drawing stops working: the drag lifts the paper *out*
+  of its slot, and what it uncovers is a second copy of the page you are holding, sitting in
+  the place you are trying to move it out of. It is hidden for the length of the drag, with
+  no transition — the copy should never be seen at all, and easing it away would be showing
+  it on purpose at the start of every drag.
 - **Only the drawing has a shadow, and the gutter went back up to 10px because of it.**
   Every page used to carry `--shadow-card`, on the reasoning that the strip is the same
   flipbook seen again and should be lit the same way. In a column that reads as a stack of

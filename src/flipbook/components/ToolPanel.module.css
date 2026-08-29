@@ -37,13 +37,12 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	width: var(--panel-width);
+	width: var(--rail-width);
 	padding: var(--pad) 0 calc(var(--pad) + 8px);
 	transition: transform 0.4s ease-in, opacity 0.4s ease-in;
 
-	/* One number, and everything here is drawn off it. `--panel-width` and `--chrome-top`
-	   are the create page's, because the boot shell reserves the same box before this
-	   stylesheet has been downloaded. */
+	/* One number, and everything here is drawn off it. `--rail-width` and `--chrome-top`
+	   are the create page's, because the drawing's own position is drawn off them too. */
 	--tile: 40px;
 	--pad: 12px;
 	--gap: 6px;
@@ -241,5 +240,35 @@
 	.panel,
 	.button {
 		transition: none;
+	}
+}
+
+/*
+ * A desktop: the rail stands beside the drawing rather than at the edge of the window.
+ *
+ * Vertically centred on the stage — which is where the paper is, rather than where the
+ * window's middle happens to be — and 16px off the paper's left edge. On a wide screen a
+ * column pinned to the far left is a toolbar in a different postcode from the thing it
+ * works on; here the two read as one object.
+ *
+ * `max-height` with the centring, so a window too short for twelve tiles still scrolls the
+ * list rather than growing the rail off both ends of the screen at once.
+ */
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.panel {
+		top: var(--stage-mid);
+		bottom: auto;
+		left: calc((100vw - var(--book-width)) / 2 - var(--rail-gap) - var(--rail-width));
+		max-height: calc(100svh - var(--chrome-top) - 24px);
+		padding: var(--pad) 0;
+		transform: translateY(-50%);
+	}
+
+	/* Off to the left, past its own edge — the same direction it has always left in, now
+	   measured from wherever it is standing rather than from the window's edge. */
+	.stowed {
+		transform: translateY(-50%) translateX(calc(-100% - (100vw - var(--book-width)) / 2));
+		opacity: 0;
+		pointer-events: none;
 	}
 }

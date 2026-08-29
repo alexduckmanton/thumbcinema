@@ -284,11 +284,13 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   leaves the bar up for ever. `scroll-snap-type` and `scroll-padding-top` therefore live on
   `html`; see `html.tool` in base.css, and `--page-snap`, which `PageStrip` measures onto
   the root because it is the one thing about the layout a stylesheet cannot state.
-- **`html.tool.unsnapped` is how the snapping comes off, and it is written against the
-  selector it must beat.** A mandatory snap container resnaps after every scroll it is
-  given, so an animated scroll needs the snapping off for its duration — and the rule doing
-  that was a bare CSS-module class (0,1,0) losing silently to `html.tool` (0,1,1). The only
-  symptom was a 300ms ease arriving as a jump.
+- **`html.tool.unsnapped` is how the snapping comes off, and it has been wrong twice.** A
+  mandatory snap container resnaps after every scroll it is given, so an animated scroll
+  needs the snapping off for its duration. First the rule doing that was a bare CSS-module
+  class (0,1,0) losing silently to `html.tool` (0,1,1), and a 300ms ease arrived as a jump.
+  Then a *cancelled* animation never reached the frame that took the class off — a reorder
+  cancels one per page of its run — and the class stranded: snapping dead for the session,
+  fixed only by a reload. Every exit from `scrollToPage` goes through `stop()`.
 - **Sizes on the create page are `100svh`, never `100dvh`.** `dvh` changes as the URL bar
   collapses, so a drawing sized with it resizes itself under your hand on the first scroll.
 - **Scrolling calls `goToPage`, and a page turned any other way scrolls.** Two rules keep

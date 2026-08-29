@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { PAGE_TRAVEL_MS, prefersReducedMotion } from '../engine/animations'
+import { prefersReducedMotion } from '../engine/animations'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import type { PageState } from '../engine/pages'
@@ -22,22 +22,6 @@ export interface PageStripProps {
 
 /** The curve the flipbook closes up round a dropped page on. Matches `.carrying`. */
 const SETTLE_EASE = (t: number) => cubicBezier(0.2, 0.8, 0.3, 1, t)
-
-/**
- * How much wheel a page costs, when the wheel is over the drawing rather than over the
- * strip.
- *
- * One notch of a mouse wheel, which reports 100px — so a notch is a page, which is the
- * whole of what this number is chosen for. A trackpad sends a stream of much smaller
- * deltas and spends them a page at a time as they add up, which is the same rate a hand
- * would expect of the strip beside it.
- *
- * It was half this to begin with, on the reasoning that a threshold you have to overshoot
- * reads as a control that ignored you once before answering. It does not: at 50 a single
- * notch of an ordinary mouse turned two pages, and a page turn nobody asked for is a
- * worse fault than a page turn that waits for the whole notch.
- */
-const WHEEL_STEP = 100
 
 /**
  * The class that takes the snapping off while this file is driving the scroll itself.
@@ -233,6 +217,22 @@ export function PageStrip({
 	 */
 	const anchor = reorder ? reorder.anchor : activePage
 
+	/**
+	 * The page being carried, whose own thumbnail is taken away for the length of the drag.
+	 *
+	 * Every thumbnail is visible now, which is right while the flipbook is standing still —
+	 * the drawing is opaque and simply covers the one it is on. A reorder is the one gesture
+	 * where that stops being true: the drawing is dragged *away* from its slot, and what it
+	 * uncovers is a full-strength copy of the page you are holding, sitting in the place you
+	 * are trying to move it out of. Two of the same page, one of them where you left it, is
+	 * unreadable — so for the length of the gesture the one in the column goes.
+	 *
+	 * `from` rather than `anchor` or `to`: the list has not been reordered yet, and will not
+	 * be until the drag lands, so the carried page is still at the index it was picked up
+	 * from. See `usePageReorder`, where nothing moves in the scene until the very end.
+	 */
+	const carried = reorder ? reorder.from : -1
+
 	/*
 	 * Everything a scroll or a wheel has to read, kept in a ref rather than closed over.
 	 *
@@ -270,23 +270,6 @@ export function PageStrip({
 	const reported = useRef<number | null>(null)
 
 	/**
-	 * How long the flipbook was last time, and the whole of how a page added or deleted
-	 * comes to be animated rather than cut.
-	 *
-	 * The engine used to say so — `busy` was true for the 750ms of a page animation, and
-	 * the strip eased its own position for exactly that long. There are no page animations
-	 * any more (`animations.ts` says why), so nothing is being kept in step with: what is
-	 * left is one movement, of the one thing that moves, and the only question is whether
-	 * this page change was a *page turn* or a change of shape. A turn is a cut, as it has
-	 * always been. A page arriving or leaving moves every page after it, and easing the
-	 * scroll to the new position is what carries them.
-	 *
-	 * The length is the signal because it is the fact: no other page change alters it, and
-	 * an engine flag saying the same thing would be a second copy of it to keep true.
-	 */
-	const wasLength = useRef(pages.length)
-
-	/**
 	 * Puts page `index` under the drawing, over `duration` and on `easing`.
 	 *
 	 * Instant is the ordinary case and is not an animation at all: turning a page is a
@@ -301,12 +284,28 @@ export function PageStrip({
 	 * fighting the browser for the same property forty times a second; with it off, this
 	 * lands the scroller exactly on a snap point and hands it back.
 	 */
+	/**
+	 * Stops whatever this file was doing to the scroll, and **puts the snapping back**.
+	 *
+	 * The second half is the whole reason it is a function. `UNSNAPPED` was added when an
+	 * animated scroll started and removed on the frame it finished — and an animation that
+	 * is *cancelled* never reaches that frame. A reorder cancels one on every page of its
+	 * run and again at the settle, so a single drag could leave the class on the root
+	 * element for the rest of the session: scroll snapping silently dead, page turns no
+	 * longer landing on a page, and nothing in the console. It came back on a reload, which
+	 * is exactly what a stuck class looks like from the outside.
+	 *
+	 * Every exit from `scrollToPage` goes through here, including the two early ones.
+	 */
+	const stop = useCallback(() => {
+		if (animation.current !== null) cancelAnimationFrame(animation.current)
+		animation.current = null
+		document.documentElement.classList.remove(UNSNAPPED)
+	}, [])
+
 	const scrollToPage = useCallback(
 		(index: number, duration = 0, easing?: (t: number) => number) => {
-			const root = document.documentElement
-
-			if (animation.current !== null) cancelAnimationFrame(animation.current)
-			animation.current = null
+			stop()
 
 			const to = index * latest.current.step
 			const from = window.scrollY
@@ -325,7 +324,7 @@ export function PageStrip({
 				return
 			}
 
-			root.classList.add(UNSNAPPED)
+			document.documentElement.classList.add(UNSNAPPED)
 			const started = performance.now()
 
 			const frame = (now: number) => {
@@ -337,8 +336,7 @@ export function PageStrip({
 					return
 				}
 
-				animation.current = null
-				root.classList.remove(UNSNAPPED)
+				stop()
 				requestAnimationFrame(() => {
 					driving.current = false
 				})
@@ -346,14 +344,12 @@ export function PageStrip({
 
 			animation.current = requestAnimationFrame(frame)
 		},
-		[],
+		[stop],
 	)
 
-	useEffect(() => {
-		return () => {
-			if (animation.current !== null) cancelAnimationFrame(animation.current)
-		}
-	}, [])
+	// And a page that goes away mid-animation — a route change, a save — must not leave
+	// the root element wearing a class that switches the page's scrolling off.
+	useEffect(() => stop, [stop])
 
 	/*
 	 * The flipbook telling the scroller where it is — the other direction from the one
@@ -378,19 +374,23 @@ export function PageStrip({
 		// `scrollTop` in the middle of somebody's flick; see `reported`.
 		if (reported.current === anchor) return
 
-		const resized = pages.length !== wasLength.current
-		wasLength.current = pages.length
-
-		const duration = reorder?.settling
-			? SETTLE_MS
-			: (reorder?.slide ?? (resized ? PAGE_TRAVEL_MS : 0))
-		const easing = reorder?.settling
-			? SETTLE_EASE
-			: reorder?.slide
-				? undefined
-				: resized
-					? easeInOut
-					: undefined
+		/*
+		 * Instant, unless a page is being carried.
+		 *
+		 * Adding a page used to ease the scroll down to the new one, on the reasoning that
+		 * the page had *moved* and the column should be seen carrying it. Watched, it is the
+		 * other way round: you press add and then wait while the flipbook slides, which is a
+		 * third of a second between asking for a page and being on it. A new page is a page
+		 * turn like any other, and page turns are cuts.
+		 *
+		 * What is still animated is the reorder gesture, and only because it is not a page
+		 * turn: the run under a held page glides linearly for exactly as long as the gap
+		 * until the next one, and the settle eases home on the same curve the thumbnails
+		 * either side of the gap are using. Those two are movements you are watching on
+		 * purpose.
+		 */
+		const duration = reorder?.settling ? SETTLE_MS : (reorder?.slide ?? 0)
+		const easing = reorder?.settling ? SETTLE_EASE : undefined
 
 		scrollToPage(anchor, duration, easing)
 	}, [anchor, step, pages.length, playing, reorder?.slide, reorder?.settling, scrollToPage])
@@ -429,76 +429,20 @@ export function PageStrip({
 	}, [])
 
 	/*
-	 * A wheel over the drawing itself, which the scroller never sees.
+	 * There is no wheel handler here any more, and its absence is the feature.
 	 *
-	 * The canvas is pinned over the middle of the column rather than inside it — it has
-	 * to be, or it would scroll away with the pages — so it swallows every wheel event
-	 * that lands on it, which is most of them: the drawing is the biggest thing on the
-	 * page and the part a pointer is already over. Forwarded rather than ignored, and
-	 * spent a page at a time: this is the one scroll surface where the browser isn't
-	 * doing the snapping, so it does the snapping itself.
+	 * There was one, and it had to exist: the drawing was laid over a *nested* scroll
+	 * container, so a wheel landing on the canvas reached nothing and the flipbook sat still
+	 * under the pointer. It forwarded the wheel a page at a time — `goToPage`, then an
+	 * instant scroll — which was the right answer to the wrong layout, and it left the page
+	 * with two different feels: natural scrolling with momentum and CSS snapping everywhere
+	 * else, and a hard page-per-notch cut over the drawing itself.
 	 *
-	 * The accumulator resets when the direction changes, so a flick back the other way
-	 * costs a whole page rather than whatever was left over from the last one.
-	 *
-	 * Not passive — it has to be able to refuse the page a scroll, which on a page with
-	 * nothing to scroll to is the rubber band and, on a trackpad, the browser's back
-	 * gesture.
+	 * The scroller is the document now, and a `position: fixed` element is still in the
+	 * document's scroll chain — so a wheel over the canvas scrolls the page by itself,
+	 * exactly as it does over the column beside it. Doing nothing is what makes the two the
+	 * same gesture. `WHEEL_STEP` went with the handler.
 	 */
-	useEffect(() => {
-		const canvas = canvasRef.current
-		if (!canvas) return
-
-		let carried = 0
-
-		const onWheel = (event: WheelEvent) => {
-			event.preventDefault()
-
-			const {
-				engine: live,
-				step: pitch,
-				activePage: current,
-				pages: count,
-				playing: running,
-			} = latest.current
-			if (running || pitch <= 0 || count < 2) return
-
-			// Lines and pages, which a mouse in Firefox and a page-scrolling wheel report
-			// instead of pixels. 16 is a line; a page is the scrollport.
-			const delta =
-				event.deltaMode === 1
-					? event.deltaY * 16
-					: event.deltaMode === 2
-						? event.deltaY * window.innerHeight
-						: event.deltaY
-
-			if (delta === 0) return
-			if (Math.sign(delta) !== Math.sign(carried)) carried = 0
-			carried += delta
-
-			const steps = Math.trunc(carried / WHEEL_STEP)
-			if (steps === 0) return
-			carried -= steps * WHEEL_STEP
-
-			const index = Math.max(0, Math.min(count - 1, current + steps))
-			if (index === current) return
-
-			/*
-			 * The page, not the scroll — and that is the whole of the fix this once got
-			 * wrong. Scrolling the column directly does move the drawing, but it does it
-			 * behind the effect that keeps the two agreeing: this file suppresses its own
-			 * scroll handler while it is the one steering, so a wheel spent that way
-			 * arrived at the right slot with the flipbook still on the page it started on.
-			 * Turning the page instead puts the wheel on exactly the path the page bar and
-			 * the arrow keys are already on, and the scroll follows from it.
-			 */
-			live.goToPage(index)
-		}
-
-		canvas.addEventListener('wheel', onWheel, { passive: false })
-		return () => canvas.removeEventListener('wheel', onWheel)
-	}, [canvasRef])
-
 	return (
 		<div
 			className={[
@@ -546,7 +490,7 @@ export function PageStrip({
 					<div
 						key={page.id}
 						ref={index === 0 ? firstPage : null}
-						className={styles.page}
+						className={index === carried ? `${styles.page} ${styles.carried}` : styles.page}
 						// How far out of its own slot this page has to stand to leave room for
 						// the one being carried. Zero, and unset, the rest of the time.
 						style={{ '--shift': `${shiftFor?.(index) ?? 0}px` } as React.CSSProperties}
@@ -567,11 +511,6 @@ export function PageStrip({
 			</div>
 		</div>
 	)
-}
-
-/** `ease-in-out`, as a number, so a hand-run animation can share the keyframes' curve. */
-function easeInOut(t: number): number {
-	return cubicBezier(0.42, 0, 0.58, 1, t)
 }
 
 /**

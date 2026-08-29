@@ -125,8 +125,8 @@ function BookShell({
  *
  * Every class here is the page's own, read off its stylesheet rather than copied, for the
  * reason the note at the top of this file gives: a placeholder is only worth having if it
- * is exactly the shape of the page, and `--book-reserve`, `--panel-width` and the stage's
- * gutters all differ by layout. `.navBand` is empty for the same reason the rail is — the
+ * is exactly the shape of the page, and `--book-reserve`, `--stage-left`, `--chrome-top`
+ * and the stage's gutters all differ by layout. `.navBand` is empty for the same reason the rail is — the
  * page bar is a control, and a grey pill that turns into a working one is two loading
  * states where the page needs one.
  */
@@ -144,12 +144,6 @@ function CreateShell() {
 			</div>
 
 			<main className={createStyles.content}>
-				{/* The rail's space and the aiming pad's, both empty. They are here because the
-				    drawing is centred between them: a shell missing either would put the sheet
-				    of paper somewhere the page does not. */}
-				<div className={createStyles.shellPanel} aria-hidden="true" />
-				<div className={createStyles.shellPad} aria-hidden="true" />
-
 				<div className={createStyles.stage}>
 					<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
 						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
