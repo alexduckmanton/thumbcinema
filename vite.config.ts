@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import type { Connect, Plugin } from 'vite'
+import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { readdirSync, readFileSync } from 'node:fs'
 
 /**
  * Mounts the real API router into the dev server.
@@ -43,8 +45,73 @@ function apiPlugin(): Plugin {
 	}
 }
 
+/**
+ * Files under `public/` the site can't be drawn without.
+ *
+ * The two typefaces and the pictures the stylesheets reach for. Not the whole
+ * directory: `pecita.woff` is half a megabyte of fallback for browsers that have no
+ * woff2 and therefore can't run an ES module either, and `sadbrowser.html` is the page
+ * those browsers get instead of the app — neither is ever fetched by a session that
+ * has a service worker in it.
+ */
+const PRECACHED_PUBLIC = ['/fonts/inter-latin-variable.woff2', '/fonts/pecita.woff2']
+
+/**
+ * Generates `sw.js`, with the precache list filled in from the build's own output.
+ *
+ * The list has to be the bundle's file names, which are content-hashed and are not
+ * knowable before the build — so the worker is a source file with two markers in it
+ * (`src/offline/sw.js`) and this is where they're filled in. Anything else is a list
+ * kept in step by hand, and a precache list that is wrong is an app that opens offline
+ * missing a chunk.
+ *
+ * Everything the build emitted is precached, including paper.js. It is ~210 KB that the
+ * gallery deliberately never downloads — but "the drawing tool works offline" is the
+ * whole point of the feature, and a first visit that lazily cached what it happened to
+ * use would be a visit to `/create` on a plane finding nothing there. This does not put
+ * paper into any route's preload set; the chunk graph is untouched. It is a download
+ * after load, once, by a worker.
+ */
+function serviceWorkerPlugin(): Plugin {
+	return {
+		name: 'thumbcinema-sw',
+		apply: 'build',
+
+		generateBundle(_options, bundle) {
+			const emitted = Object.keys(bundle)
+				.filter((name) => name.endsWith('.js') || name.endsWith('.css'))
+				.map((name) => `/${name}`)
+
+			const images = readdirSync('public/images')
+				.filter((name) => name.endsWith('.png'))
+				.map((name) => `/images/${name}`)
+
+			// `/` rather than `/index.html`: under cleanUrls the deployed filesystem has no
+			// such file, that path is a 308, and `cache.addAll` rejects on a redirect.
+			const precache = ['/', ...emitted.sort(), ...PRECACHED_PUBLIC, ...images.sort()]
+
+			// A hash of the list, so the cache name changes when — and only when — the
+			// thing it holds does.
+			const version = createHash('sha256').update(precache.join('\n')).digest('hex').slice(0, 12)
+
+			const source = readFileSync('src/offline/sw.js', 'utf8')
+			const filled = source
+				.replace("'__VERSION__'", JSON.stringify(version))
+				.replace("['__PRECACHE__']", JSON.stringify(precache))
+
+			// Both markers, or the worker ships claiming to cache a file called
+			// `__PRECACHE__` and offline mode silently isn't one.
+			if (filled.includes('__VERSION__') || filled.includes('__PRECACHE__')) {
+				throw new Error('sw.js: the build markers have moved. See serviceWorkerPlugin.')
+			}
+
+			this.emitFile({ type: 'asset', fileName: 'sw.js', source: filled })
+		},
+	}
+}
+
 export default defineConfig({
-	plugins: [react(), apiPlugin()],
+	plugins: [react(), apiPlugin(), serviceWorkerPlugin()],
 
 	server: {
 		// The port the old dev server used, and the one .claude/launch.json expects.

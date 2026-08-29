@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AdminToggles } from '../../components/AdminToggles'
 import { CreateButton } from '../../components/CreateButton'
@@ -8,8 +8,16 @@ import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { getFlipbook, getFlipbookData, type Flipbook } from '../../lib/api'
 import { isTouch } from '../../lib/device'
-import { Link } from '../../router/Router'
-import { flipbookPath } from '../../router/routes'
+import {
+	discardPending,
+	getPending,
+	isPendingId,
+	type PendingEntry,
+	pendingFlipbook,
+	usePending,
+} from '../../offline/pending'
+import { Link, navigate } from '../../router/Router'
+import { flipbookPath, galleryPath } from '../../router/routes'
 import icons from '../../styles/icons.module.css'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
 import styles from './PlaybackPage.module.css'
@@ -36,6 +44,38 @@ export interface PlaybackPageProps {
 }
 
 /**
+ * The line under a flipbook that hasn't been published yet.
+ *
+ * It follows the upload rather than describing the queue: waiting, going up, up — or
+ * refused, in the server's own words, because "it didn't work" leaves nothing to do
+ * about it. Once it *is* up the offer to discard goes and a link to the real flipbook
+ * takes its place, which is the only thing left worth doing from here.
+ */
+function PendingNote({ entry, onDiscard }: { entry: PendingEntry; onDiscard: () => void }) {
+	if (entry.status === 'published') {
+		return (
+			<p className={styles.pending}>
+				Published, and it&rsquo;s in the gallery now.{' '}
+				{entry.publishedAs ? <Link to={flipbookPath(entry.publishedAs)}>Go and see it</Link> : null}
+			</p>
+		)
+	}
+
+	return (
+		<p className={styles.pending}>
+			{entry.status === 'uploading'
+				? 'Publishing this one now…'
+				: entry.error
+					? `This one couldn’t be published: ${entry.error}`
+					: 'Saved on this device. I’ll publish it next time you’re online.'}{' '}
+			<button type="button" className={styles.discard} onClick={onDiscard}>
+				Discard it
+			</button>
+		</p>
+	)
+}
+
+/**
  * How many pages have to have arrived before it starts playing.
  *
  * Two — the fewest that can flip. The wait people were sitting through was a whole
@@ -58,11 +98,42 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 	/** True once the artwork is in hand and pages have started landing in the store. */
 	const replaying = useRef(false)
 
+	/*
+	 * The queue entry this page is, when it is one.
+	 *
+	 * `/f/local-…` is a real URL that reloads and can be shared with the person holding
+	 * the phone, and everything below treats what comes back from it as an ordinary
+	 * flipbook — the artwork is a blob URL, so even the fetch is the same fetch. What is
+	 * different is what the page has to *say*: this drawing is on one device, it is going
+	 * up when there's a signal, and there is a way to change your mind. See
+	 * `docs/offline.md`.
+	 *
+	 * Read from the live list rather than from the copy loaded below, so the note under
+	 * the flipbook follows it up: waiting, uploading, published, or refused with a reason.
+	 */
+	const queued = usePending().find((entry) => entry.book.id === id) ?? null
+	const local = isPendingId(id)
+
 	const { print, container } = usePrint(engine)
+
+	/*
+	 * Throwing a queued flipbook away, which is the one thing you can do to one besides
+	 * wait. Asked first, because it is the only copy in the world and there is no
+	 * undoing it — and then straight to the gallery, since the page it was asked on is
+	 * about to be a flipbook that doesn't exist.
+	 */
+	const discard = useCallback(() => {
+		if (!window.confirm('Throw this flipbook away? It hasn’t been published, so this is it.'))
+			return
+
+		void discardPending(id).then(() => navigate(galleryPath('all')))
+	}, [id])
 
 	// Everything made from this flipbook — including, when this one is itself a remix,
 	// its siblings. The lineage is flat, so every page in a family shows the same list.
-	const remixes = useRemixes(flipbook?.remix_root ?? null)
+	// Never asked for a queued flipbook: it has no lineage until it is a row, and the
+	// request would be to a server that by definition isn't answering.
+	const remixes = useRemixes(local ? null : (flipbook?.remix_root ?? null))
 
 	/*
 	 * The list, minus the flipbook already on the page.
@@ -85,6 +156,25 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 	// artwork formats to expect.
 	useEffect(() => {
 		const controller = new AbortController()
+
+		// A queued flipbook is its own metadata: it was made here, and the copy in
+		// IndexedDB is the only one there is. No request, which is the point — this page
+		// has to work with the radios off.
+		if (isPendingId(id)) {
+			getPending(id).then((entry) => {
+				if (controller.signal.aborted) return
+				if (!entry) {
+					setMissing(true)
+					return
+				}
+
+				const found = pendingFlipbook(entry)
+				setFlipbook(found)
+				document.title = found.title ? `${found.title} — thumbcinema` : 'thumbcinema'
+			})
+
+			return () => controller.abort()
+		}
 
 		getFlipbook(id, { signal: controller.signal })
 			.then((found) => {
@@ -180,7 +270,16 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 			 * nothing can be saved claiming a parent it isn't allowed.
 			 */}
 			<SiteHeader width="narrow">
-				{flipbook?.format === 'legacy-json' ? null : <CreateButton remixOf={id} />}
+				{/* No remixing a queued flipbook. A remix is stored as a link to a row that
+				    doesn't exist yet, and the drawing tool opens one by fetching it — so
+				    the button offers the other thing it does instead, which is a new
+				    flipbook. Once this is published it is an ordinary flipbook on an
+				    ordinary page with an ordinary Remix button. */}
+				{local ? (
+					<CreateButton />
+				) : flipbook?.format === 'legacy-json' ? null : (
+					<CreateButton remixOf={id} />
+				)}
 			</SiteHeader>
 
 			<main className={styles.content}>
@@ -250,13 +349,20 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 									) : null}
 								</div>
 								<p className={styles.description}>{flipbook.description}</p>
+
+								{/* What is actually going on with this one, which is the whole
+								    reason a queued flipbook has a page of its own rather than just
+								    a faded card in the grid. */}
+								{queued ? <PendingNote entry={queued} onDiscard={discard} /> : null}
 							</div>
 
 							{/* Both of these render nothing most of the time — the toggles unless
 							    you hold the admin token, print unless there is a printer worth
 							    offering. An empty box, and the title takes the width. */}
 							<div className={styles.aside}>
-								<AdminToggles id={flipbook.id} flags={flags} onChange={setFlags} />
+								{/* Nothing to moderate on a flipbook that isn't published, and the
+								    PATCH would be to a row that doesn't exist. */}
+								{local ? null : <AdminToggles id={flipbook.id} flags={flags} onChange={setFlags} />}
 
 								{/* Printing lays the flipbook out as a cut-and-staple booklet.
 								    There is no useful touch equivalent, so it isn't offered there. */}
