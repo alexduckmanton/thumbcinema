@@ -116,7 +116,11 @@ export function CreatePage() {
 	const remixLoaded = useRemixSource(engine, crash.decided && !crash.restored ? asked : null)
 
 	// Everything but the naming form, which has fields in it a finger may want to pan.
-	useNoScrolling(phase !== 'naming')
+	// Held still the whole time now, including while the save dialog is up: what it
+	// covers is behind an overlay, and a page scrolling underneath a modal is the
+	// scroll conflict the dialog's own scrolling exists to avoid. `pannable` is what
+	// lets the overlay be scrolled while the document is not — see `base.css`.
+	useNoScrolling(true, { pannable: phase !== 'drawing' })
 
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools —
 	// and off while the trace photo's sheet is up, which is a question being asked and
@@ -775,25 +779,30 @@ function ActionButton({
  * became somewhere to drag. What the class does, and why it takes four properties to do
  * it, is in `base.css`.
  *
- * Off while the save form is up, which is the one time this page has fields in it: a
- * long description in a small textarea has to be pannable, and `touch-action: none` on
- * an ancestor cannot be given back by a descendant. Nothing is lost by it — the drawing
- * tool is behind the wash by then, and `beforeunload` is already guarding the reload.
+ * `pannable` while the save dialog is up, which is the one time this page has something
+ * in front of it that scrolls. It keeps every part of the lock except `touch-action:
+ * none` — which is an intersection down the ancestor chain that a descendant cannot give
+ * back, so with it on, the dialog could not be panned by a finger. The document stays
+ * held still either way, which is the point: a page scrolling behind a modal is the
+ * conflict the modal's own scrolling exists to avoid.
  */
-function useNoScrolling(enabled: boolean): void {
+function useNoScrolling(enabled: boolean, { pannable = false } = {}): void {
 	useEffect(() => {
 		if (!enabled) return
 
-		document.documentElement.classList.add('locked')
+		const root = document.documentElement
+		root.classList.add('locked')
+		if (pannable) root.classList.add('pannable')
+
 		// And the one thing CSS can't say on iOS, where `touch-action` does not reach page
 		// zoom and cancelling the gesture events turns out not to be the whole answer.
 		const release = refuseMultiTouch()
 
 		return () => {
-			document.documentElement.classList.remove('locked')
+			root.classList.remove('locked', 'pannable')
 			release()
 		}
-	}, [enabled])
+	}, [enabled, pannable])
 }
 
 const WARNING = "Whoa, you haven't saved your flipbook yet. Leave and you'll lose it."

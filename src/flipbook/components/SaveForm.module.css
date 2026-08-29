@@ -9,44 +9,73 @@
  * each other. A modal belongs to the window, not to the artwork.
  */
 
+/*
+ * The overlay: the whole window, the wash, and the thing that scrolls.
+ *
+ * The card inside it has no maximum height and takes the height it needs; when that is
+ * more than the window has, this scrolls and the card is simply taller than the view.
+ * The alternative — capping the card and scrolling its contents — puts a scrollbar
+ * inside a rounded white box and clips its own padding, which reads as a bug.
+ *
+ * **The wash is painted here rather than on `::backdrop`**, which is the one structural
+ * thing copied from the reference app: it uses no `<dialog>` at all, just a fixed
+ * `inset: 0` div with the wash on it. On iOS the `::backdrop` version left pale bands
+ * behind the status bar and the URL bar; a fixed element the size of the window does
+ * not, and with `viewport-fit=cover` in the viewport meta it reaches the physical edges.
+ * `::backdrop` is made transparent below rather than left alone, or the two would
+ * composite and the wash would come out half as light again as it is meant to be.
+ */
 .dialog {
-	/* `<dialog>` has a UA border, padding and `max-width: calc(100% - 6px - 2em)`, and
-	   all three are in the way of a card that states its own.
-
-	   As wide as it is given, less a 16px margin either side, up to a point. The cap is
-	   what stops a dialog with two fields in it running the width of a desktop window;
-	   the margin is what stops a phone getting a column narrower than the screen it is
-	   on for no reason. `100%` here is the viewport: a dialog in the top layer is
-	   positioned against the initial containing block. */
-	width: min(520px, calc(100% - 32px));
-
-	/* The *visible* height, not the window's — `--visible-height` is published by
-	   `useVisibleViewport` from `visualViewport`, and on iOS with a keyboard up the two
-	   are 400px apart. `100dvh` is the fallback for the beat before the effect runs.
-	   With this the card never exceeds what is on screen, and scrolls inside it if the
-	   content still doesn't fit. */
-	max-height: calc(var(--visible-height, 100dvh) - 32px);
-	overflow-y: auto;
-	padding: 0;
+	/* The UA gives a modal dialog `position: fixed`, a border, padding, `margin: auto`
+	   and a max-width and max-height of roughly the viewport. All of it is in the way of
+	   an element that wants to *be* the viewport. */
+	position: fixed;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	max-width: none;
+	max-height: none;
+	margin: 0;
 	border: none;
-	/* Rounder than a card, which is the site's 12px: this is a much bigger surface, and
-	   a radius that reads as generous on a 200px tile reads as barely-there on a 520px
-	   sheet. */
-	border-radius: 24px;
-	background: var(--white);
+	background: rgba(0, 0, 0, 0.55);
+
+	/* The safe areas keep the card off the notch and the home indicator while the wash
+	   goes on covering them. The keyboard is taken off the bottom the same way — see
+	   `useKeyboardInset` for why it is an inset rather than a smaller overlay. */
+	padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+		calc(max(16px, env(safe-area-inset-bottom)) + var(--keyboard-inset, 0px))
+		max(16px, env(safe-area-inset-left));
+
+	overflow-y: auto;
+	/* Momentum, and no pull-to-refresh reaching the page underneath. */
+	overscroll-behavior: contain;
+	display: flex;
 	color: var(--ink);
-	box-shadow: rgba(0, 0, 0, 0.3) 0 12px 40px;
+}
+
+/* The wash lives on the element above. */
+.dialog::backdrop {
+	background: transparent;
 }
 
 /*
- * The wash.
- *
- * `::backdrop` rather than a sibling div, which is the whole reason this is a real
- * dialog: it covers the viewport by definition, sits under this element and over
- * everything else without a z-index to keep in sync, and takes no part in the layout.
+ * Centred by `margin: auto` rather than by `align-items: center`, and that is not a
+ * style preference: a centred flex item that overflows its scroll container is centred
+ * by *overflowing both ends*, and the top end of a scroll container cannot be scrolled
+ * to. Auto margins centre while there is room and fall back to the start when there
+ * isn't, which is exactly the behaviour a tall card in a short window needs.
  */
-.dialog::backdrop {
-	background: rgba(0, 0, 0, 0.55);
+.card {
+	margin: auto;
+	width: 100%;
+	/* Capped so the card doesn't run the width of a desktop window; the overlay's own
+	   padding is what gives it a 16px margin on a phone. */
+	max-width: 520px;
+	/* Rounder than a card, which is the site's 12px: this is a much bigger surface, and
+	   a radius that reads as generous on a 200px tile barely registers on a 520px sheet. */
+	border-radius: 24px;
+	background: var(--white);
+	box-shadow: rgba(0, 0, 0, 0.3) 0 12px 40px;
 }
 
 /*
@@ -56,11 +85,11 @@
  * On the element rather than on `[open]`: `showModal()` is what puts it in the top
  * layer, and by the time it is in the DOM open it is already the thing being animated.
  */
-.dialog {
+.card {
 	animation: cardIn 0.16s ease-out;
 }
 
-.dialog::backdrop {
+.dialog {
 	animation: washIn 0.16s ease-out;
 }
 
@@ -97,8 +126,8 @@
  * heading between two of them was the one thing here still speaking in a different
  * voice.
  *
- * 34px because Pecita has a shallow x-height and reads a size smaller than it is; this
- * sits about where a 25px sans heading does. The 4px is the same correction the two
+ * 40px because Pecita has a shallow x-height and reads a size smaller than it is; this
+ * sits about where a 30px sans heading does. The 4px is the same correction the two
  * buttons carry, and is a property of the face: Pecita's reported ascent and descent
  * put the browser's line box lower than the ink actually sits, so a heading set flush
  * against the padding above it looks like it is falling out of the card.
@@ -107,7 +136,7 @@
 	position: relative;
 	top: 4px;
 	font-family: 'Pecita', cursive;
-	font-size: 34px;
+	font-size: 40px;
 	line-height: 1;
 }
 
@@ -155,29 +184,6 @@
  * On a phone the card takes the width it is given, and the padding comes in — 40px of
  * inset either side of a 320px screen leaves 240px to type a title into.
  */
-/*
- * Pinned to the top of what's visible rather than centred, on the screens that have an
- * on-screen keyboard.
- *
- * Centring is right when the whole window is available and wrong the moment half of it
- * is a keyboard: a card centred in the visible band still has to be shorter than that
- * band to clear it, and the first thing anyone does here is tap the title field. Pinned
- * to the top, the heading and the field it names are the first things above the
- * keyboard whatever the card's height, and `max-height` above keeps the rest reachable
- * by scrolling.
- *
- * `--visible-top` is `visualViewport.offsetTop`: iOS scrolls the layout viewport to
- * reveal a focused field, and this element is positioned against that viewport rather
- * than against the screen. Without it, "16px from the top" is 16px from an edge that
- * has been scrolled out of sight.
- */
-@media screen and (max-width: 730px), screen and (max-height: 560px) {
-	.dialog {
-		margin-top: calc(var(--visible-top, 0px) + 16px);
-		margin-bottom: auto;
-	}
-}
-
 @media screen and (max-width: 460px) {
 	.form {
 		gap: 16px;
@@ -185,13 +191,13 @@
 	}
 
 	.heading {
-		font-size: 30px;
+		font-size: 36px;
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.dialog,
-	.dialog::backdrop {
+	.card {
 		animation: none;
 	}
 }

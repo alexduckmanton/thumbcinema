@@ -176,7 +176,8 @@ body {
  *  - `touch-action: none` overrides the body's `manipulation` above, which permits a
  *    pinch — and a pinch is two contacts, which up here is a drawing gesture. The
  *    canvas has always said `none`; this is the same statement made about the rest of
- *    the page, now that the rest of the page is somewhere you can draw from.
+ *    the page, now that the rest of the page is somewhere you can draw from. It is the
+ *    one of the five that `.pannable` turns off — see below.
  *
  * `preventPinchZoom()` in `lib/zoom.ts` is still needed alongside it: Safari's pinch
  * arrives as its own non-standard gesture events, which no CSS reaches.
@@ -185,12 +186,26 @@ html.locked,
 html.locked body {
 	overflow: hidden;
 	overscroll-behavior: none;
-	touch-action: none;
 }
 
 html.locked body {
 	position: fixed;
 	inset: 0;
+}
+
+/*
+ * `touch-action: none` is the *drawing tool's* half of the lock, not the lock's, which
+ * is why it is a separate rule with a way out.
+ *
+ * It is an intersection down the ancestor chain and a descendant cannot give it back —
+ * so while it is on, nothing inside the page can be panned by a finger. That is right
+ * when the whole page is a surface you draw on, and wrong the moment a scrollable thing
+ * is put in front of it. `.pannable` is the save dialog saying so: the document is still
+ * held still by the four properties above, and the overlay in the top layer can scroll.
+ */
+html.locked:not(.pannable),
+html.locked:not(.pannable) body {
+	touch-action: none;
 }
 
 /*
