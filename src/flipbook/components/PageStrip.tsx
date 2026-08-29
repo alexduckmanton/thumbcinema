@@ -14,6 +14,17 @@ export interface PageStripProps {
 	playing: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
+	/**
+	 * The box this column scrolls in, which is `main` on the create page.
+	 *
+	 * An element rather than a ref, and that is not a style preference. The snap padding
+	 * below is measured in a *layout* effect — a snap offset applied after the browser has
+	 * painted is one frame of the column standing in the wrong place — and layout effects
+	 * run bottom-up, so a parent's `ref` has not been attached by the time a child's runs.
+	 * State re-renders this component when the element arrives, which is the one thing a ref
+	 * cannot do. Null until then, and everything here does nothing until it isn't.
+	 */
+	scroller: HTMLElement | null
 	/** Where a page is being carried, if one is. See `usePageReorder`. */
 	reorder?: Reorder | null
 	/** How far page `index` stands from its own slot while that is going on. */
@@ -24,22 +35,11 @@ export interface PageStripProps {
 const SETTLE_EASE = (t: number) => cubicBezier(0.2, 0.8, 0.3, 1, t)
 
 /**
- * The class that takes the snapping off while this file is driving the scroll itself.
- *
- * A global name on the root element rather than a CSS-module class, which is what it was
- * and which did not work: `html.tool` sets the snapping and is (0,1,1), a bare module
- * class is (0,1,0), and the rule meant to switch it off lost to the rule that switched it
- * on — silently, and the only symptom was a 300ms ease arriving as a jump. It is declared
- * next to the rule it has to beat, in `base.css`, alongside the two root classes this page
- * already manages from JavaScript.
- */
-const UNSNAPPED = 'unsnapped'
-
-/**
  * The column of page thumbnails the drawing stands in, and the thing you scroll.
  *
- * The strip is a real scroll container: the pages are a column inside it, each one a
- * snap point, and the live canvas is pinned over the middle of it. Scrolling is
+ * The strip is the content of a real scroll container — `main` on the create page, handed
+ * in as `scroller` — the pages are a column inside it, each one a snap point, and the live
+ * canvas is pinned over the middle of it. Scrolling is
  * therefore the browser's — momentum, rubber-banding, the trackpad's whole feel — and
  * what this component does is the two ends of it. It sets the padding that lets the
  * first and last pages reach the middle, and it keeps the flipbook and the scroll
@@ -69,10 +69,22 @@ export function PageStrip({
 	activePage,
 	playing,
 	canvasRef,
+	scroller,
 	reorder = null,
 	shiftFor,
 }: PageStripProps) {
 	const rail = useRef<HTMLDivElement | null>(null)
+
+	/*
+	 * The scroller again, so the callbacks below can read it without being rebuilt.
+	 *
+	 * `scrollToPage` is handed to an effect and to the reorder gesture; making it depend on
+	 * the element would rebuild it — and re-run everything that depends on it — the first
+	 * time the box arrives. A mirror costs one assignment per render and keeps every
+	 * identity stable, which is the same bargain `latest` below makes with the page state.
+	 */
+	const port = useRef<HTMLElement | null>(null)
+	port.current = scroller
 	const firstPage = useRef<HTMLDivElement | null>(null)
 	const [metrics, setMetrics] = useState({
 		offset: 0,
@@ -89,11 +101,11 @@ export function PageStrip({
 	 * `offset` and `left` are where the top-left corner of the live canvas sits relative
 	 * to this scroller, and `width` is how wide the canvas is — the thumbnails are copies
 	 * of the drawing and have to be exactly the size of it, in exactly the same place, to
-	 * stand behind it. Both axes are measured now that the scroller is the whole window:
-	 * it used to be the stage, which the drawing was centred in, so `margin: 0 auto` on a
-	 * page put it in the right place for free. The window is not centred on the drawing —
-	 * there is a rail down one side of it — so the horizontal offset has to be measured
-	 * exactly as the vertical one always was.
+	 * stand behind it. Both axes are measured, which they did not used to be: the scroller
+	 * was the stage and the drawing was centred in it, so `margin: 0 auto` on a page put it
+	 * in the right place for free. The scroller is the whole window now and the window is
+	 * not centred on the drawing — there is a rail down one side of it — so the horizontal
+	 * offset has to be measured exactly as the vertical one always was.
 	 *
 	 * `gutter` is the page's own padding, taken from the stylesheet rather than agreed
 	 * with it, so the gap between pages can differ by layout without this file knowing
@@ -105,18 +117,24 @@ export function PageStrip({
 		const page = firstPage.current
 		if (!canvas || !page) return
 
+		const box = port.current
+		if (!box) return
+
 		const gutter = Number.parseFloat(getComputedStyle(page).paddingTop) || 0
-		// Viewport coordinates, and they are the right ones because the drawing is
-		// `position: fixed`: where it is on the glass does not change as the column
-		// scrolls under it, which is the whole reason those two numbers can be a layout
-		// constant rather than something recomputed on every frame of a scroll.
+		// The drawing's corner in the scroller's own coordinates, which is a subtraction
+		// rather than a `scrollTop` sum because the drawing does not scroll: it is pinned
+		// over the scrollport, so where it is on the glass is a layout constant rather than
+		// something recomputed on every frame of a scroll. The two boxes are the same box
+		// today — `.content` is `inset: 0` — and the subtraction is what keeps that from
+		// being a thing this file believes.
 		const paper = canvas.getBoundingClientRect()
+		const frame = box.getBoundingClientRect()
 		const next = {
-			offset: paper.top,
-			left: paper.left,
+			offset: paper.top - frame.top,
+			left: paper.left - frame.left,
 			width: canvas.offsetWidth,
 			gutter,
-			view: window.innerHeight,
+			view: box.clientHeight,
 		}
 
 		// Only when something actually changed. This runs on every resize and on every
@@ -136,12 +154,16 @@ export function PageStrip({
 	/*
 	 * Both, because they answer different halves of it.
 	 *
-	 * The canvas changes size when the window does, but it also changes size when
-	 * nothing fires a resize at all — `--book-width` is drawn off `100dvh`, and on a
-	 * phone that moves as the browser's own chrome slides in and out. And the window
-	 * changes the canvas's *position* without changing its size at all, which is every
-	 * desktop window: the drawing stays 640 and the stage re-centres under it.
+	 * The canvas changes size when the window does, but it also changes size when nothing
+	 * fires a resize at all — it is sized off `--book-width`, which the create page draws
+	 * from a clamp of its own. And the window changes the canvas's *position* without
+	 * changing its size at all, which is every desktop window: the drawing stays 640 and the
+	 * stage re-centres under it.
+	 *
+	 * `scroller` is in the dependencies because the first render hasn't got one — see the
+	 * prop — and everything here measures against it.
 	 */
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `scroller` is read through `port` inside `measure`, and the first render hasn't got one — without it nothing is ever measured.
 	useEffect(() => {
 		measure()
 		window.addEventListener('resize', measure)
@@ -155,7 +177,7 @@ export function PageStrip({
 			window.removeEventListener('resize', measure)
 			observer?.disconnect()
 		}
-	}, [measure, canvasRef])
+	}, [measure, canvasRef, scroller])
 
 	/** The height of one thumbnail, from the canvas's width and the flipbook's shape. */
 	const pageHeight = (metrics.width * CANVAS_HEIGHT) / CANVAS_WIDTH
@@ -183,20 +205,23 @@ export function PageStrip({
 	const padBottom = Math.max(0, metrics.view - step - padTop)
 
 	/*
-	 * Where a snapped page's top edge lands, handed to the root element.
+	 * Where a snapped page's top edge lands, written straight onto the scroller.
 	 *
-	 * The scroll container is the document, so `scroll-padding-top` has to be on `html` —
-	 * and this is the one thing about the layout that a stylesheet cannot state, because it
-	 * is where the drawing actually ended up. `html.tool` in `base.css` reads it. A layout
-	 * effect rather than an effect: a snap offset applied after the browser has painted is
-	 * one frame of the column standing in the wrong place.
+	 * This is the one thing about the layout that a stylesheet cannot state, because it is
+	 * where the drawing actually ended up. An inline style rather than a custom property a
+	 * rule reads: there is only one box that needs it and this file already has it in hand.
+	 *
+	 * A layout effect rather than an effect — a snap offset applied after the browser has
+	 * painted is one frame of the column standing in the wrong place — which is exactly why
+	 * `scroller` is a prop rather than a ref. See the prop.
 	 */
 	useLayoutEffect(() => {
-		document.documentElement.style.setProperty('--page-snap', `${padTop}px`)
+		if (!scroller) return
+		scroller.style.scrollPaddingTop = `${padTop}px`
 		return () => {
-			document.documentElement.style.removeProperty('--page-snap')
+			scroller.style.scrollPaddingTop = ''
 		}
-	}, [padTop])
+	}, [padTop, scroller])
 
 	// The engine throws pages from one slot to the next and needs to know how far that
 	// is. It can't be told at build time for the same reason it isn't measured there.
@@ -287,35 +312,43 @@ export function PageStrip({
 	/**
 	 * Stops whatever this file was doing to the scroll, and **puts the snapping back**.
 	 *
-	 * The second half is the whole reason it is a function. `UNSNAPPED` was added when an
-	 * animated scroll started and removed on the frame it finished — and an animation that
-	 * is *cancelled* never reaches that frame. A reorder cancels one on every page of its
-	 * run and again at the settle, so a single drag could leave the class on the root
-	 * element for the rest of the session: scroll snapping silently dead, page turns no
-	 * longer landing on a page, and nothing in the console. It came back on a reload, which
-	 * is exactly what a stuck class looks like from the outside.
+	 * The second half is the whole reason it is a function. Snapping was switched off when
+	 * an animated scroll started and back on in the frame it finished — and an animation
+	 * that is *cancelled* never reaches that frame. A reorder cancels one on every page of
+	 * its run and again at the settle, so a single drag could leave the scroller unsnapped
+	 * for the rest of the session: page turns no longer landing on a page, and nothing in
+	 * the console. It came back on a reload, which is exactly what stranded state looks like
+	 * from the outside.
+	 *
+	 * Written inline on the element, which is the fix for the *other* half of that bug: this
+	 * was a class on the root, and the rule meant to switch snapping off was (0,1,0) against
+	 * the (0,1,1) that switched it on, so it silently lost and a 300ms ease arrived as a
+	 * jump. An inline style has no such argument to lose.
 	 *
 	 * Every exit from `scrollToPage` goes through here, including the two early ones.
 	 */
 	const stop = useCallback(() => {
 		if (animation.current !== null) cancelAnimationFrame(animation.current)
 		animation.current = null
-		document.documentElement.classList.remove(UNSNAPPED)
+		if (port.current) port.current.style.scrollSnapType = ''
 	}, [])
 
 	const scrollToPage = useCallback(
 		(index: number, duration = 0, easing?: (t: number) => number) => {
 			stop()
 
+			const box = port.current
+			if (!box) return
+
 			const to = index * latest.current.step
-			const from = window.scrollY
+			const from = box.scrollTop
 			if (Math.abs(to - from) < 1) return
 
 			reported.current = null
 			driving.current = true
 
 			if (duration <= 0 || prefersReducedMotion()) {
-				window.scrollTo(0, to)
+				box.scrollTop = to
 				// One frame, so the scroll event this just produced is seen while the flag is
 				// still up. Setting the position is synchronous but the event is not.
 				requestAnimationFrame(() => {
@@ -324,12 +357,12 @@ export function PageStrip({
 				return
 			}
 
-			document.documentElement.classList.add(UNSNAPPED)
+			box.style.scrollSnapType = 'none'
 			const started = performance.now()
 
 			const frame = (now: number) => {
 				const t = Math.min(1, (now - started) / duration)
-				window.scrollTo(0, from + (to - from) * (easing ? easing(t) : t))
+				box.scrollTop = from + (to - from) * (easing ? easing(t) : t)
 
 				if (t < 1) {
 					animation.current = requestAnimationFrame(frame)
@@ -408,13 +441,15 @@ export function PageStrip({
 	 * the column carried a different thumbnail under it.
 	 */
 	useEffect(() => {
+		if (!scroller) return
+
 		const onScroll = () => {
 			if (driving.current) return
 
 			const { engine: live, step: pitch, activePage: current, pages: count } = latest.current
 			if (latest.current.playing || pitch <= 0 || count === 0) return
 
-			const index = Math.max(0, Math.min(count - 1, Math.round(window.scrollY / pitch)))
+			const index = Math.max(0, Math.min(count - 1, Math.round(scroller.scrollTop / pitch)))
 			if (index === current) return
 
 			// Named before the page turns, so the effect that answers `anchor` has it by the
@@ -424,9 +459,9 @@ export function PageStrip({
 			live.goToPage(index)
 		}
 
-		window.addEventListener('scroll', onScroll, { passive: true })
-		return () => window.removeEventListener('scroll', onScroll)
-	}, [])
+		scroller.addEventListener('scroll', onScroll, { passive: true })
+		return () => scroller.removeEventListener('scroll', onScroll)
+	}, [scroller])
 
 	/*
 	 * There is no wheel handler here any more, and its absence is the feature.
@@ -438,10 +473,12 @@ export function PageStrip({
 	 * with two different feels: natural scrolling with momentum and CSS snapping everywhere
 	 * else, and a hard page-per-notch cut over the drawing itself.
 	 *
-	 * The scroller is the document now, and a `position: fixed` element is still in the
-	 * document's scroll chain — so a wheel over the canvas scrolls the page by itself,
-	 * exactly as it does over the column beside it. Doing nothing is what makes the two the
-	 * same gesture. `WHEEL_STEP` went with the handler.
+	 * The drawing is `position: absolute` inside a `position: sticky` box inside the scroller
+	 * now — see `.chrome` on the create page — which is an ordinary descendant, so a wheel
+	 * over the canvas scrolls the flipbook by itself, exactly as it does over the column
+	 * beside it. Doing nothing is what makes the two the same gesture, and it is the reason
+	 * the chrome is sticky rather than fixed: a fixed element is not in the chain, and the
+	 * handler existed to paper over that. `WHEEL_STEP` went with it.
 	 */
 	return (
 		<div

@@ -20,20 +20,25 @@
 
 .panel {
 	/*
-	 * Pinned to the left of the window, because the *document* is what scrolls on this
-	 * page: a rail in the flow would go up the screen with the flipbook. It starts below
-	 * the header band and runs to the bottom of the window.
+	 * Pinned to the left, because the flipbook is what scrolls on this page: a rail in the
+	 * flow would go up the screen with it. It starts below the header band and runs to the
+	 * bottom of the window.
 	 *
-	 * Being fixed costs it nothing and buys the page something: a drag across the rail
-	 * still scrolls the flipbook, a fixed element being no less part of a document that
-	 * scrolls. Only the rail's own overflow takes a drag away from it, and only when the
-	 * list is long enough to have one.
+	 * `absolute` against the create page's `.chrome`, which is a sticky box the size of the
+	 * scrollport — so these coordinates are the window's, exactly as they were when this said
+	 * `fixed`, and a drag across the rail still scrolls the flipbook. That last part is the
+	 * reason for the wrapper and not a nice side effect: a *fixed* element is not in the
+	 * scroller's chain at all, and a drag on a fixed rail moved nothing. Only the rail's own
+	 * overflow takes a drag away from it, and only when the list is long enough to have one.
+	 *
+	 * `pointer-events` because `.chrome` switches them off for the white between its boxes.
 	 */
-	position: fixed;
+	position: absolute;
 	top: var(--chrome-top);
 	bottom: 0;
 	left: 0;
 	z-index: 30;
+	pointer-events: auto;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -255,6 +260,18 @@
  * list rather than growing the rail off both ends of the screen at once.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
+	/*
+	 * The aiming pad's switch, which exists only where the pad does.
+	 *
+	 * `usesAimPad` already keeps it off every mode that aims from somewhere else; this is
+	 * the other half of the same claim, because the pad is hidden by *its* stylesheet above
+	 * the phone breakpoint rather than by JavaScript. A button offering to hide something
+	 * that was never on screen is the kind of control that makes a page feel unfinished.
+	 */
+	.padOnly {
+		display: none;
+	}
+
 	.panel {
 		top: var(--stage-mid);
 		bottom: auto;

@@ -87,7 +87,8 @@ src/
                       cursors, the drawing-mode switch
       ToolPanel.tsx   every control on the create page, as Pecita glyphs
       PageStrip.tsx   the pages as a scrolling column, and the canvas over it
-      AimPad.tsx      v14's trackpad, and the only place a finger aims from
+      AimPad.tsx      v14's trackpad, and the only place a finger aims from — the
+                      rail has a switch that puts it away
     card/             one flipbook in a list — the grid, and the remixes under one
       FlipbookCard.tsx   the link, the preview over it, the play button
       useCardGesture.ts  hover, tap, hold and drag, mouse and finger
@@ -270,29 +271,51 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   page was empty white and stopped being free when the flipbook became something to
   scroll — under v13 the pages cannot be moved by a finger at all. The pad is found by
   `[data-aim-pad]`, and it is hidden above the phone breakpoint, where a mouse has a
-  precise pointer and none of this is a problem it has. `docs/drawing-modes.md`.
+  precise pointer and none of this is a problem it has. **The rail can put it away**: the
+  band it stands in is a term in `--book-reserve`, so the drawing grows into the room
+  wherever height is what caps its size — and with the pad down v14 has no cursor control
+  at all, which is the honest trade the lit button is reporting. `docs/drawing-modes.md`.
 - **`html.locked` says `touch-action: pan-y`, not `none`.** `touch-action` is the
   intersection down the ancestor chain and a descendant cannot give back what an ancestor
   took, so `none` on the body meant nothing inside the page could be panned by a finger —
   including the page strip. Pinch and double-tap zoom are still refused; the surfaces that
   must not pan (the canvas, the page handle, the page bar, the aiming pad) each say
   `touch-action: none` for themselves, which is the direction that works.
-- **The page strip is the *document's* scroll, and the scroll position is the page
-  number.** Everything else on the create page is `position: fixed` over it — header, rail,
-  drawing, aiming pad, scrims. That is not a style choice: **iOS Safari only collapses its
-  URL bar for the root scroller**, so a nested `overflow: auto` box (which is what this was)
-  leaves the bar up for ever. `scroll-snap-type` and `scroll-padding-top` therefore live on
-  `html`; see `html.tool` in base.css, and `--page-snap`, which `PageStrip` measures onto
-  the root because it is the one thing about the layout a stylesheet cannot state.
-- **`html.tool.unsnapped` is how the snapping comes off, and it has been wrong twice.** A
+- **`main` is the create page's scroll container, the body is pinned, and the scroll
+  position is the page number.** Everything else — rail, drawing, aiming pad, scrims — lives
+  in `.chrome`, one `position: sticky` box inside that scroller; the header is the one piece
+  outside it. **This has been both ways round.** It was the *document* for a while, because
+  iOS Safari only collapses its URL bar for the root scroller and a flipbook running under
+  the bar is worth having. What it cost was worse: the bar comes and goes as you scroll, so
+  the viewport resizes under the drawing, and **a mandatory snap container whose height
+  moves mid-fling stops mid-fling and then jumps to a slot**. The bar stays up now and the
+  scrolling is steady.
+- **`.chrome` is sticky, not fixed, and that is the load-bearing part.** A `position: fixed`
+  element is not in a scroll container's chain — measured: a wheel over a fixed child moved
+  the scroller 0px, over a sticky one it moved by the delta exactly. Fixed chrome meant a
+  drag on the rail, or on the white either side of the paper, scrolled nothing. It is also
+  **first in the flow with `margin-bottom: -100svh`**: sticky pins a box from its own place
+  in the flow onward, so written after the column it would be a windowful below the fold,
+  and the negative margin is what stops a windowful of chrome adding a blank page's worth of
+  scroll.
+- **The snapping comes off *inline*, from `PageStrip`, and it has been wrong twice.** A
   mandatory snap container resnaps after every scroll it is given, so an animated scroll
   needs the snapping off for its duration. First the rule doing that was a bare CSS-module
-  class (0,1,0) losing silently to `html.tool` (0,1,1), and a 300ms ease arrived as a jump.
-  Then a *cancelled* animation never reached the frame that took the class off — a reorder
-  cancels one per page of its run — and the class stranded: snapping dead for the session,
-  fixed only by a reload. Every exit from `scrollToPage` goes through `stop()`.
-- **Sizes on the create page are `100svh`, never `100dvh`.** `dvh` changes as the URL bar
-  collapses, so a drawing sized with it resizes itself under your hand on the first scroll.
+  class (0,1,0) losing silently to `html.tool` (0,1,1), and a 300ms ease arrived as a jump —
+  an inline `scrollSnapType` has no such argument to lose. Then a *cancelled* animation
+  never reached the frame that put it back — a reorder cancels one per page of its run — and
+  it stranded: snapping dead for the session, fixed only by a reload. Every exit from
+  `scrollToPage` goes through `stop()`.
+- **`PageStrip` takes the scroller as an element, not a ref.** Its snap padding is measured
+  in a *layout* effect, and layout effects run bottom-up — a parent's `ref` is not attached
+  when a child's runs. State re-renders the child when the element arrives, which a ref
+  cannot do.
+- **Sizes on the create page are `100svh`, never `100dvh`.** `dvh` changes with the
+  browser's chrome, and everything here is measured off everything else: the aiming pad's
+  height is a term in `--book-reserve`, `--book-reserve` decides how wide the drawing is,
+  and the drawing's size is what the page column's length is measured from. A pad stated in
+  `dvh` was therefore a scroll container that changed length whenever a URL bar moved. The
+  body is pinned now and the rule stands anyway.
 - **Scrolling calls `goToPage`, and a page turned any other way scrolls.** Two rules keep
   that from being a loop. Anything that wants to move the flipbook goes through `goToPage` rather than through
   `scrollTop` — a scroll this file drives is deliberately not answered by its own handler,

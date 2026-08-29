@@ -119,16 +119,18 @@ function BookShell({
  * pulsing in the middle of the stage.
  *
  * The header carries nothing at all. The page puts Save in it, and a save button offered
- * before there is a flipbook to save would be a control that is up early rather than a
- * page that is loading — which is the same reason the rail's space and the aiming pad's
- * are drawn empty. See `.shellPanel`.
+ * before there is a flipbook to save would be a control that is up early rather than a page
+ * that is loading — which is the same reason the rail's lane and the aiming pad's band are
+ * drawn empty rather than filled with grey placeholders. A control is either working or not
+ * there.
  *
  * Every class here is the page's own, read off its stylesheet rather than copied, for the
- * reason the note at the top of this file gives: a placeholder is only worth having if it
- * is exactly the shape of the page, and `--book-reserve`, `--stage-left`, `--chrome-top`
- * and the stage's gutters all differ by layout. `.navBand` is empty for the same reason the rail is — the
- * page bar is a control, and a grey pill that turns into a working one is two loading
- * states where the page needs one.
+ * reason the note at the top of this file gives: a placeholder is only worth having if it is
+ * exactly the shape of the page, and `--book-reserve`, `--stage-left`, `--chrome-top` and
+ * the stage's gutters all differ by layout. Which is also why there are no placeholder boxes
+ * left in here at all: everything is positioned off those properties now, so the sheet of
+ * paper lands on the same pixel with nothing else on the page — measured at both widths, and
+ * it is exact.
  */
 function CreateShell() {
 	// The page shape, before the page: `.stage` takes what the header leaves, and without
@@ -144,11 +146,21 @@ function CreateShell() {
 			</div>
 
 			<main className={createStyles.content}>
-				<div className={createStyles.stage}>
-					<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
-						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
-						    cast the shadow the page's own placeholder borrows. */}
-						<div className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`} aria-hidden="true" />
+				{/* `.chrome` as well as `.stage`, because the stage is positioned *against* it —
+				    the page's own note explains why one is inside the other. Without it the
+				    stage would be measured off `main`, which today is the same box and might
+				    one day not be, and a sheet of paper that moves at the handover is the one
+				    thing this shell exists to prevent. */}
+				<div className={createStyles.chrome}>
+					<div className={createStyles.stage}>
+						<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
+							{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
+							    cast the shadow the page's own placeholder borrows. */}
+							<div
+								className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`}
+								aria-hidden="true"
+							/>
+						</div>
 					</div>
 				</div>
 			</main>

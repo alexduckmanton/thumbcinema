@@ -191,8 +191,8 @@ html.locked body {
 	 * through its ancestors, and a descendant cannot give back what an ancestor has taken
 	 * — so `none` here means nothing inside the page can be panned by a finger at all.
 	 * That was true and harmless while the create page had nothing to scroll; the flipbook
-	 * is the document's own scroll now, and `none` here was a column of pages that a mouse
-	 * could move and a finger could not.
+	 * is a scroll container now, and `none` here was a column of pages that a mouse could
+	 * move and a finger could not.
 	 *
 	 * `pan-y` gives back exactly the one gesture the page has a use for. Everything else
 	 * this was reaching for is still refused: pinch-zoom needs `pinch-zoom` in the value,
@@ -202,74 +202,39 @@ html.locked body {
 	 * that does work.
 	 *
 	 * `overscroll-behavior: none` is what takes pull-to-refresh off Chrome on Android and
-	 * the rubber band off both, and it matters more now than it did: this is a real
-	 * document scroll, so both were live.
+	 * the rubber band off both. The flipbook's own scroller says `contain` for itself, so a
+	 * flick past the last page has nowhere to go either.
 	 */
 	touch-action: pan-y;
 }
 
 /*
- * The drawing tool's page: **the document is the scroller, and that is load-bearing.**
+ * The drawing tool's page: one windowful, held still, with the flipbook scrolling inside
+ * it.
  *
- * It used to be the opposite. The body was `position: fixed; inset: 0` with `overflow:
- * hidden`, and the page strip was a nested `overflow: auto` box — which is the one
- * arrangement that cannot work on iOS Safari, because **Safari only collapses the URL bar
- * for the root scroller.** A nested scroller leaves the bar up for ever and the flipbook
- * stops dead against it. The gallery has always scrolled the document and has always
- * collapsed the bar; the create page was the odd one out.
+ * **This has been both ways round and the second answer is the one that ships.** It was
+ * this — body pinned, nothing scrolling but a box inside it — and then the document itself,
+ * because *iOS Safari only collapses its URL bar for the root scroller* and the flipbook
+ * stopped dead against a bar that never went away. Collapsing the bar turned out to cost
+ * more than it bought: the browser's chrome comes and goes as you scroll, the viewport
+ * changes size under the drawing while you are looking at it, and a snap container whose
+ * height changes mid-fling stops mid-fling. So the page is held still again and the URL bar
+ * stays up.
  *
- * So the strip is ordinary document content — a very tall column — and everything else on
- * the page is `position: fixed` over it: the header, the rail, the drawing, the aiming pad
- * and the two scrims. What that buys beyond the URL bar is that a drag anywhere the page
- * has not claimed scrolls the flipbook, including across the rail, because a fixed element
- * is still part of a document that scrolls.
- *
- * The snap lives here for the same reason: `scroll-snap-type` belongs on the scroll
- * container, and the scroll container is `html`. `--page-snap` is the distance from the top
- * of the window to the top of the drawing, measured and written onto this element by
- * `PageStrip` — the one thing on the page it cannot know without looking.
+ * `position: fixed` on the body is the only thing that reliably stops iOS scrolling the
+ * document anyway. What scrolls is `main`, which is `position: fixed; inset: 0` — a box
+ * the exact size of a viewport that no longer moves.
  */
-html.tool {
-	scroll-snap-type: y mandatory;
-	scroll-padding-top: var(--page-snap, 0px);
-
-	/*
-	 * No scrollbar, and it is not only tidiness: the layout is written in `100vw`, which
-	 * includes a classic scrollbar's width and would otherwise push the drawing off centre
-	 * by ~15px on every platform that still has one. A scrollbar down the side of a
-	 * flipbook is also a piece of furniture nothing else on this page has.
-	 */
-	scrollbar-width: none;
-}
-
-html.tool::-webkit-scrollbar {
-	display: none;
-}
-
-/*
- * While `PageStrip` is driving the scroll itself: a page added, a page deleted, or the
- * flipbook closing up round a page that has been carried somewhere.
- *
- * A mandatory snap container resnaps after *every* scroll it is given, so an animation
- * written a frame at a time is the browser and the component fighting over the same
- * number sixty times a second — and the browser wins, which is a 300ms ease collapsing
- * into a jump. Off for the length of it, and back on at the end, which is the frame the
- * scroll has been left exactly on a snap point.
- *
- * It lives here, on `html.tool`, rather than as a class in the strip's own stylesheet,
- * and the reason is specificity: `html.tool` is (0,1,1) and a bare CSS-module class is
- * (0,1,0), so the rule that was supposed to switch the snapping off silently lost to the
- * rule that switched it on. Written against the same selector it has to beat, it cannot.
- */
-html.tool.unsnapped {
-	scroll-snap-type: none;
-}
-
-/*
- * And the body has no height of its own: the strip's column is what makes the document
- * tall, and a `min-height` here would add a windowful of nothing under the last page.
- */
+html.tool,
 html.tool body {
+	overflow: hidden;
+}
+
+html.tool body {
+	position: fixed;
+	inset: 0;
+	/* No height of its own: the one box that scrolls is sized to the window, and a
+	   `min-height` here would be a second windowful nothing can reach. */
 	min-height: 0;
 }
 

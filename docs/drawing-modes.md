@@ -494,6 +494,14 @@ somewhere in the white" never was.
   condition.** A hidden element takes no touches, so up there no touch is ever aiming. The
   mode is answering occlusion, which a mouse does not have — the same stand-down v11 and
   v12 make.
+- **The rail can take the pad away, and the layer needs no condition for that either.** The
+  create page keeps the switch; `AimPad` is simply not rendered, `[data-aim-pad]` matches
+  nothing, and every touch outside the paper and the controls comes back `null` — so the
+  flipbook scrolls and nothing aims. That is v14 with its one input surface removed rather
+  than v14 falling back to v13, and it is deliberate: v13's answer was to read the whole
+  white field, which is the thing this mode exists to stop doing. What the button buys is
+  the band the pad stood in, which `--book-reserve` gives back to the drawing. The button
+  lights while the pad is up, because losing cursor control is a trade worth naming.
 - **`html.locked` had to give back `pan-y`.** It said `touch-action: none`, which is the
   intersection down the ancestor chain and cannot be given back by a descendant — so the
   page strip could be scrolled by a wheel and not by a finger, whatever v14 did about the

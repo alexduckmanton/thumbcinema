@@ -576,7 +576,7 @@ it's one of these. Each is deliberate:
   and deleting a page used to be 750ms of choreography — the old thumbnail thrown up the
   column, the new canvas flown in, every page ahead of the gap pinned by `freeze()` so the
   strip could travel out from under it. All of it was written against a strip *positioned
-  by arithmetic*, and none of it survived that strip becoming the document's own scroll:
+  by arithmetic*, and none of it survived that strip becoming a scroll container's content:
   `freeze()` pins an element to the viewport, and the viewport is exactly what the scroll
   is moving. What replaces it is one movement of the one thing that moves — `PageStrip`
   eases the scroll position to wherever the page you are left on now is. `animations.ts`

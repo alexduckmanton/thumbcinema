@@ -21,8 +21,10 @@ What it is now, at both widths:
   cut from page to page rather than slide about.
 - **The page bar is switched off**, and whether it comes back is an open decision — see
   `PAGE_BAR` in `CreatePage.tsx`, which is where what it takes with it is written down.
-- **The document is the scroller.** The flipbook is the page's content and everything else
-  is `position: fixed` over it, which is what lets iOS Safari collapse its URL bar.
+- **`main` is the scroller and the body is pinned.** The flipbook is that box's content and
+  everything else stands over it in one sticky wrapper. It was the *document* for a while,
+  to collapse iOS Safari's URL bar; the bar coming and going resized the viewport under the
+  drawing, which stalled the scroll, so the bar stays up now.
 
 ## The panel
 
@@ -129,47 +131,70 @@ What it is now, at both widths:
 ## The stage, and the flipbook as a column
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
-- **`main` is one windowful less the header, and the stage is what the page bar leaves.**
-  `html.tool` in `base.css` does the first half — `#root` is a flex column of a definite
-  height, `main` is `flex: 1` — and it is on for as long as the drawing tool is mounted,
-  including while the save form is up, because the stage is what the form appears inside.
-  It is `height` rather than `min-height`, and that is load-bearing: a minimum leaves the
-  column free to grow past the window, a `flex: 1` child of a container with no definite
-  height simply takes its content's height instead, and the panel's rail then has all the
-  room it wants and puts Save off the bottom of the screen.
-- **The page strip is the document's own scroll, and everything else is fixed over it.**
-  The pages are a column in ordinary flow — they are what makes the document tall — and the
-  header, the rail, the drawing, the aiming pad and the two scrims are all `position:
-  fixed`. The live canvas is laid *over* the column rather than inside it, because a canvas
-  in the flow would scroll away with the pages.
+- **`main` is exactly one windowful, and every box on the page is measured off two
+  numbers.** `html.tool` in `base.css` pins the body — `position: fixed; inset: 0`, no
+  height of its own — and `main` is `position: fixed; inset: 0` inside it, so the one box
+  that scrolls is the size of a viewport that no longer moves. That class is on for as long
+  as the drawing tool is mounted, including while the save form is up, because the stage is
+  what the form appears inside. The two numbers are `--chrome-top` and `--chrome-bottom`,
+  the bands at the ends of the window that are not the flipbook; the drawing takes what is
+  between them.
+- **`main` is the scroll container, and everything else stands over it in `.chrome`.**
+  The pages are a column in ordinary flow inside `main` — they are what makes that box tall
+  — and the rail, the drawing, the aiming pad and the two scrims are all inside one sticky
+  wrapper. The header is the single piece of chrome outside the scroller, because nothing
+  has to scroll *through* it. The live canvas is laid *over* the column rather than inside
+  it, because a canvas in the flow would scroll away with the pages.
 
-  **This is the arrangement, and not a preference.** It was the other way round — body
-  pinned with `position: fixed; inset: 0`, the strip a nested `overflow: auto` box — and
-  **iOS Safari only collapses its URL bar for the root scroller**, so the flipbook stopped
-  dead against a bar that never went away. The gallery has always scrolled the document and
-  has always collapsed it; the create page was the odd one out. What it buys beyond the bar
-  is that a drag anywhere the page has not claimed scrolls the flipbook, *the rail
-  included*, a fixed element being no less part of a document that scrolls.
+  **This has been both ways round, and the second answer is the one that ships.** It was
+  this; then it was the document, because **iOS Safari only collapses its URL bar for the
+  root scroller** and a flipbook running under the bar is worth having. Collapsing the bar
+  turned out to cost more than it bought: the bar comes and goes as you scroll, so the
+  viewport changes size while you are looking at it, and **a mandatory snap container whose
+  height moves mid-fling stops mid-fling** and then jumps to a slot the moment your finger
+  leaves. Which is exactly the stall this page had. A box that cannot resize cannot do that.
 
-  It costs one measurement and one export. The drawing is not in the middle of the window —
-  there is a rail down one side — so the column's left edge is measured exactly as its top
-  always was; and `scroll-padding-top` has to be on `html`, which is the one thing about
-  this layout a stylesheet cannot state, so `PageStrip` writes `--page-snap` onto the root.
-- **`100svh`, never `100dvh`.** The dynamic viewport unit is exactly what changes when the
-  URL bar collapses, so a drawing sized with it resizes itself under your hand on the first
-  scroll. `svh` is the small viewport and is a constant. For the same reason the fixed
-  boxes that must hold still — the drawing above all — are anchored by `top` and an `svh`
-  height rather than by a `bottom` offset: a box pinned to the bottom of the window moves
-  when the window grows, and a drawing moving relative to the pages behind it is the
-  flipbook coming apart. The aiming pad *is* pinned to the bottom, because the bottom is
-  where it belongs and following the bar down is what it should do.
-- **`html.tool.unsnapped` is how the snapping comes off, and where it is declared is the
-  point.** A mandatory snap container resnaps after every scroll it is given, so the two
-  animated scrolls need it off for their duration. The rule doing that was a bare
-  CSS-module class — (0,1,0) — losing silently to `html.tool` — (0,1,1) — which set it.
-  Nothing errored and nothing looked broken: a 300ms ease simply arrived as a jump, because
-  the browser resnapped every frame of it. It is declared in `base.css` against the same
-  selector it has to beat.
+  **`.chrome` is `position: sticky` and not a set of fixed boxes, and that is the whole
+  trick.** A fixed element is not in a scroll container's chain: measured both ways, a wheel
+  over a fixed child moved the scroller 0px and over a sticky one it moved by the delta
+  exactly. With fixed chrome a drag on the rail, or on the white either side of the paper,
+  scrolled nothing at all — and that drag is most of the window on a desktop. Sticky keeps a
+  box on the glass *and* in the chain.
+
+  Two details of the wrapper are load-bearing. It is **first in the flow**, because sticky
+  pins a box from its own place in the flow onward — written after the column it would be a
+  windowful below the fold, and the rail and the drawing simply absent until you had
+  scrolled the whole flipbook past. And it carries **`margin-bottom: -100svh`**, which gives
+  its own height back so a windowful of chrome does not add a blank page's worth of scroll
+  to the end of the flipbook. What is inside it is `position: absolute`, which — the wrapper
+  being the size of the scrollport and pinned to the top of it — is the arithmetic `fixed`
+  was doing anyway.
+
+  It costs two measurements. The drawing is not in the middle of the window — there is a
+  rail down one side — so the column's left edge is measured exactly as its top always was;
+  and `scroll-padding-top` is written straight onto the scroller by `PageStrip`, because
+  where the drawing actually ended up is the one thing about this layout a stylesheet cannot
+  state. Which is also why `PageStrip` takes the scroller as an *element* rather than a ref:
+  it needs it in a layout effect, and layout effects run bottom-up, so a parent's ref is not
+  attached yet when a child's runs.
+- **`100svh`, never `100dvh`, and the aiming pad is where that rule was quietly broken.**
+  The dynamic viewport unit is exactly what changes when a browser's chrome slides in and
+  out. Everything on this page is measured off everything else: `--pad-height` is a term in
+  `--book-reserve`, `--book-reserve` decides how wide the drawing is, and the drawing's size
+  is what the page column's length is measured from. So `clamp(88px, 17dvh, 132px)` on the
+  pad was a scroll container that changed length whenever a URL bar moved — a stall mid-
+  fling, and then a jump. The body is pinned now and the bar cannot move, and the rule
+  stands anyway: a page that only works while a browser behaves is a page that breaks when
+  one doesn't. For the same reason the boxes that must hold still — the drawing above all —
+  are anchored by `top` and an `svh` height rather than by a `bottom` offset.
+- **The snapping comes off inline, and how it used to come off is the point.** A mandatory
+  snap container resnaps after every scroll it is given, so the two animated scrolls need it
+  off for their duration. The rule doing that was a bare CSS-module class — (0,1,0) — losing
+  silently to `html.tool` — (0,1,1) — which set it. Nothing errored and nothing looked
+  broken: a 300ms ease simply arrived as a jump, because the browser resnapped every frame
+  of it. It moved to `base.css` to win that argument, and then off the stylesheet
+  altogether: `PageStrip` writes `scrollSnapType` on the scroller as an inline style, which
+  has no specificity argument to lose.
 - **Nothing sets the scroll position while you are scrolling, and getting that wrong is
   what made the snap feel sudden.** The two directions are a loop, and closing it needs
   more than "is the scroller already there": a scroll crossing the halfway line turns the
@@ -208,9 +233,11 @@ What it is now, at both widths:
   on the canvas reached nothing and the flipbook sat still under the pointer, so it was
   forwarded a page per notch. That was the right answer to the wrong layout, and it left the
   page with two feels — natural scrolling with momentum and CSS snapping everywhere else, a
-  hard page-per-notch cut over the drawing itself. The scroller is the document now and a
-  `position: fixed` element is still in the document's scroll chain, so a wheel over the
-  canvas scrolls the page by itself. Doing nothing is what makes the two the same gesture.
+  hard page-per-notch cut over the drawing itself. The drawing is `position: absolute`
+  inside a `position: sticky` box inside the scroller now — an ordinary descendant — so a
+  wheel over the canvas scrolls the flipbook by itself. Doing nothing is what makes the two
+  the same gesture, and it is the reason the chrome is sticky rather than fixed: a fixed
+  element is not in the chain at all, and the handler existed to paper over that.
 - **A finger on the paper draws; a finger on the strip either side of it scrolls.** The
   overlay the drawing sits in is `pointer-events: none` with the sheet putting them back,
   so the exposed column stays a place you can take hold of the flipbook. On a desktop that
@@ -251,6 +278,22 @@ What it is now, at both widths:
   them — and **semi-opaque with a 16px backdrop blur**, so the pages passing underneath are
   a texture rather than content competing with the dots. The fill is 0.72 because at 0.88
   there was nothing left underneath for the blur to work on.
+- **The rail can put the pad away**, and that button is the last tile above the drawing-mode
+  switch. It hides itself above the phone breakpoint, where the pad it is offering to hide
+  was never on screen — a control for something that is not there is the sort of thing that
+  makes a page feel unfinished. `--pad-height` is what it sets to zero, and everything else
+  is drawn off that one number: `--chrome-bottom` is the pad plus its air, and
+  `--book-reserve` carries the pad as a *term* rather than as a baked-in constant, so the
+  drawing genuinely grows into the room wherever height is what caps its size. On a phone
+  held sideways that is 409px of drawing becoming 508. It has to be `.content.padless`
+  rather than `.padless`: both layouts restate `--pad-height` on `.content` at the same
+  specificity and later in the file, so a bare class lost to them silently — the pad
+  disappeared at every width and the drawing grew at only one.
+
+  It is a thing you do to look at something rather than a setting, so it is not persisted.
+  The button lights while the pad is *up*, which is the honest report: with the pad down v14
+  has nowhere for a finger to aim from and no cursor control at all. The tools and the paper
+  still work, and the cursor stays where it was.
 - **Every page change is a cut, including adding one.** Adding a page eased the scroll down
   to the new one for a version, on the reasoning that the page had *moved* and the column
   should be seen carrying it. Watched, it is the other way round: you press add and then
@@ -262,14 +305,14 @@ What it is now, at both widths:
   the gap until the next one, and the settle eases home on the same curve the thumbnails
   either side of the gap are using. Those two are movements you are watching on purpose.
 - **A cancelled scroll animation used to leave the snapping switched off for good, and that
-  is the worst bug this layout has had.** `html.tool.unsnapped` goes on the root element for
-  the length of an animated scroll and came off on the frame it finished — and an animation
-  that is *cancelled* never reaches that frame. A reorder cancels one on every page of its
-  run and again at the settle, so a single drag could strand the class: scroll snapping
-  silently dead for the rest of the session, page turns no longer landing on a page, and
-  nothing in the console. It came back on a reload, which is exactly what a stuck class
-  looks like from the outside. Every exit from `scrollToPage` goes through `stop()` now,
-  including the two early returns and the unmount.
+  is the worst bug this layout has had.** The snapping goes off for the length of an
+  animated scroll and came back on the frame it finished — and an animation that is
+  *cancelled* never reaches that frame. A reorder cancels one on every page of its run and
+  again at the settle, so a single drag could strand it: scroll snapping silently dead for
+  the rest of the session, page turns no longer landing on a page, and nothing in the
+  console. It came back on a reload, which is exactly what stranded state looks like from
+  the outside. Every exit from `scrollToPage` goes through `stop()` now, including the two
+  early returns and the unmount.
 - **Every thumbnail is visible, including the one the drawing is standing on.** It used to
   be hidden — `opacity: 0` on the covered page — so the column read as one flipbook rather
   than as a filmstrip with a hole punched in it. That was true while the strip was
@@ -308,8 +351,8 @@ What it is now, at both widths:
   page tumbling off the side, every page ahead of the gap pinned by `freeze()` so the strip
   could travel out from under it. The trouble was never the movements. It was that all of
   them were written against a strip *positioned by arithmetic*, and `freeze()` pins an
-  element to the viewport — which, once the strip became the document's own scroll, is
-  precisely the thing that is moving. They were not stale so much as no longer about the
+  element to the viewport — which, once the strip became the content of a scroll container,
+  is precisely the thing that is moving. They were not stale so much as no longer about the
   thing on screen. What replaces them is the scroll: one movement, of the one thing that
   actually moves, made of the browser's own scrolling. The keyframes are in that file's
   history, and what would have to come back with them is an answer to the frozen-page
@@ -612,9 +655,8 @@ What it is now, at both widths:
   somewhere you draw from: `useNoScrolling` puts `.locked` on the root element for as long
   as the tool is up, and `base.css` spends four properties on it, one per browser. **The
   one thing on this page that scrolls is the page strip, and it is not the document** —
-  which is a stronger claim than it used to be rather than a weaker one, the strip being a
-  scroll container of its own with `overscroll-behavior: contain`, so a flick past the last
-  page has nowhere to go. `overflow:
+  `main` is a scroll container of its own with `overscroll-behavior: contain`, so a flick
+  past the last page has nowhere to hand the rest of itself to. `overflow:
   hidden` on both html and body is the ordinary one — the page has never had anything to
   scroll *to*, `--book-reserve` sees to that, but it did have the rubber band, and the
   whole drawing sliding an inch under your finger on a stroke that started near the

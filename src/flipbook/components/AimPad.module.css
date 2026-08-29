@@ -34,17 +34,26 @@
 	 * above the column and still below the sheet — on a short window the two overlap, and a
 	 * pad drawn over the drawing would be a wash across the thing you are aiming at.
 	 */
-	position: fixed;
+	/* `absolute` against the create page's `.chrome`, a sticky box the size of the
+	   scrollport — so these are the window's coordinates, as they were when this said
+	   `fixed`, and the pad is still in the scroller's chain. `pointer-events` because
+	   `.chrome` switches them off for the white between its boxes; this one takes every
+	   touch that lands on it, which is the whole of what it is for. */
+	position: absolute;
 	bottom: var(--pad-air, 0);
+	pointer-events: auto;
 	left: calc(var(--stage-left, 0px) + (100vw - var(--stage-left, 0px)) / 2);
 	z-index: 14;
 	width: calc(var(--book-width) + 16px);
 	transform: translateX(-50%);
 	/*
-	 * The page's height, handed down rather than stated here — see `.shellPad` in the
-	 * create page's stylesheet, which reserves exactly this much space before the route's
-	 * chunk (and therefore this file) has arrived. Two boxes have to agree about it and
-	 * only one of them is the pad.
+	 * The page's height, handed down rather than stated here.
+	 *
+	 * Three things read it and only one of them is the pad: `--chrome-bottom` is drawn off
+	 * it, `--book-reserve` carries it as a term, and the boot shell reserves the same band
+	 * before this file has arrived. It is also what the rail's switch sets to zero to put the
+	 * pad away — see `.content.padless` — so the number has to live somewhere all of them can
+	 * see it.
 	 */
 	height: var(--pad-height, 120px);
 	border-radius: var(--radius-card);

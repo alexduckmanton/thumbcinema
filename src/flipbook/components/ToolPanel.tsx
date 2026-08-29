@@ -18,6 +18,11 @@ export interface ToolPanelProps {
 	drawing: boolean
 	/** The trace photo's button: what it says, whether it is lit, and what it does. */
 	trace: { label: string; on: boolean; enabled: boolean; onPress: () => void }
+	/**
+	 * v14's aiming pad, and whether it is on screen. `null` in every mode that hasn't got
+	 * one, which is every mode but v14 — see `usesAimPad`.
+	 */
+	pad?: { on: boolean; onToggle: () => void } | null
 }
 
 /**
@@ -62,7 +67,15 @@ export interface ToolPanelProps {
  * press away, and that the panel no longer has a control whose only job is to reveal
  * other controls.
  */
-export function ToolPanel({ engine, state, stowed = false, mode, drawing, trace }: ToolPanelProps) {
+export function ToolPanel({
+	engine,
+	state,
+	stowed = false,
+	mode,
+	drawing,
+	trace,
+	pad = null,
+}: ToolPanelProps) {
 	const { tool, transformIndex } = state
 
 	/*
@@ -280,6 +293,34 @@ export function ToolPanel({ engine, state, stowed = false, mode, drawing, trace 
 						onClick={trace.onPress}
 					/>
 				</div>
+
+				{/*
+				 * The aiming pad's switch, and it is a view control rather than a tool: it puts
+				 * the pad away and gives the band it was standing in back to the drawing.
+				 *
+				 * Which is a real trade rather than a tidy-up, and the button says so by lighting
+				 * when the pad is *up*: with it down there is nowhere for a finger to aim from and
+				 * v14 has no cursor control at all. That is the right thing to offer anyway —
+				 * there is drawing you want the room for, and the tools and the paper still work
+				 * — but it is not a preference, it is a thing you turn back on.
+				 *
+				 * Its own group, and it hides itself above the phone breakpoint, where the pad
+				 * does too. `⌗` is Pecita's, checked against the font: the face has no trackpad
+				 * and no rectangle, and a glyph it hasn't got falls silently through to a system
+				 * one and stops looking like this website.
+				 */}
+				{pad ? (
+					<div className={`${styles.group} ${styles.padOnly}`}>
+						<PanelButton
+							label={pad.on ? 'Hide the aiming pad' : 'Show the aiming pad'}
+							glyph="⌗"
+							hint={pad.on ? 'Hide the aiming pad' : 'Show the aiming pad'}
+							on={pad.on}
+							pressed={pad.on}
+							onClick={pad.onToggle}
+						/>
+					</div>
+				) : null}
 
 				{/*
 				 * The drawing-mode switch, at the bottom of the rail and for admins only —
