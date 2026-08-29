@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { type RefObject, useEffect, useId, useRef, useState } from 'react'
 
 import { Button } from '../../components/Button'
 import styles from './SaveForm.module.css'
@@ -39,6 +39,7 @@ export function SaveForm({ saving, onSave, onCancel }: SaveFormProps) {
 	const [description, setDescription] = useState('')
 
 	const dialog = useRef<HTMLDialogElement | null>(null)
+	useVisibleViewport(dialog)
 
 	// Opened as a *modal* rather than rendered open: `open` as an attribute gives a
 	// non-modal dialog with no backdrop, nothing inert behind it and no focus trap,
@@ -116,4 +117,48 @@ export function SaveForm({ saving, onSave, onCancel }: SaveFormProps) {
 			</form>
 		</dialog>
 	)
+}
+
+/**
+ * Publishes the part of the window that is actually visible, so the card can stay out
+ * from under the on-screen keyboard.
+ *
+ * There is no CSS-only answer that works where it needs to. `interactive-widget=
+ * resizes-content` in the viewport meta is the declarative one and would make `dvh`
+ * shrink with the keyboard — but it is Chrome and Firefox only, and WebKit has not
+ * shipped it, which means it does nothing on the iPhone this was reported from. iOS
+ * resizes the *visual* viewport and leaves the layout viewport alone, so `100dvh` is
+ * still the whole screen and a card centred in it sits half behind the keyboard.
+ *
+ * `visualViewport` is the thing every engine does agree on, iOS included, and it
+ * reports exactly what is wanted: how much room is left, and where it starts. Two
+ * custom properties on the dialog, and the stylesheet does the rest.
+ *
+ * `offsetTop` matters as much as the height: iOS scrolls the layout viewport to bring a
+ * focused field into view, and a dialog in the top layer is positioned against the
+ * layout viewport — so without this it would be pinned 16px from a top edge that has
+ * been scrolled off the screen.
+ */
+function useVisibleViewport(element: RefObject<HTMLDialogElement | null>): void {
+	useEffect(() => {
+		const viewport = window.visualViewport
+		if (!viewport) return
+
+		const update = () => {
+			const node = element.current
+			if (!node) return
+			node.style.setProperty('--visible-height', `${viewport.height}px`)
+			node.style.setProperty('--visible-top', `${viewport.offsetTop}px`)
+		}
+
+		update()
+		// Both, and they are different events: `resize` is the keyboard opening and
+		// closing, `scroll` is iOS sliding the layout viewport under it.
+		viewport.addEventListener('resize', update)
+		viewport.addEventListener('scroll', update)
+		return () => {
+			viewport.removeEventListener('resize', update)
+			viewport.removeEventListener('scroll', update)
+		}
+	}, [element])
 }
