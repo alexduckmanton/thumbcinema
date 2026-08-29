@@ -152,7 +152,7 @@ A flipbook is stored with two of them and the gallery shows the second:
 
 | Column | What | Served as |
 |---|---|---|
-| `thumbnail` | a 640×360 PNG of the cover page | `/api/flipbooks/:id/thumbnail` |
+| `thumbnail` | a PNG of the cover page, at the flipbook's own project size | `/api/flipbooks/:id/thumbnail` |
 | `thumbnail_svg` | that same page as a standalone SVG, brotli'd | `/api/flipbooks/:id/thumbnail.svg` |
 
 On a real row those are 10,060 bytes and 718. The SVG is also vector, so it is sharp at
@@ -239,7 +239,7 @@ its own, and the dev server's middleware states the same mapping.
 
 | | |
 |---|---|
-| Size | 640×360, the project size, always |
+| Size | the flipbook's own project size — 640×360 up to 2026, 640×640 since, and 640×360 for any file that doesn't say |
 | Frame rate | 12fps, as delays of 8, 8, 9 hundredths — 1/12s is 8.333 and GIF has no way to say so |
 | Colours | 16 greys, from paper `#fff` to ink `#444` |
 | Frames | one per page, whole and opaque; **not** diffed against each other |

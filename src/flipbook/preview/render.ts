@@ -10,7 +10,7 @@
  * statement made in the same place for the same reason.
  */
 
-import { CANVAS_HEIGHT, CANVAS_WIDTH, PENCIL_COLOR } from '../engine/constants'
+import { type PageSize, PENCIL_COLOR } from '../engine/constants'
 import type { PreviewPage } from './artwork'
 
 /** The paper. PNG has none unless you paint it, and neither does a canvas. */
@@ -42,22 +42,23 @@ export function sizeCanvas(canvas: HTMLCanvasElement, width: number, height: num
 /**
  * Draws `page` across the whole of `canvas`.
  *
- * The transform is the one thing here worth reading twice. Every flipbook ever saved
- * is 640×360 whatever it was drawn on — `Scene.pinCoordinates` is what guarantees
- * that — so the coordinates in the file are always in that space and the canvas is
- * always scaled to fit it. Scaling the context rather than the geometry is also what
+ * The transform is the one thing here worth reading twice. A flipbook's coordinates
+ * are in the space it was drawn in whatever it is being shown at —
+ * `Scene.pinCoordinates` is what guarantees that — so `size` is the file's own space
+ * and the canvas is scaled to fit it. Scaling the context rather than the geometry is
+ * also what
  * makes the ink come out right: `lineWidth` is in the space it is set in, so a
  * 3-unit stroke on a card drawn at half size renders 1.5px across, exactly as the
  * same drawing does on the playback page.
  */
-export function drawPage(canvas: HTMLCanvasElement, page: PreviewPage): void {
+export function drawPage(canvas: HTMLCanvasElement, page: PreviewPage, size: PageSize): void {
 	const context = canvas.getContext('2d')
 	if (!context) return
 
-	context.setTransform(canvas.width / CANVAS_WIDTH, 0, 0, canvas.height / CANVAS_HEIGHT, 0, 0)
+	context.setTransform(canvas.width / size.width, 0, 0, canvas.height / size.height, 0, 0)
 
 	context.fillStyle = PAPER
-	context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+	context.fillRect(0, 0, size.width, size.height)
 
 	context.strokeStyle = PENCIL_COLOR
 	context.lineCap = 'round'

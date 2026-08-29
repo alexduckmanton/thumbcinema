@@ -61,6 +61,33 @@ The 2013 front end still runs, unchanged, on the `time-capsule` branch and again
 same database — which makes it the reference for any question about how the old
 behaviour worked.
 
+### The one thing the two deployments cannot share
+
+`time-capsule` draws into a hard-coded 640×360 paper project and has no concept of a
+`viewBox`. Since 2026 this branch also saves 640×640 flipbooks, and there is no additive
+change that teaches a frozen front end about a second page shape: a square flipbook shown
+over there is drawn into a 16:9 project, and comes out with its bottom third missing.
+
+The schema half is fine — `width`/`height` are additive with a `DEFAULT` that is the
+right answer for every row that predates them, and `time-capsule`'s own `createFlipbook()`
+doesn't mention them, so its saves land at 640×360, which is genuinely what they are.
+
+The rendering half is handled by **leaving square flipbooks out of that deployment**, and
+it is a change to `time-capsule`'s own copy of `lib/flipbooks.js` rather than anything
+here — the two branches each carry their own API. Its gallery query gains a filter for
+what it can actually draw, guarded so it still works before the migration:
+
+```js
+// In time-capsule's listFlipbooks(), inside the same queryColumnAware callback that
+// builds the WHERE clause. Reading a column this branch never writes is allowed; only
+// migrations are forbidden here. See CLAUDE.md.
+if (has('height')) where.push('height = 360');
+```
+
+A direct link to a square flipbook still renders wrong on that deployment. That is
+accepted rather than solved: the branch exists to be the 2013 site, and the 2013 site
+did not have square flipbooks in it.
+
 ## Why one function
 
 Every API path is rewritten to a single `/api` function in `vercel.json`:

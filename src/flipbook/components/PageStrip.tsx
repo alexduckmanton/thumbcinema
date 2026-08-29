@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { PAGE_TRAVEL_MS } from '../engine/animations'
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
+
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import type { PageState } from '../engine/pages'
 import { type Reorder, SETTLE_MS } from '../engine/reorder'
@@ -43,7 +43,8 @@ export function PageStrip({
 }: PageStripProps) {
 	const container = useRef<HTMLDivElement | null>(null)
 	const firstPage = useRef<HTMLDivElement | null>(null)
-	const [metrics, setMetrics] = useState({ offset: 0, width: CANVAS_WIDTH, gutter: 0 })
+	const pageSize = engine.page
+	const [metrics, setMetrics] = useState({ offset: 0, width: pageSize.width, gutter: 0 })
 	const scale = useThumbnailScale(engine, pages.length)
 
 	/*
@@ -176,8 +177,8 @@ export function PageStrip({
 						    values it takes and what has to happen when it goes from one to the
 						    other. */}
 						<canvas
-							width={Math.round(CANVAS_WIDTH * scale)}
-							height={Math.round(CANVAS_HEIGHT * scale)}
+							width={Math.round(pageSize.width * scale)}
+							height={Math.round(pageSize.height * scale)}
 							ref={(element) => engine.registerThumbnail(page.id, element)}
 						/>
 					</div>

@@ -15,7 +15,7 @@ import {
 	stageOnPaper,
 	TRAIL_DISTANCE,
 } from './drawModes'
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from './engine/constants'
+import type { PageSize } from './engine/constants'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
 import type { ModalToolId } from './engine/tools/types'
 import {
@@ -242,7 +242,7 @@ export class PointerLayer {
 	 * expect of a thing standing on the page, and neither of which survives being stored
 	 * as a position on the glass.
 	 */
-	private cursorPage: Point = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
+	private cursorPage: Point
 
 	/**
 	 * And which half of v13 the hand is in: the drawing, or the band below it.
@@ -272,6 +272,9 @@ export class PointerLayer {
 		this.canvas = canvas
 		this.engine = engine
 		this.mode = mode
+		// Not a field initialiser: those run before the constructor body, and this is
+		// centred on a page whose size only `engine` knows.
+		this.cursorPage = centreOf(engine.page)
 
 		// Capture, and non-passive: the first is what puts this in front of paper, the
 		// second is what allows `preventDefault()` — which is what stops the browser
@@ -394,7 +397,7 @@ export class PointerLayer {
 
 		// And the middle of the *page* for v13's, for the same reason and in its own units.
 		if (aimsOffStage(this.mode)) {
-			this.cursorPage = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }
+			this.cursorPage = centreOf(this.engine.page)
 			this.half = 'field'
 		}
 
@@ -961,9 +964,11 @@ export class PointerLayer {
 				// the page, scaled by however small the paper is being shown. Read from the
 				// store rather than from `zoom`, which is a frame old by now.
 				const view = stage().view
-				const from = paperPoint(gesture.x, gesture.y, box)
-				const to = paperPoint(x, y, box)
-				if (view) setViewport(panViewport(view, to.x - from.x, to.y - from.y, aspectOf(zoom.box)))
+				const page = this.engine.page
+				const from = paperPoint(gesture.x, gesture.y, box, page)
+				const to = paperPoint(x, y, box, page)
+				if (view)
+					setViewport(panViewport(view, to.x - from.x, to.y - from.y, page, aspectOf(zoom.box)))
 			}
 
 			gesture.x = x
@@ -1251,8 +1256,8 @@ export class PointerLayer {
 		if (gesture.travel > TAP_SLOP) return
 		if (performance.now() - gesture.openedAt > TAP_TIME) return
 
-		const at = paperPoint(gesture.x, gesture.y, this.boxOf('book'))
-		setViewport(centreViewport(zoom.view, at, aspectOf(zoom.box)))
+		const at = paperPoint(gesture.x, gesture.y, this.boxOf('book'), this.engine.page)
+		setViewport(centreViewport(zoom.view, at, this.engine.page, aspectOf(zoom.box)))
 	}
 
 	/**
@@ -1346,29 +1351,31 @@ export class PointerLayer {
 		const after = spread(pinch)
 		const ratio = before.distance > 0 ? after.distance / before.distance : 1
 		const aspect = aspectOf(zoom.box)
+		const page = this.engine.page
 
 		if (this.surface === 'stage') {
 			// Handling the drawing: fingers apart is a closer look, which is a *smaller*
 			// window, and the page under the fingers travels with them — so the window goes
 			// the other way.
 			const anchor = stagePoint(view, before.x, before.y, zoom.box)
-			const zoomed = zoomViewport(view, aspect, 1 / ratio, anchor)
+			const zoomed = zoomViewport(view, page, aspect, 1 / ratio, anchor)
 			setViewport(
 				panViewport(
 					zoomed,
 					(-(after.x - before.x) * zoomed.w) / (zoom.box.width || 1),
 					(-(after.y - before.y) * zoomed.h) / (zoom.box.height || 1),
+					page,
 					aspect,
 				),
 			)
 		} else {
 			// Handling the outline: fingers apart makes the rectangle bigger, which is a
 			// wider view, and the rectangle follows the fingers rather than fleeing them.
-			const anchor = paperPoint(before.x, before.y, box)
-			const zoomed = zoomViewport(view, aspect, ratio, anchor)
-			const from = paperPoint(before.x, before.y, box)
-			const to = paperPoint(after.x, after.y, box)
-			setViewport(panViewport(zoomed, to.x - from.x, to.y - from.y, aspect))
+			const anchor = paperPoint(before.x, before.y, box, page)
+			const zoomed = zoomViewport(view, page, aspect, ratio, anchor)
+			const from = paperPoint(before.x, before.y, box, page)
+			const to = paperPoint(after.x, after.y, box, page)
+			setViewport(panViewport(zoomed, to.x - from.x, to.y - from.y, page, aspect))
 		}
 
 		// The window has moved under v13's cursor, which is standing on the page rather
@@ -1463,9 +1470,11 @@ export class PointerLayer {
 
 		if (this.surface === 'book') {
 			const view = stage().view
-			const from = paperPoint(gesture.x, gesture.y, box)
-			const to = paperPoint(x, y, box)
-			if (view) setViewport(panViewport(view, to.x - from.x, to.y - from.y, aspectOf(zoom.box)))
+			const page = this.engine.page
+			const from = paperPoint(gesture.x, gesture.y, box, page)
+			const to = paperPoint(x, y, box, page)
+			if (view)
+				setViewport(panViewport(view, to.x - from.x, to.y - from.y, page, aspectOf(zoom.box)))
 		}
 
 		gesture.x = x
@@ -2166,4 +2175,9 @@ interface Gesture {
 	/** Where the finger was when the current hold started counting. */
 	anchorX: number
 	anchorY: number
+}
+
+/** The middle of a page, in its own units. Where v13's standing cursor starts and returns to. */
+function centreOf(page: PageSize): Point {
+	return { x: page.width / 2, y: page.height / 2 }
 }

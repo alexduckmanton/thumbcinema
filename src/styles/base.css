@@ -324,13 +324,19 @@ label {
 	 * so tall that what sits under it is pushed off the bottom of the window. Each
 	 * page says how much room the rest of it needs, in `--book-reserve`.
 	 *
+	 * `--page-aspect` is the flipbook's own width over its height, set by the page from
+	 * the same number that sizes the frame. It has to be a decimal rather than the
+	 * `640 / 360` that `aspect-ratio` takes: this is inside `calc()`, where a division
+	 * needs a plain number on the right. The fallback is the legacy page — every
+	 * flipbook that doesn't say what shape it is, is that shape.
+	 *
 	 * Declared here rather than on the canvas because the page scrubber has to be
 	 * exactly as wide as the drawing it scrubs, and they're siblings in this column —
 	 * so `100%` means the same thing to both, and both are resolved against it. It
 	 * can't go on `:root`: a `var()` inside a custom property is substituted where the
 	 * property is *declared*, and `--book-reserve` is set below that, on each page.
 	 */
-	--book-width: min(100%, calc((100dvh - var(--book-reserve, 260px)) * 16 / 9));
+	--book-width: min(100%, calc((100dvh - var(--book-reserve, 260px)) * var(--page-aspect, 1.7778)));
 }
 
 @media screen and (max-width: 460px) {

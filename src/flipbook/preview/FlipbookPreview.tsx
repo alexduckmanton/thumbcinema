@@ -169,7 +169,7 @@ export function FlipbookPreview({
 
 			frame.current.drawn = page
 			frame.current.resized = false
-			drawPage(canvas, page)
+			drawPage(canvas, page, entry.page)
 			setPainted(true)
 		}
 

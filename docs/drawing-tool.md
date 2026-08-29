@@ -48,7 +48,7 @@ documented at the point they matter:
   but anything comparing two serialisations of a page has to strip it, or *clicking on
   a drawing* looks like an edit. See `History.capture`.
 
-## The project is 640×360 whatever the canvas is shown at
+## The project is the flipbook's own size whatever the canvas is shown at
 
 `Scene.pinCoordinates()`, and it is the one thing to understand before touching how
 the canvas is sized. paper takes the project's coordinate space from the element's
@@ -66,6 +66,62 @@ that shape. The view size is stated instead of measured, and three things follow
   its matrix into the output — a zoomed view would save the artwork at the phone's
   scale *and* wrap it in an extra `<g>`, which is the `LEADING_SYSTEM_GROUPS` invariant
   below.
+
+
+## Two page shapes
+
+There are two, and there will only ever be two:
+
+| | | |
+|---|---|---|
+| `LEGACY_PAGE_SIZE` | 640×360 | 2012–2026, and the whole archive |
+| `SQUARE_PAGE_SIZE` | 640×640 | everything drawn since |
+
+A flipbook keeps the shape it was drawn at permanently. **A remix of a 16:9 flipbook is
+16:9** — opening one in the drawing tool restates the scene's coordinate space from the
+file, because the coordinates being imported are in the file's own space and nothing else
+would make them land where they were drawn. Nobody picks a shape and there is no UI for
+it; the shape describes the flipbook rather than configuring it.
+
+**640 across for both is load-bearing, not a coincidence.** `DEFAULT_STROKE_WIDTH`,
+`FLATTEN_DISTANCE`, the ink cursor's radii, the push tool's reach and the page strip's
+pitch are all in project units and were all calibrated against a 640-unit width. A
+360×360 page would have made every one of them twice as coarse without anyone editing a
+line. `InkCursor` and the desktop `.book` pin both state that assumption where they rely
+on it.
+
+### Where the answer comes from
+
+**The artwork, always.** `pageSizeFromSvg()` reads the root `viewBox`, and **a file with
+no viewBox is 640×360** — which is not a fallback so much as a fact: paper 0.8 wrote no
+viewBox, no width and no height, so all 585 archive flipbooks are silent and all of them
+are that shape. paper 0.12 states all three.
+
+`lib/thumbnail.js` holds the server's copy, `pageSize()`, and the two **must agree byte
+for byte**. The server's answer goes into the `width`/`height` columns, which is what a
+gallery card is laid out as; the client's is what the drawing on that card is scaled by.
+Disagreeing means a tile of one shape holding a picture of another.
+
+The columns exist for one reason: the grid needs a shape *before* the artwork, and a card
+is a rectangle in a list long before anybody hovers it. Reading the answer off the file
+would mean decompressing megabytes per tile. Where the two could ever disagree the file
+wins — see `FlipbookEngine.loadSvg`, which resizes the scene off the file regardless of
+what the row claimed.
+
+### The beat where it isn't known yet
+
+`FlipbookState.page` is `null` until the shape is genuinely known, and that nullability is
+deliberate. The scene has to be built with *some* size the moment the canvas is in the
+DOM, and a page opened to show somebody else's flipbook cannot know which shape until the
+file lands — so a non-null default would be the engine asserting a guess over the row's
+own answer, which the playback page has had since its first fetch. A page that knows what
+it is opening says so at construction (`EngineOptions.page`, which the create page passes);
+one that doesn't waits to be told by `loadSvg`.
+
+`RouteShell` is the one place that genuinely has to guess, because it stands in front of a
+route that hasn't downloaded. It guesses per route: square for create (a blank flipbook),
+legacy for playback (every flipbook that already exists). Both self-correct, and being
+wrong costs one reflow on a page that is still mostly placeholder.
 
 ## Loading a saved flipbook
 

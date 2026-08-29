@@ -1,5 +1,5 @@
 import { Store, useStore } from '../lib/store'
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from './engine/constants'
+import type { PageSize } from './engine/constants'
 
 /**
  * The window on the page that the zoom stage is showing, in project units.
@@ -53,18 +53,18 @@ export const DEFAULT_ZOOM = 2
  * The largest window of this shape that fits on the page.
  *
  * The stage's aspect is *measured* rather than stated — it is whatever the leftover band
- * comes out as — so it is nearly always wider than the page's 16:9, and the biggest
+ * comes out as — so it is nearly always wider than the page itself, and the biggest
  * window is therefore the full width of the page and only part of its height. That is
  * not a limitation to work around: the paper above is the view that shows everything,
  * and this one is the view you draw in.
  */
-export function maxWidth(aspect: number): number {
-	return Math.min(CANVAS_WIDTH, CANVAS_HEIGHT * aspect)
+export function maxWidth(page: PageSize, aspect: number): number {
+	return Math.min(page.width, page.height * aspect)
 }
 
 /** And the smallest, which is where `MAX_ZOOM` bites — or the largest, on a tall stage. */
-export function minWidth(aspect: number): number {
-	return Math.min(maxWidth(aspect), CANVAS_WIDTH / MAX_ZOOM)
+export function minWidth(page: PageSize, aspect: number): number {
+	return Math.min(maxWidth(page, aspect), page.width / MAX_ZOOM)
 }
 
 /**
@@ -75,24 +75,24 @@ export function minWidth(aspect: number): number {
  * the position clamped — against a size that is already final, so a window that has just
  * been shrunk can't be left hanging off an edge it used to reach.
  */
-export function clampViewport(view: Viewport, aspect: number): Viewport {
-	const w = clamp(view.w, minWidth(aspect), maxWidth(aspect))
+export function clampViewport(view: Viewport, page: PageSize, aspect: number): Viewport {
+	const w = clamp(view.w, minWidth(page, aspect), maxWidth(page, aspect))
 	const h = w / aspect
 
 	return {
 		w,
 		h,
-		x: clamp(view.x, 0, CANVAS_WIDTH - w),
-		y: clamp(view.y, 0, CANVAS_HEIGHT - h),
+		x: clamp(view.x, 0, page.width - w),
+		y: clamp(view.y, 0, page.height - h),
 	}
 }
 
 /** The middle of the page at `zoom`, or as near to it as the limits allow. */
-export function defaultViewport(aspect: number, zoom = DEFAULT_ZOOM): Viewport {
-	const w = CANVAS_WIDTH / zoom
+export function defaultViewport(page: PageSize, aspect: number, zoom = DEFAULT_ZOOM): Viewport {
+	const w = page.width / zoom
 	const h = w / aspect
 
-	return clampViewport({ w, h, x: (CANVAS_WIDTH - w) / 2, y: (CANVAS_HEIGHT - h) / 2 }, aspect)
+	return clampViewport({ w, h, x: (page.width - w) / 2, y: (page.height - h) / 2 }, page, aspect)
 }
 
 /**
@@ -105,8 +105,14 @@ export function defaultViewport(aspect: number, zoom = DEFAULT_ZOOM): Viewport {
  * rectangle, and a wider view underneath. Both are what the thing under your fingers
  * would do if you could pick it up, which is the only test either of them has to pass.
  */
-export function zoomViewport(view: Viewport, aspect: number, scale: number, at: Point): Viewport {
-	const w = clamp(view.w * scale, minWidth(aspect), maxWidth(aspect))
+export function zoomViewport(
+	view: Viewport,
+	page: PageSize,
+	aspect: number,
+	scale: number,
+	at: Point,
+): Viewport {
+	const w = clamp(view.w * scale, minWidth(page, aspect), maxWidth(page, aspect))
 	const h = w / aspect
 
 	// How far through the window the anchor sits, which is what has to survive: a point a
@@ -114,17 +120,28 @@ export function zoomViewport(view: Viewport, aspect: number, scale: number, at: 
 	const fx = view.w === 0 ? 0.5 : (at.x - view.x) / view.w
 	const fy = view.h === 0 ? 0.5 : (at.y - view.y) / view.h
 
-	return clampViewport({ w, h, x: at.x - fx * w, y: at.y - fy * h }, aspect)
+	return clampViewport({ w, h, x: at.x - fx * w, y: at.y - fy * h }, page, aspect)
 }
 
 /** Moves the window by a delta in project units, and no further than the page. */
-export function panViewport(view: Viewport, dx: number, dy: number, aspect: number): Viewport {
-	return clampViewport({ ...view, x: view.x + dx, y: view.y + dy }, aspect)
+export function panViewport(
+	view: Viewport,
+	dx: number,
+	dy: number,
+	page: PageSize,
+	aspect: number,
+): Viewport {
+	return clampViewport({ ...view, x: view.x + dx, y: view.y + dy }, page, aspect)
 }
 
 /** Puts the window's centre on a project point, which is what dragging the outline does. */
-export function centreViewport(view: Viewport, at: Point, aspect: number): Viewport {
-	return clampViewport({ ...view, x: at.x - view.w / 2, y: at.y - view.h / 2 }, aspect)
+export function centreViewport(
+	view: Viewport,
+	at: Point,
+	page: PageSize,
+	aspect: number,
+): Viewport {
+	return clampViewport({ ...view, x: at.x - view.w / 2, y: at.y - view.h / 2 }, page, aspect)
 }
 
 /**
@@ -159,10 +176,10 @@ export function stagePlace(view: Viewport, at: Point, box: Box): Point {
 }
 
 /** And a point on the paper, in its CSS pixels, the same way. The paper is the page. */
-export function paperPoint(x: number, y: number, box: Box): Point {
+export function paperPoint(x: number, y: number, box: Box, page: PageSize): Point {
 	return {
-		x: box.width === 0 ? 0 : (x / box.width) * CANVAS_WIDTH,
-		y: box.height === 0 ? 0 : (y / box.height) * CANVAS_HEIGHT,
+		x: box.width === 0 ? 0 : (x / box.width) * page.width,
+		y: box.height === 0 ? 0 : (y / box.height) * page.height,
 	}
 }
 
@@ -234,7 +251,7 @@ export function stageElement(): HTMLElement | null {
  * your place because the address bar collapsed would be the same bug the page strip
  * avoids by measuring rather than stating its pitch.
  */
-export function measureStage(box: Box, zoom = DEFAULT_ZOOM): void {
+export function measureStage(box: Box, page: PageSize, zoom = DEFAULT_ZOOM): void {
 	const current = store.snapshot
 	// Nothing has changed, so nothing is written. Not an optimisation: this is called from
 	// a `ResizeObserver`, and a write here is a React render, which is a layout, which is
@@ -253,7 +270,7 @@ export function measureStage(box: Box, zoom = DEFAULT_ZOOM): void {
 	const previous = current.view
 	store.set({
 		box,
-		view: previous ? clampViewport(previous, aspect) : defaultViewport(aspect, zoom),
+		view: previous ? clampViewport(previous, page, aspect) : defaultViewport(page, aspect, zoom),
 	})
 }
 

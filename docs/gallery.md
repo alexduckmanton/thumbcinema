@@ -71,6 +71,58 @@ to save a download; it is what the split is for.
   tells a mouse apart from a finger. `isTouch` answers for the machine, including while
   somebody is using a trackpad on a laptop that has a touchscreen.
 
+## Two card shapes in one grid
+
+Everything drawn up to 2026 is 640×360 and everything since is 640×640, so the grid holds
+both. A card takes the flipbook's own shape from the row's `width`/`height` — nothing is
+cropped or letterboxed to make them agree, because these are drawings, and a drawing shown
+at the wrong shape or with its edges cut off is the one thing a gallery of drawings must
+not do. `object-fit: cover` on the thumbnail stays exactly as it was: once the tile is the
+shape of the artwork, `cover` and `contain` are the same instruction.
+
+The tracks size on width alone and `align-items: start` lets each card state its own
+height. **That last part is not optional**: the default `stretch` gives a card a definite
+height as well as a definite width, and `aspect-ratio` loses that argument — every card in
+a row silently becomes the height of the tallest, which is the cropping this exists to
+avoid arriving by the back door.
+
+**What it costs is a ragged bottom edge on a row holding both shapes, and the ordering is
+what keeps that rare.** Both tabs are `created_at DESC`, so shapes arrive in runs and a
+mixed row is the boundary between two eras rather than the general case. Remixes are the
+exception — a remix of a 16:9 flipbook is 16:9 and carries today's date — so it is a
+sprinkle rather than nothing. The remix list on a playback page is the inverse: a lineage
+is normally all one shape, and mixes only where somebody remixed across the change.
+
+### `grid-lanes`, as an enhancement and not a design
+
+`@supports (display: grid-lanes)` packs the gaps out by putting each card in the shortest
+column. It is deliberately layered on top of a grid that is already correct without it,
+because as of writing it ships in Safari only: Chromium has had it behind a flag since 140
+with **no ship milestone set**, and the syntax was still gaining keywords in August 2026.
+The plain grid is the design; this is the part that improves on its own as browsers catch
+up. If the two are ever weighed against each other, the one that runs everywhere wins.
+
+Two things worth knowing before leaning on it harder:
+
+- **It reorders focus away from source order**, which is a WCAG 2.4.3 failure waiting to
+  happen on a grid of links. `flow-tolerance` is set generously for exactly that reason —
+  there are only ever two card heights here, so columns diverge in predictable steps and
+  a wide tolerance costs very little packing.
+- **It repacks when the skeletons are replaced by real cards**, so the "nothing moves at
+  the handover" property holds in the fallback and not in Safari. That is the inverse of
+  the usual progressive-enhancement story: the enhanced path is slightly the worse one on
+  that one axis.
+
+### The skeletons guess square
+
+A placeholder stands in for a page nobody has fetched, so its shape cannot be known. It is
+square, because that is what new flipbooks are and the top of both tabs is where the first
+one stands. It is occasionally wrong — a 16:9 remix lands among them — and being wrong
+costs one card's worth of shift when the page arrives, against machinery to predict the
+shape of something not yet requested. `RouteShell` draws the same rectangle from the entry
+bundle and has to agree with it, which is why the number is written down rather than
+derived.
+
 ## On a finger
 
 `useCardGesture` holds both, and the two layouts diverge on one fact: a mouse can point
@@ -248,10 +300,16 @@ grid, and a long press on the card gets Safari's own menu back.
   300×150 default, draws the page 1:1 into it, and `object-fit: cover` enlarges whatever
   corner survived, so the card showed about the top-left fifth of the drawing blown up.
   `rootAttributes` states 640×360 when the file doesn't. It went unnoticed twice over:
-  every fixture in `lib/thumbnail.test.js` was the 0.12 root, and **this is the only
-  place anything asks the *file* how big it is** — the engine and the gallery's preview
-  renderer both state 640×360 themselves (`Scene.pinCoordinates`), which is why an
-  archive flipbook plays and hovers perfectly and only its card was wrong.
+  every fixture in `lib/thumbnail.test.js` was the 0.12 root, and at the time **this was
+  the only place anything asked the *file* how big it was** — the engine and the preview
+  renderer both stated 640×360 themselves, which is why an archive flipbook played and
+  hovered perfectly and only its card was wrong.
+
+  That last part is no longer true, and the fix here turned out to be the groundwork for
+  the change that made it untrue: asking the file its size is now what *everything* does,
+  because there are two page shapes. `rootAttributes` needs no change — a file with no
+  viewBox is the legacy page, which is exactly what it already writes — and the rule it
+  was built on is now stated twice more, as `pageSizeFromSvg()` and `pageSize()`.
 
   It is a fixed window and deliberately not a bounding box of the ink. A stroke drawn
   off the edge keeps its whole geometry — paper clips nothing, the viewport does — so

@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 
 import { AdminToggles, type AdminFlagsState } from '../../components/AdminToggles'
-import type { FlipbookSummary } from '../../lib/api'
+import { type FlipbookSummary, pageSizeOf } from '../../lib/api'
 import { Link } from '../../router/Router'
 import { flipbookPath } from '../../router/routes'
 import { loadPreview } from './preview'
@@ -93,8 +93,23 @@ export function FlipbookCard({ item, gesture, onFlagsChange }: FlipbookCardProps
 	const playing = mine && hover.playing
 	const name = item.title || 'Untitled flipbook'
 
+	/*
+	 * The tile takes the flipbook's own shape, from the row rather than from its artwork.
+	 * A card is a rectangle in the grid long before anyone hovers it, and the artwork is
+	 * megabytes — see the note on `width` in `FlipbookSummary`. Rows that don't say fall
+	 * through to the stylesheet's own 16:9, which is what they all are.
+	 */
+	const page = pageSizeOf(item)
+
 	return (
-		<div className={styles.cell}>
+		<div
+			className={styles.cell}
+			style={
+				page
+					? ({ '--page-ratio': `${page.width} / ${page.height}` } as React.CSSProperties)
+					: undefined
+			}
+		>
 			<Link
 				to={flipbookPath(item.id)}
 				className={styles.card}

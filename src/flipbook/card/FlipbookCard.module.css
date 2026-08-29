@@ -21,9 +21,10 @@
  */
 .cell {
 	position: relative;
-	/* Every flipbook is the same shape as the canvas it was drawn on, so the card is
-	   that shape and the thumbnail fills it without cropping. */
-	aspect-ratio: 16 / 9;
+	/* A card is the shape of the flipbook on it — set from the row, in `FlipbookCard` —
+	   so the thumbnail fills it without cropping whichever era it is from. The fallback
+	   is the legacy page: a row that doesn't say what shape it is, is that shape. */
+	aspect-ratio: var(--page-ratio, 16 / 9);
 	overflow: hidden;
 	/* Softer than the 4px it was, so the cards belong to the same set of corners as
 	   the controls above them. Not the full 16: a card is a much bigger shape than a
@@ -98,8 +99,10 @@
  * window. An `<img>` is also the element that can fall back, though it doesn't need
  * to here — the server says which URL to ask for.
  *
- * `cover` rather than `contain`, as `background-size: cover` was: every flipbook is
- * the same 16:9 as the card, so the two agree and neither crops anything. It is the
+ * `cover` rather than `contain`, as `background-size: cover` was: the card is given the
+ * flipbook's own shape above, so the two agree and neither crops anything — which is
+ * the whole reason the card takes its shape from the row rather than the row's drawing
+ * being fitted into a fixed one. It is the
  * rounding of the card's own corners that clips this, via `overflow: hidden` on the
  * cell — an image can't take the radius itself, because the preview canvas lies over
  * it and would need the same treatment.

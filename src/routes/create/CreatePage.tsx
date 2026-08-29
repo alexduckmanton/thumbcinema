@@ -6,6 +6,8 @@ import { CreateTray } from '../../flipbook/components/CreateTray'
 import { DrawModeSwitch } from '../../flipbook/components/DrawModeSwitch'
 import { InkCursor } from '../../flipbook/components/InkCursor'
 import { ZoomStage, ZoomWindow } from '../../flipbook/components/ZoomStage'
+import { DEFAULT_PAGE_SIZE } from '../../flipbook/engine/constants'
+import { pageVars } from '../../flipbook/pageVars'
 import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
@@ -36,7 +38,11 @@ import { useCrashRecovery } from './useCrashRecovery'
 type Phase = 'drawing' | 'naming' | 'sending'
 
 export function CreatePage() {
-	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
+	const { engine, state, canvasRef } = useFlipbookEngine({
+		mode: 'create',
+		isTouch,
+		page: DEFAULT_PAGE_SIZE,
+	})
 	const [phase, setPhase] = useState<Phase>('drawing')
 	/** The trace photo's remove/replace/edit sheet, which is up or it isn't. */
 	const [traceMenu, setTraceMenu] = useState(false)
@@ -87,6 +93,13 @@ export function CreatePage() {
 	 * either of which puts the mode back to v2 and the live canvas back on screen. One
 	 * measurement, read here for the layout and in `PointerLayer` for the gestures.
 	 */
+	/**
+	 * The shape of the page, from the store rather than off the engine: a remix restates
+	 * it when its artwork lands, and the layout has to be told when that happens. Never
+	 * null here — this page opens a blank flipbook and so states its shape up front.
+	 */
+	const page = state?.page ?? DEFAULT_PAGE_SIZE
+
 	const onPaper = stageOnPaper(drawMode)
 	const staged = useStage().view !== null && onPaper
 
@@ -268,7 +281,7 @@ export function CreatePage() {
 			    the two that park a magnifier under the top edge of the window. */}
 			<DrawModeSwitch mode={drawMode} />
 
-			<main className={contentClass} ref={field}>
+			<main className={contentClass} ref={field} style={pageVars(page) as React.CSSProperties}>
 				{engine && state ? (
 					<PageStrip
 						engine={engine}
@@ -351,6 +364,7 @@ export function CreatePage() {
 						{showTrace && photo && engine && (!staged || placing) ? (
 							<TraceLayer
 								photo={photo}
+								page={page}
 								placing={placing}
 								onPlaced={(placement) => engine.placeTracePhoto(placement)}
 								onAccept={() => engine.settleTrace()}
@@ -397,7 +411,7 @@ export function CreatePage() {
 						    sheet this outline is drawn on covers the whole drawing, so leaving it
 						    up there would put a rectangle round the entire page and, far worse,
 						    take every press before the stage underneath could have it. */}
-						{!onPaper && phase === 'drawing' ? <ZoomWindow /> : null}
+						{!onPaper && phase === 'drawing' ? <ZoomWindow page={page} /> : null}
 
 						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
 

@@ -4,9 +4,11 @@ import { AdminToggles } from '../../components/AdminToggles'
 import { CreateButton } from '../../components/CreateButton'
 import { SiteHeader } from '../../components/SiteHeader'
 import { PageNav } from '../../flipbook/components/PageNav'
+import { pageVars } from '../../flipbook/pageVars'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
-import { getFlipbook, getFlipbookData, type Flipbook } from '../../lib/api'
+import { LEGACY_PAGE_SIZE } from '../../flipbook/engine/constants'
+import { getFlipbook, getFlipbookData, type Flipbook, pageSizeOf } from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import { Link } from '../../router/Router'
 import { flipbookPath } from '../../router/routes'
@@ -59,6 +61,14 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 	const replaying = useRef(false)
 
 	const { print, container } = usePrint(engine)
+
+	/**
+	 * The shape of the page. The metadata carries it, so the frame is right from the
+	 * first paint; the store takes over once the artwork has restated it off the file.
+	 * The legacy page while neither has arrived, which is what every row without the
+	 * columns is.
+	 */
+	const page = state?.page ?? pageSizeOf(flipbook) ?? LEGACY_PAGE_SIZE
 
 	// Everything made from this flipbook — including, when this one is itself a remix,
 	// its siblings. The lineage is flat, so every page in a family shows the same list.
@@ -183,7 +193,7 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 				{flipbook?.format === 'legacy-json' ? null : <CreateButton remixOf={id} />}
 			</SiteHeader>
 
-			<main className={styles.content}>
+			<main className={styles.content} style={pageVars(page) as React.CSSProperties}>
 				<div className="center">
 					<div className={canvasStyles.book}>
 						<canvas ref={canvasRef} className={canvasStyles.canvas} />

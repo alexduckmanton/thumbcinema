@@ -140,12 +140,27 @@ Break one of these and something goes wrong somewhere else, usually silently.
   scene, which React has no business re-rendering; React drives it through method calls
   and subscribes to a small `Store` for the dozen scalars a toolbar needs. That boundary
   is also what makes the fiddly parts testable without rendering anything.
-- **The project is 640×360 whatever the canvas is shown at.** `Scene.pinCoordinates()`
-  states the view size rather than measuring the element, because paper takes the
-  coordinate space from the bounding rectangle and a canvas 350px wide on a phone would
-  otherwise give a 350-unit project — strokes, thumbnails and saved SVG all that shape.
-  CSS owns the display size; `getEventPoint` divides by the current scale. Not
-  `view.zoom`, which folds itself into `exportSVG()`.
+- **The project is the flipbook's own size whatever the canvas is shown at.**
+  `Scene.pinCoordinates()` states the view size rather than measuring the element,
+  because paper takes the coordinate space from the bounding rectangle and a canvas
+  350px wide on a phone would otherwise give a 350-unit project — strokes, thumbnails
+  and saved SVG all that shape. CSS owns the display size; `getEventPoint` divides by
+  the current scale. Not `view.zoom`, which folds itself into `exportSVG()`.
+- **There are two page sizes and there will only ever be two.** `LEGACY_PAGE_SIZE` is
+  640×360 — everything drawn from 2012 to 2026, which is the whole archive. New
+  flipbooks are `SQUARE_PAGE_SIZE`, 640×640. A flipbook keeps the shape it was drawn at
+  for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses, and there is no UI
+  for it. 640 across for both is deliberate — `DEFAULT_STROKE_WIDTH`, `FLATTEN_DISTANCE`,
+  the ink cursor and the page strip's pitch are all calibrated against that width.
+- **The artwork is the authority on its own shape, and no viewBox means 640×360.**
+  paper 0.8 wrote no viewBox, no width and no height, so every archive row is silent —
+  and every one of them is the legacy page. `pageSizeFromSvg()` (client) and `pageSize()`
+  (`lib/thumbnail.js`, server) implement that one rule and **must agree byte for byte**:
+  the server's answer is written into the `width`/`height` columns and is what a gallery
+  card is laid out as, and the client's is what the drawing on that card is scaled by.
+  The columns exist only because the grid needs a shape *before* the artwork — reading it
+  off the file would mean decompressing megabytes per tile. Where they could ever
+  disagree, the file wins.
 - **`SYSTEM_LAYERS === 3`, and `LEADING_SYSTEM_GROUPS === 3` with it.** paper exports one
   `<g>` per layer and all 585 archive flipbooks were written by a project with three
   scaffolding layers under the pages. Change one without the other and every page in the
@@ -250,6 +265,11 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
 ## Things that will bite you
 
 - **A schema change can break the deployment you aren't looking at.** See **Rules**.
+- **`time-capsule` cannot draw a square flipbook**, and is filtered rather than fixed.
+  It has a hard-coded 640×360 project and no concept of a `viewBox`, so its gallery
+  query carries `height = 360` and leaves the new shape out. A direct link to one still
+  renders wrong over there, which is accepted: the branch exists to be the 2013 site.
+  `docs/architecture.md` has the patch.
 - **`time-capsule` still turns phones away from `/create`**, because that is what the
   2013 code did. Someone who saved from a phone on `main` and then opens the other
   deployment finds the create button gone. That is the branch being what it is.

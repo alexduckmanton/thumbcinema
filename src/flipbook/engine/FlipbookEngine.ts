@@ -1,9 +1,10 @@
 import { Store } from '../../lib/store'
 import { DEFAULT_PAGE_STEP, freeze, play } from './animations'
 import { Clipboard } from './clipboard'
-import { CANVAS_HEIGHT, CANVAS_WIDTH, FPS, PENCIL_COLOR } from './constants'
+import { DEFAULT_PAGE_SIZE, FPS, LEGACY_PAGE_SIZE, type PageSize, PENCIL_COLOR } from './constants'
 import {
 	assertLeadingGroups,
+	pageSizeFromSvg,
 	parseLegacyPages,
 	parseSvgPages,
 	strokeGeometry,
@@ -109,11 +110,35 @@ export interface FlipbookState {
 	 * live when it isn't — and every page operation settles it. See `settleTrace`.
 	 */
 	tracePlacing: boolean
+
+	/**
+	 * The shape of a page, in project units — or null while it is genuinely not known.
+	 *
+	 * In the store because it is what React lays the page out against: the frame's
+	 * `aspect-ratio`, the page strip's canvas attributes, the zoom stage's arithmetic.
+	 *
+	 * Null is the honest answer for a flipbook that is still on the wire, and it is
+	 * load-bearing rather than tidy. The scene has to be built with *some* size the
+	 * moment the canvas exists, and a page opened to show somebody else's flipbook has
+	 * no way of knowing which one until the file lands — so a non-null default here
+	 * would be this engine asserting a shape it had guessed, over the top of the row's
+	 * own answer, which the playback page has had since its first fetch. A page that
+	 * knows what it is opening says so at construction (`EngineOptions.page`); one that
+	 * doesn't waits and is told by `loadSvg`.
+	 */
+	page: PageSize | null
 }
 
 export interface EngineOptions {
 	mode: EngineMode
 	isTouch: boolean
+	/**
+	 * The shape to open at, for a page that starts empty. Defaults to a new flipbook's.
+	 *
+	 * Only ever the starting point: loading artwork restates it from the file, which is
+	 * the authority. See `Scene.resize` and `pageSizeFromSvg`.
+	 */
+	page?: PageSize
 }
 
 /**
@@ -162,7 +187,7 @@ export class FlipbookEngine {
 	constructor(canvas: HTMLCanvasElement, options: EngineOptions, paperCore: PaperCore) {
 		this.mode = options.mode
 
-		this.scene = new Scene(canvas, paperCore)
+		this.scene = new Scene(canvas, paperCore, options.page ?? DEFAULT_PAGE_SIZE)
 		this.selection = new Selection(this.scene)
 		this.history = new History(this.scene)
 		this.clipboard = new Clipboard(this.scene)
@@ -176,6 +201,7 @@ export class FlipbookEngine {
 		this.selection.onChange = () => this.publishSelection()
 
 		this.store = new Store<FlipbookState>({
+			page: options.page ?? null,
 			pages: [{ id: this.nextPageId++, segments: 0 }],
 			activePage: 0,
 			arriving: false,
@@ -320,11 +346,32 @@ export class FlipbookEngine {
 		}
 	}
 
+	/** The shape of a page, in project units. The artwork decides it; see `loadSvg`. */
+	get page(): PageSize {
+		return this.scene.page
+	}
+
+	/**
+	 * Restates the coordinate space and tells React about it.
+	 *
+	 * Two steps rather than one because the scene and the layout answer to different
+	 * people: paper needs the view resized before it is handed any geometry, and the
+	 * page above needs the same number to size the frame the canvas is drawn in. A
+	 * no-op unless the artwork is from the other era, which is what makes it safe to
+	 * call on every load.
+	 */
+	private resizePage(page: PageSize): void {
+		if (page.width === this.scene.page.width && page.height === this.scene.page.height) return
+
+		this.scene.resize(page)
+		this.store.set({ page: this.scene.page })
+	}
+
 	/**
 	 * How far it is from one page to the next, measured off the strip.
 	 *
 	 * Every animation that throws a page into the next slot travels exactly this far,
-	 * and the strip is a row of copies of the drawing — which is 640 wide on a desktop
+	 * and the strip is a row of copies of the drawing — which is full size on a desktop
 	 * and about half that on a phone. So the number can't be a constant, and it is the
 	 * strip that knows it. See `PageStrip`, which measures and reports it.
 	 */
@@ -1531,11 +1578,11 @@ export class FlipbookEngine {
 	/**
 	 * A PNG of the page that gets to represent the flipbook in the gallery.
 	 *
-	 * Drawn through an offscreen canvas at exactly 640×360 rather than straight off
+	 * Drawn through an offscreen canvas at exactly the page size rather than straight off
 	 * the live one: paper scales its backing store by the device pixel ratio, so
-	 * `toDataURL` there would produce a 1280×720 image on a retina screen and a
-	 * 640×360 one elsewhere. Every stored thumbnail is the same size regardless of
-	 * the machine it was drawn on.
+	 * `toDataURL` there would produce an image twice the size on a retina screen and a
+	 * page-sized one elsewhere. Every stored thumbnail is the size of the page it is of
+	 * regardless of the machine it was drawn on.
 	 *
 	 * Still written on every save, and still a PNG, even though the gallery now shows
 	 * the SVG instead: `time-capsule` reads this column and serves it as `image/png`,
@@ -1550,15 +1597,15 @@ export class FlipbookEngine {
 		this.scene.redraw()
 
 		const frame = document.createElement('canvas')
-		frame.width = CANVAS_WIDTH
-		frame.height = CANVAS_HEIGHT
+		frame.width = this.scene.page.width
+		frame.height = this.scene.page.height
 
 		const context = frame.getContext('2d')
 		if (context) {
 			// A flipbook is ink on paper, and PNG has no paper unless you paint it.
 			context.fillStyle = '#fff'
-			context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
-			context.drawImage(this.scene.canvas, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+			context.fillRect(0, 0, this.scene.page.width, this.scene.page.height)
+			context.drawImage(this.scene.canvas, 0, 0, this.scene.page.width, this.scene.page.height)
 		}
 
 		this.scene.setActivePage(original, { playing: true })
@@ -1590,6 +1637,13 @@ export class FlipbookEngine {
 	 */
 	async loadSvg(text: string, signal?: AbortSignal): Promise<void> {
 		const pages = parseSvgPages(text)
+
+		// Before a single stroke is imported, and before the store is told anything: the
+		// coordinates in this file are in the file's own space, and the scene has to be
+		// in that space to receive them. A flipbook drawn at 640×360 stays 640×360 for
+		// ever — including when it is opened here to be remixed.
+		this.resizePage(pageSizeFromSvg(text))
+
 		this.store.set({ loading: true, loadProgress: 0 })
 
 		await this.replay(pages.length, signal, (index, layer) => {
@@ -1652,6 +1706,15 @@ export class FlipbookEngine {
 
 	async loadLegacy(text: string, signal?: AbortSignal): Promise<void> {
 		const pages = parseLegacyPages(text)
+
+		// Always the legacy page, and unconditionally rather than by fallback: the 2012
+		// format is a list of layers with no root element to carry a viewBox, and it
+		// predates any other page shape by fourteen years. Without this a 2012 flipbook
+		// opened on a page whose engine defaults to square replays 640×360 coordinates
+		// into a 640×640 project — every stroke lands in the top two thirds of the paper,
+		// which reads as a drawing that has shrunk rather than as anything broken.
+		this.resizePage(LEGACY_PAGE_SIZE)
+
 		this.store.set({ loading: true, loadProgress: 0 })
 
 		await this.replay(pages.length, signal, (index) => {

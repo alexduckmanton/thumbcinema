@@ -12,12 +12,15 @@
  * Everything in this file is plain data. No React, no paper, no DOM.
  */
 
+import type { PageSize } from './constants'
+
 /**
  * Where a photo is standing, as a transform of the frame.
  *
  * `x` and `y` are **fractions of the frame**, not pixels: the drawing is shown at
  * whatever the window can spare, and a placement stated in pixels would slide across the
- * picture the moment the phone was turned over. The frame is 16:9 at every width, so
+ * picture the moment the phone was turned over. The frame keeps its shape at every
+ * width, so
  * dividing x by the width and y by the height scales the pair by the same factor and the
  * photo stays where it was put.
  */
@@ -61,7 +64,10 @@ export const CENTRED: Placement = { x: 0, y: 0, scale: 1, rotation: 0 }
  * stops that. The dashed outline is the third reading, which is why the layer wants the
  * pair rather than an `object-fit`.
  */
-export function fittedSize(photo: { width: number; height: number }): {
+export function fittedSize(
+	photo: { width: number; height: number },
+	page: PageSize,
+): {
 	width: number
 	height: number
 } {
@@ -69,15 +75,13 @@ export function fittedSize(photo: { width: number; height: number }): {
 	// one, and answering with the whole frame beats answering with NaN if it ever does.
 	if (!(photo.width > 0) || !(photo.height > 0)) return { width: 1, height: 1 }
 
+	const frame = page.width / page.height
 	const ratio = photo.width / photo.height
 	return {
-		width: Math.min(1, ratio / FRAME_RATIO),
-		height: Math.min(1, FRAME_RATIO / ratio),
+		width: Math.min(1, ratio / frame),
+		height: Math.min(1, frame / ratio),
 	}
 }
-
-/** The paper's shape, which every placement is stated against. See `Scene.pinCoordinates`. */
-const FRAME_RATIO = 16 / 9
 
 /**
  * How far a photo may be pinched, and it is deliberately generous at both ends.

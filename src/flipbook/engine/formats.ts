@@ -6,6 +6,7 @@
  * pure function of a string, which is what makes the awkward parts testable.
  */
 
+import { LEGACY_PAGE_SIZE, type PageSize } from './constants'
 import type { Vec2 } from './geometry'
 
 /**
@@ -206,4 +207,42 @@ export function assertLeadingGroups(svg: SVGElement, pageCount: number): void {
 				`${pageCount} pages) but found ${groups.length}.`,
 		)
 	}
+}
+
+/**
+ * What shape a saved flipbook is, read off the file itself.
+ *
+ * The artwork is the authority on this, and deliberately so: it is the one copy of
+ * the answer that travels with the drawing. A `width`/`height` column can be absent
+ * (the migration hasn't run), stale, or written by a deployment that didn't know
+ * about it; the `viewBox` was written by the project that exported the coordinates
+ * and cannot disagree with them.
+ *
+ * **No viewBox means 640×360**, and that is not a guess. paper 0.8 exported
+ * `<svg xmlns="http://www.w3.org/2000/svg">` with no viewBox, no width and no height,
+ * so every one of the 585 archive flipbooks is silent — and every one of them was
+ * drawn on a 640×360 project. paper 0.12 writes all three, so anything saved since
+ * the rewrite says so itself. `lib/thumbnail.js` makes the same assumption in the
+ * same words for the same reason.
+ *
+ * The `width`/`height` attributes are ignored when a viewBox is present: they are the
+ * *display* size, and it is the viewBox that states the coordinate space the numbers
+ * in the file are in.
+ */
+export function pageSizeFromSvg(text: string): PageSize {
+	const match = /<svg\b[^>]*\sviewBox\s*=\s*["']([^"']+)["']/i.exec(text)
+	if (!match?.[1]) return LEGACY_PAGE_SIZE
+
+	// "0,0,640,360" and "0 0 640 360" are both written by paper depending on version,
+	// and the SVG grammar allows either separator with any amount of space around it.
+	const parts = match[1]
+		.trim()
+		.split(/[\s,]+/)
+		.map(Number)
+	if (parts.length !== 4) return LEGACY_PAGE_SIZE
+
+	const [, , width, height] = parts as [number, number, number, number]
+	if (!(width > 0) || !(height > 0)) return LEGACY_PAGE_SIZE
+
+	return { width, height }
 }

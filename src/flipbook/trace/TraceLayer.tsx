@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react'
 
 import { TAP_SLOP, TAP_TIME } from '../pointer'
+import type { PageSize } from '../engine/constants'
 import { fittedSize, type Placement, type TracePhoto } from '../engine/trace'
 import { type Point, dragged, pinched } from './geometry'
 import styles from './TraceLayer.module.css'
 
 export interface TraceLayerProps {
 	photo: TracePhoto
+	/** The shape of the paper the photo is lying on, which is what it is fitted into. */
+	page: PageSize
 	/** True while it is still in hand: dashed, stronger, and following the fingers. */
 	placing: boolean
 	/** Where it ended up. Called at the end of a gesture, never during one. */
@@ -46,7 +49,7 @@ export interface TraceLayerProps {
  *    reorder makes with `--drag`, and for the same reason: a pointer moves a hundred
  *    times a second and re-rendering a page strip for each one is not a thing to do.
  */
-export function TraceLayer({ photo, placing, onPlaced, onAccept }: TraceLayerProps) {
+export function TraceLayer({ photo, page, placing, onPlaced, onAccept }: TraceLayerProps) {
 	const frame = useRef<HTMLDivElement | null>(null)
 	const edit = useRef<HTMLDivElement | null>(null)
 	const field = useRef<HTMLDivElement | null>(null)
@@ -267,7 +270,7 @@ export function TraceLayer({ photo, placing, onPlaced, onAccept }: TraceLayerPro
 	// `object-fit: contain`, done in numbers so the dashed outline can be drawn at the
 	// same two percentages — and so that v11's magnified stage can draw the same picture
 	// at the same size from the same expression. See `fittedSize`.
-	const fit = fittedSize(photo)
+	const fit = fittedSize(photo, page)
 	const width = `${fit.width * 100}%`
 	const height = `${fit.height * 100}%`
 
