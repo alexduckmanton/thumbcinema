@@ -48,17 +48,13 @@ export interface PlaybackPageProps {
  *
  * It follows the upload rather than describing the queue: waiting, going up, up — or
  * refused, in the server's own words, because "it didn't work" leaves nothing to do
- * about it. Once it *is* up the offer to discard goes and a link to the real flipbook
- * takes its place, which is the only thing left worth doing from here.
+ * about it. Once it *is* up the offer to discard goes and nothing takes its place —
+ * there was a link to the published flipbook here, and it was an invitation to go and
+ * look at the drawing already playing six inches above it.
  */
 function PendingNote({ entry, onDiscard }: { entry: PendingEntry; onDiscard: () => void }) {
 	if (entry.status === 'published') {
-		return (
-			<p className={styles.pending}>
-				Published, and it&rsquo;s in the gallery now.{' '}
-				{entry.publishedAs ? <Link to={flipbookPath(entry.publishedAs)}>Go and see it</Link> : null}
-			</p>
-		)
+		return <p className={styles.pending}>Published, and it&rsquo;s in the gallery now.</p>
 	}
 
 	return (

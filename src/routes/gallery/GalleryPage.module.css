@@ -137,10 +137,27 @@
 	line-height: 1.05;
 }
 
-/* Air under the heading. A hand-drawn line and a line of Inter are two voices, and at
-   the paragraph's own 1em they sit close enough to read as one block in two typefaces. */
+/*
+ * Air under the heading. A hand-drawn line and a line of Inter are two voices, and at
+ * the paragraph's own 1em they sit close enough to read as one block in two typefaces.
+ *
+ * And looser lines than the 1.333 `p` carries everywhere else: this is two lines of
+ * text alone in an empty window rather than a paragraph in a column, and the site's
+ * body leading — set for the playback page's description, under a flipbook, in a
+ * measure — reads tight when there is nothing around it. 1.5 rather than a change to
+ * the element default, which would move every line of copy on every page.
+ *
+ * `text-wrap: balance` for the shape of the block itself. On a phone this sentence
+ * breaks into a long line and a short one; balance evens them, which is what makes two
+ * centred lines read as a block rather than as a sentence that ran out. `pretty` is the
+ * other half of the same pair and does nothing here — it guards against a last line of
+ * one word, and this one's is three. Both are ignored where they aren't supported, and
+ * the wrap is the ordinary one there.
+ */
 .offline h1 + p {
 	margin-top: 28px;
+	line-height: 1.5;
+	text-wrap: balance;
 }
 
 /* A link in a sentence, but it re-runs a fetch rather than going anywhere, so it's
