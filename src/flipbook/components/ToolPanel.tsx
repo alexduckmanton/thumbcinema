@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { type DrawMode, holdsTool } from '../drawModes'
+import { DrawModeSwitch } from './DrawModeSwitch'
 import type { FlipbookEngine, FlipbookState } from '../engine/FlipbookEngine'
 import type { ModalToolId } from '../engine/tools/types'
 import { setToolPressed } from '../pointer'
@@ -279,6 +280,19 @@ export function ToolPanel({ engine, state, stowed = false, mode, drawing, trace 
 						onClick={trace.onPress}
 					/>
 				</div>
+
+				{/*
+				 * The drawing-mode switch, at the bottom of the rail and for admins only —
+				 * `DrawModeSwitch` renders nothing at all for anybody else, so this is a group
+				 * that usually isn't there.
+				 *
+				 * It floated in the top right of the window until Save took that corner. Down
+				 * here is where it belongs anyway: it is scaffolding, it is the least urgent
+				 * thing on the page, and a rail that runs off the bottom of a phone is exactly
+				 * the right place for a control you should have to go looking for. It is still
+				 * dressed as scaffolding rather than as a tile — see its own stylesheet.
+				 */}
+				<DrawModeSwitch mode={mode} />
 			</div>
 		</div>
 	)

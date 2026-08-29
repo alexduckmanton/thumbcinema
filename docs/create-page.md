@@ -21,6 +21,8 @@ What it is now, at both widths:
   cut from page to page rather than slide about.
 - **The page bar is switched off**, and whether it comes back is an open decision — see
   `PAGE_BAR` in `CreatePage.tsx`, which is where what it takes with it is written down.
+- **The document is the scroller.** The flipbook is the page's content and everything else
+  is `position: fixed` over it, which is what lets iOS Safari collapse its URL bar.
 
 ## The panel
 
@@ -85,7 +87,19 @@ What it is now, at both widths:
 - **The camera is at both widths now.** It was the trace photo's front door and existed
   only on a phone, because the desktop layout had nowhere to put it. There is somewhere
   now, and a file picker is a camera on a machine that hasn't got one.
-- **Save is not in the panel. It floats over the drawing, in the corner it always has.**
+- **Save is in the header, at the right-hand end.** It floated over the drawing until the
+  column went full-bleed, at which point a button in the corner was a button over a page you
+  were trying to look at. Up in the header it is out of the flipbook entirely, which is
+  right for the one control on the page that is not about the drawing — and it is beside the
+  wordmark, in the same hand. The header is `position: fixed` on this page, by a wrapper
+  here rather than in `SiteHeader`, which is shared with two pages that scroll normally.
+- **The drawing-mode switch moved into the rail**, at the bottom, admin-only as it always
+  was. Save took the corner it used to float in, and down there is where it belonged anyway:
+  it is scaffolding, it is the least urgent thing on the page, and a rail you have to scroll
+  is exactly the right place for a control you should have to go looking for. Its caption
+  hangs to the right of the rail, over the flipbook, which is the one place with room for a
+  sentence.
+- **What Save used to be, for the record.**
   It spent one version pinned to the bottom of the rail, which was wrong twice: it was the
   only thing in a list of 40px tiles that was not one, so the rail had an exception in it
   at exactly the place a list should be most predictable; and the rail is a list of things
@@ -115,18 +129,39 @@ What it is now, at both widths:
   column free to grow past the window, a `flex: 1` child of a container with no definite
   height simply takes its content's height instead, and the panel's rail then has all the
   room it wants and puts Save off the bottom of the screen.
-- **The page strip is a real scroll container, and it is the whole window.** The pages are
-  a column inside it, each one a snap point; the live canvas is laid *over* the middle of it
-  rather than inside it, because a canvas inside the scroller would scroll away with the
-  pages. What that buys is the browser's own scrolling — momentum, rubber-banding, a
-  trackpad that behaves like a trackpad — and what it costs is that the engine no longer
-  owns where the strip stands. The two directions are `PageStrip`'s two effects: a scroll
-  turns the page, and a page turned any other way scrolls.
+- **The page strip is the document's own scroll, and everything else is fixed over it.**
+  The pages are a column in ordinary flow — they are what makes the document tall — and the
+  header, the rail, the drawing, the aiming pad and the two scrims are all `position:
+  fixed`. The live canvas is laid *over* the column rather than inside it, because a canvas
+  in the flow would scroll away with the pages.
 
-  **It is fixed to the viewport rather than inset to the stage**, so the column runs on
-  under the wordmark and under v14's aiming pad instead of being cropped against them. That
-  costs one measurement: the drawing is not in the middle of the window — there is a rail
-  down one side — so the column's left edge is measured exactly as its top always was.
+  **This is the arrangement, and not a preference.** It was the other way round — body
+  pinned with `position: fixed; inset: 0`, the strip a nested `overflow: auto` box — and
+  **iOS Safari only collapses its URL bar for the root scroller**, so the flipbook stopped
+  dead against a bar that never went away. The gallery has always scrolled the document and
+  has always collapsed it; the create page was the odd one out. What it buys beyond the bar
+  is that a drag anywhere the page has not claimed scrolls the flipbook, *the rail
+  included*, a fixed element being no less part of a document that scrolls.
+
+  It costs one measurement and one export. The drawing is not in the middle of the window —
+  there is a rail down one side — so the column's left edge is measured exactly as its top
+  always was; and `scroll-padding-top` has to be on `html`, which is the one thing about
+  this layout a stylesheet cannot state, so `PageStrip` writes `--page-snap` onto the root.
+- **`100svh`, never `100dvh`.** The dynamic viewport unit is exactly what changes when the
+  URL bar collapses, so a drawing sized with it resizes itself under your hand on the first
+  scroll. `svh` is the small viewport and is a constant. For the same reason the fixed
+  boxes that must hold still — the drawing above all — are anchored by `top` and an `svh`
+  height rather than by a `bottom` offset: a box pinned to the bottom of the window moves
+  when the window grows, and a drawing moving relative to the pages behind it is the
+  flipbook coming apart. The aiming pad *is* pinned to the bottom, because the bottom is
+  where it belongs and following the bar down is what it should do.
+- **`html.tool.unsnapped` is how the snapping comes off, and where it is declared is the
+  point.** A mandatory snap container resnaps after every scroll it is given, so the two
+  animated scrolls need it off for their duration. The rule doing that was a bare
+  CSS-module class — (0,1,0) — losing silently to `html.tool` — (0,1,1) — which set it.
+  Nothing errored and nothing looked broken: a 300ms ease simply arrived as a jump, because
+  the browser resnapped every frame of it. It is declared in `base.css` against the same
+  selector it has to beat.
 - **Nothing sets the scroll position while you are scrolling, and getting that wrong is
   what made the snap feel sudden.** The two directions are a loop, and closing it needs
   more than "is the scroller already there": a scroll crossing the halfway line turns the
@@ -205,18 +240,23 @@ What it is now, at both widths:
   handed down as a custom property rather than reached for with a `.body > [data-aim-pad]`
   selector — where the pad lines up is this page's business, how it is drawn is the pad's.
   It is hidden above the phone breakpoint, where a mouse has a precise pointer and none of
-  what it answers is a problem. It is **not quite opaque** — 0.88 — because the flipbook
-  runs underneath it now: the pages read as something carrying on rather than as a picture
-  competing with the dots.
-- **The two animated scrolls are run by hand, with the snapping switched off.** A page
-  thrown into the next slot and a flipbook closing up round a carried page are movements
-  the column has to travel *with* — the same distance, the same time, the same curve — and
-  a scroll container has no property to transition. So `scrollToPage` animates `scrollTop`
-  a frame at a time on the keyframes' own `ease-in-out` and the settle's own cubic-bezier,
-  and adds `scroll-snap-type: none` for the length of it: a mandatory snap container
-  resnaps after every scroll it is given, and without that the browser and the component
-  would be fighting over the same number forty times a second. Everything else is instant,
-  because turning a page is a cut.
+  what it answers is a problem. It is **16px wider than the drawing and centred on it** —
+  the same width read as another page in the column rather than as a thing lying on top of
+  them — and **semi-opaque with a 16px backdrop blur**, so the pages passing underneath are
+  a texture rather than content competing with the dots. The fill is 0.72 because at 0.88
+  there was nothing left underneath for the blur to work on.
+- **The animated scrolls are run by hand, and they are what replaced the page
+  animations.** Adding or deleting a page moves every page after it, and the scroll is the
+  only thing carrying them — so `scrollToPage` animates the position a frame at a time on
+  2013's own `ease-in-out`, over the 300ms a thrown page always took to cross a slot. The
+  reorder settle takes its own cubic-bezier for the same reason. Everything else is
+  instant, because turning a page is a cut.
+
+  **How the strip knows which is which is the page count**, not a flag from the engine.
+  `busy` used to be true for the length of a page animation and the strip eased for exactly
+  that long; there are no page animations now, so what is left is one question — was this a
+  page *turn* or a change of shape — and the flipbook's length is the fact rather than a
+  second copy of it.
 - **Every thumbnail is visible, including the one the drawing is standing on.** It used to
   be hidden — `opacity: 0` on the covered page — so the column read as one flipbook rather
   than as a filmstrip with a hole punched in it. That was true while the strip was
@@ -238,14 +278,18 @@ What it is now, at both widths:
 - **Playback hides the pages with `visibility`, not `display`.** Taking the column out of
   the layout takes the scroll height with it, and the scroll position with that — so a
   flipbook played from page forty came back to page one.
-- **The page animations turned with the flipbook.** `newPageIcon`, `focusPrevThumb` and
-  `focusNextThumb` throw along Y instead of X; every offset, overshoot and settle is the
-  number it always was. The two that were *already* vertical had to move out of the way:
-  `nudge` bumps the canvas sideways now, because five pixels of vertical travel in a
-  column is the beginning of a page turn and duplicate is the one page action that leaves
-  you where you were; and `deletePage` throws the page off to the left rather than
-  straight down, because down is the direction its replacement arrives from and the two
-  read as one page overshooting rather than one leaving.
+- **The page animations are gone, and `animations.ts` is two constants.** They were
+  2013's keyframes, turned on their side when the flipbook became a column and then deleted
+  outright — the old thumbnail thrown up the column, the new canvas flown in, the deleted
+  page tumbling off the side, every page ahead of the gap pinned by `freeze()` so the strip
+  could travel out from under it. The trouble was never the movements. It was that all of
+  them were written against a strip *positioned by arithmetic*, and `freeze()` pins an
+  element to the viewport — which, once the strip became the document's own scroll, is
+  precisely the thing that is moving. They were not stale so much as no longer about the
+  thing on screen. What replaces them is the scroll: one movement, of the one thing that
+  actually moves, made of the browser's own scrolling. The keyframes are in that file's
+  history, and what would have to come back with them is an answer to the frozen-page
+  problem, which was never written.
 - **There is a tab on the *side* of the paper, and dragging it moves the page** to another
   place in the flipbook — or holding it above or below runs the flipbook past underneath.
   It hung off the top edge while the flipbook was a row: the drag was sideways and the

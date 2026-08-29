@@ -1,22 +1,22 @@
 /*
  * The drawing-mode switch: scaffolding, and dressed as scaffolding.
  *
- * It sits above everything — the header is 100 and the loupe 101, which is the
- * highest thing the page draws — because it has to be reachable in every mode,
- * including the two that put a magnifier under the top edge of the window.
+ * It floated in the top right of the window until Save took that corner, and it is the
+ * last group in the create page's rail now — which is where it belonged anyway. It is the
+ * least urgent thing on the page and admins are the only people who can see it, so a
+ * position you have to scroll a rail to reach is exactly right.
+ *
+ * The caption comes out of the flow and hangs to the *right* of the rail, because a rail
+ * is 56px wide and the caption is a sentence. It is `position: absolute` against this box
+ * and lifted over the flipbook, which is the one place on the page with room for it.
  */
 .switcher {
-	position: fixed;
-	top: calc(8px + env(safe-area-inset-top));
-	right: calc(8px + env(safe-area-inset-right));
-	z-index: 120;
+	position: relative;
 	display: flex;
 	flex-direction: column;
-	align-items: flex-end;
-	gap: 6px;
-	/* The caption below the button is a label, not a target; the button re-enables
-	   itself. Without this the whole column would be a hole in the drawing. */
-	pointer-events: none;
+	align-items: center;
+	padding-top: 6px;
+	border-top: 1px solid var(--line);
 }
 
 /*
@@ -105,12 +105,18 @@
  * is a stream of "which one is this again".
  */
 .caption {
+	position: absolute;
+	top: 8px;
+	left: calc(100% + 8px);
+	z-index: 40;
 	display: flex;
-	max-width: min(220px, 60vw);
+	width: max-content;
+	max-width: min(220px, 50vw);
 	flex-direction: column;
-	align-items: flex-end;
+	align-items: flex-start;
 	gap: 4px;
-	text-align: right;
+	/* A label, not a target. Without this it would be a hole in the drawing beside it. */
+	pointer-events: none;
 }
 
 .label {

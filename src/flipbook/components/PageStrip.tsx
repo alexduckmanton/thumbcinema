@@ -12,14 +12,6 @@ export interface PageStripProps {
 	pages: PageState[]
 	activePage: number
 	playing: boolean
-	/**
-	 * True for the length of a page animation, and what makes the column travel with it.
-	 *
-	 * Adding or deleting a page moves every page ahead of the gap along by a slot, and
-	 * the scroll is the only thing carrying those — the keyframes animate the page being
-	 * thrown and the one taking its place, and nothing else. See `scrollToPage`.
-	 */
-	throwing: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Where a page is being carried, if one is. See `usePageReorder`. */
@@ -48,16 +40,16 @@ const SETTLE_EASE = (t: number) => cubicBezier(0.2, 0.8, 0.3, 1, t)
 const WHEEL_STEP = 100
 
 /**
- * The class that takes the snapping off while this file is scrolling the column itself.
+ * The class that takes the snapping off while this file is driving the scroll itself.
  *
- * Named once, at module scope, because `noUncheckedIndexedAccess` types every CSS-module
- * lookup as possibly undefined and `classList.add` will not take that — and because the
- * alternative, writing `scroll-snap-type` straight onto the element, would put a layout
- * decision in here rather than in the stylesheet with the rest of them. The fallback is
- * the unhashed name, which is what a build without CSS modules would have produced
- * anyway.
+ * A global name on the root element rather than a CSS-module class, which is what it was
+ * and which did not work: `html.tool` sets the snapping and is (0,1,1), a bare module
+ * class is (0,1,0), and the rule meant to switch it off lost to the rule that switched it
+ * on — silently, and the only symptom was a 300ms ease arriving as a jump. It is declared
+ * next to the rule it has to beat, in `base.css`, alongside the two root classes this page
+ * already manages from JavaScript.
  */
-const FREE_SCROLLING = styles.freeScrolling ?? 'freeScrolling'
+const UNSNAPPED = 'unsnapped'
 
 /**
  * The column of page thumbnails the drawing stands in, and the thing you scroll.
@@ -92,12 +84,11 @@ export function PageStrip({
 	pages,
 	activePage,
 	playing,
-	throwing,
 	canvasRef,
 	reorder = null,
 	shiftFor,
 }: PageStripProps) {
-	const scroller = useRef<HTMLDivElement | null>(null)
+	const rail = useRef<HTMLDivElement | null>(null)
 	const firstPage = useRef<HTMLDivElement | null>(null)
 	const [metrics, setMetrics] = useState({
 		offset: 0,
@@ -127,19 +118,21 @@ export function PageStrip({
 	 */
 	const measure = useCallback(() => {
 		const canvas = canvasRef.current
-		const box = scroller.current
 		const page = firstPage.current
-		if (!canvas || !box || !page) return
+		if (!canvas || !page) return
 
 		const gutter = Number.parseFloat(getComputedStyle(page).paddingTop) || 0
+		// Viewport coordinates, and they are the right ones because the drawing is
+		// `position: fixed`: where it is on the glass does not change as the column
+		// scrolls under it, which is the whole reason those two numbers can be a layout
+		// constant rather than something recomputed on every frame of a scroll.
 		const paper = canvas.getBoundingClientRect()
-		const scroll = box.getBoundingClientRect()
 		const next = {
-			offset: paper.top - scroll.top,
-			left: paper.left - scroll.left,
+			offset: paper.top,
+			left: paper.left,
 			width: canvas.offsetWidth,
 			gutter,
-			view: box.clientHeight,
+			view: window.innerHeight,
 		}
 
 		// Only when something actually changed. This runs on every resize and on every
@@ -205,6 +198,22 @@ export function PageStrip({
 	const padTop = Math.max(0, metrics.offset - metrics.gutter)
 	const padBottom = Math.max(0, metrics.view - step - padTop)
 
+	/*
+	 * Where a snapped page's top edge lands, handed to the root element.
+	 *
+	 * The scroll container is the document, so `scroll-padding-top` has to be on `html` —
+	 * and this is the one thing about the layout that a stylesheet cannot state, because it
+	 * is where the drawing actually ended up. `html.tool` in `base.css` reads it. A layout
+	 * effect rather than an effect: a snap offset applied after the browser has painted is
+	 * one frame of the column standing in the wrong place.
+	 */
+	useLayoutEffect(() => {
+		document.documentElement.style.setProperty('--page-snap', `${padTop}px`)
+		return () => {
+			document.documentElement.style.removeProperty('--page-snap')
+		}
+	}, [padTop])
+
 	// The engine throws pages from one slot to the next and needs to know how far that
 	// is. It can't be told at build time for the same reason it isn't measured there.
 	useEffect(() => {
@@ -261,6 +270,23 @@ export function PageStrip({
 	const reported = useRef<number | null>(null)
 
 	/**
+	 * How long the flipbook was last time, and the whole of how a page added or deleted
+	 * comes to be animated rather than cut.
+	 *
+	 * The engine used to say so — `busy` was true for the 750ms of a page animation, and
+	 * the strip eased its own position for exactly that long. There are no page animations
+	 * any more (`animations.ts` says why), so nothing is being kept in step with: what is
+	 * left is one movement, of the one thing that moves, and the only question is whether
+	 * this page change was a *page turn* or a change of shape. A turn is a cut, as it has
+	 * always been. A page arriving or leaving moves every page after it, and easing the
+	 * scroll to the new position is what carries them.
+	 *
+	 * The length is the signal because it is the fact: no other page change alters it, and
+	 * an engine flag saying the same thing would be a second copy of it to keep true.
+	 */
+	const wasLength = useRef(pages.length)
+
+	/**
 	 * Puts page `index` under the drawing, over `duration` and on `easing`.
 	 *
 	 * Instant is the ordinary case and is not an animation at all: turning a page is a
@@ -277,35 +303,34 @@ export function PageStrip({
 	 */
 	const scrollToPage = useCallback(
 		(index: number, duration = 0, easing?: (t: number) => number) => {
-			const box = scroller.current
-			if (!box) return
+			const root = document.documentElement
 
 			if (animation.current !== null) cancelAnimationFrame(animation.current)
 			animation.current = null
 
 			const to = index * latest.current.step
-			const from = box.scrollTop
+			const from = window.scrollY
 			if (Math.abs(to - from) < 1) return
 
 			reported.current = null
 			driving.current = true
 
 			if (duration <= 0 || prefersReducedMotion()) {
-				box.scrollTop = to
+				window.scrollTo(0, to)
 				// One frame, so the scroll event this just produced is seen while the flag is
-				// still up. `scrollTop` is synchronous but the event is not.
+				// still up. Setting the position is synchronous but the event is not.
 				requestAnimationFrame(() => {
 					driving.current = false
 				})
 				return
 			}
 
-			box.classList.add(FREE_SCROLLING)
+			root.classList.add(UNSNAPPED)
 			const started = performance.now()
 
 			const frame = (now: number) => {
 				const t = Math.min(1, (now - started) / duration)
-				box.scrollTop = from + (to - from) * (easing ? easing(t) : t)
+				window.scrollTo(0, from + (to - from) * (easing ? easing(t) : t))
 
 				if (t < 1) {
 					animation.current = requestAnimationFrame(frame)
@@ -313,7 +338,7 @@ export function PageStrip({
 				}
 
 				animation.current = null
-				box.classList.remove(FREE_SCROLLING)
+				root.classList.remove(UNSNAPPED)
 				requestAnimationFrame(() => {
 					driving.current = false
 				})
@@ -353,19 +378,22 @@ export function PageStrip({
 		// `scrollTop` in the middle of somebody's flick; see `reported`.
 		if (reported.current === anchor) return
 
+		const resized = pages.length !== wasLength.current
+		wasLength.current = pages.length
+
 		const duration = reorder?.settling
 			? SETTLE_MS
-			: (reorder?.slide ?? (throwing ? PAGE_TRAVEL_MS : 0))
+			: (reorder?.slide ?? (resized ? PAGE_TRAVEL_MS : 0))
 		const easing = reorder?.settling
 			? SETTLE_EASE
 			: reorder?.slide
 				? undefined
-				: throwing
+				: resized
 					? easeInOut
 					: undefined
 
 		scrollToPage(anchor, duration, easing)
-	}, [anchor, step, throwing, playing, reorder?.slide, reorder?.settling, scrollToPage])
+	}, [anchor, step, pages.length, playing, reorder?.slide, reorder?.settling, scrollToPage])
 
 	/*
 	 * And the scroller telling the flipbook, which is the new half of this.
@@ -380,16 +408,13 @@ export function PageStrip({
 	 * the column carried a different thumbnail under it.
 	 */
 	useEffect(() => {
-		const box = scroller.current
-		if (!box) return
-
 		const onScroll = () => {
 			if (driving.current) return
 
 			const { engine: live, step: pitch, activePage: current, pages: count } = latest.current
 			if (latest.current.playing || pitch <= 0 || count === 0) return
 
-			const index = Math.max(0, Math.min(count - 1, Math.round(box.scrollTop / pitch)))
+			const index = Math.max(0, Math.min(count - 1, Math.round(window.scrollY / pitch)))
 			if (index === current) return
 
 			// Named before the page turns, so the effect that answers `anchor` has it by the
@@ -399,8 +424,8 @@ export function PageStrip({
 			live.goToPage(index)
 		}
 
-		box.addEventListener('scroll', onScroll, { passive: true })
-		return () => box.removeEventListener('scroll', onScroll)
+		window.addEventListener('scroll', onScroll, { passive: true })
+		return () => window.removeEventListener('scroll', onScroll)
 	}, [])
 
 	/*
@@ -444,7 +469,7 @@ export function PageStrip({
 				event.deltaMode === 1
 					? event.deltaY * 16
 					: event.deltaMode === 2
-						? event.deltaY * (scroller.current?.clientHeight ?? 0)
+						? event.deltaY * window.innerHeight
 						: event.deltaY
 
 			if (delta === 0) return
@@ -477,21 +502,18 @@ export function PageStrip({
 	return (
 		<div
 			className={[
-				styles.scroller,
+				styles.strip,
 				playing ? styles.playing : '',
 				reorder ? styles.carrying : '',
 				reorder?.slide ? styles.sliding : '',
 			]
 				.filter(Boolean)
 				.join(' ')}
-			ref={scroller}
 			aria-hidden="true"
-			// Where a snapped page's top edge lands, which is where the drawing's is. The
-			// rail's own padding is the same number: see `padTop`.
-			style={{ scrollPaddingTop: `${padTop}px` }}
 		>
 			<div
 				className={styles.rail}
+				ref={rail}
 				style={
 					{
 						paddingTop: `${padTop}px`,

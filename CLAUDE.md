@@ -68,7 +68,7 @@ src/
       pages.ts        the page list as data, and how to count it
       reorder.ts      dragging a page to another slot, as arithmetic
       print.ts        the printable booklet
-      animations.ts   the page-strip keyframes, and freeze()
+      animations.ts   what is left of the page animations: two constants
       constants.ts    canvas size, frame rate, the ink colours
       trace.ts        the photo a page is traced over, as data
       tools/          pencil, eraser, transform, push
@@ -277,11 +277,22 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   including the page strip. Pinch and double-tap zoom are still refused; the surfaces that
   must not pan (the canvas, the page handle, the page bar, the aiming pad) each say
   `touch-action: none` for themselves, which is the direction that works.
-- **The page strip is a real scroll container, it is the whole window, and the scroll
-  position is the page number.** `scroll-snap-type: y mandatory` with the drawing laid over
-  it and the column running on under the header and the aiming pad; scrolling calls
-  `goToPage`, and a page turned any other way scrolls. Two rules keep that from being a
-  loop. Anything that wants to move the flipbook goes through `goToPage` rather than through
+- **The page strip is the *document's* scroll, and the scroll position is the page
+  number.** Everything else on the create page is `position: fixed` over it — header, rail,
+  drawing, aiming pad, scrims. That is not a style choice: **iOS Safari only collapses its
+  URL bar for the root scroller**, so a nested `overflow: auto` box (which is what this was)
+  leaves the bar up for ever. `scroll-snap-type` and `scroll-padding-top` therefore live on
+  `html`; see `html.tool` in base.css, and `--page-snap`, which `PageStrip` measures onto
+  the root because it is the one thing about the layout a stylesheet cannot state.
+- **`html.tool.unsnapped` is how the snapping comes off, and it is written against the
+  selector it must beat.** A mandatory snap container resnaps after every scroll it is
+  given, so an animated scroll needs the snapping off for its duration — and the rule doing
+  that was a bare CSS-module class (0,1,0) losing silently to `html.tool` (0,1,1). The only
+  symptom was a 300ms ease arriving as a jump.
+- **Sizes on the create page are `100svh`, never `100dvh`.** `dvh` changes as the URL bar
+  collapses, so a drawing sized with it resizes itself under your hand on the first scroll.
+- **Scrolling calls `goToPage`, and a page turned any other way scrolls.** Two rules keep
+  that from being a loop. Anything that wants to move the flipbook goes through `goToPage` rather than through
   `scrollTop` — a scroll this file drives is deliberately not answered by its own handler,
   so setting the position directly lands on the right slot with the flipbook still on the
   page it started on. And a page change the *scroll itself* named is never answered with a

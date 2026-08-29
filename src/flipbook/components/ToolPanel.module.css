@@ -19,26 +19,31 @@
  */
 
 .panel {
-	position: relative;
+	/*
+	 * Pinned to the left of the window, because the *document* is what scrolls on this
+	 * page: a rail in the flow would go up the screen with the flipbook. It starts below
+	 * the header band and runs to the bottom of the window.
+	 *
+	 * Being fixed costs it nothing and buys the page something: a drag across the rail
+	 * still scrolls the flipbook, a fixed element being no less part of a document that
+	 * scrolls. Only the rail's own overflow takes a drag away from it, and only when the
+	 * list is long enough to have one.
+	 */
+	position: fixed;
+	top: var(--chrome-top);
+	bottom: 0;
+	left: 0;
 	z-index: 30;
 	display: flex;
-	flex-shrink: 0;
 	flex-direction: column;
 	align-items: center;
 	width: var(--panel-width);
 	padding: var(--pad) 0 calc(var(--pad) + 8px);
 	transition: transform 0.4s ease-in, opacity 0.4s ease-in;
 
-	/*
-	 * In the flow rather than pinned to the window, which means the stage beside it is
-	 * exactly the room that is left rather than the whole window with a strip of it
-	 * covered over — and is why the panel can fly away when the save form goes up without
-	 * the drawing jumping across to fill the gap: the space stays, only the panel leaves.
-	 */
-
-	/* One number, and everything here is drawn off it. `--panel-width` is the create
-	   page's, because the boot shell has to reserve the same space before this stylesheet
-	   has been downloaded. */
+	/* One number, and everything here is drawn off it. `--panel-width` and `--chrome-top`
+	   are the create page's, because the boot shell reserves the same box before this
+	   stylesheet has been downloaded. */
 	--tile: 40px;
 	--pad: 12px;
 	--gap: 6px;

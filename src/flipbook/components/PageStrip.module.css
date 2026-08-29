@@ -18,74 +18,23 @@
  * of megabytes for something nobody can see.
  */
 
-.scroller {
+.strip {
 	/*
-	 * The whole window, not the stage.
+	 * Ordinary document content, and that is the point of it.
 	 *
-	 * It was inset to the stage, which cropped the column hard against the header above it
-	 * and the aiming pad below — a flipbook that stopped at an invisible line rather than
-	 * one that carries on past the edges of what you are working in. Fixed to the viewport,
-	 * the pages run under the wordmark and under the pad, and those two say so by being
-	 * partly see-through with a gradient under them. See `.scrim` on the create page.
+	 * It was a nested `overflow: auto` box — which is the one arrangement iOS Safari will
+	 * not collapse its URL bar for, because Safari only does that for the *root* scroller.
+	 * The column is the document's own height now and everything else on the create page is
+	 * `position: fixed` over it, so scrolling the flipbook is scrolling the page: the bar
+	 * collapses, the bounce is the system's, and a drag anywhere the page has not claimed
+	 * moves the pages — including across the rail, a fixed element being no less part of a
+	 * document that scrolls.
 	 *
-	 * It costs one measurement: the drawing is no longer in the middle of this box — there
-	 * is a rail down one side of the window — so the column's left edge is measured rather
-	 * than centred. See `measure`.
-	 *
-	 * Under everything: the pages carry `z-index: 9`, the drawing 15, the panel 30 and the
-	 * header 100, so the flipbook slides beneath all three and the scroller's own box
-	 * (which paints nothing) never takes a press from any of them.
+	 * The snap and the scroll padding are on `html` with the rest of the scroller's
+	 * business; see `html.tool` in `base.css`.
 	 */
-	position: fixed;
-	inset: 0;
-	overflow: hidden auto;
-
-	/*
-	 * The whole mechanism, in one property.
-	 *
-	 * Mandatory rather than proximity: every position between two pages is a position
-	 * where the drawing is standing over the gap between two thumbnails, and there is
-	 * nothing there to draw on. A flipbook is a stack of discrete pages and the scroll
-	 * should not be able to stop between them.
-	 */
-	scroll-snap-type: y mandatory;
-
-	/*
-	 * The scroll position is a page number, and the browser must not have opinions about
-	 * it. Scroll anchoring exists to keep what you are reading still while content loads
-	 * above it, and every page added or deleted here is exactly that — content changing
-	 * above the thing you are looking at. Left on, it adjusts `scrollTop` behind the
-	 * component's back in the middle of a page animation.
-	 */
-	overflow-anchor: none;
-
-	/* The drawing tool has nowhere to scroll *to*, and a scroll that runs off the end of
-	   this and starts moving the document — or, on a trackpad, navigates back — is one
-	   that took an unsaved flipbook with it. */
-	overscroll-behavior: contain;
-
-	/* A scrollbar over the drawing is a piece of furniture in the middle of the page.
-	   What says the flipbook carries on is the same thing that says it on a phone: you
-	   can see the next page, partly. */
-	scrollbar-width: none;
-}
-
-.scroller::-webkit-scrollbar {
-	display: none;
-}
-
-/*
- * While this file is driving the scroller itself, which it does for exactly two
- * movements: a page being thrown into the next slot, and the flipbook closing up round a
- * page that has been carried somewhere else.
- *
- * A mandatory snap container resnaps after every scroll it is given, so an animation
- * written a frame at a time would be the browser and `scrollToPage` fighting over the
- * same property forty times a second. Off for the length of it, and back on at the end —
- * which is the frame the scroller has been left exactly on a snap point.
- */
-.freeScrolling {
-	scroll-snap-type: none;
+	position: relative;
+	z-index: 9;
 }
 
 .rail {
@@ -176,7 +125,7 @@
  * Playback hides the pages and stops the scrolling.
  *
  * `visibility` rather than `display: none`, which is the difference the scroll made:
- * taking the column out of the layout takes the scroll height with it, and the scroll
+ * taking the column out of the layout takes the document's height with it, and the scroll
  * position — so a flipbook played from page forty came back to page one. The pages are
  * still there and still exactly as tall; there is simply nothing to see, which is the
  * point, because pages are flying past twelve times a second and a column of them
@@ -184,10 +133,6 @@
  */
 .playing .page {
 	visibility: hidden;
-}
-
-.playing {
-	overflow: hidden;
 }
 
 /*

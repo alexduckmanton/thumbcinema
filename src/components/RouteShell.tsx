@@ -118,11 +118,10 @@ function BookShell({
  * The drawing tool, before the drawing tool: the rail's space, and a sheet of paper
  * pulsing in the middle of the stage.
  *
- * The header carries nothing at all — there is no create button on the page you create
- * on, and the four edit actions that used to stand up there are in the panel now, which
- * is precisely the thing this shell hasn't got yet. So it draws the *space* the panel
- * will take and leaves it empty; see `.shellPanel`, and the note there on why an empty
- * box beats a column of grey tiles.
+ * The header carries nothing at all. The page puts Save in it, and a save button offered
+ * before there is a flipbook to save would be a control that is up early rather than a
+ * page that is loading — which is the same reason the rail's space and the aiming pad's
+ * are drawn empty. See `.shellPanel`.
  *
  * Every class here is the page's own, read off its stylesheet rather than copied, for the
  * reason the note at the top of this file gives: a placeholder is only worth having if it
@@ -140,27 +139,23 @@ function CreateShell() {
 
 	return (
 		<>
-			<SiteHeader />
+			<div className={createStyles.headerBar}>
+				<SiteHeader />
+			</div>
 
 			<main className={createStyles.content}>
+				{/* The rail's space and the aiming pad's, both empty. They are here because the
+				    drawing is centred between them: a shell missing either would put the sheet
+				    of paper somewhere the page does not. */}
 				<div className={createStyles.shellPanel} aria-hidden="true" />
+				<div className={createStyles.shellPad} aria-hidden="true" />
 
-				<div className={createStyles.body}>
-					<div className={createStyles.stage}>
-						<div className={createStyles.paper}>
-							<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
-								{/* `.sheet` as well as `.skeleton`: there is no canvas under this one
-								    to cast the shadow the page's own placeholder borrows. */}
-								<div
-									className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`}
-									aria-hidden="true"
-								/>
-							</div>
-						</div>
+				<div className={createStyles.stage}>
+					<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
+						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
+						    cast the shadow the page's own placeholder borrows. */}
+						<div className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`} aria-hidden="true" />
 					</div>
-
-					<div className={createStyles.navBand} />
-					<div className={createStyles.shellPad} />
 				</div>
 			</main>
 

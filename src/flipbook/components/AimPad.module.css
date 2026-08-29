@@ -11,31 +11,39 @@
  * a dotted texture that nothing else on the site has. A trackpad, in other words, which is
  * exactly what it is.
  *
- * **Not quite opaque**, because the flipbook runs underneath it. The page strip is the
- * whole window now, so the column passes behind this rather than being cropped against it,
- * and at 0.88 the pages are visible through the pad as a suggestion of something carrying
- * on rather than as a picture competing with the dots. The create page's `.scrimBottom`
- * does the fade above it.
+ * **Not quite opaque, and it blurs what is behind it.** The flipbook is the document's own
+ * scroll, so the column passes under the pad rather than being cropped against it. A 16px
+ * backdrop blur turns those pages from content into a texture, which is what they are down
+ * here; the create page's `.scrimBottom` does the fade above it.
  */
 
 .pad {
-	position: relative;
 	/*
-	 * Over the flipbook, which now runs underneath it: the pages carry `z-index: 9` and
-	 * the drawing 15, so 14 puts the pad above the column and still below the sheet — on a
-	 * short window the two overlap, and a pad drawn over the drawing would be a wash across
-	 * the thing you are aiming at.
+	 * Pinned to the bottom of the window, because the document is what scrolls on this page.
+	 * Anchored by `bottom` rather than by `svh` arithmetic — unlike the drawing, which must
+	 * hold still — because the bottom of the window is exactly where this belongs, and when
+	 * iOS collapses its URL bar the pad should follow it down.
+	 *
+	 * **16px wider than the drawing, and centred on it.** Not the same width, which is what
+	 * it was: a pad exactly as wide as the thumbnails read as another page in the column
+	 * rather than as a thing lying on top of them. 8px past either edge is enough to say it
+	 * is in front. The centre is the middle of the stage, which is the window less the rail.
+	 *
+	 * Over the flipbook: the pages carry `z-index: 9` and the drawing 15, so 14 puts the pad
+	 * above the column and still below the sheet — on a short window the two overlap, and a
+	 * pad drawn over the drawing would be a wash across the thing you are aiming at.
 	 */
+	position: fixed;
+	bottom: var(--pad-air, 0);
+	left: calc(var(--panel-width, 0px) + (100vw - var(--panel-width, 0px)) / 2);
 	z-index: 14;
-	flex-shrink: 0;
-	/* The page's inset, handed down rather than stated here: the pad lines up with the
-	   paper and the page bar above it, and where that line is is the page's business. */
-	margin: 0 var(--pad-inset, 0) var(--pad-air, 0);
+	width: calc(var(--book-width) + 16px);
+	transform: translateX(-50%);
 	/*
-	 * The page's, handed down rather than stated here — see `.shellPad` in the create
-	 * page's stylesheet, which reserves exactly this much space before the route's chunk
-	 * (and therefore this file) has arrived. Two boxes have to agree about it and only one
-	 * of them is the pad.
+	 * The page's height, handed down rather than stated here — see `.shellPad` in the
+	 * create page's stylesheet, which reserves exactly this much space before the route's
+	 * chunk (and therefore this file) has arrived. Two boxes have to agree about it and
+	 * only one of them is the pad.
 	 */
 	height: var(--pad-height, 120px);
 	border-radius: var(--radius-card);
@@ -48,9 +56,26 @@
 	 * is between `--page` and `--line`, so the pad is plainly a different surface from the
 	 * page without becoming a dark rectangle across the bottom of a drawing tool.
 	 */
-	background-color: rgba(231, 231, 231, 0.88);
+	background-color: rgba(231, 231, 231, 0.72);
 	background-image: radial-gradient(circle at 1px 1px, #c8c8c8 1.5px, transparent 1.5px);
 	background-size: 10px 10px;
+
+	/*
+	 * And the flipbook behind it is blurred rather than merely dimmed.
+	 *
+	 * The column runs under the pad, so without this the pages read as *content* down
+	 * there — edges, corners, whatever is drawn on them — competing with the dots for the
+	 * same square inch. Blurred, they are a suggestion that something carries on, which is
+	 * exactly what they are. The fill drops to 0.72 with it: at 0.88 there was nothing left
+	 * underneath for the blur to work on.
+	 *
+	 * Safari needs the prefix and has since it shipped the property; Chrome and Firefox
+	 * take the standard one. Where neither applies — an old browser, or a machine that has
+	 * turned it off — the fill alone is still a legible surface, which is the whole reason
+	 * it is a colour rather than nothing.
+	 */
+	-webkit-backdrop-filter: blur(16px);
+	backdrop-filter: blur(16px);
 
 	/*
 	 * A drag here is the gesture, and nothing else may read it. The same statement the

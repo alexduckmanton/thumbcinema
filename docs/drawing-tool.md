@@ -572,6 +572,17 @@ it's one of these. Each is deliberate:
   instead of mirroring.
 - **A stroke that ends off the canvas updates its thumbnail.** The old mouseup
   listener was on the canvas, so releasing outside it left a stale page.
+- **There are no page animations any more, and most of this section is history.** Adding
+  and deleting a page used to be 750ms of choreography — the old thumbnail thrown up the
+  column, the new canvas flown in, every page ahead of the gap pinned by `freeze()` so the
+  strip could travel out from under it. All of it was written against a strip *positioned
+  by arithmetic*, and none of it survived that strip becoming the document's own scroll:
+  `freeze()` pins an element to the viewport, and the viewport is exactly what the scroll
+  is moving. What replaces it is one movement of the one thing that moves — `PageStrip`
+  eases the scroll position to wherever the page you are left on now is. `animations.ts`
+  is two constants and a media query, and says the rest. The paragraphs below are kept
+  because they are what the machinery *was*, and because anything that brings paper back
+  will have to answer the frozen-page problem they describe.
 - **A page animation can't lock the tool up.** The page actions are held while one
   plays, and a hidden document doesn't run animations at all — so `finished` never
   settles and 2013 stays held until a reload. `play()` races it against a deadline.
