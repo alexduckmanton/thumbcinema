@@ -39,58 +39,23 @@ is the constraint behind every rule about the schema.
 ## Layout
 
 ```
-index.html            the single page
 src/
-  main.tsx            boot
-  App.tsx             route switch, lazy per route
-  router/             matchRoute(), useLocation(), <Link>
-  lib/                api client, admin token, device, messages, store, zoom
-  components/         header, buttons, spinner, messages, admin toggles
-    RouteShell.tsx    the page before the page — the Suspense fallback, per route
-  routes/
-    gallery/          the grid, the Featured/All toggle, infinite scroll
-    create/           the drawing tool's page, save flow, crash recovery
-    playback/         one flipbook, playing
+  router/       ~60 lines over the History API
+  lib/          api client, admin token, device, messages, store
+  components/   header, buttons, spinner, messages, RouteShell
+  routes/       gallery/, create/, playback/ — lazy, one chunk each
   flipbook/
-    engine/           the drawing tool. No React in this directory.
-      geometry.ts     pure maths — resampling, angles, handle indices
-      scene.ts        paper.js project + layers
-      selection.ts    selecting and transforming
-      history.ts      undo and redo, as a stack of pages-as-strings
-      clipboard.ts    copy and paste, and where a paste lands
-      formats.ts      the two artwork formats, in and out
-      png.ts          the saved thumbnail, encoded small
-      pages.ts        the page list as data, and how to count it
-      reorder.ts      dragging a page to another slot, as arithmetic
-      print.ts        the printable booklet
-      animations.ts   the page-strip keyframes, and freeze()
-      constants.ts    canvas size, frame rate, the ink colours
-      trace.ts        the photo a page is traced over, as data
-      tools/          pencil, eraser, transform, push
-      FlipbookEngine.ts  the façade React drives
-    usePageReorder.ts the reorder gesture, and the settle at the end of it
-    pointer.ts        a finger, and what it does to the cursor and the tool
-    drawModes.ts      the answers to "a finger is opaque", numbered v1–v13
-    zoomStage.ts      v11–v13's window on the page: the maths, and where it is kept
-    trace/            the photo you trace over. No paper.js here either.
-      geometry.ts     what a drag and a pinch do to a placement
-      useTracePhoto.ts the camera, the decode, and the object URLs
-      TraceLayer.tsx  the picture over the paper, and the hand that places it
-      TraceMenu.tsx   move it, replace it, or take it away
-    components/       canvas, page strip, page arrows, the page's handle,
-                      trays, save form, the cursor ring and the transform cursors,
-                      the drawing-mode switch
-    card/             one flipbook in a list — the grid, and the remixes under one
-      FlipbookCard.tsx   the link, the preview over it, the play button
-      useCardGesture.ts  hover, tap, hold and drag, mouse and finger
-      preview.ts      the one place the preview chunk is named
-    preview/          the flipbooks that play in a card. No paper.js here.
-      artwork.ts      a saved file as Path2D pages, on demand
-      render.ts       one page onto a 2D canvas
-      cache.ts        the flipbooks the grid has in hand, shared by every card
-      FlipbookPreview.tsx  the canvas on the hovered card
-  styles/             tokens, element defaults, the icon sprite
-public/               fonts, images, favicons, sadbrowser.html```
+    engine/     the drawing tool. No React in this directory.
+    trace/      the photo you trace over. No paper.js here either.
+    preview/    the flipbooks that play in a gallery card. No paper.js here.
+    card/       one flipbook in a list
+    components/ canvas, page strip, trays, save form, cursors
+  styles/       tokens, element defaults, the icon sprite
+```
+
+The three "no X here" lines are the load-bearing part — two of them are in **Rules**, and
+`trace/` keeps its own boundary for the same reason. Everything else is findable, and the
+per-area detail is in `docs/`.
 
 ## Running it
 
@@ -101,16 +66,12 @@ npm run db:migrate
 npm run dev              # http://localhost:3000
 ```
 
-Node 22.12+ — Vite and Vitest sit on Rolldown, which imports `styleText` from
-`node:util`. There is an `.nvmrc`, and `scripts/with-node.js` wraps every script that
-needs it and re-executes under an installed version that will do, so `npm run dev` works
-without `nvm use` first. If it can't find one it says so, rather than letting a
-`SyntaxError` surface from inside node_modules.
+Node 22.12+ (Rolldown imports `styleText` from `node:util`). `scripts/with-node.js`
+re-executes under a version that will do, so no `nvm use` first.
 
-`npm run dev` is Vite with the real API router mounted as middleware — one process, and
-`lib/router.js` imported directly, so dev and production route identically. It needs
-`DATABASE_URL` for anything touching the gallery or saving; the drawing tool works
-without one.
+`npm run dev` is Vite with the real API router mounted as middleware, so dev and
+production route identically. It needs `DATABASE_URL` for the gallery and saving; the
+drawing tool works without one.
 
 | Command | Does |
 |---|---|
@@ -146,21 +107,18 @@ Break one of these and something goes wrong somewhere else, usually silently.
   350px wide on a phone would otherwise give a 350-unit project — strokes, thumbnails
   and saved SVG all that shape. CSS owns the display size; `getEventPoint` divides by
   the current scale. Not `view.zoom`, which folds itself into `exportSVG()`.
-- **There are two page sizes and there will only ever be two.** `LEGACY_PAGE_SIZE` is
-  640×360 — everything drawn from 2012 to 2026, which is the whole archive. New
-  flipbooks are `SQUARE_PAGE_SIZE`, 640×640. A flipbook keeps the shape it was drawn at
-  for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses, and there is no UI
-  for it. 640 across for both is deliberate — `DEFAULT_STROKE_WIDTH`, `FLATTEN_DISTANCE`,
-  the ink cursor and the page strip's pitch are all calibrated against that width.
-- **The artwork is the authority on its own shape, and no viewBox means 640×360.**
-  paper 0.8 wrote no viewBox, no width and no height, so every archive row is silent —
-  and every one of them is the legacy page. `pageSizeFromSvg()` (client) and `pageSize()`
-  (`lib/thumbnail.js`, server) implement that one rule and **must agree byte for byte**:
-  the server's answer is written into the `width`/`height` columns and is what a gallery
-  card is laid out as, and the client's is what the drawing on that card is scaled by.
-  The columns exist only because the grid needs a shape *before* the artwork — reading it
-  off the file would mean decompressing megabytes per tile. Where they could ever
-  disagree, the file wins.
+- **Two page sizes, and there will only ever be two.** `LEGACY_PAGE_SIZE` 640×360 (2012
+  to 2026, the whole archive) and `SQUARE_PAGE_SIZE` 640×640 (since). A flipbook keeps
+  its shape for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses and there is
+  no UI. Both are 640 across on purpose — stroke widths, the ink cursor and the strip's
+  pitch are all calibrated against that width.
+- **The artwork is the authority on its own shape, and no viewBox means 640×360** (paper
+  0.8 wrote none, so the whole archive is silent and all of it is the legacy page).
+  `pageSizeFromSvg()` and `pageSize()` (`lib/thumbnail.js`) are the client and server
+  copies of that one rule and IMPORTANT: they must agree byte for byte — the server's
+  answer sizes the gallery tile, the client's scales the drawing on it. The
+  `width`/`height` columns exist only because the grid needs a shape before the artwork.
+  Where they could disagree, the file wins. `docs/drawing-tool.md`.
 - **`SYSTEM_LAYERS === 3`, and `LEADING_SYSTEM_GROUPS === 3` with it.** paper exports one
   `<g>` per layer and all 585 archive flipbooks were written by a project with three
   scaffolding layers under the pages. Change one without the other and every page in the
@@ -180,11 +138,11 @@ Break one of these and something goes wrong somewhere else, usually silently.
   by `useFlipbookEngine` rather than imported at the top of `scene.ts`. A plain `import`
   of anything large anywhere under a route silently puts it back into that route's
   preload set, and the chunk table won't say so. After touching imports, run
-  `npm run build` and check: `GalleryPage-*.js` must import six chunks and none of them
-  paper; `PlaybackPage-*.js` must not import the card.
+  `npm run build` and check the two invariants that matter: nothing paper in
+  `GalleryPage-*.js`, and no `useCardGesture` in `PlaybackPage-*.js`.
 - **One breakpoint, and it tests height as well as width**, written out in full in every
   file that has two layouts. A phone held sideways is 800 points wide and 375 tall, and a
-  width test alone hands it a 640×360 canvas and a page strip in a window that can hold
+  width test alone hands it a full-size canvas and a page strip in a window that can hold
   neither.
 
   ```css
@@ -203,8 +161,8 @@ Break one of these and something goes wrong somewhere else, usually silently.
 
 ## Architecture
 
-A single-page app, one serverless function, one Postgres table — `flipbooks`, and
-`db/schema.sql` is commented.
+A single-page app, one serverless function, one Postgres table. `db/schema.sql` is
+commented; [`docs/architecture.md`](docs/architecture.md) has the rest.
 
 ```
 browser ──> dist/index.html      static, on Vercel's CDN
@@ -212,25 +170,16 @@ browser ──> dist/index.html      static, on Vercel's CDN
             /saveflipbook
 ```
 
-**`lib/router.js` is the entire API.** Every route is rewritten to the single `/api`
-function by `vercel.json`; the dev server calls the same module directly.
+`lib/router.js` is the entire API — every route is rewritten to the single `/api`
+function by `vercel.json`, and the dev server calls the same module directly. The routes
+are unchanged from 2013, and `src/lib/api.ts` is the only place the front end knows about
+any of them (`/gif` excepted, which is for other people's pages).
 
-**Everything else is rewritten to `/`, and it has to be `/` rather than `/index.html`.**
-Vercel checks the filesystem before rewrites, so hashed assets and fonts are served as
-files and never reach the catch-all — but under `cleanUrls` the output filesystem has no
-`/index.html` in it at all. That path is a 308 to `/`, and a rewrite doesn't follow
-redirects: it looks the destination up, finds nothing, and **every deep link 404s while
-the app still works perfectly from the home page** — which is exactly as long as it takes
-to not notice. This has bitten twice — `defc72d` fixed it for `/f/:id` by dropping
-`.html` off the destination, and the React rewrite put it straight back. `cleanUrls` is
-also what maps `/sadbrowser` to the
-static `public/sadbrowser.html`. See [`docs/architecture.md`](docs/architecture.md).
-
-The routes are unchanged from 2013: `POST /saveflipbook`, `GET /api/flipbooks`,
-`GET /api/flipbooks/:id[/data|/thumbnail|/thumbnail.svg|/gif]`, and
-`PATCH /api/admin/flipbooks/:id`. `src/lib/api.ts` is the only place the front end knows
-about any of them — `/gif` excepted, that one being for other people's pages rather than
-for this one.
+IMPORTANT: **everything else is rewritten to `/`, never `/index.html`.** Under
+`cleanUrls` there is no `/index.html` in the output filesystem — it is a 308 to `/`, and
+a rewrite doesn't follow redirects, so every deep link 404s while the home page works
+perfectly. This has shipped twice: `defc72d` fixed it, and the React rewrite reintroduced
+it.
 
 ## Two deployments, one database
 
@@ -247,72 +196,54 @@ Step so neither builds the other's branch.
 
 ## Featured, NSFW and admin mode
 
-Featured is the home page's default and is what the 2013 home page showed; All is
-everything else that isn't NSFW. New saves default to `featured = false` and are promoted
-by hand. NSFW hides a flipbook from both tabs but leaves it working on its own URL, which
-is the moderation lever — saves are public immediately.
+Featured is the home page's default; All is everything else that isn't NSFW. New saves
+default to `featured = false` and are promoted by hand. NSFW hides a flipbook from both
+tabs but leaves its own URL working — that is the moderation lever, since saves are public
+immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visit
+`/?admin=<token>` once and it is kept in `localStorage`.
 
-Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Visit
-`/?admin=<token>` once and it is stored in `localStorage` and scrubbed from the URL.
-
-- **If `ADMIN_TOKEN` is unset or under 16 characters the admin API 404s entirely.** It
-  fails closed, so a deploy that forgets it is safe rather than open.
-- **The token affects reads too.** It is what makes NSFW rows visible in the All tab, so
-  anything moderated can still be found and un-moderated.
-- **And it gates the drawing-mode switch**, which is the one thing it does with nothing to
-  do with moderation. See `docs/drawing-modes.md`.
+- **Unset or under 16 characters and the admin API 404s entirely** — it fails closed, so
+  a deploy that forgets it is safe rather than open.
+- **The token affects reads too**: it is what makes NSFW rows visible in the All tab, and
+  it gates the drawing-mode switch (`docs/drawing-modes.md`).
 
 ## Things that will bite you
 
-- **A schema change can break the deployment you aren't looking at.** See **Rules**.
-- **`time-capsule` cannot draw a square flipbook**, and is filtered rather than fixed.
-  It has a hard-coded 640×360 project and no concept of a `viewBox`, so its gallery
-  query carries `height = 360` and leaves the new shape out. A direct link to one still
-  renders wrong over there, which is accepted: the branch exists to be the 2013 site.
-  `docs/architecture.md` has the patch.
-- **`time-capsule` still turns phones away from `/create`**, because that is what the
-  2013 code did. Someone who saved from a phone on `main` and then opens the other
-  deployment finds the create button gone. That is the branch being what it is.
-- **Every page in the page strip is a canvas the size of the drawing**, at the device
-  pixel ratio, on both layouts — so the strip lives under a memory ceiling and
-  `HIDPI_PAGE_LIMIT` drops it to 1:1 past 50 pages. iOS enforces its per-tab canvas
-  budget by *blanking* canvases rather than by failing. `docs/create-page.md`.
-- **Every trace photo taken is held until the tab closes**, in that same budget — the
-  undo stack holds steps naming its object URL, so revoking early is a ⌘Z that brings
-  back a broken image. `docs/create-page.md`.
-- **The save request is capped at ~4 MB** by Vercel, and form encoding inflates SVG, so
-  the practical ceiling is roughly a 2.5 MB drawing — about 5% of the archive. The server
-  answers 413 and the create page says so in plain words.
-- **A save compresses twice and brotli at quality 11 is the slow one.** If saving ever
-  feels slow on a large flipbook, that is where to look — `brotli()` in
-  `lib/flipbooks.js`. Dropping to 9 or 10 would be the first thing to try, not dropping
-  the column.
-- **Hovering a gallery card downloads a whole flipbook.** That is the design, and brotli
-  is what makes it reasonable — median 45 KB, worst 288 KB — but it is a real request per
-  card hovered. `docs/gallery.md`.
-- **New flipbooks are public immediately and there is no rate limiting.** Deliberate,
-  matching the original. `saveFlipbook()` in `lib/router.js` is where a throttle would go.
-- **No accounts.** Everything saves anonymously. The 2013 draft button went with them — a
-  draft you can't come back to isn't a draft.
-- **The gallery uses keyset pagination, not OFFSET.** With an infinite scroll and OFFSET,
-  one flipbook saved mid-scroll shifts every later row down and the reader sees a
-  duplicate. A tab switch aborts the fetch in flight for the same class of reason.
-- **There is no boot spinner: the Suspense fallback is the page.** `RouteShell` draws each
-  route's real header and the same placeholder that route uses, so nothing moves at the
-  handover. It lives in the **entry bundle**, which is the constraint that shapes it — it
-  may not import anything a route is lazy about, or it would be waiting on the download it
-  exists to cover. `docs/styling.md`.
-- **An unsaved drawing holds a spare history entry.** Neither the logo nor the back button
-  is a page load here, so `<Link>` goes through the router's `guardNavigation()` and back
-  is answered rather than blocked — a duplicate entry is pushed so the first press lands
-  on the same URL and can be asked about.
-- **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
-  drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard on the
-  document, and none of it should follow you to the flipbook page.
-- **Re-running the archive import does not reset `featured`.** By the second run that
-  column reflects curation done in admin mode.
-- **`_original/` is gitignored** and is the only copy of the archive seed data. Don't edit
-  it and don't let it get deleted — `docs/archive.md`.
+- `time-capsule` shows square flipbooks cropped — a card shows the middle of the drawing,
+  playback the top 56%. Nothing breaks, and it is accepted rather than fixed. Don't
+  "solve" it by filtering that branch's gallery; `docs/architecture.md` says why.
+- `time-capsule` also still turns phones away from `/create`, because the 2013 code did.
+- Every page in the strip is a canvas the size of the drawing at the device pixel ratio,
+  so the strip lives under a memory ceiling and `HIDPI_PAGE_LIMIT` drops it to 1:1 past
+  50 pages. iOS enforces its per-tab canvas budget by *blanking* canvases rather than by
+  failing. A square page is 78% more pixels than a 16:9 one and that limit was set
+  against the smaller shape. `docs/create-page.md`.
+- Every trace photo taken is held until the tab closes, in that same budget: the undo
+  stack holds steps naming its object URL, so revoking early is a ⌘Z that brings back a
+  broken image.
+- The save request is capped at ~4 MB by Vercel and form encoding inflates SVG, so the
+  practical ceiling is roughly a 2.5 MB drawing. The server answers 413.
+- A save compresses twice and brotli at quality 11 is the slow one. If saving feels slow,
+  that is where to look — `brotli()` in `lib/flipbooks.js`, and dropping to 9 or 10 is
+  the first thing to try, not dropping the column.
+- Hovering a gallery card downloads a whole flipbook. That is the design; brotli is what
+  makes it reasonable (median 45 KB, worst 288 KB). `docs/gallery.md`.
+- New flipbooks are public immediately and there is no rate limiting — deliberate, and
+  `saveFlipbook()` in `lib/router.js` is where a throttle would go.
+- No accounts, everything saves anonymously. The 2013 draft button went with them.
+- The gallery uses keyset pagination, not OFFSET: with an infinite scroll, one flipbook
+  saved mid-scroll would shift every later row down and show the reader a duplicate.
+- There is no boot spinner — the Suspense fallback is the page. `RouteShell` lives in the
+  **entry bundle**, so it may not import anything a route is lazy about, or it would be
+  waiting on the download it exists to cover. `docs/styling.md`.
+- An unsaved drawing holds a spare history entry, so `guardNavigation()` can answer the
+  back button rather than block it.
+- A successful save leaves the SPA — `window.location.href`, not `navigate()`. None of the
+  paper scene, the artwork or the unsaved-work guard should follow you to the next page.
+- Re-running the archive import does not reset `featured`; by the second run that column
+  reflects curation done in admin mode.
+- `_original/` is gitignored and is the only copy of the archive seed data. Don't edit it
+  and don't let it get deleted — `docs/archive.md`.
 
 ## Docs
 

@@ -240,8 +240,8 @@ anybody tried a magnifier.
 canvas and the outline; and the gestures are `PointerLayer`'s, kept in a section of their
 own because v11 shares none of the machinery the other ten do.
 
-- **The whole of the state is four numbers**: a rectangle on the 640×360 page, in the
-  page's own units. The outline, the magnified copy and where a finger lands in the
+- **The whole of the state is four numbers**: a rectangle on the page, in the page's own
+  units — so it needs telling which page, since there are two shapes and the bounds differ. The outline, the magnified copy and where a finger lands in the
   artwork are three readings of those four, so there is one thing to be right about rather
   than three.
 - **The trace photograph is drawn into the stage, not laid over it.** On the paper the
@@ -263,12 +263,13 @@ own because v11 shares none of the machinery the other ten do.
   canvas — the loupe's mechanism at a larger size — and a finger's position handed back
   through the same window the other way. So there is nothing here for the save path, the
   history or the page strip to know about: a gesture that arrives from down there is one
-  history step and one thumbnail, and the artwork is still 640×360 whatever is on screen.
+  history step and one thumbnail, and the artwork is still its own size whatever is on
+  screen.
   Copying is also what keeps it honest, because what you see is the live canvas: the
   stroke in progress, the onion skin and a selected stroke's blue are all in it without
   this code knowing any of them exist. **What it costs is sharpness at the far end of the
-  zoom** — the source is the paper's backing store, 640 units across at the device's pixel
-  ratio, so at 4× the copy magnifies about 2:1. On a phone that is a soft edge on a
+  zoom** — the source is the paper's backing store, 640 units across (both page shapes
+  share a width) at the device's pixel ratio, so at 4× the copy magnifies about 2:1. On a phone that is a soft edge on a
   hand-drawn line.
 - **Its size is measured, and its shape falls out of the measurement.** The stage takes
   what the column has left once the strip, the paper, the page bar and the tray have taken

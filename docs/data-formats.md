@@ -180,9 +180,11 @@ paper 0.8 wrote a bare `<svg xmlns="…">` with no viewBox, width or height on i
 0.12 writes `width="640" height="360" viewBox="0,0,640,360"`. A lifted page that carries
 neither has no intrinsic size, and an `<img>` gives a dimensionless SVG the 300×150
 default and draws the page 1:1 into it, so the card shows a corner of the drawing
-enlarged. This is the only place anything asks the file how big it is — the engine and
-the gallery's preview renderer both state 640×360 themselves — so it is the only place
-the omission shows. The window is stated rather than fitted to the ink: a stroke drawn
+enlarged. At the time this was the only place anything asked the file how big it was —
+the engine and the preview renderer both stated 640×360 themselves — so it was the only
+place the omission showed. Asking the file is now what everything does, because there are
+two page shapes; `rootAttributes` needed no change, since a file with no viewBox *is* the
+legacy page. The window is stated rather than fitted to the ink: a stroke drawn
 off the edge keeps its whole geometry, and archive pages routinely hold coordinates far
 outside the canvas, which the viewBox clips exactly as the PNG and playback do.
 
@@ -220,16 +222,20 @@ different distances from paper.js:
 
 The first two share `engine/formats.ts`, which is a pure function of a string and so
 can be read twice. `lib/gif.js` cannot use it — there is no build step shared between
-`lib/` and `src/`, which is the same reason `LEADING_SYSTEM_GROUPS` and the 640×360
-project size are already written twice — so it reads the format itself, on top of
+`lib/` and `src/`, which is the same reason `LEADING_SYSTEM_GROUPS` and the page-size
+rule are already written twice — so it reads the format itself, on top of
 `lib/thumbnail.js`'s tag scanner rather than a fourth hand-written one.
 
 What all three agree on, and what a fourth would have to: the three leading system
 groups, the three stroke vocabularies (`<path d>`, `<polyline points>`, `<line>`), the
-width falling back from the stroke to its group to 2, and the project being 640×360
-whatever the file says. **A new stroke vocabulary would have to be added in two
-places**, `formats.ts` and `lib/gif.js`, and the symptom of missing one is a flipbook
-that plays perfectly and comes out blank as a GIF.
+width falling back from the stroke to its group to 2, and **the file being the authority
+on its own size** — the root `viewBox`, and 640×360 when there isn't one. That last rule
+is written twice on purpose and the two copies have to agree byte for byte:
+`pageSizeFromSvg()` in `formats.ts` and `pageSize()` in `lib/thumbnail.js`. **A new stroke
+vocabulary would have to be added in two places**, `formats.ts` and `lib/gif.js`, and the
+symptom of missing one is a flipbook that plays perfectly and comes out blank as a GIF.
+The symptom of the two size readers disagreeing is a card of one shape holding a drawing
+of another.
 
 ## Serving a flipbook as a GIF
 

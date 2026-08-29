@@ -21,8 +21,8 @@ properties, element defaults, and two utility classes.
 
   730 is 2013's number and is the width the page strip needs. The height half is not
   an afterthought: a phone held sideways is 800 points wide and 375 tall, and a width
-  test alone hands it a 640×360 canvas and a page strip in a window that can hold
-  neither. There's a note in `base.css` saying so.
+  test alone hands it a full-size canvas and a page strip in a window that can hold
+  neither — which a square page only makes truer, being taller at the same width. There's a note in `base.css` saying so.
 - **Where a page has two layouts, the phone's is the base and the desktop's is the
   breakpoint** — the create page, the canvas. The shared files aren't, and say why: the
   tray and the page bar are near enough one layout at every width, and what their desktop

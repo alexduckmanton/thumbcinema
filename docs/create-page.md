@@ -305,8 +305,9 @@ is now true at both widths and the differences are called out where they exist.
   project units and turned into a percentage of `.book`, which is exactly the size the
   canvas is shown at. So it needs no measuring and no JavaScript scale. Two things to
   keep straight there: a percentage *height* resolves against the height of the box, and
-  this box is 16:9, so the same expression on both axes drew an ellipse nearly twice as
-  wide as it was tall (`aspect-ratio: 1` instead); and there is a 6px floor, because a
+  the box is not square, so the same expression on both axes drew an ellipse nearly twice
+  as wide as it was tall on a 16:9 page (`aspect-ratio: 1` instead — which is also what
+  keeps it a circle now that a page can be square); and there is a 6px floor, because a
   three-unit stroke on a phone is under two pixels across and a ring that small has
   stopped previewing anything and gone back to being a cursor.
 
@@ -532,8 +533,10 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
 - **The picture is sized in numbers rather than by `object-fit: contain`.** They come to
   the same rectangle, but only one of them is a rectangle anything else can be drawn
   around: `object-fit` letterboxes inside the element's box, so the box stays the frame and
-  there is nowhere to hang an outline but around the whole sheet. The frame is 16:9 at every
-  width, so the fit is two `min`s and needs nothing measured. It is `fittedSize` in
+  there is nowhere to hang an outline but around the whole sheet. The frame keeps its shape
+  at every width, so the fit is two `min`s and needs nothing measured — it takes the page's
+  shape as an argument, because there are two of those now and a photo is fitted to the
+  paper it is lying on. It is `fittedSize` in
   `engine/trace.ts` rather than an expression here, because **three things read it**: the
   picture, the dashed outline, and v11's magnified stage, which draws the same photograph
   into a canvas from the same numbers.
@@ -666,11 +669,16 @@ be respected rather than discovered.
 - **Every page in the strip is a canvas the size of the drawing**, on both layouts — the
   thumbnails are displayed smaller on a phone but they are not *drawn* smaller, because a
   page that has to stand behind the live canvas at full fidelity when you're on it can't
-  be. And "full fidelity" is the *device* pixel ratio, not 640×360: a thumbnail is a copy
-  of a canvas paper draws at 1280×720 on a retina screen and shows at exactly the same
-  size, so at 640×360 it was a soft copy of a sharp drawing, standing right beside it.
+  be. And "full fidelity" is the *device* pixel ratio, not the page size: a thumbnail is a
+  copy of a canvas paper draws at twice the size on a retina screen and shows at exactly
+  the same size, so at 1:1 it was a soft copy of a sharp drawing, standing right beside it.
   `THUMBNAIL_SCALE` in `PageStrip` is that ratio, capped at 2 — 3.6 MB a page rather than
-  0.9.
+  0.9 on a 16:9 page.
+
+  **A square page is 78% more pixels than a 16:9 one**, so the same cap costs 6.6 MB a
+  page rather than 3.6. The limit below is a page *count* and was set against the smaller
+  shape, which means it now buys correspondingly less headroom on the newer one. Worth
+  re-measuring on a long square flipbook before trusting the old number.
 - **Which is why the strip has a page limit, and it is the memory that sets it.** Four
   times the backing store is fine for a flipbook you drew by hand and is not fine for a
   200-page archive one, which the drawing tool could not open until Remix and now can:

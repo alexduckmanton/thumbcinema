@@ -65,28 +65,28 @@ behaviour worked.
 
 `time-capsule` draws into a hard-coded 640×360 paper project and has no concept of a
 `viewBox`. Since 2026 this branch also saves 640×640 flipbooks, and there is no additive
-change that teaches a frozen front end about a second page shape: a square flipbook shown
-over there is drawn into a 16:9 project, and comes out with its bottom third missing.
+change that teaches a frozen front end about a second page shape.
 
-The schema half is fine — `width`/`height` are additive with a `DEFAULT` that is the
-right answer for every row that predates them, and `time-capsule`'s own `createFlipbook()`
-doesn't mention them, so its saves land at 640×360, which is genuinely what they are.
+The schema half is fine. `width`/`height` are additive with a `DEFAULT` that is the right
+answer for every row that predates them, and `time-capsule`'s `createFlipbook()` doesn't
+mention them, so its saves land at 640×360 — which is genuinely what they are. Nothing
+about the data is wrong in either direction.
 
-The rendering half is handled by **leaving square flipbooks out of that deployment**, and
-it is a change to `time-capsule`'s own copy of `lib/flipbooks.js` rather than anything
-here — the two branches each carry their own API. Its gallery query gains a filter for
-what it can actually draw, guarded so it still works before the migration:
+**The rendering half is left alone deliberately.** A square flipbook over there is
+cropped, not broken:
 
-```js
-// In time-capsule's listFlipbooks(), inside the same queryColumnAware callback that
-// builds the WHERE clause. Reading a column this branch never writes is allowed; only
-// migrations are forbidden here. See CLAUDE.md.
-if (has('height')) where.push('height = 360');
-```
+- **Its card** shows the middle of the drawing. The 2013 tiles are fixed sizes painted
+  with `background-size: cover`, so a 640×640 PNG fills the width and overflows the
+  height.
+- **Playing it** shows the top 56%. `flip/canvas.js` is a 640×360 element and
+  `flip/data.js` does `importSVG` per page, so coordinates below y=360 are simply
+  outside the viewport.
 
-A direct link to a square flipbook still renders wrong on that deployment. That is
-accepted rather than solved: the branch exists to be the 2013 site, and the 2013 site
-did not have square flipbooks in it.
+Nothing throws, nothing 404s, no image breaks. Filtering those rows out of that
+deployment's gallery was considered and rejected: it would mean editing the branch whose
+entire job is to be frozen, and it would break the property that sharing one database
+exists to provide — a flipbook saved in either version appears in both. A cropped card on
+a reference exhibit is the cheaper of the two.
 
 ## Why one function
 

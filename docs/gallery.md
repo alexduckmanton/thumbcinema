@@ -283,7 +283,7 @@ grid, and a long press on the card gets Safari's own menu back.
   `thumbnail_svg` is the cover page lifted out of the artwork and stored on its own,
   brotli'd; `/api/flipbooks/:id/thumbnail.svg` serves it. On a real row it is 718 bytes
   against that flipbook's 10,060-byte PNG, it is sharp at whatever size the card is
-  rather than resampled from a fixed 640×360 grid, and across a grid of 24 it is the
+  rather than resampled from the PNG's fixed pixel grid, and across a grid of 24 it is the
   difference between roughly 480 KB and 70 KB. See `lib/thumbnail.js` for how a page is
   taken out, and **Data** below for why the PNG is still written on every save.
 
