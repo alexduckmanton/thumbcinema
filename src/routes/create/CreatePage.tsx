@@ -43,6 +43,31 @@ import { useCrashRecovery } from './useCrashRecovery'
 
 type Phase = 'drawing' | 'naming' | 'sending'
 
+/**
+ * Whether the horizontal page bar is on the page. **It is off, and this is a decision that
+ * has not been made yet.**
+ *
+ * The bar is `PageNav` — two arrows, a scrubber and a play button in one white pill under
+ * the drawing — and it is switched off while the scrolling column is being lived with,
+ * because the column does most of what it did. Scrolling is the scrub; the arrows are the
+ * arrow keys; and what is left over is the two things the column genuinely cannot do,
+ * which is why this is a hold rather than a deletion:
+ *
+ *  - **Play.** The bar's handle is the only play button this page has, so with the bar off
+ *    there is no way to watch the flipbook without saving it. Nothing else on the page
+ *    offers it and there is no keyboard shortcut for it either.
+ *  - **Saying where you are.** The handle is the one thing that shows how far through a
+ *    forty-page flipbook you are, and it is the only thing that moves while one *plays*.
+ *
+ * So: keep it, put play in the panel and let the column do the scrubbing, or bring the bar
+ * back. **Decide before this work is finished**, and when the answer is "gone", the whole
+ * of what goes with it is this constant, `PageNav.tsx`, `PageNav.module.css`,
+ * `PageNav.test.tsx`, `.navBand` and `--nav-size` in this page's stylesheet, and the band
+ * in `RouteShell`. The stylesheet's `display: none` is the other half of this switch and
+ * has to be taken off with it.
+ */
+const PAGE_BAR: boolean = false
+
 export function CreatePage() {
 	const { engine, state, canvasRef } = useFlipbookEngine({ mode: 'create', isTouch })
 	const [phase, setPhase] = useState<Phase>('drawing')
@@ -281,6 +306,21 @@ export function CreatePage() {
 			 * `flex: 1` and nothing here ever has to know how tall the header is.
 			 */}
 			<main className={contentClass} ref={field}>
+				{/*
+				 * The two edges the flipbook runs off, softened.
+				 *
+				 * The column is the whole window now, so pages pass under the wordmark and
+				 * under the aiming pad rather than being cropped against them. These are what
+				 * stops that reading as content escaping: a wash of the page's own grey, mostly
+				 * opaque where the header and the pad are and fading to nothing where they end,
+				 * so a page arriving at either edge dissolves instead of being cut off.
+				 *
+				 * `pointer-events: none` on both — they lie over the scroller, and a scrim that
+				 * took the wheel would be two dead bands across a page you scroll.
+				 */}
+				<div className={`${styles.scrim} ${styles.scrimTop}`} aria-hidden="true" />
+				<div className={`${styles.scrim} ${styles.scrimBottom}`} aria-hidden="true" />
+
 				{engine && state ? (
 					<ToolPanel
 						engine={engine}
@@ -308,7 +348,6 @@ export function CreatePage() {
 								pages={state.pages}
 								activePage={state.activePage}
 								playing={state.playback !== 'none'}
-								arriving={state.arriving}
 								// A page animation, and not the other thing `busy` covers: carrying a
 								// page has the scroller easing to the gesture's own timing, and the
 								// two would be arguing about the same scroll position.
@@ -501,9 +540,12 @@ export function CreatePage() {
 					    control on this page that did not turn with the flipbook. It says where
 					    you are in the *whole* book, which is a length rather than a direction,
 					    and a bar standing on end beside a column of pages would be a second
-					    scrollbar for the thing already scrolling next to it. */}
+					    scrollbar for the thing already scrolling next to it.
+
+					    Switched off for now, and the decision is still open: see `PAGE_BAR`,
+					    which is also where what it takes with it is written down. */}
 					<div className={styles.navBand}>
-						{engine && state && phase === 'drawing' ? (
+						{PAGE_BAR && engine && state && phase === 'drawing' ? (
 							<PageNav
 								engine={engine}
 								// Where the page would land while one is being carried, rather than

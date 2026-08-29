@@ -49,7 +49,7 @@
 	 */
 	--book-width: min(100%, var(--book-max), calc((100dvh - var(--book-reserve)) * 16 / 9));
 	--book-max: 100vw;
-	--book-reserve: 268px;
+	--book-reserve: 200px;
 
 	/*
 	 * How wide the rail is, stated here rather than in the panel's own stylesheet
@@ -144,7 +144,15 @@
  * and a bar measured against a wider box than the drawing was would be a bar that grew
  * as the window did while the paper stood still.
  */
+/*
+ * **Switched off, and the decision is still open.** See `PAGE_BAR` in `CreatePage.tsx`,
+ * which is the other half of this switch and says what taking it out for good would mean —
+ * play has nowhere else to live. Taking the bar off is `display: none` here and the
+ * constant there, and they have to move together: the height below is what the stage is
+ * sized around, and the boot shell reserves the same box.
+ */
 .navBand {
+	display: none;
 	flex-shrink: 0;
 	/* The bar, the 8px it holds itself off the paper by, and the air under it. */
 	height: calc(var(--nav-size) + 8px + var(--nav-air));
@@ -219,7 +227,7 @@
  */
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.content {
-		--book-reserve: 300px;
+		--book-reserve: 236px;
 		/* A tile and 8px either side. Every pixel the rail takes is a pixel off the
 		   drawing, and at this width the drawing is as wide as the stage will give it. */
 		--panel-width: 56px;
@@ -252,7 +260,7 @@
  */
 @media screen and (max-height: 560px) {
 	.content {
-		--book-reserve: 212px;
+		--book-reserve: 160px;
 	}
 
 	/* 56px of pad rather than a third of the screen, and it costs it nothing that matters:
@@ -282,7 +290,7 @@
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
 		--book-max: 640px;
-		--book-reserve: 280px;
+		--book-reserve: 212px;
 	}
 }
 
@@ -462,5 +470,85 @@
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.shellPad {
 		display: none;
+	}
+}
+
+/*
+ * The two edges the flipbook runs off, softened.
+ *
+ * The page strip is fixed to the whole window, so the column carries on past the top and
+ * bottom of what you are working in rather than stopping against them. Left alone that
+ * reads as content escaping the page; these are what turn it into content *going* somewhere
+ * — a wash of the page's own grey, mostly opaque over the header and the aiming pad and
+ * fading to nothing where they end.
+ *
+ * The colour is `--page` written out rather than `var()`'d, because a gradient needs the
+ * same colour at two different alphas and `transparent` interpolates through transparent
+ * *black* in some engines, which greys the fade. Both stops are stated.
+ *
+ * Under the drawing (15), the panel (30) and the header (100), and over the pages (9). It
+ * has to be under the paper as well as over the pages: on a short window the sheet reaches
+ * into both bands, and a scrim across the drawing would be a wash over the thing you are
+ * drawing on.
+ */
+.scrim {
+	position: fixed;
+	right: 0;
+	left: 0;
+	z-index: 12;
+	pointer-events: none;
+}
+
+/*
+ * The top: as tall as the header, and the wordmark sits in the opaque half of it.
+ *
+ * Stated rather than measured, for the reason the panel's width is: this is furniture that
+ * does not move, and a scrim that measured its way into position would be a band that
+ * appears one frame after the page does. 0.92 rather than 1 because the point is to see
+ * that the flipbook carries on up there — a solid bar would be the crop this replaces,
+ * drawn in a different colour.
+ */
+.scrimTop {
+	top: 0;
+	height: 132px;
+	background: linear-gradient(
+		to bottom,
+		rgba(241, 241, 241, 0.92) 0,
+		rgba(241, 241, 241, 0.92) 56%,
+		rgba(241, 241, 241, 0) 100%
+	);
+}
+
+/*
+ * The bottom: the aiming pad's band, and on a desktop just the last inch of the window.
+ *
+ * The pad paints its own semi-opaque grey over this, so what the scrim does down there is
+ * the fade above it rather than the wash under it.
+ */
+.scrimBottom {
+	bottom: 0;
+	height: 108px;
+	background: linear-gradient(
+		to top,
+		rgba(241, 241, 241, 0.92) 0,
+		rgba(241, 241, 241, 0.92) 40%,
+		rgba(241, 241, 241, 0) 100%
+	);
+}
+
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
+	.scrimTop {
+		height: 104px;
+	}
+
+	.scrimBottom {
+		/* The pad and the air under it, plus enough again to fade over. */
+		height: calc(var(--pad-height) + var(--pad-air) + 56px);
+	}
+}
+
+@media screen and (max-height: 560px) {
+	.scrimTop {
+		height: 84px;
 	}
 }

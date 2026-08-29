@@ -277,13 +277,16 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   including the page strip. Pinch and double-tap zoom are still refused; the surfaces that
   must not pan (the canvas, the page handle, the page bar, the aiming pad) each say
   `touch-action: none` for themselves, which is the direction that works.
-- **The page strip is a real scroll container, and the scroll position is the page
-  number.** `scroll-snap-type: y mandatory` with the drawing laid over the middle of it;
-  scrolling calls `goToPage`, and a page turned any other way scrolls. Anything that wants
-  to move the flipbook goes through `goToPage` rather than through `scrollTop` — a
-  scroll this file drives is deliberately not answered by its own handler, so setting the
-  position directly lands on the right slot with the flipbook still on the page it
-  started on. That is a bug this has already had once.
+- **The page strip is a real scroll container, it is the whole window, and the scroll
+  position is the page number.** `scroll-snap-type: y mandatory` with the drawing laid over
+  it and the column running on under the header and the aiming pad; scrolling calls
+  `goToPage`, and a page turned any other way scrolls. Two rules keep that from being a
+  loop. Anything that wants to move the flipbook goes through `goToPage` rather than through
+  `scrollTop` — a scroll this file drives is deliberately not answered by its own handler,
+  so setting the position directly lands on the right slot with the flipbook still on the
+  page it started on. And a page change the *scroll itself* named is never answered with a
+  scroll: `reported` in `PageStrip`, without which the component takes a flick's momentum
+  away at every page it crosses. Both are bugs this has already had.
 - **Every trace photo taken is held until the tab closes**, in that same budget — the
   undo stack holds steps naming its object URL, so revoking early is a ⌘Z that brings
   back a broken image. `docs/create-page.md`.

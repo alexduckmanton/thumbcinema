@@ -12,8 +12,6 @@ export interface PageStripProps {
 	pages: PageState[]
 	activePage: number
 	playing: boolean
-	/** True while a page is still on its way into the canvas's slot. */
-	arriving: boolean
 	/**
 	 * True for the length of a page animation, and what makes the column travel with it.
 	 *
@@ -94,7 +92,6 @@ export function PageStrip({
 	pages,
 	activePage,
 	playing,
-	arriving,
 	throwing,
 	canvasRef,
 	reorder = null,
@@ -102,19 +99,31 @@ export function PageStrip({
 }: PageStripProps) {
 	const scroller = useRef<HTMLDivElement | null>(null)
 	const firstPage = useRef<HTMLDivElement | null>(null)
-	const [metrics, setMetrics] = useState({ offset: 0, width: CANVAS_WIDTH, gutter: 0, view: 0 })
+	const [metrics, setMetrics] = useState({
+		offset: 0,
+		left: 0,
+		width: CANVAS_WIDTH,
+		gutter: 0,
+		view: 0,
+	})
 	const scale = useThumbnailScale(engine, pages.length)
 
 	/*
-	 * Four numbers, all read off what the browser actually laid out.
+	 * Five numbers, all read off what the browser actually laid out.
 	 *
-	 * `offset` is where the top of the live canvas sits relative to the top of this
-	 * scroller, and `width` is how wide the canvas is — the thumbnails are copies of the
-	 * drawing and have to be exactly the size of it to stand behind it. `gutter` is the
-	 * page's own padding, taken from the stylesheet rather than agreed with it, so the
-	 * gap between pages can differ by layout without this file knowing that layouts
-	 * exist. `view` is the height of the scrollport, which is what the padding at the
-	 * two ends is measured against.
+	 * `offset` and `left` are where the top-left corner of the live canvas sits relative
+	 * to this scroller, and `width` is how wide the canvas is — the thumbnails are copies
+	 * of the drawing and have to be exactly the size of it, in exactly the same place, to
+	 * stand behind it. Both axes are measured now that the scroller is the whole window:
+	 * it used to be the stage, which the drawing was centred in, so `margin: 0 auto` on a
+	 * page put it in the right place for free. The window is not centred on the drawing —
+	 * there is a rail down one side of it — so the horizontal offset has to be measured
+	 * exactly as the vertical one always was.
+	 *
+	 * `gutter` is the page's own padding, taken from the stylesheet rather than agreed
+	 * with it, so the gap between pages can differ by layout without this file knowing
+	 * that layouts exist. `view` is the height of the scrollport, which is what the
+	 * padding at the two ends is measured against.
 	 */
 	const measure = useCallback(() => {
 		const canvas = canvasRef.current
@@ -123,8 +132,11 @@ export function PageStrip({
 		if (!canvas || !box || !page) return
 
 		const gutter = Number.parseFloat(getComputedStyle(page).paddingTop) || 0
+		const paper = canvas.getBoundingClientRect()
+		const scroll = box.getBoundingClientRect()
 		const next = {
-			offset: canvas.getBoundingClientRect().top - box.getBoundingClientRect().top,
+			offset: paper.top - scroll.top,
+			left: paper.left - scroll.left,
 			width: canvas.offsetWidth,
 			gutter,
 			view: box.clientHeight,
@@ -135,6 +147,7 @@ export function PageStrip({
 		// still re-renders a list that is one canvas per page.
 		setMetrics((current) =>
 			current.offset === next.offset &&
+			current.left === next.left &&
 			current.width === next.width &&
 			current.gutter === next.gutter &&
 			current.view === next.view
@@ -177,11 +190,17 @@ export function PageStrip({
 	 * What lets the first and last pages reach the middle.
 	 *
 	 * A snap container can only scroll between 0 and its overflow, so without air at the
-	 * two ends page one can never be centred — it would sit at the top of the window with
-	 * the drawing somewhere below it. The top pad is where the canvas is, less the page's
-	 * own gutter, which is exactly the arithmetic the row's `left` used to be: it makes
-	 * `scrollTop === index * step` the position at which page `index` stands under the
-	 * drawing, whether or not the drawing is in the middle of the scrollport.
+	 * two ends page one can never reach the drawing — it would sit at the top of the window
+	 * with the drawing somewhere below it. The top pad is where the canvas is, less the
+	 * page's own gutter, which is exactly the arithmetic the row's `left` used to be: it
+	 * makes `scrollTop === index * step` the position at which page `index` stands under
+	 * the drawing, whether or not the drawing is anywhere near the middle of the window.
+	 *
+	 * The same number is handed to the scroller as `scroll-padding-top`, which is what
+	 * makes those the *snap* positions too: `scroll-snap-align: start` puts a page's top
+	 * edge on the snapport's, and the padding is where the snapport starts. Without it the
+	 * browser snapped to its own idea of the middle and the thumbnails stood 55px out of
+	 * line with the sheet on top of them.
 	 */
 	const padTop = Math.max(0, metrics.offset - metrics.gutter)
 	const padBottom = Math.max(0, metrics.view - step - padTop)
@@ -222,6 +241,26 @@ export function PageStrip({
 	const animation = useRef<number | null>(null)
 
 	/**
+	 * The page the *scroll* last reported, and the reason a finger on the flipbook is
+	 * never fought for the scroll position.
+	 *
+	 * The two directions below are a loop, and closing it needs more than "is the scroller
+	 * already there". A scroll crossing the halfway line between two slots turns the page;
+	 * turning the page changes `anchor`; and the effect that answers `anchor` then found
+	 * the scroller *mid-gesture*, several pixels short of the slot it had just named, and
+	 * dutifully set `scrollTop` to close the gap. That is a hand's momentum being taken
+	 * away at the exact moment it crosses each page — which is precisely the "sudden" a
+	 * mandatory snap is not supposed to feel like, and it was there on every page of every
+	 * flick.
+	 *
+	 * So a page change this file was *told about by the scroll* is remembered and not
+	 * answered. Anything else still is: an arrow key, the wheel over the drawing, a page
+	 * added or deleted, a reorder settling. Cleared the moment one of those drives the
+	 * scroller, so the guard can never outlive the scroll that set it.
+	 */
+	const reported = useRef<number | null>(null)
+
+	/**
 	 * Puts page `index` under the drawing, over `duration` and on `easing`.
 	 *
 	 * Instant is the ordinary case and is not an animation at all: turning a page is a
@@ -248,6 +287,7 @@ export function PageStrip({
 			const from = box.scrollTop
 			if (Math.abs(to - from) < 1) return
 
+			reported.current = null
 			driving.current = true
 
 			if (duration <= 0 || prefersReducedMotion()) {
@@ -294,11 +334,11 @@ export function PageStrip({
 	 * The flipbook telling the scroller where it is — the other direction from the one
 	 * below, and the reason both of them check before they act.
 	 *
-	 * A page turned by the page bar, an arrow key, playback stopping, a page added or
-	 * deleted or carried somewhere else: all of them change `anchor`, and none of them
-	 * has scrolled anything. `scrollToPage` returns without doing anything when the
-	 * scroller is already there, which is what makes this a no-op after a scroll that
-	 * turned the page itself rather than a second movement chasing the first.
+	 * An arrow key, the wheel over the drawing, playback stopping, a page added or deleted
+	 * or carried somewhere else: all of them change `anchor`, and none of them has
+	 * scrolled anything. What is *not* answered here is a page the scroll itself turned —
+	 * see `reported`, which is the difference between a snap that feels like a snap and
+	 * one that feels like the page being taken off you.
 	 *
 	 * The duration is which of the three movements this is. A run under a held page
 	 * glides linearly for exactly as long as the gap until the next page — steps that
@@ -308,6 +348,10 @@ export function PageStrip({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `step` is read through `latest` inside `scrollToPage`, but a change of it moves every slot, so it has to re-run.
 	useEffect(() => {
 		if (playing) return
+
+		// The page the scroll itself just named. Answering it would be this file setting
+		// `scrollTop` in the middle of somebody's flick; see `reported`.
+		if (reported.current === anchor) return
 
 		const duration = reorder?.settling
 			? SETTLE_MS
@@ -346,7 +390,13 @@ export function PageStrip({
 			if (latest.current.playing || pitch <= 0 || count === 0) return
 
 			const index = Math.max(0, Math.min(count - 1, Math.round(box.scrollTop / pitch)))
-			if (index !== current) live.goToPage(index)
+			if (index === current) return
+
+			// Named before the page turns, so the effect that answers `anchor` has it by the
+			// time React gets there. This is the whole of what stops a scroll being answered
+			// with a scroll.
+			reported.current = index
+			live.goToPage(index)
 		}
 
 		box.addEventListener('scroll', onScroll, { passive: true })
@@ -424,10 +474,6 @@ export function PageStrip({
 		return () => canvas.removeEventListener('wheel', onWheel)
 	}, [canvasRef])
 
-	// Which thumbnail the canvas is standing in front of, and so which one to hide.
-	// Nothing, while a page is still travelling into that slot.
-	const covered = arriving ? -1 : activePage
-
 	return (
 		<div
 			className={[
@@ -440,6 +486,9 @@ export function PageStrip({
 				.join(' ')}
 			ref={scroller}
 			aria-hidden="true"
+			// Where a snapped page's top edge lands, which is where the drawing's is. The
+			// rail's own padding is the same number: see `padTop`.
+			style={{ scrollPaddingTop: `${padTop}px` }}
 		>
 			<div
 				className={styles.rail}
@@ -447,6 +496,9 @@ export function PageStrip({
 					{
 						paddingTop: `${padTop}px`,
 						paddingBottom: `${padBottom}px`,
+						// The drawing's own left edge, because the scroller is the window and the
+						// window is not centred on the drawing. See `measure`.
+						paddingLeft: `${metrics.left}px`,
 						// Only ever set while a page is in hand, which is what keeps the frame
 						// that hands the flipbook back from animating: the class and the
 						// transforms go in the same render, and a rule that isn't there can't
@@ -472,7 +524,7 @@ export function PageStrip({
 					<div
 						key={page.id}
 						ref={index === 0 ? firstPage : null}
-						className={index === covered ? `${styles.page} ${styles.covered}` : styles.page}
+						className={styles.page}
 						// How far out of its own slot this page has to stand to leave room for
 						// the one being carried. Zero, and unset, the rest of the time.
 						style={{ '--shift': `${shiftFor?.(index) ?? 0}px` } as React.CSSProperties}

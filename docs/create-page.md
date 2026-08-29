@@ -19,8 +19,8 @@ What it is now, at both widths:
 - **The flipbook is a column you scroll**, with the drawing pinned over the middle of it.
   Scrolling is the browser's; `scroll-snap-type: y mandatory` is what makes the drawing
   cut from page to page rather than slide about.
-- **The page bar stays horizontal**, under the drawing, because it says how far through a
-  length you are and not which direction anything is going.
+- **The page bar is switched off**, and whether it comes back is an open decision — see
+  `PAGE_BAR` in `CreatePage.tsx`, which is where what it takes with it is written down.
 
 ## The panel
 
@@ -115,24 +115,47 @@ What it is now, at both widths:
   column free to grow past the window, a `flex: 1` child of a container with no definite
   height simply takes its content's height instead, and the panel's rail then has all the
   room it wants and puts Save off the bottom of the screen.
-- **The page strip is a real scroll container.** The pages are a column inside it, each
-  one a snap point; the live canvas is laid *over* the middle of it rather than inside it,
-  because a canvas inside the scroller would scroll away with the pages. What that buys is
-  the browser's own scrolling — momentum, rubber-banding, a trackpad that behaves like a
-  trackpad — and what it costs is that the engine no longer owns where the strip stands.
-  The two directions are `PageStrip`'s two effects: a scroll turns the page, and a page
-  turned any other way scrolls.
+- **The page strip is a real scroll container, and it is the whole window.** The pages are
+  a column inside it, each one a snap point; the live canvas is laid *over* the middle of it
+  rather than inside it, because a canvas inside the scroller would scroll away with the
+  pages. What that buys is the browser's own scrolling — momentum, rubber-banding, a
+  trackpad that behaves like a trackpad — and what it costs is that the engine no longer
+  owns where the strip stands. The two directions are `PageStrip`'s two effects: a scroll
+  turns the page, and a page turned any other way scrolls.
+
+  **It is fixed to the viewport rather than inset to the stage**, so the column runs on
+  under the wordmark and under v14's aiming pad instead of being cropped against them. That
+  costs one measurement: the drawing is not in the middle of the window — there is a rail
+  down one side — so the column's left edge is measured exactly as its top always was.
+- **Nothing sets the scroll position while you are scrolling, and getting that wrong is
+  what made the snap feel sudden.** The two directions are a loop, and closing it needs
+  more than "is the scroller already there": a scroll crossing the halfway line turns the
+  page, turning the page changes `anchor`, and the effect that answers `anchor` then found
+  the scroller *mid-gesture* — several pixels short of the slot it had just named — and set
+  `scrollTop` to close the gap. That is a hand's momentum being taken away at the moment it
+  crosses each page, on every page of every flick. `reported` is the fix: a page change the
+  scroll itself named is remembered and not answered. Everything else still is — an arrow
+  key, the wheel over the drawing, a page added or deleted, a reorder settling. Measured
+  after: one flick travels six pages with no reversal in the scroll trace and lands exactly
+  on a snap point.
 - **`round`, and nothing waits for the scroll to end.** Whichever slot is nearest the
   middle is the page being drawn on, so the drawing cuts from page to page while the
   column slides rather than following it. Waiting for a `scrollend` is what would make the
   canvas appear to come loose: it would go on showing the page you left while the column
   carried a different thumbnail under it.
-- **The padding at the two ends is what lets page one reach the middle.** A snap container
-  scrolls between 0 and its overflow, so without air above the first page it can never be
-  centred. The top pad is where the canvas actually is, less the page's own gutter —
+- **The padding at the two ends is what lets page one reach the drawing.** A snap container
+  scrolls between 0 and its overflow, so without air above the first page it can never get
+  there. The top pad is where the canvas actually is, less the page's own gutter —
   measured, exactly as the row's `left` used to be — which makes `scrollTop === index *
-  step` the position at which page `index` stands under the drawing, whether or not the
-  drawing is in the middle of the scrollport.
+  step` the position at which page `index` stands under the drawing.
+- **`scroll-snap-align: start`, with a matching `scroll-padding-top`.** It was `center`,
+  which was right while the scroller was the stage: the drawing is centred in the stage, so
+  the middle of the scrollport and the middle of the paper were the same line. Once the
+  scroller became the window they stopped being — there is a header above the drawing — and
+  `center` snapped every page to the window's midpoint, leaving the thumbnails 55px out of
+  line with the sheet standing on them. `start` says where a page's top edge goes and the
+  padding says where that is, which is a thing this file measures rather than a thing that
+  happens to be true.
 - **No `scroll-snap-stop: always`.** It was on for a while and it is the wrong answer for
   this list: it holds every flick to a single page, and a flipbook is fifty pages as often
   as it is five. Momentum carries as far as it was thrown and the snap catches whichever
@@ -165,6 +188,16 @@ What it is now, at both widths:
   the page strip could be scrolled by a wheel and not by a finger, whatever the drawing
   mode did about the gestures. Pinch and double-tap zoom are still refused; the canvas, the
   page handle, the page bar and the aiming pad each say `none` for themselves.
+- **The two edges the flipbook runs off are scrims, not crops.** A full-bleed column that
+  simply stopped at the top and bottom of the window would read as content escaping the
+  page. `.scrimTop` and `.scrimBottom` are fixed washes of the page's own grey — mostly
+  opaque where the header and the aiming pad are, fading to nothing where they end — so a
+  page arriving at either edge dissolves instead of being cut off. `pointer-events: none`
+  on both, or they would be two dead bands across a page you scroll; `z-index: 12`, which is
+  over the pages and under the paper, because on a short window the sheet reaches into both
+  bands and a wash over the drawing would be a wash over the thing you are drawing on. The
+  colour is written out at two alphas rather than fading to `transparent`, which
+  interpolates through transparent *black* in some engines and greys the fade.
 - **v14's aiming pad is the third box in the column**, under the page bar, at the bottom of
   the screen. A panel a shade darker than the page with a 10px grid of dots on it: a
   trackpad, drawn as one, because what it needed to stop being was a rule you cannot see.
@@ -172,7 +205,9 @@ What it is now, at both widths:
   handed down as a custom property rather than reached for with a `.body > [data-aim-pad]`
   selector — where the pad lines up is this page's business, how it is drawn is the pad's.
   It is hidden above the phone breakpoint, where a mouse has a precise pointer and none of
-  what it answers is a problem.
+  what it answers is a problem. It is **not quite opaque** — 0.88 — because the flipbook
+  runs underneath it now: the pages read as something carrying on rather than as a picture
+  competing with the dots.
 - **The two animated scrolls are run by hand, with the snapping switched off.** A page
   thrown into the next slot and a flipbook closing up round a carried page are movements
   the column has to travel *with* — the same distance, the same time, the same curve — and
@@ -182,6 +217,24 @@ What it is now, at both widths:
   resnaps after every scroll it is given, and without that the browser and the component
   would be fighting over the same number forty times a second. Everything else is instant,
   because turning a page is a cut.
+- **Every thumbnail is visible, including the one the drawing is standing on.** It used to
+  be hidden — `opacity: 0` on the covered page — so the column read as one flipbook rather
+  than as a filmstrip with a hole punched in it. That was true while the strip was
+  positioned by arithmetic and only ever stood still. It is not true of a column you
+  scroll: the hole moves with the scroll, so a page you are dragging past *vanishes* as it
+  reaches the middle and comes back as it leaves — the most conspicuous thing on the screen
+  at exactly the moment you are looking at something else. Visible, they simply pass behind
+  the drawing, which is opaque and is the only sheet carrying a shadow. Nothing is lost: the
+  thumbnail under the drawing is a pixel-exact copy of it, which is what made hiding it
+  invisible in the first place. `arriving` is no longer the strip's business at all.
+- **Only the drawing has a shadow, and the gutter went back up to 10px because of it.**
+  Every page used to carry `--shadow-card`, on the reasoning that the strip is the same
+  flipbook seen again and should be lit the same way. In a column that reads as a stack of
+  separate sheets each lifted off the page, with nothing distinguishing the one you are
+  drawing on. The shadow is the drawing's alone now: one sheet above the rest, the rest
+  lying flat under it. The gutter was 4px on a phone because the peek was paid for out of
+  the paper — which stopped being true when the column became the whole window — and with
+  no shadow to separate two white pages, 10px is the difference between two sheets and one.
 - **Playback hides the pages with `visibility`, not `display`.** Taking the column out of
   the layout takes the scroll height with it, and the scroll position with that — so a
   flipbook played from page forty came back to page one.
@@ -405,6 +458,15 @@ What it is now, at both widths:
   hold of with a finger or a tab key. Playback passes `!ready` rather than `state.loading`:
   a long flipbook goes on landing for a while after it starts playing, and by then the bar
   is telling the truth about the pages it has.
+- **The page bar is switched off, and the decision is open.** `PAGE_BAR` in
+  `CreatePage.tsx` is one half of the switch and `display: none` on `.navBand` is the other;
+  they have to move together, because the band's height is what the stage is sized around
+  and the boot shell reserves the same box. What is on hold is written out there in full,
+  and the short version is that the column does most of what the bar did — scrolling is the
+  scrub, the arrows are the arrow keys — and cannot do two things: **play**, the bar's
+  handle being the only play button this page has and there being no keyboard shortcut for
+  it either, and **saying how far through you are**, which is also the only thing that moves
+  while a flipbook plays. The rest of this bullet is what it was when it was on:
 - **The page bar is on the desktop layout too, and its width is the formula everywhere.**
   It was hidden above the breakpoint on the grounds that up there you can click straight
   onto a page thumbnail. You can, and it is still the fastest way to a particular page —

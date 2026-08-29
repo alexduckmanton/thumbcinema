@@ -19,11 +19,25 @@
  */
 
 .scroller {
-	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	left: 0;
+	/*
+	 * The whole window, not the stage.
+	 *
+	 * It was inset to the stage, which cropped the column hard against the header above it
+	 * and the aiming pad below — a flipbook that stopped at an invisible line rather than
+	 * one that carries on past the edges of what you are working in. Fixed to the viewport,
+	 * the pages run under the wordmark and under the pad, and those two say so by being
+	 * partly see-through with a gradient under them. See `.scrim` on the create page.
+	 *
+	 * It costs one measurement: the drawing is no longer in the middle of this box — there
+	 * is a rail down one side of the window — so the column's left edge is measured rather
+	 * than centred. See `measure`.
+	 *
+	 * Under everything: the pages carry `z-index: 9`, the drawing 15, the panel 30 and the
+	 * header 100, so the flipbook slides beneath all three and the scroller's own box
+	 * (which paints nothing) never takes a press from any of them.
+	 */
+	position: fixed;
+	inset: 0;
 	overflow: hidden auto;
 
 	/*
@@ -77,6 +91,9 @@
 .rail {
 	display: flex;
 	flex-direction: column;
+	/* Not centred: the pages are placed by the padding the component measures, because the
+	   window this scrolls in is not centred on the drawing. */
+	align-items: flex-start;
 }
 
 /*
@@ -88,10 +105,17 @@
  * and the component reads it back off this box, so the two agree without either one
  * repeating the other's number.
  *
- * `scroll-snap-align: center` puts the *page box* on the middle of the scrollport,
- * gutters included — which centres the thumbnail inside it, because the gutters are
- * equal. The component's padding is what makes that reachable for the first and last
- * pages; see `padTop`.
+ * `scroll-snap-align: start`, with the scroller carrying a `scroll-padding-top` of
+ * exactly the rail's own top padding — which makes the snap positions `index * step`,
+ * precisely the number every other piece of arithmetic in this file assumes.
+ *
+ * It was `center`, which was right while the scroller was the stage: the drawing is
+ * centred in the stage, so the middle of the scrollport and the middle of the paper were
+ * the same line. The scroller is the whole window now and the drawing is *not* in the
+ * middle of it — there is a header above it — so `center` snapped every page to the
+ * window's midpoint and left the thumbnails 55px out of line with the sheet standing on
+ * them. `start` says where the top of a page goes and the padding says where that is,
+ * which is a thing this file can measure rather than a thing that happens to be true.
  *
  * And deliberately no `scroll-snap-stop: always`, which would hold every flick to a
  * single page. It was on here for a while and it is the wrong answer for this list: a
@@ -106,8 +130,7 @@
 	flex-shrink: 0;
 	width: var(--page-width);
 	padding: var(--page-gutter) 0;
-	margin: 0 auto;
-	scroll-snap-align: center;
+	scroll-snap-align: start;
 	line-height: 0;
 
 	--page-gutter: 10px;
@@ -120,31 +143,34 @@
 	height: auto;
 	background: var(--white);
 	cursor: pointer;
-	opacity: 1;
 	/*
-	 * The flipbook's own corners and shadow, not a page's.
+	 * The flipbook's corners, and deliberately none of its shadow.
 	 *
-	 * These carried `--shadow-page` — wide, offset straight down, no blur — which is
-	 * 2013's "a sheet lying on the one behind it", and square corners with it. But a
-	 * thumbnail here is a full-size copy of the drawing standing directly behind the
-	 * drawing, and the two being lit differently is what made the strip read as a
-	 * separate object sliding under the canvas. Same radius and same shadow as the
-	 * gallery card and the canvas: one flipbook, seen three times.
+	 * Every page used to carry `--shadow-card`, the drawing's own, on the reasoning that
+	 * the strip is the same flipbook seen again and should be lit the same way. In a
+	 * column that reads as a stack of separate sheets, each lifted off the page — and the
+	 * one being drawn on has nothing to distinguish it, because it is lit exactly like the
+	 * eleven behind it. The shadow is now the *drawing's* alone: one sheet standing above
+	 * the rest, and the rest lying flat underneath it. It is also what a page turn is now
+	 * made of, the thumbnails being permanently visible.
 	 */
 	border-radius: var(--radius-card);
-	box-shadow: var(--shadow-card);
 }
 
 /*
- * The one the live canvas is standing in front of.
+ * Every thumbnail is visible, including the one the drawing is standing on.
  *
- * Not necessarily the active page: while a page is sliding into that slot it is already
- * the active one but hasn't arrived, and hiding it early is the difference between it
- * sliding over and appearing to teleport.
+ * It used to be hidden — `opacity: 0` on the covered page — so that the column read as one
+ * flipbook rather than as a filmstrip with a hole punched in it. That was true while the
+ * strip was positioned by arithmetic and only ever stood still. It is not true of a column
+ * you scroll: the hole moves with the scroll, so a page you are dragging past *vanishes*
+ * as it reaches the middle and comes back as it leaves, which is the most conspicuous
+ * thing on the screen at exactly the moment you are looking at something else.
+ *
+ * Visible, they simply pass behind the drawing, which is opaque white and the only sheet
+ * on the page carrying a shadow. Nothing is lost: the thumbnail underneath the drawing is
+ * a pixel-exact copy of it, which is what made hiding it invisible in the first place.
  */
-.covered canvas {
-	opacity: 0;
-}
 
 /*
  * Playback hides the pages and stops the scrolling.
@@ -210,18 +236,15 @@
 }
 
 /*
- * On a phone the gutter closes up.
+ * The gutter used to close up to 4px on a phone, and it doesn't any more.
  *
- * The drawing takes nearly the whole window, so what there is to see the neighbouring
- * pages through is whatever the stage has left above and below it. 4px leaves the next
- * page showing past the edge of the drawing, which is enough to say the flipbook carries
- * on in both directions — and, now that this is the scroll surface, to say that it is one.
+ * It was 4 because the peek was paid for out of the drawing: the strip was cropped to the
+ * stage, so every pixel of gap was a pixel the paper didn't get. The column is the whole
+ * window now — it runs on under the header and under the aiming pad — so there is no
+ * longer anything to buy the gap from, and 10px is the difference between two sheets and
+ * one. That matters more than it did: the thumbnails have no shadow of their own, so the
+ * gap is the only thing separating one white page from the next.
  */
-@media screen and (max-width: 730px), screen and (max-height: 560px) {
-	.page {
-		--page-gutter: 4px;
-	}
-}
 
 /* The gap still opens and the flipbook still closes up round the page — there is no
    reading the gesture without them — but neither is eased. `usePageReorder` hands the

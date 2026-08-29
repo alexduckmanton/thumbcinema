@@ -10,9 +10,23 @@
  * says it is by being a different material — a shade darker than the page it sits on, with
  * a dotted texture that nothing else on the site has. A trackpad, in other words, which is
  * exactly what it is.
+ *
+ * **Not quite opaque**, because the flipbook runs underneath it. The page strip is the
+ * whole window now, so the column passes behind this rather than being cropped against it,
+ * and at 0.88 the pages are visible through the pad as a suggestion of something carrying
+ * on rather than as a picture competing with the dots. The create page's `.scrimBottom`
+ * does the fade above it.
  */
 
 .pad {
+	position: relative;
+	/*
+	 * Over the flipbook, which now runs underneath it: the pages carry `z-index: 9` and
+	 * the drawing 15, so 14 puts the pad above the column and still below the sheet — on a
+	 * short window the two overlap, and a pad drawn over the drawing would be a wash across
+	 * the thing you are aiming at.
+	 */
+	z-index: 14;
 	flex-shrink: 0;
 	/* The page's inset, handed down rather than stated here: the pad lines up with the
 	   paper and the page bar above it, and where that line is is the page's business. */
@@ -34,7 +48,7 @@
 	 * is between `--page` and `--line`, so the pad is plainly a different surface from the
 	 * page without becoming a dark rectangle across the bottom of a drawing tool.
 	 */
-	background-color: #e7e7e7;
+	background-color: rgba(231, 231, 231, 0.88);
 	background-image: radial-gradient(circle at 1px 1px, #c8c8c8 1.5px, transparent 1.5px);
 	background-size: 10px 10px;
 
