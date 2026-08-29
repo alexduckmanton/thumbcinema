@@ -4,6 +4,7 @@ import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
 import { useToolLayout } from '../../components/toolLayout'
 import { DrawModeSwitch } from '../../flipbook/components/DrawModeSwitch'
+import { AimPad } from '../../flipbook/components/AimPad'
 import { InkCursor } from '../../flipbook/components/InkCursor'
 import { ZoomStage, ZoomWindow } from '../../flipbook/components/ZoomStage'
 import { PageHandle } from '../../flipbook/components/PageHandle'
@@ -13,7 +14,13 @@ import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveFor
 import { ToolPanel } from '../../flipbook/components/ToolPanel'
 import type { FlipbookEngine } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
-import { isZoomStageMode, stageOnPaper, startingZoom, useDrawMode } from '../../flipbook/drawModes'
+import {
+	isZoomStageMode,
+	stageOnPaper,
+	startingZoom,
+	useDrawMode,
+	usesAimPad,
+} from '../../flipbook/drawModes'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
 import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
@@ -287,7 +294,6 @@ export function CreatePage() {
 							enabled: phase === 'drawing' && !camera.busy,
 							onPress: pressTrace,
 						}}
-						save={{ enabled: pages > 1, onPress: () => setPhase('naming') }}
 					/>
 				) : null}
 
@@ -464,6 +470,31 @@ export function CreatePage() {
 								) : null}
 							</div>
 						</div>
+
+						{/*
+						 * Save, floating in the bottom right-hand corner of the drawing.
+						 *
+						 * Inside the stage rather than pinned to the window, and that is what
+						 * keeps it clear of the two boxes below: the page bar spans the drawing's
+						 * width and v14's aiming pad spans the rest, and a button in the window's
+						 * own corner sat on top of the pad. The stage is the one box on this page
+						 * whose corner nothing else wants.
+						 *
+						 * It spent a version inside the panel, pinned to the end of the rail. Two
+						 * things were wrong with that: it was the only thing in a list of 40px
+						 * tiles that was not one, and the rail is a list of things you do *to* the
+						 * drawing, which the press that ends the drawing is not.
+						 */}
+						<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
+							<button
+								type="button"
+								className={styles.saveButton}
+								onClick={() => setPhase('naming')}
+								disabled={pages < 2}
+							>
+								<span className={styles.saveLabel}>Save</span>
+							</button>
+						</div>
 					</div>
 
 					{/* The page bar, still horizontal and still under the drawing — the one
@@ -494,6 +525,13 @@ export function CreatePage() {
 							/>
 						) : null}
 					</div>
+
+					{/* v14's aiming pad, under the page bar and at the bottom of the screen.
+					    Rendered only in the mode that has one, and hidden by its own stylesheet
+					    above the phone breakpoint — a mouse has a precise pointer and none of
+					    what it answers is a problem it has. It is the *only* place a finger
+					    aims from in v14, which is what leaves the flipbook free to scroll. */}
+					{usesAimPad(drawMode) && phase === 'drawing' ? <AimPad /> : null}
 
 					{/* And v11's second canvas, in whatever the body has left. It is rendered on
 					    every layout and hides itself where there is no room, because "is there a

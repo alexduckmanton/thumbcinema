@@ -14,6 +14,7 @@ import {
 	isZoomStageMode,
 	stageOnPaper,
 	TRAIL_DISTANCE,
+	usesAimPad,
 } from './drawModes'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from './engine/constants'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
@@ -439,11 +440,25 @@ export class PointerLayer {
 		const element = stageElement()
 		if (element?.contains(target)) return 'stage'
 
-		// v13's aiming band, which is everywhere the stage and the page's own controls have
-		// not already claimed — the white under the tools, and the air either side of the
-		// column. Asked before the paper, because in v13 the stage covers the paper and
-		// there is no `book` surface left for anything to land on anyway.
-		if (aimsOffStage(this.mode)) return 'field'
+		/*
+		 * The aiming surface, asked before the paper — in these modes the stage covers the
+		 * paper and there is no `book` surface left for anything to land on anyway.
+		 *
+		 * v13's is everywhere the stage and the page's own controls have not already
+		 * claimed: the white under the tools, and the air either side of the column. v14's
+		 * is a box that says so, and everything outside it belongs to whatever is under it
+		 * — which since the flipbook became a column you scroll is the whole reason v14
+		 * exists. `usesAimPad` has the longer version.
+		 *
+		 * A `closest` rather than a registry, because this is a hit test and nothing else:
+		 * the pad is rendered by a component this layer doesn't own and may not exist at
+		 * all, and an attribute answers "did this touch land in it" without either of them
+		 * having to know about the other.
+		 */
+		if (aimsOffStage(this.mode)) {
+			if (!usesAimPad(this.mode)) return 'field'
+			return target.closest(AIM_PAD) ? 'field' : null
+		}
 
 		// v12 has no overview: its stage stands in the paper's place and covers it, so
 		// nothing on the paper is anybody's but the stage's. Said outright rather than left
@@ -2044,6 +2059,15 @@ export class PointerLayer {
  * to bubble, propagation and default included. See `TraceLayer`.
  */
 const CONTROLS = 'button, a, input, select, textarea, [role="slider"], [data-owns-touch]'
+
+/**
+ * v14's aiming pad, which is the only part of the page a finger aims from in that mode.
+ *
+ * An attribute rather than a class or a registry: the pad is rendered by a component this
+ * layer doesn't own, may not be on the page at all, and has nothing else to say to it. A
+ * hit test is the whole of the relationship. See `usesAimPad`.
+ */
+const AIM_PAD = '[data-aim-pad]'
 
 /**
  * What counts as a tap of a finger on the glass: a press that goes nowhere, quickly.

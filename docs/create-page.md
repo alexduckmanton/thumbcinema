@@ -13,8 +13,9 @@ phone. Three groups of controls in three places, none of which could see each ot
 
 What it is now, at both widths:
 
-- **Every control is in one panel** — down the left on a desktop, along the bottom on a
-  phone — and every one of them is a 40×40 tile wearing a single Pecita glyph.
+- **Every control is in one rail down the left**, and every one of them is a 40×40 tile
+  wearing a single Pecita glyph. Save is not among them: it floats over the drawing in the
+  corner, as it always has.
 - **The flipbook is a column you scroll**, with the drawing pinned over the middle of it.
   Scrolling is the browser's; `scroll-snap-type: y mandatory` is what makes the drawing
   cut from page to page rather than slide about.
@@ -23,12 +24,20 @@ What it is now, at both widths:
 
 ## The panel
 
+- **It is a rail at every width, and it lay down into a bar along the bottom for exactly
+  one version.** Two things were wrong with the bar. Twelve 40px tiles cannot fit across a
+  360px screen, so it had to scroll sideways — and a list that runs off the right-hand edge
+  is a list nobody knows is there, where a column that runs past the bottom of a phone is
+  one people scroll without being told to. And the flipbook is a column: a rail beside it
+  shares its axis, where a bar under it cut across the one direction everything else on the
+  page moves in. On a phone it is 56px — a tile and 8px either side — against the desktop's
+  72, because there the drawing is as wide as the stage will give it and every pixel of
+  rail is a pixel off the paper.
 - **Every button is 40×40, and wears a character rather than a picture.** The glyphs are
   Pecita's, which is the wordmark's face and was already carrying ↺ ↻ ↥ ↧ for undo, redo,
   copy and paste — so the tools joining them is one family at one size rather than
-  drawings of objects beside arrows. In order: ✎ draw, ⌫ erase, ✜ transform (with ✥ move
-  and ✍ push indented under it while it is in hand); ✚ new page, ⊡ duplicate, ✕ delete;
-  ↺ ↻ ↥ ↧; ⊙ the camera; and Save.
+  drawings of objects beside arrows. In order: ✎ draw, ⌫ erase, ✥ move/scale/rotate, ✍
+  push; ✚ new page, ⊡ duplicate, ✕ delete; ↺ ↻ ↥ ↧; ⊙ the camera.
 - **The glyphs are chosen against the font rather than from the usual set.** Pecita has no
   scissors, no pair of overlapping sheets and — checked, this one matters — no play
   triangle, so anything leaning on those would fall through to a system fallback and stop
@@ -46,28 +55,49 @@ What it is now, at both widths:
   out of the row, which is the one piece of that idea a tile in a rail cannot borrow —
   there is nowhere to slide to. So a lit tile is dark with a white glyph, which is what
   the camera disc already did for exactly this reason.
-- **The transform tool's two modes are two buttons, shown only while it is in hand.** They
-  were a fan of spokes behind the tool's picture and are ordinary tiles now, indented
-  under the tool they belong to — the same rule the fan had, said with layout instead of
-  with art. Not disabled-but-present: a rail is a list you read down, and two permanently
-  dim buttons in the middle of it read as two controls that are broken rather than as one
-  tool's settings. Which of them is a *switch* and which is the tool in hand is unchanged
-  and is in `ToolPanel`; the touch handling that makes a tap work while another finger is
-  on the page is unchanged too, and is the whole of `useToolTouch` and `useFanTouch`.
-- **Save keeps its word and its yellow, and is outside the scrolling list.** The panel is
-  two boxes: a rail that may run off the end of itself, and one button that never does.
-  `.rail`'s `flex: 1` is what puts Save at the far end of either layout. It was
-  `position: sticky` first, which is not an answer — sticky is measured against the
-  nearest scrolling ancestor, the panel does not scroll, and a sticky offset there binds
-  to nothing. Out of the list, it needs no offset at all.
-- **The rail scrolls, and on a phone that is the price of the design.** Twelve 40px tiles
-  do not fit across a 360px phone and never will, so the bar runs off the end of itself
-  and you scroll it — with Save always at the right-hand end. On a desktop the same thing
-  happens vertically in a short window: below about 640px of height the camera goes under
-  the fold and Save stays pinned to the bottom.
+- **There are four tools, not three, and transform's two modes are two of them.** They
+  were a fan of spokes behind one hand-drawn picture, then two tiles indented under one
+  tile — and both made you open a thing before you could reach either half of it. They
+  stand in the row with the pencil and the eraser now: ✥ moves, scales and rotates, ✍
+  pushes the line about, and pressing either picks transform up *in that mode*. What it
+  costs is one row of rail; what it buys is that every tool this page has is one press
+  away, and that the panel has no control whose only job is to reveal other controls.
+
+  **It needs `selectTransform`, and could not be done with the two calls it looks like.**
+  `selectTool` resets `transformIndex` to 0 as part of picking a tool up, so setting the
+  mode first has it thrown away; `setTransformMode` refuses unless transform is already in
+  hand, so setting it first does nothing at all. Pressing "push" landed on "move" either
+  way round. It also has to be atomic for the *held* press, because
+  `PointerLayer.engagePress` picks the tool up itself when the press names one that isn't
+  in hand — which would reset the mode a third time.
+- **The rail scrolls, and on a phone that is most of the time.** Twelve tiles and their
+  separators are about 590px, so a phone held upright has room for all of them and one held
+  sideways has room for four. On a desktop it binds below about 640px of window height.
+  Nothing that scrolls out of view is unreachable another way: the tools have keys, and
+  Save is not in the list at all.
+- **The tiles' shadows needed room, and that took a negative margin.** `overflow: hidden
+  auto` clips the *other* axis outright — that is what `hidden` means, and there is no
+  combination of values that scrolls one axis and lets the other overflow visibly — so
+  every tile had the left and right of its shadow sliced off flush with the panel, which
+  read as the buttons being cut out of the page rather than lying on it. The fix is room
+  rather than a different overflow: 8px of padding inside the scroller, and the same
+  negative margin outside it so the layout is unchanged.
 - **The camera is at both widths now.** It was the trace photo's front door and existed
   only on a phone, because the desktop layout had nowhere to put it. There is somewhere
   now, and a file picker is a camera on a machine that hasn't got one.
+- **Save is not in the panel. It floats over the drawing, in the corner it always has.**
+  It spent one version pinned to the bottom of the rail, which was wrong twice: it was the
+  only thing in a list of 40px tiles that was not one, so the rail had an exception in it
+  at exactly the place a list should be most predictable; and the rail is a list of things
+  you do *to* the drawing, which the one press that ends the drawing is not. It is the
+  gallery's create button seen from the other end — same yellow, same rounding, same
+  shades, those being tokens — at 48px rather than 64, because this one shares a page with
+  twelve other controls.
+
+  **Positioned against the stage rather than against the window**, which is what keeps it
+  clear of the two boxes under it: the page bar takes the drawing's width and v14's aiming
+  pad takes a band below that, and a button in the window's own corner landed on the pad.
+
 - **The panel is in the flow, not pinned to the window.** That is what lets it move from
   one edge to the other with an `order` and nothing else, and what means the stage beside
   it is the room that is *left* rather than the whole window with a strip of it covered
@@ -121,6 +151,28 @@ What it is now, at both widths:
   overlay the drawing sits in is `pointer-events: none` with the sheet putting them back,
   so the exposed column stays a place you can take hold of the flipbook. On a desktop that
   is most of the stage.
+
+  **That took a new drawing mode to be true at all**, and it is the one thing this layout
+  broke that was not a layout problem. The shipping mode was v13, which reads every touch
+  that is not on the paper or on a control as an *aiming* drag — free while the rest of the
+  page was empty white, and not free once the pages were the rest of the page. Under v13
+  the flipbook cannot be scrolled by a finger: v13 wins every one of those drags. v14 is
+  v13 with the aiming moved into a panel of its own, and the two are otherwise identical.
+  See [`drawing-modes.md`](drawing-modes.md).
+
+  **`html.locked` had to give `pan-y` back**, too. It said `touch-action: none`, which is
+  the intersection down the ancestor chain and cannot be handed back by a descendant — so
+  the page strip could be scrolled by a wheel and not by a finger, whatever the drawing
+  mode did about the gestures. Pinch and double-tap zoom are still refused; the canvas, the
+  page handle, the page bar and the aiming pad each say `none` for themselves.
+- **v14's aiming pad is the third box in the column**, under the page bar, at the bottom of
+  the screen. A panel a shade darker than the page with a 10px grid of dots on it: a
+  trackpad, drawn as one, because what it needed to stop being was a rule you cannot see.
+  It is inset to the same gutter as the paper and the bar above it, and that inset is
+  handed down as a custom property rather than reached for with a `.body > [data-aim-pad]`
+  selector — where the pad lines up is this page's business, how it is drawn is the pad's.
+  It is hidden above the phone breakpoint, where a mouse has a precise pointer and none of
+  what it answers is a problem.
 - **The two animated scrolls are run by hand, with the snapping switched off.** A page
   thrown into the next slot and a flipbook closing up round a carried page are movements
   the column has to travel *with* — the same distance, the same time, the same curve — and

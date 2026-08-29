@@ -456,12 +456,35 @@ export class FlipbookEngine {
 	}
 
 	/**
+	 * Transform in one of its two modes, picked up and set in one go.
+	 *
+	 * What the panel's two transform tools call, and it exists because doing it in two
+	 * calls cannot work: `selectTool` resets `transformIndex` to 0 as part of picking a
+	 * tool up, so setting the mode first has it thrown away, and `setTransformMode`
+	 * refuses unless transform is already in hand, so setting it first does nothing at
+	 * all. Pressing "push the line about" therefore landed on move, both ways round.
+	 *
+	 * It also has to be atomic for the *held* press: `PointerLayer.engagePress` picks the
+	 * tool up itself if the press names one that isn't in hand, which would reset the mode
+	 * a third time. With both done before the press is reported, transform is already in
+	 * hand in the right mode and there is nothing left for it to change.
+	 *
+	 * The guard is `selectTool`'s own failure path: a tool that refuses `init()` falls
+	 * back to the pencil, and a transform mode set on a pencil is a lie the panel would
+	 * then light a button for.
+	 */
+	selectTransform(index: 0 | 1): void {
+		this.selectTool('transform')
+		if (this.store.snapshot.tool !== 'transform') return
+		this.setTransformMode(index)
+	}
+
+	/**
 	 * Transform or push, asked for directly.
 	 *
-	 * One of the two halves of the fan being tapped, or `v` pressed a second time. It
-	 * only answers while transform is the tool in hand — the arrows are the tool's own
-	 * picture of itself and mean nothing when it is put down, so they are `disabled`
-	 * there and this refuses for the same reason.
+	 * `v` pressed a second time, and `selectTransform` above once the tool is in hand. It
+	 * only answers while transform *is* in hand: a mode is the tool's own state and means
+	 * nothing when it is put down.
 	 */
 	setTransformMode(index: 0 | 1): void {
 		if (this.store.snapshot.tool !== 'transform') return

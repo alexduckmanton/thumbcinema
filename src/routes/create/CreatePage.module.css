@@ -1,10 +1,10 @@
 /*
- * The create page's layout: the panel, the stage, and the page bar.
+ * The create page's layout: the rail, the stage, the page bar, and v14's aiming pad.
  *
- * One arrangement at every width, turned through ninety degrees at the breakpoint. The
- * panel is a column down the left on a desktop and a bar along the bottom on a phone;
- * everything else is the same box in the same place, because everything else is the
- * flipbook.
+ * One arrangement at every width — a rail down the left and the flipbook beside it —
+ * with nothing turning at the breakpoint but the numbers. The panel lay down into a bar
+ * along the bottom on a phone at first; standing it up put it on the same axis as the
+ * column of pages it is used on, and gave its overflow somewhere people can find.
  *
  * What this replaces is 2013's column — strip, canvas, page bar, tools, save, stacked
  * down the middle — and the several places the controls had ended up living in it: the
@@ -17,6 +17,7 @@
 .content {
 	position: relative;
 	display: flex;
+	flex-direction: row;
 	width: 100%;
 	min-height: 0;
 
@@ -155,6 +156,25 @@
 }
 
 /*
+ * What v14's aiming pad is inset by, handed down rather than reached into.
+ *
+ * The pad is the third box in this column and lines up with the two above it, so the
+ * three read as one stack rather than as a panel that happens to be underneath something.
+ * Where that inset comes from is this page's business — it is the same gutter the paper
+ * and the page bar take — and how the pad is drawn is the pad's, so the number crosses as
+ * a custom property. A `.body > [data-aim-pad]` selector would have done it in one line
+ * and is exactly the cross-module reach the rest of the tree avoids.
+ */
+.body {
+	--pad-inset: 20px;
+	--pad-air: 12px;
+	/* Comfortably a thumb's travel, and never so much of a short screen that the drawing
+	   pays for it. About a third of the way up a phone from the bottom edge, which is
+	   where a thumb pivots from. */
+	--pad-height: clamp(88px, 17dvh, 132px);
+}
+
+/*
  * The height is stated rather than taken from what is in the band, and there are two
  * reasons, both of which are about the box being the same whatever is standing in it.
  *
@@ -199,12 +219,10 @@
  */
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.content {
-		flex-direction: column;
 		--book-reserve: 300px;
-	}
-
-	.body {
-		order: 0;
+		/* A tile and 8px either side. Every pixel the rail takes is a pixel off the
+		   drawing, and at this width the drawing is as wide as the stage will give it. */
+		--panel-width: 56px;
 	}
 
 	.paper,
@@ -214,6 +232,11 @@
 
 	.navBand {
 		--nav-air: 8px;
+	}
+
+	.body {
+		--pad-inset: 16px;
+		--pad-air: calc(8px + env(safe-area-inset-bottom));
 	}
 }
 
@@ -230,6 +253,14 @@
 @media screen and (max-height: 560px) {
 	.content {
 		--book-reserve: 212px;
+	}
+
+	/* 56px of pad rather than a third of the screen, and it costs it nothing that matters:
+	   what a trackpad needs is area and travel, and held sideways this one is 750px wide.
+	   The gesture is a delta rather than a position, so a wide short pad aims exactly as a
+	   tall narrow one does. */
+	.body {
+		--pad-height: 56px;
 	}
 
 	/* The bar goes on a diet here too — `PageNav`'s `--scrub-size` is 36 in a window this
@@ -250,7 +281,6 @@
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
-		flex-direction: row;
 		--book-max: 640px;
 		--book-reserve: 280px;
 	}
@@ -271,11 +301,166 @@
 	width: var(--panel-width);
 }
 
+/*
+ * Save, floating in the bottom right-hand corner of the stage.
+ *
+ * It is the gallery's create button seen from the other end — the two are the ends of one
+ * errand, one starts a flipbook and the other finishes it — so it is the same yellow at
+ * the same rounding with the same shades, which are tokens and cannot drift. Not the same
+ * component: that one collapses to a circle on scroll and is a link.
+ *
+ * Positioned against the stage rather than against the window, which is what keeps it off
+ * the two boxes below it: the page bar takes the drawing's width and v14's aiming pad
+ * takes a band under that, and a button in the window's own corner landed on the pad.
+ */
+.save {
+	position: absolute;
+	right: var(--stage-gutter);
+	bottom: 16px;
+	z-index: 40;
+	transition: opacity 0.4s ease-in, transform 0.4s ease-in;
+
+	/* The stage's own inset, so the button lines up with the end of the page bar under
+	   it and with the edge of the paper above. */
+	--stage-gutter: 20px;
+}
+
+/* One page isn't a flipbook. The button stays in the layout so nothing jumps when the
+   second page arrives — it just isn't offering anything yet. */
+.noSave {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* Naming the flipbook: it leaves the way the panel does, off its own edge. */
+.naming .save {
+	transform: translateX(140%);
+	opacity: 0;
+	/* Gone as far as a press is concerned the moment it starts leaving, rather than after
+	   the 0.4s: it is transparent all the way out, and a transparent button held over the
+	   page is a dead patch of it. */
+	pointer-events: none;
+}
+
+.saveButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	/* 48 rather than the create button's 64. That one is the only thing you can do on a
+	   page of flipbooks; this one is in the corner of a tool with twelve other controls
+	   in it, and at 64 it was the loudest thing on the page. */
+	min-width: 48px;
+	height: 48px;
+	padding: 0 26px;
+
+	border: none;
+	border-radius: var(--radius-pill);
+	background: var(--yellow);
+	color: var(--ink-strong);
+	cursor: pointer;
+
+	/*
+	 * Deeper than the cards' shadow, which is the create button's reasoning exactly: it
+	 * floats over the flipbook and has to read as nearer than the thing it is covering.
+	 */
+	box-shadow: rgba(0, 0, 0, 0.22) 0 4px 14px;
+
+	/*
+	 * Pecita, as on the wordmark — this is the button that turns the drawing into
+	 * something with a name, so it is signed in the same hand. 30px against the panel's
+	 * 24px glyphs because Pecita runs small: it is a handwriting face with a shallow
+	 * x-height, and set at a UI size it reads as a caption rather than a label.
+	 */
+	font-family: 'Pecita', cursive;
+	font-size: 30px;
+	line-height: 1;
+
+	transition: background 0.12s ease-out, transform 0.12s ease-out;
+}
+
+/*
+ * Pecita does not centre itself, which is the same reason the create button nudges its
+ * writing-hand glyph.
+ *
+ * Flexbox centres the text's *box*, and the browser sizes that from the font's own
+ * metrics — at 30px Pecita reports an ascent of 20 and a descent of 10, so the box centre
+ * sits 5px above the baseline. The ink of the word doesn't: "Save" has no descender, so
+ * it runs 16.5px up from the baseline and 0 below, putting its centre 8.25px above. The
+ * letters therefore sit 3.25px high in a box that is itself centred. Inter, for
+ * comparison, is out by 0.13px and needs nothing. 3px of that back, measured rather than
+ * guessed. The correction is a property of the face, not of the button, so it doesn't
+ * move if the height does.
+ */
+.saveLabel {
+	position: relative;
+	top: 3px;
+}
+
+.saveButton:not(:disabled):hover {
+	background: var(--yellow-hover);
+	transform: translateY(-1px);
+}
+
+.saveButton:not(:disabled):active {
+	background: var(--yellow-active);
+	transform: translateY(0) scale(0.96);
+}
+
+.saveButton:focus-visible {
+	outline: 2px solid var(--ink-strong);
+	outline-offset: 3px;
+}
+
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
-	.shellPanel {
-		order: 1;
-		/* The bar's height: a tile, its padding, and the home indicator under it. */
-		width: auto;
-		height: calc(56px + env(safe-area-inset-bottom));
+	.save {
+		bottom: 12px;
+		--stage-gutter: 16px;
+	}
+
+	/* The page bar's height, so the two sit on one line across the bottom of the window
+	   rather than one over the other. */
+	.saveButton {
+		height: 40px;
+		padding: 0 20px;
+		font-size: 26px;
+	}
+
+	.saveLabel {
+		top: 2px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.save,
+	.saveButton {
+		transition: none;
+	}
+}
+
+/*
+ * The aiming pad's space, in the boot shell: an empty box exactly the shape of the pad.
+ *
+ * The same job `.shellPanel` does, and the same reason. The stage is `flex: 1` of what the
+ * boxes under it leave, so a shell missing the pad has a stage a pad taller than the
+ * page's and puts the sheet of paper in a different place — which is the one thing the
+ * shell exists to prevent. `AimPad` is inside the route's chunk and `RouteShell` is in the
+ * entry bundle, so the height is declared here, on a stylesheet the shell already reads,
+ * and the pad takes it from the same place.
+ *
+ * Drawn as nothing rather than as a grey panel: the pad is a surface you use, and one that
+ * appeared before there was anything to use it on would be a control that is up early
+ * rather than a page that is loading. It also cannot know whether the mode that has a pad
+ * is the one switched on — that is `localStorage` and admin-only — so it reserves the
+ * space the default needs and paints none of it.
+ */
+.shellPad {
+	flex-shrink: 0;
+	height: var(--pad-height);
+	margin-bottom: var(--pad-air);
+}
+
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.shellPad {
+		display: none;
 	}
 }

@@ -1,11 +1,16 @@
 /*
- * The create page's controls, all of them, in one panel.
+ * The create page's controls, all of them, in one panel: a rail down the left-hand side,
+ * at every width.
  *
- * Down the left on a desktop and along the bottom on a phone, and the same list in the
- * same order either way: what marks the page, what changes the page, what undoes it,
- * what it is traced from, and what finishes it. The panel is written for the rail and
- * turned on its side at the phone breakpoint, rather than the other way round, because
- * the rail is the layout with an order to read.
+ * It lay down into a bar along the bottom on a phone for a while, and that was worse in
+ * two ways. A row of twelve tiles cannot fit across a 360px screen, so it had to scroll
+ * sideways — and a list that runs off the right-hand edge is a list nobody knows is
+ * there, where a column that runs past the bottom of the screen is one you scroll without
+ * being told to. And the flipbook is a column: a rail beside it shares its axis, where a
+ * bar under it cut across the one direction everything else on the page moves in.
+ *
+ * The order is what marks the page, what changes the page, what undoes it, and what it is
+ * traced from. Save is not in it — see the create page's stylesheet, which floats it.
  *
  * Every button is 40×40. That number is the whole reason the hand-drawn tool art could
  * not come across — a pencil is a 304px picture anchored by its tip — and it is what
@@ -18,19 +23,32 @@
 	z-index: 30;
 	display: flex;
 	flex-shrink: 0;
+	flex-direction: column;
+	align-items: center;
+	width: var(--panel-width);
+	padding: var(--pad) 0 calc(var(--pad) + 8px);
+	transition: transform 0.4s ease-in, opacity 0.4s ease-in;
 
 	/*
-	 * In the flow rather than pinned to the window, which is what lets it move from one
-	 * edge to the other with an `order` and nothing else — and what means the stage beside
-	 * it is exactly the room that is left, rather than the whole window with a strip of it
-	 * covered over. It is why the panel can fly away without the drawing jumping across to
-	 * fill the gap: the space stays, only the panel leaves.
+	 * In the flow rather than pinned to the window, which means the stage beside it is
+	 * exactly the room that is left rather than the whole window with a strip of it
+	 * covered over — and is why the panel can fly away when the save form goes up without
+	 * the drawing jumping across to fill the gap: the space stays, only the panel leaves.
 	 */
 
-	/* One number, and everything here is drawn off it. */
+	/* One number, and everything here is drawn off it. `--panel-width` is the create
+	   page's, because the boot shell has to reserve the same space before this stylesheet
+	   has been downloaded. */
 	--tile: 40px;
 	--pad: 12px;
 	--gap: 6px;
+}
+
+/* Off the left-hand edge, which is the direction this page's controls leave in. */
+.stowed {
+	transform: translateX(-100%);
+	opacity: 0;
+	pointer-events: none;
 }
 
 /*
@@ -50,9 +68,30 @@
 	min-height: 0;
 	flex: 1;
 	flex-direction: column;
+	align-items: center;
 	gap: var(--gap);
-	overflow: hidden auto;
 	scrollbar-width: none;
+
+	/*
+	 * The scroll, and the room a shadow needs to be inside it.
+	 *
+	 * `overflow: hidden auto` clips the *other* axis outright — that is what `hidden`
+	 * means, and there is no combination of values that scrolls one axis and lets the
+	 * other overflow visibly. So every tile in the rail had the left and right of its
+	 * shadow sliced off flush with the panel, which read as the buttons being cut out of
+	 * the page rather than lying on it.
+	 *
+	 * The fix is room rather than a different overflow: the padding is wider than the
+	 * shadow's blur and offset, and the negative margin gives that width back to the
+	 * layout so the rail is still the width of a tile plus the panel's own padding. The
+	 * top and bottom get the same treatment for the same reason — a tile against either
+	 * end of a scrolled list would otherwise lose the shadow on that side.
+	 */
+	padding: var(--bleed);
+	margin: calc(var(--bleed) * -1);
+	overflow: hidden auto;
+
+	--bleed: 8px;
 }
 
 .rail::-webkit-scrollbar {
@@ -78,23 +117,6 @@
 .group:first-child {
 	padding-top: 0;
 	border-top: none;
-}
-
-/*
- * The transform tool's two modes, indented under the tool they belong to.
- *
- * They are only in the document while transform is the tool in hand — see `ToolPanel` —
- * so this never has to say anything about being empty. The indent is what makes them
- * read as belonging to the button above rather than as two more tools: it is the one
- * place in the rail where something is not on the centre line.
- */
-.modes {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: var(--gap);
-	padding-left: 14px;
-	align-self: stretch;
 }
 
 /*
@@ -191,196 +213,28 @@
 }
 
 /*
- * Save, held against the end of the panel wherever the list happens to finish.
+ * A phone: the same rail, narrower.
  *
- * **Outside `.rail`, which is the whole of how it stays visible.** The rail is the
- * scrolling list and this is its sibling, so the panel is two boxes — a list that may run
- * off the end of itself, and one button that never does. `.rail`'s `flex: 1` is what puts
- * this at the far end of either layout: it takes all the room going and leaves this
- * standing at the bottom of the column, or at the right-hand end of the bar.
+ * 56 rather than 72 — a tile and 8px either side — because the drawing is as wide as the
+ * stage will give it and every pixel the rail takes is a pixel off the flipbook. On a
+ * 390px screen that leaves 334 of paper against the 358 the page had before there was a
+ * rail at this width at all, which is 7% and is what one place for every control costs.
  *
- * Not `position: sticky`, which was the first answer and is not one: sticky is measured
- * against the nearest scrolling ancestor, and the panel does not scroll — the list inside
- * it does. A sticky offset here binds to nothing. It has to be *out* of the list, which
- * it now is, and then it needs no offset at all.
- */
-.saveSlot {
-	display: flex;
-	flex-shrink: 0;
-	justify-content: center;
-	padding-top: var(--gap);
-}
-
-/* One page isn't a flipbook. The button stays in the layout so nothing jumps when the
-   second page arrives — it just isn't offering anything yet. */
-.noSave {
-	opacity: 0;
-	pointer-events: none;
-}
-
-/*
- * Matched to the create button on the gallery: the two are the ends of the same errand,
- * one starts a flipbook and the other finishes it, so they are the same yellow at the
- * same rounding with the same shades — which are tokens, so they can't drift.
- *
- * The word rather than a glyph, and it is the one control here that keeps one. Pecita
- * has no mark that means "save" — no floppy disc, no downward tray — and inventing one
- * out of an arrow would put the most consequential press on the page behind the least
- * legible character in the panel. It also earns the exception: everything above it is a
- * thing you do to the drawing, and this is the thing you do to the flipbook.
- */
-.saveButton {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: calc(var(--tile) + 16px);
-	height: var(--tile);
-	padding: 0;
-
-	border: none;
-	border-radius: var(--radius-pill);
-	background: var(--yellow);
-	color: var(--ink-strong);
-	cursor: pointer;
-
-	/* 22px against the glyphs' 24 because this is four letters rather than one mark, and
-	   Pecita runs small: at the tiles' size the word overran the pill it sits in. */
-	font-family: 'Pecita', cursive;
-	font-size: 22px;
-	line-height: 1;
-
-	transition: background 0.12s ease-out, transform 0.12s ease-out;
-}
-
-/*
- * Pecita does not centre itself.
- *
- * Flexbox centres the text's *box*, and the browser sizes that from the font's own
- * metrics — so the box centre sits above the baseline while the ink of a word with no
- * descender does not. "Save" therefore rides high in a box that is itself centred. The
- * correction is a property of the face rather than of the button, so it doesn't move
- * if the height does. 2px here against the old button's 3, in proportion to the size.
- */
-.saveLabel {
-	position: relative;
-	top: 2px;
-}
-
-.saveButton:not(:disabled):hover {
-	background: var(--yellow-hover);
-}
-
-.saveButton:not(:disabled):active {
-	background: var(--yellow-active);
-	transform: scale(0.96);
-}
-
-.saveButton:focus-visible {
-	outline: 2px solid var(--ink-strong);
-	outline-offset: 3px;
-}
-
-/*
- * A phone: the rail lies down along the bottom of the window.
- *
- * The same buttons in the same order, read left to right instead of top to bottom, and
- * the row scrolls sideways where the column scrolled down. Twelve 40px tiles do not fit
- * across a 360px phone and never will, so what makes the list usable is the same thing
- * that makes the page strip usable: you can see that it carries on, and Save never
- * leaves — see `.saveSlot` below, which is stuck to the right-hand end.
- *
- * `env(safe-area-inset-bottom)` so the bar clears the home indicator rather than sitting
- * under it.
+ * The rail scrolls here far more often than it does on a desktop: twelve tiles and their
+ * separators are about 590px, so a phone held upright has room for all of them and one
+ * held sideways has room for four. Save is not in the list — it floats — so nothing that
+ * scrolls out of view is a thing you cannot reach another way.
  */
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.panel {
-		order: 1;
-		flex-direction: row;
-		align-items: center;
-		gap: var(--gap);
-		padding: 8px var(--pad) calc(8px + env(safe-area-inset-bottom));
-		background: var(--page);
-		transition: transform 0.4s ease-in, opacity 0.4s ease-in;
-		--pad: 10px;
-	}
-
-	.rail {
-		flex-direction: row;
-		align-items: center;
-		min-width: 0;
-		min-height: auto;
-		overflow: auto hidden;
-	}
-
-	.group,
-	.modes {
-		flex-direction: row;
-		align-items: center;
-	}
-
-	.group {
-		padding-top: 0;
-		padding-left: var(--gap);
-		border-top: none;
-		border-left: 1px solid var(--line);
-	}
-
-	.group:first-child {
-		padding-left: 0;
-		border-left: none;
-	}
-
-	.modes {
-		padding-left: 0;
-		align-self: auto;
-	}
-
-	/* At the right-hand end of the bar rather than at the bottom of a column, and painted
-	   with the bar's own grey so a row scrolled up against it passes behind something
-	   solid rather than showing through it. */
-	.saveSlot {
-		padding-top: 0;
-		padding-left: var(--gap);
-		background: var(--page);
-	}
-
-	/* Off the bottom of the window, the way the whole page's controls used to leave. */
-	.stowed {
-		transform: translateY(120%);
-		opacity: 0;
-		pointer-events: none;
-	}
-}
-
-/*
- * A desktop: the rail down the left-hand edge.
- *
- * It starts under the header because it is *in* the page rather than over it — the
- * header is the row above and this is the first thing in the row below, so nothing here
- * has to know how tall a wordmark is.
- */
-@media screen and (min-width: 731px) and (min-height: 561px) {
-	.panel {
-		order: 0;
-		flex-direction: column;
-		align-items: center;
-		width: var(--panel-width);
-		padding: var(--pad) 0 calc(var(--pad) + 8px);
-		transition: transform 0.4s ease-in, opacity 0.4s ease-in;
-	}
-
-	/* Off the left-hand edge, which is the direction this layout's controls leave in. */
-	.stowed {
-		transform: translateX(-100%);
-		opacity: 0;
-		pointer-events: none;
+		padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+		--pad: 8px;
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.panel,
-	.button,
-	.saveButton {
+	.button {
 		transition: none;
 	}
 }

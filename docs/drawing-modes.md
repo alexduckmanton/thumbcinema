@@ -1,21 +1,21 @@
 # Drawing with a finger
 
-The thirteen answers to "a finger is opaque", the admin-only switch between them, and
-v13 — the one the site ships. `src/flipbook/drawModes.ts`, `pointer.ts` and
+The fourteen answers to "a finger is opaque", the admin-only switch between them, and
+v14 — the one the site ships. `src/flipbook/drawModes.ts`, `pointer.ts` and
 `zoomStage.ts`.
 
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
-separate families and no consensus — so rather than pick one blind, thirteen of them are
+separate families and no consensus — so rather than pick one blind, fourteen of them are
 built behind an **admin-only** switch in the corner of the create page and drawn with side
 by side: a
 follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
 over on half a second of stillness, four that move the cursor off the fingertip
 altogether, two that leave the finger where it is and magnify the drawing under it
-instead, and one that is both of those last two families at once depending on where you
+instead, and two that are both of those last two families at once depending on where you
 put your finger. `drawModes.ts` is the list and where each one comes from;
 `DrawModeSwitch` is the switch; `pointer.ts` is nearly all of the mechanism, and
-`zoomStage.ts` is the last three's own.
+`zoomStage.ts` is the last four's own.
 
 **They are numbered `v1` upwards rather than named, and the numbers are the point.**
 These differ from each other by a *rule* rather than by a picture, and half of them look
@@ -27,17 +27,18 @@ next number rather than displacing anybody. The caption under the switch is perm
 and leads with the number, because a mode you can't name is a mode you can't report on.
 They are grouped rather than ordered by history: **v1–v5 keep the finger as the pointer**,
 **v6–v10 stand the cursor away from the hand** and differ only in how the tool is told to
-start working, and **v11–v13 move the canvas instead of the cursor** — see below. v13 is
-the one that belongs to two groups at once, being v12 on the drawing and v10 off it.
+start working, and **v11–v14 move the canvas instead of the cursor** — see below. v13 and
+v14 belong to two groups at once, being v12 on the drawing and v10 off it; they differ only
+in where "off it" is.
 
-**v13 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
+**v14 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
 rather than "whichever is last in the list" — and since the switch is admin-only it is now
-the only thing that decides what anybody else gets. See **v13** below for the mode itself.
+the only thing that decides what anybody else gets. See **v14** below for the mode itself.
 
 **The switch is gated on the admin token**, the same shared secret the gallery's
 moderation toggles use and by the same one line (`isAdmin()`, `lib/admin.ts`). The other
-twelve modes are a question being asked rather than a setting: a picker offering a stranger
-thirteen ways to hold a pencil is a worse first thirty seconds than any of them is an
+thirteen modes are a question being asked rather than a setting: a picker offering a stranger
+fourteen ways to hold a pencil is a worse first thirty seconds than any of them is an
 improvement, and nothing on the page says a choice exists. The gate is in **two halves and
 both are needed** — `DrawModeSwitch` renders nothing, *and* `read` stops honouring what is
 in storage. Hiding the control alone would strand anybody who picked a mode while holding
@@ -216,7 +217,7 @@ way. It differs in one measurable respect: a stroke includes the point the gestu
 opened at, where a paper-driven one's first segment is the first `onMouseDrag` — about
 7px in.
 
-## v11, v12 and v13, which move the canvas instead of the cursor
+## v11 to v14, which move the canvas instead of the cursor
 
 The three modes whose answer is a **layout** rather than a gesture, and the odd ones out in
 every list above. All three put the drawing under the finger at up to four times life size,
@@ -458,3 +459,46 @@ next touch in the band at the pixel it was parked on; it survives the lift; a se
 (2267 px); a stroke drawn entirely from the band lands 1816 px of ink; the transform tool
 marqueed from the band selects (1060 blue px) and a bare tap down there puts it down again;
 and on the stage a one-finger stroke and a two-finger pinch behave exactly as v12's.
+
+### v14: v13 with the aiming given a box of its own
+
+**What ships.** Everything about it is v13 — the same v12 on the drawing, the same standing
+cursor, the same second finger, the same held tool, the same `aimsOffStage` machinery —
+except where the aiming happens. v13 claims *everywhere that is not the paper or a
+control*; v14 claims one panel at the bottom of the screen and leaves the rest of the page
+alone.
+
+**The reason is that "everywhere else" stopped being empty.** v13's band was the white
+under the tools, which nothing on the page wanted, and reading every touch there as an
+aiming drag cost nothing at all. Then the create page's flipbook became a *column you
+scroll*, and the pages are now most of what "everywhere else" is. Two gestures wanted the
+same drag and v13 answers "aim" every time — so under v13 the flipbook cannot be scrolled
+with a finger. That is not a bug in v13; it is v13 being asked a question it was designed
+before.
+
+**So the surface is drawn rather than inferred.** `AimPad` is a panel a shade darker than
+the page with a dotted texture on it — a trackpad, which is exactly what it is — and it is
+the only thing `PointerLayer` will open a field gesture on. What it costs is honest: the
+height of the pad, and having to reach for a particular place rather than wherever your
+thumb happens to be. What it buys is that every other part of the page means what it looks
+like it means, and that the aiming surface is something you can *see* — which "drag
+somewhere in the white" never was.
+
+- **`usesAimPad` is the whole predicate, and the hit test is `[data-aim-pad]`.** An
+  attribute rather than a registry or a ref: the pad is rendered by a component the layer
+  doesn't own, may not be on the page at all, and has nothing else to say to it.
+  `surfaceOf` returns `'field'` for a touch inside it and `null` for one outside, and a
+  `null` surface is a touch the layer never claims — which is what leaves it to the page
+  strip's scroller.
+- **The pad is hidden above the phone breakpoint, and the layer needs no matching
+  condition.** A hidden element takes no touches, so up there no touch is ever aiming. The
+  mode is answering occlusion, which a mouse does not have — the same stand-down v11 and
+  v12 make.
+- **`html.locked` had to give back `pan-y`.** It said `touch-action: none`, which is the
+  intersection down the ancestor chain and cannot be given back by a descendant — so the
+  page strip could be scrolled by a wheel and not by a finger, whatever v14 did about the
+  gestures. Pinch and double-tap zoom are still refused by `pan-y`; the canvas, the page
+  handle, the page bar and the pad itself each say `none` for themselves.
+- **A short window gets a short pad**, 56px against a third of the screen. What a trackpad
+  needs is area and travel rather than height, the gesture is a delta rather than a
+  position, and held sideways the pad is 750px wide.

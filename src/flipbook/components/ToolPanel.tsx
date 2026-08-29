@@ -17,20 +17,25 @@ export interface ToolPanelProps {
 	drawing: boolean
 	/** The trace photo's button: what it says, whether it is lit, and what it does. */
 	trace: { label: string; on: boolean; enabled: boolean; onPress: () => void }
-	/** Save, which is the one control here that keeps its word. */
-	save: { enabled: boolean; onPress: () => void }
 }
 
 /**
  * Every control on the create page, in one panel: down the left on a desktop, along the
  * bottom on a phone.
  *
- * This is the 2025 layout and it is deliberately not 2013's. What it replaces is a tray
- * of hand-drawn tools standing under the paper, four edit actions up beside the wordmark
- * on a desktop and along the bottom of the window on a phone, and a save button in a
- * third place again — three groups in three places, none of which could see each other.
- * Here they are one column in one order: what marks the page, what changes the page,
- * what undoes it, and what finishes it.
+ * A rail at every width, which it was not at first: the phone had the same buttons lying
+ * down in a bar along the bottom. Standing them up put them back on the same axis as the
+ * flipbook they are used on, and gave the row's overflow somewhere sensible to go — a
+ * column that runs past the bottom of a phone is a list you scroll, where a row that runs
+ * off the right-hand edge is a list nobody knows is there.
+ *
+ * What it replaces is a tray of hand-drawn tools standing under the paper, four edit
+ * actions up beside the wordmark on a desktop and along the bottom of the window on a
+ * phone, and a save button in a third place again — three groups in three places, none of
+ * which could see each other. Here they are one column in one order: what marks the page,
+ * what changes the page, what undoes it, and what it is traced from. Save is not in it:
+ * it went back to being the floating button it has always been, which is the create
+ * page's own note to explain.
  *
  * **Every button is 40×40 and wears a Pecita glyph.** The tools were 304px pictures
  * anchored by their tips, cut off at the tray's top edge so a pencil appeared to hang off
@@ -46,16 +51,17 @@ export interface ToolPanelProps {
  * Where the obvious mark is missing the tooltip and the label carry the actual words:
  * ⊡ for duplicate is a page with its drawing still on it, which is a compromise and is
  * worth knowing is one.
+ *
+ * **There are four tools, not three.** Transform's two modes used to be a fan of spokes
+ * behind one picture, and then two buttons indented under one tile — both of which made
+ * you open a thing before you could reach either half of it. They are ordinary tools now,
+ * standing in the row with the pencil and the eraser: ✥ moves, scales and rotates, ✍
+ * pushes the line about, and pressing either one picks transform up in that mode. What
+ * that costs is one row of rail; what it buys is that every tool this page has is one
+ * press away, and that the panel no longer has a control whose only job is to reveal
+ * other controls.
  */
-export function ToolPanel({
-	engine,
-	state,
-	stowed = false,
-	mode,
-	drawing,
-	trace,
-	save,
-}: ToolPanelProps) {
+export function ToolPanel({ engine, state, stowed = false, mode, drawing, trace }: ToolPanelProps) {
 	const { tool, transformIndex } = state
 
 	/*
@@ -94,9 +100,13 @@ export function ToolPanel({
 	 * the ink instead — but a pointer that wanders during a hold is still a release this
 	 * has to hear, and a missed release is a tool that never stops.
 	 */
-	const holdProps = (id: ModalToolId) => ({
+	const holdProps = (id: ModalToolId, before?: () => void) => ({
 		onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
 			if (event.pointerType === 'touch') return
+			// The transform tools' `before` sets which of the two modes the press means,
+			// and it has to run first: the layer reads the tool in hand the moment it is
+			// told a button is down.
+			before?.()
 			setToolPressed(id)
 			event.currentTarget.setPointerCapture(event.pointerId)
 		},
@@ -112,31 +122,8 @@ export function ToolPanel({
 
 	const pencilRef = useToolTouch('pencil')
 	const eraserRef = useToolTouch('eraser')
-	const transformRef = useToolTouch('transform')
-
-	/**
-	 * The two halves of the transform fan, which do one thing each and say which by being
-	 * lit or not.
-	 *
-	 * **The unlit one names the other mode, and switching is all it does.** Not switching
-	 * *and* engaging, the way pressing a different tool does: engaging push at the cursor
-	 * runs its mousedown there, and away from the strokes that means `selection.clear()`
-	 * — which is the selection this press was most likely on its way to bend.
-	 *
-	 * **The lit one is the mode you are already in, which is the tool in hand**, so it
-	 * does what the hand does: press and hold to use it.
-	 *
-	 * They were a fan of spokes behind the transform tool's picture and are two ordinary
-	 * buttons now, indented under the tool they belong to and shown only while it is in
-	 * hand — which is the same rule the fan had, said with layout instead of with art.
-	 */
-	const fanProps = (index: 0 | 1) => ({
-		onClick: () => engine.setTransformMode(index),
-		...(transformIndex === index ? holdProps('transform') : {}),
-	})
-
-	const moveRef = useFanTouch(0, transformIndex, engine)
-	const pushRef = useFanTouch(1, transformIndex, engine)
+	const moveRef = useToolTouch('transform', () => engine.selectTransform(0))
+	const pushRef = useToolTouch('transform', () => engine.selectTransform(1))
 
 	/**
 	 * The keyboard's tap. A finger's never reaches here, and a mouse's is handled above.
@@ -150,6 +137,18 @@ export function ToolPanel({
 	const press = (id: ModalToolId) => (event: React.MouseEvent<HTMLButtonElement>) => {
 		if (event.detail > 0) return
 		engine.selectTool(id)
+	}
+
+	/**
+	 * The keyboard's tap on one of the two transform tools.
+	 *
+	 * `selectTransform` rather than the pair of calls, because picking the tool up resets
+	 * the mode and setting the mode is refused until the tool is up — see the engine, where
+	 * the whole of that is written down.
+	 */
+	const pressTransform = (index: 0 | 1) => (event: React.MouseEvent<HTMLButtonElement>) => {
+		if (event.detail > 0) return
+		engine.selectTransform(index)
 	}
 
 	const toolHint = (verb: string, key: string, held: string) =>
@@ -177,48 +176,33 @@ export function ToolPanel({
 						onClick={press('eraser')}
 						{...holdProps('eraser')}
 					/>
+					{/*
+					 * Transform's two modes, standing in the row as two tools.
+					 *
+					 * Each press does both halves at once — set the mode, pick the tool up —
+					 * which is what makes them independent: there is no state in which one of
+					 * them is unreachable, and no order they have to be pressed in. Held, they
+					 * behave exactly as the pencil does, because by the time the layer reads
+					 * the press the mode is already set. See `holdProps`.
+					 */}
 					<PanelButton
-						ref={transformRef}
-						label="Transform"
-						glyph="✜"
-						hint={toolHint('Transform', 'v', 'select and move')}
-						on={tool === 'transform'}
-						onClick={press('transform')}
-						{...holdProps('transform')}
+						ref={moveRef}
+						label="Move, scale and rotate"
+						glyph="✥"
+						hint={toolHint('Move, scale and rotate', 'v', 'select and move')}
+						on={tool === 'transform' && transformIndex === 0}
+						onClick={pressTransform(0)}
+						{...holdProps('transform', () => engine.selectTransform(0))}
 					/>
-
-					{/* The tool's own two modes, and only ever while it is the tool in hand.
-					    Not disabled-but-present, as the fan's spokes were: a rail is a list you
-					    read down, and two permanently dim buttons in the middle of it read as
-					    two controls that are broken rather than as one tool's settings. */}
-					{tool === 'transform' ? (
-						<div className={styles.modes}>
-							<PanelButton
-								ref={moveRef}
-								label="Move, scale and rotate"
-								glyph="✥"
-								hint={
-									holdToUse && transformIndex === 0
-										? 'Move, scale and rotate — hold to use'
-										: 'Move, scale and rotate'
-								}
-								on={transformIndex === 0}
-								{...fanProps(0)}
-							/>
-							<PanelButton
-								ref={pushRef}
-								label="Push the line about"
-								glyph="✍"
-								hint={
-									holdToUse && transformIndex === 1
-										? 'Push the line about — hold to use'
-										: 'Push the line about'
-								}
-								on={transformIndex === 1}
-								{...fanProps(1)}
-							/>
-						</div>
-					) : null}
+					<PanelButton
+						ref={pushRef}
+						label="Push the line about"
+						glyph="✍"
+						hint={holdToUse ? 'Push the line about — hold to use' : 'Push the line about'}
+						on={tool === 'transform' && transformIndex === 1}
+						onClick={pressTransform(1)}
+						{...holdProps('transform', () => engine.selectTransform(1))}
+					/>
 				</div>
 
 				<div className={styles.group}>
@@ -296,29 +280,6 @@ export function ToolPanel({
 					/>
 				</div>
 			</div>
-
-			{/*
-			 * Save, which keeps its word and its yellow.
-			 *
-			 * Sticky rather than merely last: the rail scrolls when the window is too short
-			 * for the list, and the one control you must be able to reach without going
-			 * looking for it is the one that ends the errand. It is the same yellow at the
-			 * same rounding as the gallery's create button for the reason it always was —
-			 * the two are the ends of one errand.
-			 *
-			 * One page isn't a flipbook. The button stays in the layout so nothing jumps
-			 * when the second page arrives; it just isn't offering anything yet.
-			 */}
-			<div className={save.enabled ? styles.saveSlot : `${styles.saveSlot} ${styles.noSave}`}>
-				<button
-					type="button"
-					className={styles.saveButton}
-					onClick={save.onPress}
-					disabled={!save.enabled}
-				>
-					<span className={styles.saveLabel}>Save</span>
-				</button>
-			</div>
 		</div>
 	)
 }
@@ -393,8 +354,14 @@ const PanelButton = ({
  * Native listeners rather than React's `onTouchStart`, because React's are passive by
  * delegation at the root and a passive listener may not call `preventDefault()`.
  */
-function useToolTouch(id: ModalToolId) {
+function useToolTouch(id: ModalToolId, before?: () => void) {
 	const ref = useRef<HTMLButtonElement>(null)
+
+	// Read when a finger lands rather than closed over, so a re-render mid-press doesn't
+	// leave the listeners rebound around a live touch. The two transform tools are the
+	// only callers that pass one, and what it does is set which mode the press means.
+	const latest = useRef(before)
+	latest.current = before
 
 	useEffect(() => {
 		const button = ref.current
@@ -408,6 +375,7 @@ function useToolTouch(id: ModalToolId) {
 
 			event.preventDefault()
 			active = touch.identifier
+			latest.current?.()
 			setToolPressed(id)
 		}
 
@@ -431,72 +399,6 @@ function useToolTouch(id: ModalToolId) {
 			if (active !== null) setToolPressed(null)
 		}
 	}, [id])
-
-	return ref
-}
-
-/**
- * Half of the transform fan, driven by touch for the reason `useToolTouch` is: a tap made
- * while another finger is on the page produces no `click`.
- *
- * Which of its two jobs it does is decided by *which button this is*, not by anything
- * about the press — see `fanProps` above. Unlit, it switches the mode and stops there.
- * Lit, it is the tool in hand and behaves exactly like the hand: it reports the press and
- * lets `PointerLayer` put the tool to work at the cursor for as long as it is held.
- */
-function useFanTouch(index: 0 | 1, transformIndex: 0 | 1, engine: FlipbookEngine) {
-	const ref = useRef<HTMLButtonElement>(null)
-
-	// Read when a finger lands rather than closed over, so switching mode mid-press
-	// doesn't leave the listeners rebound around a live touch.
-	const latest = useRef({ transformIndex, engine })
-	latest.current = { transformIndex, engine }
-
-	useEffect(() => {
-		const button = ref.current
-		if (!button) return
-
-		let active: number | null = null
-		let holding = false
-
-		const onStart = (event: TouchEvent) => {
-			const touch = event.changedTouches[0]
-			if (!touch || active !== null || button.disabled) return
-
-			event.preventDefault()
-			active = touch.identifier
-
-			if (latest.current.transformIndex !== index) {
-				latest.current.engine.setTransformMode(index)
-				return
-			}
-
-			holding = true
-			setToolPressed('transform')
-		}
-
-		const onEnd = (event: TouchEvent) => {
-			if (active === null) return
-			if (!Array.from(event.changedTouches).some((touch) => touch.identifier === active)) return
-
-			active = null
-			if (!holding) return
-			holding = false
-			setToolPressed(null)
-		}
-
-		button.addEventListener('touchstart', onStart, { passive: false })
-		button.addEventListener('touchend', onEnd)
-		button.addEventListener('touchcancel', onEnd)
-
-		return () => {
-			button.removeEventListener('touchstart', onStart)
-			button.removeEventListener('touchend', onEnd)
-			button.removeEventListener('touchcancel', onEnd)
-			// A button that goes away mid-hold must not leave the tool working.
-			if (holding) setToolPressed(null)
-		}
-	}, [index])
 
 	return ref
 }

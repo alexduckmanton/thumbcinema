@@ -31,8 +31,9 @@ library, no CSS framework, no router package, no icon library — keep it that w
 redesigned in 2026.** Everywhere else this was a port, and if something looks different
 from the 2013 revival that's a bug unless the comment next to it says otherwise. The
 create page is the one place that is now its own thing: every control is a Pecita glyph in
-a panel down the left (a bar along the bottom on a phone), and the flipbook is a column
-you scroll rather than a row that slides. The hand-drawn tool sprite went with it. See
+a rail down the left at every width, the flipbook is a column you scroll rather than a row
+that slides, and a finger aims from a pad at the bottom of the screen rather than from
+anywhere in the white. The hand-drawn tool sprite went with it. See
 [`docs/create-page.md`](docs/create-page.md), which says what that cost.
 
 **`time-capsule` is a branch still running the 2013 front end, and it is the reference.**
@@ -74,8 +75,8 @@ src/
       FlipbookEngine.ts  the façade React drives
     usePageReorder.ts the reorder gesture, and the settle at the end of it
     pointer.ts        a finger, and what it does to the cursor and the tool
-    drawModes.ts      the answers to "a finger is opaque", numbered v1–v13
-    zoomStage.ts      v11–v13's window on the page: the maths, and where it is kept
+    drawModes.ts      the answers to "a finger is opaque", numbered v1–v14
+    zoomStage.ts      v11–v14's window on the page: the maths, and where it is kept
     trace/            the photo you trace over. No paper.js here either.
       geometry.ts     what a drag and a pinch do to a placement
       useTracePhoto.ts the camera, the decode, and the object URLs
@@ -86,6 +87,7 @@ src/
                       cursors, the drawing-mode switch
       ToolPanel.tsx   every control on the create page, as Pecita glyphs
       PageStrip.tsx   the pages as a scrolling column, and the canvas over it
+      AimPad.tsx      v14's trackpad, and the only place a finger aims from
     card/             one flipbook in a list — the grid, and the remixes under one
       FlipbookCard.tsx   the link, the preview over it, the play button
       useCardGesture.ts  hover, tap, hold and drag, mouse and finger
@@ -263,6 +265,18 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   pixel ratio, on both layouts — so the strip lives under a memory ceiling and
   `HIDPI_PAGE_LIMIT` drops it to 1:1 past 50 pages. iOS enforces its per-tab canvas
   budget by *blanking* canvases rather than by failing. `docs/create-page.md`.
+- **A finger only aims from the pad, and that is what v14 is.** v13 read every touch that
+  wasn't on the paper or a control as an aiming drag, which was free while the rest of the
+  page was empty white and stopped being free when the flipbook became something to
+  scroll — under v13 the pages cannot be moved by a finger at all. The pad is found by
+  `[data-aim-pad]`, and it is hidden above the phone breakpoint, where a mouse has a
+  precise pointer and none of this is a problem it has. `docs/drawing-modes.md`.
+- **`html.locked` says `touch-action: pan-y`, not `none`.** `touch-action` is the
+  intersection down the ancestor chain and a descendant cannot give back what an ancestor
+  took, so `none` on the body meant nothing inside the page could be panned by a finger —
+  including the page strip. Pinch and double-tap zoom are still refused; the surfaces that
+  must not pan (the canvas, the page handle, the page bar, the aiming pad) each say
+  `touch-action: none` for themselves, which is the direction that works.
 - **The page strip is a real scroll container, and the scroll position is the page
   number.** `scroll-snap-type: y mandatory` with the drawing laid over the middle of it;
   scrolling calls `goToPage`, and a page turned any other way scrolls. Anything that wants
@@ -318,7 +332,7 @@ Open the one that covers what you're about to touch.
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | how the pieces fit, why WordPress went away, and why brotli beside gzip |
 | [`docs/drawing-tool.md`](docs/drawing-tool.md) | the paper.js engine: the 0.8 → 0.12 upgrade, loading, rearranging pages, undo, the clipboard, and the invariants |
-| [`docs/drawing-modes.md`](docs/drawing-modes.md) | thirteen answers to "a finger is opaque", the admin-only switch, and v13 — the one that ships |
+| [`docs/drawing-modes.md`](docs/drawing-modes.md) | fourteen answers to "a finger is opaque", the admin-only switch, and v14 — the one that ships |
 | [`docs/create-page.md`](docs/create-page.md) | the create page's layout, the page bar, the tray, tracing over a photograph, and the playback page |
 | [`docs/gallery.md`](docs/gallery.md) | the grid, the hover preview that plays a flipbook without paper.js, and the play button |
 | [`docs/remixes.md`](docs/remixes.md) | editable copies, and how a lineage is stored in two columns |

@@ -185,7 +185,24 @@ html.locked,
 html.locked body {
 	overflow: hidden;
 	overscroll-behavior: none;
-	touch-action: none;
+	/*
+	 * `pan-y` rather than `none`, and the difference is the page strip.
+	 *
+	 * `touch-action` is the *intersection* of the values from the touched element up
+	 * through its ancestors, and a descendant cannot give back what an ancestor has taken
+	 * — so `none` here means nothing inside the page can be panned by a finger at all.
+	 * That was true and harmless while the create page had nothing to scroll; the flipbook
+	 * is a scroll container now, and `none` here was a column of pages that a mouse could
+	 * move and a finger could not.
+	 *
+	 * `pan-y` gives back exactly the one gesture the page has a use for. Everything else
+	 * this was reaching for is still refused: pinch-zoom needs `pinch-zoom` in the value,
+	 * and double-tap zoom is disabled by any value other than `auto` and `manipulation`.
+	 * The surfaces that must not pan say so themselves — the canvas, the page handle, the
+	 * page bar and v14's aiming pad all take `touch-action: none` of their own, which is
+	 * the direction that does work.
+	 */
+	touch-action: pan-y;
 }
 
 html.locked body {

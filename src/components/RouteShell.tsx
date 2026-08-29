@@ -160,6 +160,7 @@ function CreateShell() {
 					</div>
 
 					<div className={createStyles.navBand} />
+					<div className={createStyles.shellPad} />
 				</div>
 			</main>
 
