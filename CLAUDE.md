@@ -309,6 +309,11 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   `cleanUrls` reason the rewrite does — `cache.addAll` rejects on a redirect — and matches
   with `ignoreVary`, without which a host sending `Vary: Origin` loses both typefaces
   offline and nothing else.
+- **paper.js is the one thing the worker does *not* precache**, so the drawing tool works
+  offline only after one online visit to it — until then `/create` offline is the
+  `ErrorBoundary` saying the piece it needs isn't on the device yet. That is a deliberate
+  trade: it is two thirds of what the build emits, and only two routes ever ask for it.
+  The `/assets/` branch in `sw.js` is what keeps it once something does. `docs/offline.md`.
 - **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
   drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard on the
   document, and none of it should follow you to the flipbook page.

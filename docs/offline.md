@@ -102,11 +102,19 @@ content-hashed and not knowable before the build — and emits `dist/sw.js`. The
 throws if the markers have moved, because a precache list that is wrong is an app that
 opens offline missing a chunk.
 
-- **Everything the build emits is precached, paper.js included.** ~210 KB the gallery
-  deliberately never downloads — but "the drawing tool works offline" is the point of the
-  feature, and a worker that cached only what a first visit happened to use would leave
-  `/create` empty on a plane. This does not put paper in any route's preload set: the
-  chunk graph is untouched, and the download happens once, after load, in a worker.
+- **Everything the build emits is precached except paper.js, which is kept the first
+  time it is fetched.** It is ~210 KB — two thirds of everything the build emits — and
+  only the two drawing routes ever ask for it, so charging every first visit to the
+  gallery for it in the background is the wrong way round. One online visit to the
+  drawing tool is what puts it on the device; the fetch handler's `/assets/` branch keeps
+  whatever it fetches, and everything under that path is content-hashed, so it is safe to
+  keep and safe to serve without revalidating. Nothing here touches the chunk graph
+  either way — paper is in no route's preload set, precached or not.
+- **Until that visit, `/create` offline says so.** The route's own chunks are precached,
+  so the page mounts and then the engine can't be built; `useFlipbookEngine` throws that
+  to the app's `ErrorBoundary`, whose fallback reads `navigator.onLine` and says the piece
+  it needs isn't on the device yet rather than "something broke". Nothing broke — a
+  download hasn't happened — and the fix is a connection rather than another go.
 - **`/` and not `/index.html`.** Under `cleanUrls` the deployed filesystem has no
   `/index.html` at all — that path is a 308 — and `cache.addAll` rejects on a redirect.
   It's the same trap as the rewrite in `vercel.json`; see CLAUDE.md.
@@ -129,6 +137,10 @@ opens offline missing a chunk.
 - **You can't browse offline.** The gallery is a live listing of somebody else's rows and
   nothing caches it; with no connection it says so plainly and points at the drawing tool.
   Flipbooks you have queued are still there, because they're on the device.
+- **The drawing tool needs one online visit before it works offline.** That is the
+  bargain in the bullet above, and it is deliberate: the alternative charges every visit
+  to the gallery — the page most visits are — for paper.js in the background. Anyone who
+  has drawn a flipbook once has it.
 - **You can't start a remix offline.** The drawing tool opens a remix by fetching the
   flipbook it's remixing. A connection that drops *during* one is fine — the parent is
   only an id, it rides along in the queue, and the server resolves it when the save

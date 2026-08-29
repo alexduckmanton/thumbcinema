@@ -38,8 +38,9 @@ authors and view counts did not. The home page's Featured list was reconstructed
 what's left — see [`docs/archive.md`](docs/archive.md).
 
 It works **offline**: with no connection the site still opens, the drawing tool still
-draws, and a save is kept on the device and published by itself the next time you're
-online. See [`docs/offline.md`](docs/offline.md).
+draws — once you've opened it online at least once — and a save is kept on the device and
+published by itself the next time you're online. See
+[`docs/offline.md`](docs/offline.md).
 
 The gallery has a **Featured / All** toggle and an infinite scroll. Featured is what
 the 2013 home page showed; new saves start off it and are promoted by hand from admin

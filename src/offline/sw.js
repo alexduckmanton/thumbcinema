@@ -6,8 +6,8 @@
  * the browser never reaches any of our code to ask.
  *
  * Hand-written, and it stays that way. Workbox is a build system and a runtime for a
- * problem that is, here, three cases: the shell, the files the build emitted, and
- * everything else. This app has no offline reads to be clever about — the gallery is a
+ * problem that is, here, four cases: the shell, the files the build emitted, the one
+ * file it emitted that is too big to fetch in advance, and everything else. This app has no offline reads to be clever about — the gallery is a
  * live listing and the artwork lives on the server — so there is no staleness policy to
  * get wrong and nothing to invalidate. See `docs/offline.md`.
  *
@@ -96,6 +96,25 @@ self.addEventListener('fetch', (event) => {
 	// The build's own output, which is content-hashed and cannot change under a name.
 	if (PRECACHED.has(url.pathname)) {
 		event.respondWith(fromCache(request))
+		return
+	}
+
+	/*
+	 * The rest of the build's output, which today is paper.js and nothing else: kept the
+	 * first time it is asked for rather than downloaded in advance.
+	 *
+	 * It is ~210 KB — two thirds of everything the build emits — and only the two drawing
+	 * routes ever ask for it, so precaching it would charge every first visit to the
+	 * gallery for a page most of them won't open. One online visit to the drawing tool is
+	 * what puts it here; until then `/create` offline says so plainly rather than
+	 * half-loading. See `docs/offline.md`.
+	 *
+	 * Safe to keep forever and safe to serve without asking: everything under `/assets/`
+	 * has a content hash in its name, so a file that changed has a different name and
+	 * this entry is simply never asked for again. The version bump clears it out.
+	 */
+	if (url.pathname.startsWith('/assets/')) {
+		event.respondWith(keep(request))
 	}
 
 	// Everything else — thumbnails, anything added later — goes to the network as if
@@ -104,6 +123,23 @@ self.addEventListener('fetch', (event) => {
 
 function fromCache(request) {
 	return caches.match(request, MATCH).then((hit) => hit || fetch(request))
+}
+
+/** Cache first, and what the network answers is kept for next time. */
+function keep(request) {
+	return caches.open(CACHE).then((cache) =>
+		cache.match(request, MATCH).then(
+			(hit) =>
+				hit ||
+				fetch(request).then((response) => {
+					// Not awaited: the page is waiting on this response and the write isn't
+					// something it needs to have finished. A failed fetch rejects, which is
+					// the honest answer — offline, this is a chunk that isn't here yet.
+					if (response.ok) void cache.put(request, response.clone())
+					return response
+				}),
+		),
+	)
 }
 
 function shell() {

@@ -65,12 +65,13 @@ const PRECACHED_PUBLIC = ['/fonts/inter-latin-variable.woff2', '/fonts/pecita.wo
  * kept in step by hand, and a precache list that is wrong is an app that opens offline
  * missing a chunk.
  *
- * Everything the build emitted is precached, including paper.js. It is ~210 KB that the
- * gallery deliberately never downloads — but "the drawing tool works offline" is the
- * whole point of the feature, and a first visit that lazily cached what it happened to
- * use would be a visit to `/create` on a plane finding nothing there. This does not put
- * paper into any route's preload set; the chunk graph is untouched. It is a download
- * after load, once, by a worker.
+ * Everything the build emitted is precached **except paper.js**, which is cached the
+ * first time it is actually fetched — see the runtime branch in `sw.js`. It is ~210 KB,
+ * it is two thirds of everything the build emits, and the gallery deliberately never
+ * downloads it; making every first visit pay for it in the background to insure against
+ * a visit to `/create` on a plane is the wrong way round. One online visit to the
+ * drawing tool is what puts it on the device, and until then `/create` offline says so
+ * rather than half-loading. Nothing here touches the chunk graph either way.
  */
 function serviceWorkerPlugin(): Plugin {
 	return {
@@ -78,9 +79,14 @@ function serviceWorkerPlugin(): Plugin {
 		apply: 'build',
 
 		generateBundle(_options, bundle) {
-			const emitted = Object.keys(bundle)
-				.filter((name) => name.endsWith('.js') || name.endsWith('.css'))
-				.map((name) => `/${name}`)
+			const emitted = Object.entries(bundle)
+				.filter(([name, output]) => {
+					if (!name.endsWith('.js') && !name.endsWith('.css')) return false
+					// By the chunk's name rather than by its file name, which carries a hash:
+					// this is the `paper` manual chunk declared below, and nothing else.
+					return !(output.type === 'chunk' && output.name === 'paper')
+				})
+				.map(([name]) => `/${name}`)
 
 			const images = readdirSync('public/images')
 				.filter((name) => name.endsWith('.png'))
