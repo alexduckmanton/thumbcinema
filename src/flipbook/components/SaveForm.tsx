@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { Button } from '../../components/Button'
 import styles from './SaveForm.module.css'
@@ -40,7 +41,6 @@ export function SaveForm({ saving, onSave, onCancel }: SaveFormProps) {
 
 	const dialog = useRef<HTMLDialogElement | null>(null)
 	useKeyboardInset(dialog)
-	useDarkenedChrome()
 
 	// Opened as a *modal* rather than rendered open: `open` as an attribute gives a
 	// non-modal dialog with no backdrop, nothing inert behind it and no focus trap,
@@ -53,72 +53,84 @@ export function SaveForm({ saving, onSave, onCancel }: SaveFormProps) {
 		return () => element.close()
 	}, [])
 
-	return (
-		<dialog
-			ref={dialog}
-			className={styles.dialog}
-			aria-labelledby={headingId}
-			// Esc, which the browser fires as `cancel` on a modal dialog. Prevented while
-			// the artwork is on the wire: the save is already happening and there is
-			// nothing left to back out of.
-			onCancel={(event) => {
-				event.preventDefault()
-				if (!saving) onCancel()
-			}}
-		>
-			<div className={styles.card}>
-				<form
-					className={styles.form}
-					onSubmit={(event) => {
-						event.preventDefault()
-						// The browser's own validation has already said so — this is the
-						// backstop for a title of nothing but spaces, which `required` allows.
-						if (!title.trim()) return
-						onSave({ title: title.trim(), description: description.trim() })
-					}}
-				>
-					<h2 className={styles.heading} id={headingId}>
-						Save flipbook
-					</h2>
+	return createPortal(
+		<>
+			{/*
+			 * The wash, and it is deliberately **not** the dialog's own background or its
+			 * `::backdrop`. See the note in the stylesheet: on iOS this is the element
+			 * Safari reads to tint its own toolbars, and it can only read one that is in
+			 * the document. Everything here is inert while the dialog is open — that is
+			 * `showModal()`'s doing, and it covers this too.
+			 */}
+			<div className={styles.wash} aria-hidden="true" />
 
-					<div className={styles.field}>
-						<label htmlFor={titleId}>Title</label>
-						{/* Autofocused by the attribute rather than by an effect: `showModal()`
-						    moves focus itself, and it looks for this first. */}
-						{/* biome-ignore lint/a11y/noAutofocus: focus inside a modal on open is what showModal does anyway. */}
-						<input
-							id={titleId}
-							type="text"
-							autoComplete="off"
-							required
-							autoFocus
-							value={title}
-							onChange={(event) => setTitle(event.target.value)}
-						/>
-					</div>
+			<dialog
+				ref={dialog}
+				className={styles.dialog}
+				aria-labelledby={headingId}
+				// Esc, which the browser fires as `cancel` on a modal dialog. Prevented while
+				// the artwork is on the wire: the save is already happening and there is
+				// nothing left to back out of.
+				onCancel={(event) => {
+					event.preventDefault()
+					if (!saving) onCancel()
+				}}
+			>
+				<div className={styles.card}>
+					<form
+						className={styles.form}
+						onSubmit={(event) => {
+							event.preventDefault()
+							// The browser's own validation has already said so — this is the
+							// backstop for a title of nothing but spaces, which `required` allows.
+							if (!title.trim()) return
+							onSave({ title: title.trim(), description: description.trim() })
+						}}
+					>
+						<h2 className={styles.heading} id={headingId}>
+							Save flipbook
+						</h2>
 
-					<div className={`${styles.field} ${styles.description}`}>
-						<label htmlFor={descriptionId}>
-							Description <span className={styles.optional}>(optional)</span>
-						</label>
-						<textarea
-							id={descriptionId}
-							value={description}
-							onChange={(event) => setDescription(event.target.value)}
-						/>
-					</div>
+						<div className={styles.field}>
+							<label htmlFor={titleId}>Title</label>
+							{/* Autofocused by the attribute rather than by an effect: `showModal()`
+							    moves focus itself, and it looks for this first. */}
+							{/* biome-ignore lint/a11y/noAutofocus: focus inside a modal on open is what showModal does anyway. */}
+							<input
+								id={titleId}
+								type="text"
+								autoComplete="off"
+								required
+								autoFocus
+								value={title}
+								onChange={(event) => setTitle(event.target.value)}
+							/>
+						</div>
 
-					<div className={styles.buttons}>
-						<Button type="submit" variant="submit" loading={saving}>
-							Save
-						</Button>
-						<Button variant="blank" onClick={onCancel} disabled={saving}>
-							Cancel
-						</Button>
-					</div>
-				</form>
-			</div>
-		</dialog>
+						<div className={`${styles.field} ${styles.description}`}>
+							<label htmlFor={descriptionId}>
+								Description <span className={styles.optional}>(optional)</span>
+							</label>
+							<textarea
+								id={descriptionId}
+								value={description}
+								onChange={(event) => setDescription(event.target.value)}
+							/>
+						</div>
+
+						<div className={styles.buttons}>
+							<Button type="submit" variant="submit" loading={saving}>
+								Save
+							</Button>
+							<Button variant="blank" onClick={onCancel} disabled={saving}>
+								Cancel
+							</Button>
+						</div>
+					</form>
+				</div>
+			</dialog>
+		</>,
+		document.body,
 	)
 }
 
@@ -167,33 +179,4 @@ function useKeyboardInset(element: RefObject<HTMLDialogElement | null>): void {
 			viewport.removeEventListener('scroll', update)
 		}
 	}, [element])
-}
-
-/**
- * Darkens the browser's own chrome for as long as the dialog is up.
- *
- * The overlay covers the window, but on iOS the strip behind the status bar and the one
- * behind the URL bar are painted by Safari from `<meta name="theme-color">` — so with a
- * page-coloured theme the wash arrives with a pale band above and below it, which is
- * the thing that looked wrong. This is not what the reference app does; it does not have
- * to, because its theme colour is white in light mode and near-black in dark, and a
- * near-black bar beside a black wash is not a seam anybody notices. Ours is `--page`.
- *
- * The value is `--page` composited under the same wash the overlay paints — 55% black
- * over #f1f1f1 — so the bars and the overlay are the same grey rather than merely both
- * dark. Restored on close, including when the dialog is torn down by a navigation.
- */
-const WASHED_THEME = '#6c6c6c'
-
-function useDarkenedChrome(): void {
-	useEffect(() => {
-		const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-		if (!meta) return
-
-		const original = meta.content
-		meta.content = WASHED_THEME
-		return () => {
-			meta.content = original
-		}
-	}, [])
 }

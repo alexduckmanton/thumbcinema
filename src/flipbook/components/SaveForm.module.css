@@ -10,20 +10,46 @@
  */
 
 /*
- * The overlay: the whole window, the wash, and the thing that scrolls.
+ * The wash, and why it is a plain div in the document rather than the dialog's own
+ * background or its `::backdrop`.
+ *
+ * Since Safari 26, iOS tints its own toolbars — the strip behind the status bar and the
+ * one behind the URL bar — from the page. **`<meta name="theme-color">` is no longer
+ * read at all**, which is why setting it to the washed colour changed nothing. What is
+ * read is the `background-color` of the `<body>`, or of a `position: fixed`/`sticky`
+ * element near the edge of the viewport, which takes priority: within 4px of the top or
+ * 3px of the bottom, at least 80% wide and 3px tall.
+ *
+ * A `<dialog>` opened with `showModal()` is in the **top layer**, and a wash painted
+ * there was not being read — the toolbars went on showing `--page` and the wash arrived
+ * with a pale band above and below it. The reference app has no such problem and no
+ * clever CSS either: it does not use `<dialog>` at all, just a fixed full-screen div
+ * that Safari can see. So that is what this is, and the dialog above it is transparent —
+ * explicitly, because a fixed element with a transparent background is skipped by the
+ * sampler rather than competing with this one.
+ *
+ * Portalled to `<body>` (in `SaveForm`) for the same reason it is fixed: nothing above
+ * it in the page's tree can then clip it or make itself its containing block.
+ */
+.wash {
+	position: fixed;
+	inset: 0;
+	/* Under the dialog, over everything else. The dialog is in the top layer and paints
+	   above this whatever it says here; the number is about the page. */
+	z-index: 100;
+	background: rgba(0, 0, 0, 0.55);
+	animation: washIn 0.16s ease-out;
+}
+
+/*
+ * The overlay: the whole window, and the thing that scrolls.
  *
  * The card inside it has no maximum height and takes the height it needs; when that is
  * more than the window has, this scrolls and the card is simply taller than the view.
  * The alternative — capping the card and scrolling its contents — puts a scrollbar
  * inside a rounded white box and clips its own padding, which reads as a bug.
  *
- * **The wash is painted here rather than on `::backdrop`**, which is the one structural
- * thing copied from the reference app: it uses no `<dialog>` at all, just a fixed
- * `inset: 0` div with the wash on it. On iOS the `::backdrop` version left pale bands
- * behind the status bar and the URL bar; a fixed element the size of the window does
- * not, and with `viewport-fit=cover` in the viewport meta it reaches the physical edges.
- * `::backdrop` is made transparent below rather than left alone, or the two would
- * composite and the wash would come out half as light again as it is meant to be.
+ * The wash is the `.wash` div above rather than anything painted here — see its note.
  */
 .dialog {
 	/* The UA gives a modal dialog `position: fixed`, a border, padding, `margin: auto`
@@ -37,7 +63,10 @@
 	max-height: none;
 	margin: 0;
 	border: none;
-	background: rgba(0, 0, 0, 0.55);
+	/* Transparent on purpose, twice over: the wash is the `.wash` div in the document
+	   above, and a fixed element with no background colour is one the iOS toolbar
+	   sampler skips rather than one it might read instead. */
+	background: transparent;
 
 	/* The safe areas keep the card off the notch and the home indicator while the wash
 	   goes on covering them. The keyboard is taken off the bottom the same way — see
@@ -53,7 +82,7 @@
 	color: var(--ink);
 }
 
-/* The wash lives on the element above. */
+/* The wash is `.wash`; this would only composite over it and darken it. */
 .dialog::backdrop {
 	background: transparent;
 }
@@ -87,10 +116,6 @@
  */
 .card {
 	animation: cardIn 0.16s ease-out;
-}
-
-.dialog {
-	animation: washIn 0.16s ease-out;
 }
 
 @keyframes cardIn {
@@ -196,7 +221,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.dialog,
+	.wash,
 	.card {
 		animation: none;
 	}
