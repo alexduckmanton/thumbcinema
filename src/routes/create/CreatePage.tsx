@@ -247,8 +247,8 @@ export function CreatePage() {
 					queued = true
 
 					registerMessage({
-						copy: "You're offline, so your flipbook's saved on this device. I'll publish it the moment you're back.",
-						cta: 'Fair enough',
+						copy: "You're offline. I'll publish the moment you're back.",
+						cta: 'Okay',
 						type: 'info',
 					})
 				}

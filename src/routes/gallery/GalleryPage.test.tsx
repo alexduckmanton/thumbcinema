@@ -274,6 +274,19 @@ describe('GalleryPage', () => {
 		).not.toBeInTheDocument()
 	})
 
+	it('takes the Featured/All toggle away offline, and leaves the create button', async () => {
+		setOnline(false)
+		listFlipbooks.mockRejectedValue(new TypeError('Failed to fetch'))
+
+		render(<GalleryPage />)
+
+		await screen.findByRole('heading', { name: 'You’re offline.' })
+		// Two views of a listing that can't be fetched either way.
+		expect(screen.queryByRole('tab', { name: 'All' })).not.toBeInTheDocument()
+		// The one thing on this page that still works.
+		expect(screen.getByRole('link', { name: /New/ })).toBeInTheDocument()
+	})
+
 	it('asks again by itself when the connection comes back', async () => {
 		setOnline(false)
 		listFlipbooks.mockRejectedValueOnce(new TypeError('Failed to fetch'))

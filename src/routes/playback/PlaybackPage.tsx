@@ -67,7 +67,7 @@ function PendingNote({ entry, onDiscard }: { entry: PendingEntry; onDiscard: () 
 				? 'Publishing this one now…'
 				: entry.error
 					? `This one couldn’t be published: ${entry.error}`
-					: 'Saved on this device. I’ll publish it next time you’re online.'}{' '}
+					: 'Saved on this device. I’ll publish next time you’re online.'}{' '}
 			<button type="button" className={styles.discard} onClick={onDiscard}>
 				Discard it
 			</button>

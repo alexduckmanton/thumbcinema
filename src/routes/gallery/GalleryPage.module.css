@@ -116,6 +116,33 @@
 	text-align: center;
 }
 
+/*
+ * The one state that isn't an apology: no connection, and the site saying what still
+ * works.
+ *
+ * Set in Pecita, which nothing else on this page is. The wordmark is the site's own
+ * hand and this is the site talking rather than reporting — "you're offline" is a fact
+ * about the reader's afternoon, not an error, and the face is what keeps it from
+ * reading as one. The other two states here stay in Inter: they *are* reports.
+ *
+ * 44px against the 30px of an `h1`, because Pecita is a handwriting face with a small
+ * x-height and matches Inter's presence about half again as large — the same reasoning
+ * as the create button's label, which sets 30px Pecita beside 16px text.
+ */
+.offline h1 {
+	font-family: 'Pecita', cursive;
+	font-size: 44px;
+	/* Tight, because the ascenders and descenders of a joining script already carry the
+	   line further than its point size suggests. */
+	line-height: 1.05;
+}
+
+/* Air under the heading. A hand-drawn line and a line of Inter are two voices, and at
+   the paragraph's own 1em they sit close enough to read as one block in two typefaces. */
+.offline h1 + p {
+	margin-top: 28px;
+}
+
 /* A link in a sentence, but it re-runs a fetch rather than going anywhere, so it's
    a button wearing a link's clothes rather than an anchor with no href. */
 .retry {

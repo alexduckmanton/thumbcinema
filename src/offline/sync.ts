@@ -131,8 +131,8 @@ export async function flushPending(): Promise<void> {
 	showMessage({
 		copy:
 			published === 1
-				? "You're back online, and your flipbook's published. It's in the gallery now."
-				: `You're back online, and your ${published} offline flipbooks are published.`,
+				? "You're back online and your flipbook's published."
+				: `You're back online and your ${published} flipbooks are published.`,
 		cta: 'Nice one',
 		type: 'success',
 	})

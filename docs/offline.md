@@ -136,7 +136,13 @@ opens offline missing a chunk.
 
 - **You can't browse offline.** The gallery is a live listing of somebody else's rows and
   nothing caches it; with no connection it says so plainly and points at the drawing tool.
-  Flipbooks you have queued are still there, because they're on the device.
+  Flipbooks you have queued are still there, because they're on the device. The
+  Featured/All toggle goes with the listing — two views of something there is no way to
+  fetch are one control too many — and `RouteShell` takes the same view, reading
+  `navigator.onLine` directly so the placeholder doesn't show a toggle the page is about
+  to remove. That state is the one place on the site set in Pecita besides the wordmark:
+  being offline is a fact about the reader's afternoon rather than an error, and the two
+  states beside it, which really are error reports, stay in Inter.
 - **The drawing tool needs one online visit before it works offline.** That is the
   bargain in the bullet above, and it is deliberate: the alternative charges every visit
   to the gallery — the page most visits are — for paper.js in the background. Anyone who

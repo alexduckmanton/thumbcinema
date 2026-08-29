@@ -77,7 +77,7 @@ describe('flushPending', () => {
 		await flushPending()
 
 		expect(showMessage).toHaveBeenCalledTimes(1)
-		expect(vi.mocked(showMessage).mock.calls[0]?.[0].copy).toContain('2 offline flipbooks')
+		expect(vi.mocked(showMessage).mock.calls[0]?.[0].copy).toContain('2 flipbooks are published')
 	})
 
 	it('stays quiet when there was nothing to publish', async () => {

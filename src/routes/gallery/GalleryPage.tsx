@@ -91,7 +91,11 @@ export function GalleryPage() {
 	return (
 		<>
 			<SiteHeader actionsWrap>
-				<ViewToggle view={view} onChange={changeView} />
+				{/* Featured and All are two views of a listing there is no way to fetch with
+				    no connection, so offline the toggle is a control with nothing behind
+				    either side of it. The create button stays: it is the one thing here that
+				    still works. */}
+				{online ? <ViewToggle view={view} onChange={changeView} /> : null}
 				<CreateButton />
 			</SiteHeader>
 
@@ -166,12 +170,11 @@ export function GalleryPage() {
 				 * there is something in it.
 				 */}
 				{failed && !items.length && !shown.length && !online ? (
-					<div className={`center ${styles.state}`}>
+					<div className={`center ${styles.state} ${styles.offline}`}>
 						<h1>You&rsquo;re offline.</h1>
 						<p>
-							The gallery lives on the internet, so it&rsquo;ll be back when that is. You can still{' '}
-							<Link to="/create">draw something</Link> &mdash; it&rsquo;ll save here and publish
-							itself next time you&rsquo;re online.
+							You can still <Link to="/create">create a flipbook</Link>. It&rsquo;ll publish next
+							time you&rsquo;re online.
 						</p>
 					</div>
 				) : null}
