@@ -18,19 +18,20 @@ export interface PageHandleProps {
 }
 
 /**
- * The tab on the top edge of the page: take hold of it and the drawing can be carried
- * to another place in the flipbook.
+ * The tab on the side of the page: take hold of it and the drawing can be carried to
+ * another place in the flipbook.
  *
  * A grip rather than a pair of arrows, because what it does is a *drag* — a page three
  * slots along is one gesture here and three presses of an arrow, and the strip either
  * side of the drawing is already showing you where the page would land. The keyboard
- * gets the arrows anyway; they are on this control rather than beside it, which is
- * where a keyboard is already standing once it has tabbed to the thing it wants to move.
+ * gets the arrows anyway — up and down, the way the flipbook now runs; they are on this
+ * control rather than beside it, which is where a keyboard is already standing once it
+ * has tabbed to the thing it wants to move.
  *
- * It hangs *above* the paper rather than sitting on it, and that is what keeps it free:
+ * It hangs *beside* the paper rather than sitting on it, and that is what keeps it free:
  * the whole of the drawing is somewhere you draw, and a control anywhere on it would be
- * a hole in the page. What it costs is nothing at all — the gap between the header and
- * the top of the sheet is the column's own padding and was empty.
+ * a hole in the page. What it costs is nothing at all — the margin between the sheet and
+ * the edge of the stage was already there and was empty.
  */
 export function PageHandle({ handleProps, page, pages, carrying, disabled }: PageHandleProps) {
 	return (

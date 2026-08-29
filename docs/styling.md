@@ -24,16 +24,17 @@ properties, element defaults, and two utility classes.
   test alone hands it a 640×360 canvas and a page strip in a window that can hold
   neither. There's a note in `base.css` saying so.
 - **Where a page has two layouts, the phone's is the base and the desktop's is the
-  breakpoint** — the create page, the canvas. The shared files aren't, and say why: the
-  tray and the page bar are near enough one layout at every width, and what their desktop
-  block holds is the one thing that genuinely differs — the bar's stated 656px.
-- **`.center` carries two custom properties, and both are there because something
-  outside the column needs them.** `--book-width` is the one the page bar is sized off,
-  so the bar and the drawing are resolved against the same box; `--column-gutter` is the
-  air either side, and it exists because the create page's footer is `position: fixed`
-  and so measures `100%` against the window. Both are declared on `.center` rather than
-  `:root`, because a `var()` inside a custom property is substituted where the property
-  is *declared* and `--book-reserve` is set below that, per page.
+  breakpoint** — the create page, the canvas, the tool panel. The shared files mostly
+  aren't, and say why: the page bar is one layout at every width now that the drawing it
+  is sized off shrinks with the same formula it does, and its desktop block — which
+  stated a flat `width: 656px` — is gone.
+- **`--book-width` is declared wherever the layout that uses it is, and never on
+  `:root`.** It is the number the page bar is sized off as well as the drawing, so the two
+  are resolved against the same box. `.center` in `base.css` carries it for the playback
+  page, which is still a column; the create page carries its own copy — a `min()` with a
+  cap in it — because that page is a rail and a stage now and has no `.center` on it. Not
+  `:root` in either case: a `var()` inside a custom property is substituted where the
+  property is *declared*, and `--book-reserve` is set below that, per page.
 - **There is one shadow and one radius, and every flipbook takes both.** A gallery card,
   the flipbook on the playback page, the canvas you draw on and the page thumbnails
   either side of it are all the same object, so they all take `--shadow-card` and
@@ -51,7 +52,7 @@ properties, element defaults, and two utility classes.
   and those are the values that shipped.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash
   the names, so `.naming .tools` across two files silently matches nothing. When the
-  save form goes up, the tray is told to stow itself.
+  save form goes up, the tool panel is told to stow itself.
 - **The icons are the 2013 sprite** (`src/styles/icons.module.css`). Hand-drawn, in
   the same hand as everything else; an icon font would look like a different site.
   The retina sheet has double the spacing as well as double the art, so one set of
@@ -73,19 +74,24 @@ properties, element defaults, and two utility classes.
   for three seconds. If the preload goes, `block` has to go back to `swap`.
 - **No `letter-spacing` on the wordmark.** Pecita is a joining script; spacing it
   apart pulls the letters off each other's entry and exit strokes.
-- **Pecita signs the buttons that are about making a flipbook**: create on the gallery,
-  save on the create page, and the four edit actions beside it. All three are set at
-  30px, because Pecita runs small — a handwriting face with a shallow x-height, which at
-  a UI size reads as a caption rather than a label. The create button's label was Inter
-  at 16/500 until it was the last thing on that button not in the same hand as the
-  writing-hand dingbat next to it.
+- **Pecita signs the buttons that are about making a flipbook, and on the create page it
+  now signs all of them.** Create on the gallery and save on the create page are set at
+  30px and 22px, because Pecita runs small — a handwriting face with a shallow x-height,
+  which at a UI size reads as a caption rather than a label. The create button's label was
+  Inter at 16/500 until it was the last thing on that button not in the same hand as the
+  writing-hand dingbat next to it. The whole of the create page's tool panel is Pecita
+  dingbats at 24px: ✎ ⌫ ✜ ✥ ✍ ✚ ⊡ ✕ ↺ ↻ ↥ ↧ ⊙, which replaced the 2013 icon sheet on that
+  page outright. Which glyphs the face actually has decided the set — it has no scissors,
+  no overlapping sheets and no play triangle — and `docs/create-page.md` says what that
+  cost.
 - **Pecita doesn't centre itself, and every one of those needs a measured offset.** Its
   ascent and descent are lopsided against where the letters actually sit, so centring the
   text box leaves the word high — at 30px it reports an ascent of 20 and a descent of 10,
   putting the box centre 5px above the baseline, while a word with no descender runs
   16.5px up from it and none below and so has its own centre 8.25px up. 3.25px of drift,
-  against Inter's 0.13. So "Save" and "New" both carry `top: 3px`, and the ↺/↻ glyphs
-  carry 1px, which is smaller because a ring has no baseline to speak of.
+  against Inter's 0.13. So "New" carries `top: 3px`, the panel's smaller "Save" carries
+  2px in proportion, and every dingbat carries 1px — smaller because a mark with no
+  baseline to speak of is measured rather than inherited.
 
   **The create button's dingbat carries none, and used to carry 2px.** That 2px was
   measured against an Inter label sitting differently in the row; with both in Pecita at

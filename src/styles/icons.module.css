@@ -10,9 +10,9 @@
  * once the background is scaled back to the 1× size — which is why there's one set
  * of positions rather than two.
  *
- * The pencil, eraser and transform icons are tall strips rather than single icons:
- * the tool buttons slide the sprite up to switch state, so the "animation" is a
- * change of `bottom` on a 304px-tall background. See the toolbar's stylesheet.
+ * Most of it is unused now, and the offsets for those are written out at the bottom
+ * rather than deleted. What is left in force is the gallery's and the playback page's:
+ * the heart, the flag and the printer.
  */
 
 .icon {
@@ -28,49 +28,6 @@
 	}
 }
 
-.blank {
-	composes: icon;
-	width: 25px;
-	height: 25px;
-	background-position: 0 0;
-}
-
-/*
- * The sheet still carries a circleplay arrow at -26px, a play triangle at -308px and a
- * pause bar at -241px, and nothing names them any more: circleplay is gone from the
- * tool altogether, and play and pause are the page bar's handle now, which is drawn in
- * CSS. The offsets are left written down here because the sheet is a fixed image and
- * the next thing that wants one of them will want it at exactly these coordinates.
- */
-
-.delete {
-	composes: icon;
-	width: 25px;
-	height: 25px;
-	background-position: -72px 0;
-}
-
-.duplicate {
-	composes: icon;
-	width: 29px;
-	height: 29px;
-	background-position: -98px 0;
-}
-
-.eraser {
-	composes: icon;
-	width: 40px;
-	height: 304px;
-	background-position: -142px 0;
-}
-
-.facebook {
-	composes: icon;
-	width: 25px;
-	height: 25px;
-	background-position: -183px 0;
-}
-
 .heartOn {
 	composes: icon;
 	width: 15px;
@@ -83,13 +40,6 @@
 	width: 15px;
 	height: 15px;
 	background-position: -225px 0;
-}
-
-.pencil {
-	composes: icon;
-	width: 40px;
-	height: 304px;
-	background-position: -267px 0;
 }
 
 .print {
@@ -113,58 +63,39 @@
 	background-position: -376px 0;
 }
 
-.nudgeActive {
-	composes: icon;
-	width: 26px;
-	height: 57px;
-	background-position: -392px 0;
-}
+/*
+ * What the sheet still carries and nothing names any more.
+ *
+ * The offsets are written down rather than deleted because the sheet is a fixed image and
+ * the next thing that wants one of these will want it at exactly these coordinates. This
+ * list used to be three lines long — circleplay, play and pause, retired when the page
+ * bar's handle took over both jobs — and it is most of the sheet now, because the create
+ * page's controls are Pecita glyphs rather than pictures. See `ToolPanel`, which is where
+ * that decision is written down, and the note above about why an icon font would have
+ * looked like a different website: it still would. What changed is that the *tools* are
+ * no longer pictures of things either, and a sheet of drawn objects with only the pencil
+ * left on it was half a set.
+ *
+ *   blank        25×25    0        0
+ *   circleplay   —        -26px    0
+ *   delete       25×25    -72px    0
+ *   duplicate    29×29    -98px    0
+ *   eraser       40×304   -142px   0
+ *   facebook     25×25    -183px   0
+ *   pause        —        -241px   0
+ *   pencil       40×304   -267px   0
+ *   play         —        -308px   0
+ *   nudgeActive  26×57    -392px   0
+ *   nudge        26×57    -419px   0
+ *   rotateActive 26×57    -446px   0
+ *   rotate       26×57    -473px   0
+ *   translateActive 40×57 -500px   0
+ *   translate    40×57    -541px   0
+ *   transform    40×151   -582px   0
+ *   twitter      25×25    -623px   0
+ *
+ * The two tall ones are strips rather than single icons: the tool buttons slid the sprite
+ * up to switch state, so the "animation" was a change of `bottom` on a 304px-tall
+ * background.
+ */
 
-.nudge {
-	composes: icon;
-	width: 26px;
-	height: 57px;
-	background-position: -419px 0;
-}
-
-.rotateActive {
-	composes: icon;
-	width: 26px;
-	height: 57px;
-	background-position: -446px 0;
-}
-
-.rotate {
-	composes: icon;
-	width: 26px;
-	height: 57px;
-	background-position: -473px 0;
-}
-
-.translateActive {
-	composes: icon;
-	width: 40px;
-	height: 57px;
-	background-position: -500px 0;
-}
-
-.translate {
-	composes: icon;
-	width: 40px;
-	height: 57px;
-	background-position: -541px 0;
-}
-
-.transform {
-	composes: icon;
-	width: 40px;
-	height: 151px;
-	background-position: -582px 0;
-}
-
-.twitter {
-	composes: icon;
-	width: 25px;
-	height: 25px;
-	background-position: -623px 0;
-}

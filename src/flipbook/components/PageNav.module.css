@@ -20,10 +20,10 @@
  *
  * White, like the sheet of paper above it, on the grey of the page.
  *
- * z-index for the same reason the canvas has one: the pencil and the eraser are
- * 304px-tall pictures anchored by their tips in the tray below, and all but the last
- * few centimetres of each runs up the page behind whatever is above it. Without this
- * they cross the bar instead of passing behind it.
+ * z-index for the same reason the canvas has one, and against the same thing: the page
+ * strip is a column of thumbnails each carrying a `z-index: 9`, and the bar sits directly
+ * under the bottom of it. Without a number of its own a page peeking up from below would
+ * be painted over the bar rather than behind it.
  *
  * 10 rather than the canvas's 15: under the paper, which carries a shadow of its own
  * and drops it into the gap and onto the top of this.
@@ -335,23 +335,17 @@
 }
 
 /*
- * Desktop, where the only thing that changes is how the width is arrived at.
+ * There is no desktop block here any more, and what was in it is worth writing down.
  *
- * It used to be hidden here, on the reasoning that the page thumbnails do all of this
- * and more and the tray had play and circleplay in it. Both halves of that have gone:
- * the tray's playback buttons are this bar's handle now, and a strip you can click a
- * page in is not a thing that shows you a flipbook playing. It is the same control at
- * the same size — 48px of bar under a drawing that is only ever the one width up here.
+ * It stated `width: 656px` — the bar's own width, rather than the `--book-width` formula
+ * the rest of the page is drawn from — because `.book` was *pinned* to 640×360 above the
+ * breakpoint while `--book-width` went on being a `min(100%, height-derived)`. Between
+ * 561 and about 680px of window height the height was what bound, so the formula answered
+ * a few hundred pixels while the drawing above it stayed 640, and a bar visibly narrower
+ * than the paper is worse than no bar.
  *
- * Stated rather than taken from `--book-width`, and that is the whole of this block.
- * The canvas is pinned to 640px on this layout while `--book-width` stays a
- * `min(100%, height-derived)`, and between 561 and about 680px of window height the
- * height is what binds — so the formula answers a few hundred pixels while the drawing
- * above it stays 640, and a bar visibly narrower than the paper is worse than no bar.
- * 640 and 8px past it either side, which is what the formula means everywhere else.
+ * That pin is gone (see `FlipbookCanvas.module.css`, which says why), so the drawing now
+ * shrinks with the same formula this does — and the two agree at every height. Stating
+ * the width here would now be the bug it was written to fix, the other way round: a 656px
+ * bar under a 516px sheet.
  */
-@media screen and (min-width: 731px) and (min-height: 561px) {
-	.track {
-		width: 656px;
-	}
-}

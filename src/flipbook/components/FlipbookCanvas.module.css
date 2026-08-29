@@ -25,11 +25,35 @@
 }
 
 /*
- * z-index 15 is load-bearing on the desktop layout. The pencil and eraser in the tray
- * below are 304px-tall images anchored at their tips, so most of each one sits
- * *behind* the canvas; only the last few centimetres show below its bottom edge.
- * Selecting a tool slides it further down and more of it appears. Drop the canvas
- * below the tray's stacking order and two enormous pencils appear across the drawing.
+ * The create page's copy, which is centred in a stage rather than standing in a column.
+ *
+ * `--book-width` is a formula against the window and `--book-reserve` is a page's
+ * estimate of everything that isn't the drawing; between them they are close, and on the
+ * create page they are now standing inside a box whose height is *known* — the stage is
+ * what a flex layout had left. So the height is clamped as well as calculated: the
+ * formula picks the size, and this refuses to let a reserve that is a few pixels
+ * optimistic push the drawing over the page bar. The aspect ratio does the rest, taking
+ * the width back down with it.
+ *
+ * `margin: 0` because the stage centres it: auto margins on a box inside a flex
+ * container that is already centring both axes are a second opinion about the same
+ * thing, and on a box as wide as its container they resolve to zero anyway.
+ */
+.fitted {
+	max-width: 100%;
+	max-height: 100%;
+	margin: 0;
+}
+
+/*
+ * z-index 15 is load-bearing, and it is now the page strip it is load-bearing against.
+ *
+ * It used to be the tray: the pencil and eraser were 304px-tall images anchored at their
+ * tips, so most of each one sat *behind* the canvas and only the last few centimetres
+ * showed below its bottom edge. Those are gone — see `ToolPanel` — and what needs this
+ * number instead is the column of thumbnails the drawing stands in, every one of which
+ * carries a `z-index: 9`. Drop the canvas below that and the drawing is painted behind
+ * the flipbook it belongs to.
  */
 .canvas {
 	position: relative;
@@ -59,8 +83,9 @@
 /*
  * The sheet in hand: being carried to another place in the flipbook.
  *
- * The drawing follows the pointer, so `--drag` is written straight onto this element by
- * the gesture rather than coming through React — a hundred pointer moves a second, each
+ * Up and down, with the column it is being carried through. The drawing follows the
+ * pointer, so `--drag` is written straight onto this element by the gesture rather than
+ * coming through React — a hundred pointer moves a second, each
  * changing one number, is not a thing to re-render a page strip for. It carries the
  * handle above it, which is what makes the gesture read as picking the page up rather
  * than as scrubbing something.
@@ -77,7 +102,7 @@
  */
 .dragging {
 	z-index: 15;
-	transform: translate3d(var(--drag, 0px), 0, 0);
+	transform: translate3d(0, var(--drag, 0px), 0);
 }
 
 /*
@@ -246,18 +271,19 @@
 }
 
 /*
- * Desktop: the frame is exactly the size of the artwork, and stays that size.
+ * The desktop rule that used to live here pinned the frame to a hard 640×360, and it is
+ * gone.
  *
- * Not just for want of anything better to do with the room — in a window this size
- * the page strip is showing, and it lays out full-size copies of the canvas at a
- * fixed 660px pitch and positions the row by arithmetic. A canvas of any other size
- * and the thumbnails no longer line up with it. See the note in base.css about why
- * the height is half of this.
+ * Its reason went first: the page strip laid out full-size copies of the canvas at a
+ * *fixed* 660px pitch and positioned the row by arithmetic, so a canvas of any other size
+ * and the thumbnails no longer lined up with it. The strip measures the pitch off its own
+ * page box now — it has done since before it became a column — so there is nothing left
+ * that needs the drawing to be a particular number of pixels wide.
+ *
+ * What the rule was still doing was overriding `--book-width` with `aspect-ratio: auto`
+ * beside it, so on a desktop window too short for a 360px sheet the drawing did not
+ * shrink, it *squashed*: 640 wide against whatever height was left. `--book-width` is a
+ * `min()` with the window's height in it precisely so that cannot happen, and it was
+ * being quietly outvoted at the one width where it mattered.
  */
-@media screen and (min-width: 731px) and (min-height: 561px) {
-	.book {
-		width: 640px;
-		height: 360px;
-		aspect-ratio: auto;
-	}
-}
+

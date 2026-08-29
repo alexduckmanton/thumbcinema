@@ -1640,7 +1640,7 @@ export class PointerLayer {
 	 * threshold worth picking. Distance, because Safari withholds a resting finger's
 	 * movement and then delivers ten pixels of it in one event (`lib/zoom.ts`), so the
 	 * aiming finger crosses any slop on its own. The fan came apart into two controls
-	 * instead, and the question stopped being asked. See `CreateTray`.
+	 * instead, and the question stopped being asked. See `ToolPanel`.
 	 */
 	private engagePress(): void {
 		const press = this.pressed
@@ -2065,7 +2065,7 @@ export const TAP_TIME = 400
  * Which tool's button in the tray is being held down right now, if any.
  *
  * A module-level signal rather than a prop because of where its two ends are: the button
- * is in `CreateTray` and the thing that acts on it is a `PointerLayer` built inside
+ * is in `ToolPanel` and the thing that acts on it is a `PointerLayer` built inside
  * `InkCursor`, two branches of the tree apart with the page between them. Threading a
  * callback through both would put the mechanism in four files that have no other use
  * for it.

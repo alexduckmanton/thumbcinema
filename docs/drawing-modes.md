@@ -59,7 +59,7 @@ cursor would jump under the hand and back — and it survives the gesture that m
 because a cursor you have carefully placed and then lost by lifting your finger is worse
 than no cursor. So the hand and the mark are never in the same place, which is the
 occlusion problem answered rather than worked around. What sets the tool *working* is a
-second contact: a second finger anywhere on the page, or a tool held down in the tray by
+second contact: a second finger anywhere on the page, or a tool held down in the panel by
 the other hand. Either finger steers, and the cursor follows the average of whichever
 contacts the browser reports as having moved.
 
@@ -86,8 +86,8 @@ Things worth knowing before touching anything nearby:
   dragging down there aims exactly as dragging on the paper does. What keeps that from
   eating the rest of the page is `ownsTouch`: a touch that starts inside a `button`, `a`,
   `input`, `select`, `textarea` or `[role="slider"]` is left entirely alone, propagation
-  and all, which is every control on this page and is what lets the tray's own handlers
-  see a finger land on a tool while another one is aiming. A press on the tray is still
+  and all, which is every control on this page and is what lets the panel's own handlers
+  see a finger land on a tool while another one is aiming. A press on the panel is still
   *felt* — as the other hand, through `onToolPressed` — just not as a finger, or the same
   press would engage the tool twice and stay engaged when one of the two was released.
 
@@ -154,19 +154,19 @@ Things worth knowing before touching anything nearby:
   What that costs is nothing: pressing the hand still selects the stroke under the cursor
   exactly as it did, because that press means one thing again. `TAP_SLOP` and `TAP_TIME`
   went back to being the page tap's alone.
-- **A press on the tray is otherwise unconditional**, and settled on the way back up in
+- **A press on the panel is otherwise unconditional**, and settled on the way back up in
   one respect only: a press that did some work was the tool being used, and a press that
   did none was an ordinary tap and picks the tool up. It cannot be decided on the press,
   because at that moment there is no way to know whether a finger is about to land on the
-  page. `CreateTray` suppresses its own `onClick` for pointer-driven presses; keyboard
+  page. `ToolPanel` suppresses its own `onClick` for pointer-driven presses; keyboard
   activation still goes through it, told apart by `event.detail === 0`.
 - **The tray's three tools are driven by touch events, not by a click and not by a
   pointer event, and that is what makes changing tool mid-gesture possible at all.** A
   tap on a tool while a finger is already on the page is a *multi-touch* gesture, and a
   browser owes it neither a `click` nor a compatibility mouse event — those are for a
-  single-finger tap. So the tray was reachable only by putting the drawing hand down
+  single-finger tap. So the panel was reachable only by putting the drawing hand down
   first, which is the one thing this whole mechanism exists to avoid. Two further things
-  were working against it, both fixed rather than worked around: the tray inherited the
+  were working against it, both fixed rather than worked around: the panel inherited the
   body's `touch-action: manipulation`, so a second contact on it is a candidate pinch and
   a browser may hold the touch back while it decides (`none` now, the other half of what
   the canvas already says); and selecting a tool slides its button 50px down out from
@@ -177,7 +177,7 @@ Things worth knowing before touching anything nearby:
   and takes the long-press callout with it. The mouse keeps the pointer handlers, told
   apart by `pointerType`, and `setPointerCapture` for the same reason touch doesn't need
   it. Verified by withholding pointer events and synthesised clicks from touch
-  altogether: the tray goes on working, and before this it did nothing at all under those
+  altogether: the panel goes on working, and before this it did nothing at all under those
   conditions — no drawing, no switching.
 - **Changing tool part-way through a gesture puts the old one down first.** `engagePress`
   disengages before it selects, because a stroke left open while the tool underneath it
@@ -271,7 +271,7 @@ own because v11 shares none of the machinery the other ten do.
   ratio, so at 4× the copy magnifies about 2:1. On a phone that is a soft edge on a
   hand-drawn line.
 - **Its size is measured, and its shape falls out of the measurement.** The stage takes
-  what the column has left once the strip, the paper, the page bar and the tray have taken
+  what the stage has left once the paper and the page bar have taken
   theirs — nothing above it moves, and `--book-reserve` is the number it always was — so
   its aspect ratio is whatever the phone leaves it, and **the rectangle takes its shape
   from the stage rather than the other way round**. Which is why the rectangle is not
@@ -323,7 +323,7 @@ own because v11 shares none of the machinery the other ten do.
   both go back to block flow, because a flex column doesn't collapse margins and the
   tray's 15px bottom margin and the save button's 15px top margin are a single 15px gap in
   flow and 30 in flex. Measured both ways round: with the stage up and without it, in
-  three modes and on both layouts, the paper, the page bar, the tray, the strip and the
+  three modes and on both layouts, the paper, the page bar, the panel, the strip and the
   footer are at the same pixel they were before any of this.
 - **The `PointerLayer` moved out of `InkCursor`.** Two components now draw a cursor — the
   paper's and the stage's — and neither can own the object that decides what a finger
@@ -335,7 +335,7 @@ own because v11 shares none of the machinery the other ten do.
 
 The same window with the overview taken away. One canvas, in the place the drawing has
 always been: **two fingers pinch and pan it, one finger draws in it.** Nothing else about
-the column changes — the strip, the page bar, the tray and the footer are at the pixel
+the layout changes — the strip, the page bar and the panel are at the pixel
 they are in every other mode, measured.
 
 - **It starts at the whole page, where v11 starts at 2×.** With no second view to find
@@ -454,7 +454,7 @@ Measured on an iPhone 13: a drag in the band moves the cursor by exactly the fin
 delta and marks nothing; the cursor goes the instant a finger lands on the canvas and is
 still gone after the stroke, after the release and after a pinch, and comes back on the
 next touch in the band at the pixel it was parked on; it survives the lift; a second finger down there draws
-(916 px) and either finger steers; a held pencil in the tray with one aiming finger draws
+(916 px) and either finger steers; a held pencil in the panel with one aiming finger draws
 (2267 px); a stroke drawn entirely from the band lands 1816 px of ink; the transform tool
 marqueed from the band selects (1060 blue px) and a bare tap down there puts it down again;
 and on the stage a one-finger stroke and a two-finger pinch behave exactly as v12's.

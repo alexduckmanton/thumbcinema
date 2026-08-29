@@ -1,5 +1,5 @@
 /*
- * The zoomed drawing surface: v11's second canvas in the band under the tools, with the
+ * The zoomed drawing surface: v11's second canvas in the band under the page bar, with the
  * outline on the paper that says which part of the page it is showing — and v12's, which
  * is the same canvas standing in the paper's own place with no outline anywhere.
  *
@@ -14,7 +14,7 @@
  * The leftover.
  *
  * `flex: 1` against a column that has been stretched to the bottom of the window, so this
- * is whatever the strip, the paper, the page bar and the tray have not already taken —
+ * is whatever the stage, the page bar and the panel have not already taken —
  * which is the whole design of the mode: the drawing surface is sized to the room there
  * is, and the outline above takes its shape from this rather than the other way round.
  * `min-height: 0` because a flex item's floor is its content and a canvas would otherwise

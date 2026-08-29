@@ -27,9 +27,13 @@ working on that part of the tree.
 `react`, `react-dom`, `paper` and `pg` are the only runtime dependencies. No state
 library, no CSS framework, no router package, no icon library — keep it that way.
 
-**The visual design is deliberately unchanged.** This was a port, not a redesign. If
-something looks different from the 2013 revival, that's a bug unless the comment next to
-it says otherwise.
+**The visual design is deliberately unchanged — except on `/create`, which was
+redesigned in 2026.** Everywhere else this was a port, and if something looks different
+from the 2013 revival that's a bug unless the comment next to it says otherwise. The
+create page is the one place that is now its own thing: every control is a Pecita glyph in
+a panel down the left (a bar along the bottom on a phone), and the flipbook is a column
+you scroll rather than a row that slides. The hand-drawn tool sprite went with it. See
+[`docs/create-page.md`](docs/create-page.md), which says what that cost.
 
 **`time-capsule` is a branch still running the 2013 front end, and it is the reference.**
 When you need to know what the old behaviour was, that branch is the answer, not
@@ -78,8 +82,10 @@ src/
       TraceLayer.tsx  the picture over the paper, and the hand that places it
       TraceMenu.tsx   move it, replace it, or take it away
     components/       canvas, page strip, page arrows, the page's handle,
-                      trays, save form, the cursor ring and the transform cursors,
-                      the drawing-mode switch
+                      the tool panel, save form, the cursor ring and the transform
+                      cursors, the drawing-mode switch
+      ToolPanel.tsx   every control on the create page, as Pecita glyphs
+      PageStrip.tsx   the pages as a scrolling column, and the canvas over it
     card/             one flipbook in a list — the grid, and the remixes under one
       FlipbookCard.tsx   the link, the preview over it, the play button
       useCardGesture.ts  hover, tap, hold and drag, mouse and finger
@@ -257,6 +263,13 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   pixel ratio, on both layouts — so the strip lives under a memory ceiling and
   `HIDPI_PAGE_LIMIT` drops it to 1:1 past 50 pages. iOS enforces its per-tab canvas
   budget by *blanking* canvases rather than by failing. `docs/create-page.md`.
+- **The page strip is a real scroll container, and the scroll position is the page
+  number.** `scroll-snap-type: y mandatory` with the drawing laid over the middle of it;
+  scrolling calls `goToPage`, and a page turned any other way scrolls. Anything that wants
+  to move the flipbook goes through `goToPage` rather than through `scrollTop` — a
+  scroll this file drives is deliberately not answered by its own handler, so setting the
+  position directly lands on the right slot with the flipbook still on the page it
+  started on. That is a bug this has already had once.
 - **Every trace photo taken is held until the tab closes**, in that same budget — the
   undo stack holds steps naming its object URL, so revoking early is a ⌘Z that brings
   back a broken image. `docs/create-page.md`.
@@ -279,9 +292,12 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   duplicate. A tab switch aborts the fetch in flight for the same class of reason.
 - **There is no boot spinner: the Suspense fallback is the page.** `RouteShell` draws each
   route's real header and the same placeholder that route uses, so nothing moves at the
-  handover. It lives in the **entry bundle**, which is the constraint that shapes it — it
-  may not import anything a route is lazy about, or it would be waiting on the download it
-  exists to cover. `docs/styling.md`.
+  handover — verified at the pixel, both widths. It lives in the **entry bundle**, which is
+  the constraint that shapes it: it may not import anything a route is lazy about, or it
+  would be waiting on the download it exists to cover. That is why the create page's
+  `--panel-width` and its page bar's reserved height are stated on the *page's* stylesheet,
+  which the shell already reads, rather than on the panel's and the bar's own.
+  `docs/styling.md`.
 - **An unsaved drawing holds a spare history entry.** Neither the logo nor the back button
   is a page load here, so `<Link>` goes through the router's `guardNavigation()` and back
   is answered rather than blocked — a duplicate entry is pushed so the first press lands

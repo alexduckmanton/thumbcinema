@@ -194,27 +194,56 @@ html.locked body {
 }
 
 /*
- * And while it is held still, the page's one column is stretched to fill it.
+ * The drawing tool's own page shape: one windowful, and `main` is what is left of it
+ * under the header.
  *
- * Not so that anything more can be seen — the create page is sized around the window by
- * `--book-reserve` and has never had anything below the fold — but so that the empty
- * white under the tools belongs to the column. That band is the field a finger aims
- * from, and a field that stopped where the tray happens to end would be a page whose
- * bottom third silently did nothing.
+ * This is what the create page's stage is measured against, and it is why the stage
+ * never has to know how tall the header is. Flex rather than `min-height: 100dvh` on the
+ * column itself, which is the obvious version and is wrong by exactly the height of the
+ * header: the column starts below it, so a column a windowful tall ends a header's worth
+ * past the bottom of the window.
  *
- * Flex rather than `min-height: 100dvh` on the column itself, which is the obvious
- * version and is wrong by exactly the height of the header: the column starts below it,
- * so a column a windowful tall ends a header's worth past the bottom of the window.
- * Clipped, so invisible — but it is 60-odd pixels of the field that no finger can reach,
- * which is the one thing this is here to avoid.
+ * Separate from `.locked` above, which is the *gesture* lock — no rubber band, no pinch,
+ * no pull to refresh — and comes off while the save form is up so a long description in
+ * a small textarea can be panned. The layout must not come off with it: the stage holds
+ * the page strip, the drawing and the save form itself, and a stage that collapsed to its
+ * content the moment the form appeared would take the form down with it. So the create
+ * page wears this for as long as it is mounted and `.locked` only while you are drawing.
+ *
+ * `min-height: 0` on `main` because it is a flex column in its own right and its stage
+ * child has to be allowed to be shorter than the strip inside it — without it the
+ * scroller sizes to the whole flipbook and there is nothing left to scroll.
  */
-html.locked #root {
-	display: flex;
-	flex-direction: column;
-	min-height: 100%;
+html.tool,
+html.tool body {
+	overflow: hidden;
 }
 
-html.locked main {
+html.tool body {
+	position: fixed;
+	inset: 0;
+}
+
+html.tool #root {
+	display: flex;
+	flex-direction: column;
+	/*
+	 * `height`, not `min-height`, and the difference is the whole of whether anything
+	 * below this can be scrolled.
+	 *
+	 * A minimum leaves the column free to grow past the window, and a flex child asked
+	 * for `flex: 1` of a container with no definite height simply takes its content's
+	 * height instead — so `main` came out as tall as whatever was inside it, the panel
+	 * stretched to match, and the rail that was supposed to scroll had all the room it
+	 * wanted. On a short window that put the save button off the bottom of the screen with
+	 * nothing able to reach it. The body is `position: fixed; inset: 0` above, so 100%
+	 * here is exactly one windowful.
+	 */
+	height: 100%;
+}
+
+html.tool main {
+	min-height: 0;
 	flex: 1;
 }
 

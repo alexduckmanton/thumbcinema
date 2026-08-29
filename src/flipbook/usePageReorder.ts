@@ -17,23 +17,23 @@ import {
 /**
  * Dragging the page you are drawing on to another place in the flipbook.
  *
- * The gesture is a handle above the paper, and what it moves is the *drawing*: the
- * canvas follows the pointer, the thumbnails either side step aside to open a gap, and
- * letting go slides the whole flipbook home around it. Nothing in the scene moves until
+ * The gesture is a handle on the edge of the paper, and what it moves is the *drawing*:
+ * the canvas follows the pointer up and down the column, the thumbnails either side step
+ * aside to open a gap, and letting go slides the whole flipbook home around it. Nothing in the scene moves until
  * the very end — see `FlipbookEngine.movePage` — so a drag that wanders across the book
  * and comes back costs nothing at all.
  *
- * **Hold the page out to one side and the flipbook runs underneath it.** A drag is 1:1
- * with the pointer, and on a phone the pitch is nearly the width of the window — so on
- * its own a gesture can reach exactly one slot in either direction. What reaches the
- * rest of the flipbook is holding: after `SLIDE_DWELL_MS` the row starts advancing a
- * page at a time, and the page stays exactly where your hand is while the book goes by.
- * See `anchor` on `Reorder`, which is the whole mechanism — the row's alignment and the
- * destination advance *together*, so the gap stays under the page and being held out to
- * one side goes on being true.
+ * **Hold the page out to one end and the flipbook runs past it.** A drag is 1:1 with the
+ * pointer, and the pitch is most of the height of the stage — so on its own a gesture can
+ * reach exactly one slot in either direction. What reaches the rest of the flipbook is
+ * holding: after `SLIDE_DWELL_MS` the column starts advancing a page at a time, and the
+ * page stays exactly where your hand is while the book goes by. See `anchor` on
+ * `Reorder`, which is the whole mechanism — the column's alignment and the destination
+ * advance *together*, so the gap stays under the page and being held out goes on being
+ * true.
  *
  * **How far out it is held is the throttle**, from a page at a time you can count to
- * three times that at the edge of the window. See `slideInterval` and `slideReach`. It
+ * three times that at the top or bottom of the window. See `slideInterval` and `slideReach`. It
  * is a control that goes both ways, which is the whole reason it is distance and not
  * elapsed time: pull the page back towards the middle and the flipbook eases off under
  * it, so stopping on the page you wanted is something you aim at rather than catch.
@@ -41,9 +41,10 @@ import {
  * **How the handover at the end is invisible**, which is the part worth understanding
  * before touching any of it. Throughout the gesture the strip is anchored on the slot
  * the page is held out *from*, and the carried page is drawn away from it by a
- * transform. At the release the anchor moves to `to` and the drawing's own offset goes
- * back to zero: those two are the same distance in opposite directions, so what you see
- * is the flipbook and the page it now contains sliding home as one thing. By the time
+ * transform. At the release the anchor moves to `to` — which the strip answers by
+ * scrolling — and the drawing's own offset goes back to zero: those two are the same
+ * distance in opposite directions, so what you see is the flipbook and the page it now
+ * contains sliding home as one thing. By the time
  * `movePage` is called every element is already standing exactly where the reordered
  * flipbook puts it, and the commit is a re-render that moves nothing — which is why the
  * transitions are only switched on while a reorder is in flight, so the frame that swaps
@@ -60,7 +61,7 @@ export function usePageReorder(
 ) {
 	const { activePage, pages, enabled } = options
 
-	/** `.book` — the sheet of paper, which is the canvas and the handle above it. */
+	/** `.book` — the sheet of paper, which is the canvas and the handle on its edge. */
 	const bookRef = useRef<HTMLDivElement | null>(null)
 	const [reorder, setReorder] = useState<Reorder | null>(null)
 
@@ -204,15 +205,15 @@ export function usePageReorder(
 		const from = activePage
 		drag.current = {
 			pointer: event.pointerId,
-			x: event.clientX,
-			at: event.clientX,
+			x: event.clientY,
+			at: event.clientY,
 			from,
 			anchor: from,
 			to: from,
 			offset: 0,
 			pages,
 			step: pitch,
-			room: [event.clientX, window.innerWidth - event.clientX],
+			room: [event.clientY, window.innerHeight - event.clientY],
 			slide: null,
 		}
 		setReorder({ from, anchor: from, to: from, settling: false, slide: null })
@@ -222,7 +223,7 @@ export function usePageReorder(
 		const held = drag.current
 		if (!held || event.pointerId !== held.pointer) return
 
-		held.at = event.clientX
+		held.at = event.clientY
 		track(held)
 	}
 
@@ -241,8 +242,8 @@ export function usePageReorder(
 	 * The keyboard's way in, and the same settle.
 	 *
 	 * A page moved by a key press has no drag behind it, so the drawing never leaves the
-	 * middle of the column — what moves is the page it swaps with, travelling past the
-	 * canvas from one side to the other. That is the same movement a released drag makes
+	 * middle of the stage — what moves is the page it swaps with, travelling past the
+	 * canvas from one end to the other. That is the same movement a released drag makes
 	 * and it is made by the same code; only the starting offset differs. Held down, the
 	 * key's own repeat carries the page along a page at a time, which is the keyboard's
 	 * version of holding it out to one side.
@@ -256,7 +257,7 @@ export function usePageReorder(
 		if (!engine || !enabled) return
 		if (drag.current || settling.current !== null) return
 
-		const delta = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
+		const delta = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
 		if (!delta) return
 
 		const to = activePage + delta
@@ -295,7 +296,7 @@ interface Drag {
 	pages: number
 	step: number
 	/**
-	 * How much screen there was either side of the press, `[left, right]`. What the
+	 * How much screen there was above and below the press, `[up, down]`. What the
 	 * throttle is measured against — see `slideReach` — and read once for the same reason
 	 * the two above are: a gesture whose own scale moved under it would be a gesture that
 	 * changed speed because the browser's chrome slid away.

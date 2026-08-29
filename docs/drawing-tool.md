@@ -465,11 +465,14 @@ can't.
   serialises through — **and it has to be left empty between uses**, because
   `exportSVG` writes every layer in the project and a page's worth of ink parked there
   would be saved with the flipbook.
-- **The canvas has a z-index, the page bar has a lower one, and the tools have
-  neither.** The pencil and eraser in the tray are 304px-tall images anchored by their
-  tips; most of each one sits *behind* the canvas and selecting a tool slides more of
-  it into view. Drop either of the two out of that stacking order and enormous pencils
-  appear across the drawing.
+- **The canvas has a z-index and the page bar has a lower one, and what they are ordered
+  against is the page strip.** Every thumbnail in the column carries a `z-index: 9`; the
+  drawing stands at 15 and the bar at 10, so the drawing is in front of the flipbook it
+  belongs to and the bar passes behind the page peeking up from below. It used to be the
+  tools they were ordered against — the pencil and eraser were 304px images anchored by
+  their tips, most of each sitting *behind* the canvas — and dropping either out of that
+  order put enormous pencils across the drawing. The tools are glyphs in a panel now; the
+  numbers stayed, and what they mean changed.
 - **A selected stroke is moved into the selection layer, not flagged.** The selection
   layer draws *below* the pages, which reads correctly only because the page fades to
   20% while anything is selected. **The layer is not a page, so anything left in it

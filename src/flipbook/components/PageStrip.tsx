@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { PAGE_TRAVEL_MS } from '../engine/animations'
+import { PAGE_TRAVEL_MS, prefersReducedMotion } from '../engine/animations'
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import type { PageState } from '../engine/pages'
@@ -15,11 +15,11 @@ export interface PageStripProps {
 	/** True while a page is still on its way into the canvas's slot. */
 	arriving: boolean
 	/**
-	 * True for the length of a page animation, and what makes the row slide with it.
+	 * True for the length of a page animation, and what makes the column travel with it.
 	 *
 	 * Adding or deleting a page moves every page ahead of the gap along by a slot, and
-	 * the row is the only thing carrying those — the keyframes animate the page being
-	 * thrown and the one taking its place, and nothing else. See `.throwing`.
+	 * the scroll is the only thing carrying those — the keyframes animate the page being
+	 * thrown and the one taking its place, and nothing else. See `scrollToPage`.
 	 */
 	throwing: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
@@ -30,6 +30,65 @@ export interface PageStripProps {
 	shiftFor?: (index: number) => number
 }
 
+/** The curve the flipbook closes up round a dropped page on. Matches `.carrying`. */
+const SETTLE_EASE = (t: number) => cubicBezier(0.2, 0.8, 0.3, 1, t)
+
+/**
+ * How much wheel a page costs, when the wheel is over the drawing rather than over the
+ * strip.
+ *
+ * One notch of a mouse wheel, which reports 100px — so a notch is a page, which is the
+ * whole of what this number is chosen for. A trackpad sends a stream of much smaller
+ * deltas and spends them a page at a time as they add up, which is the same rate a hand
+ * would expect of the strip beside it.
+ *
+ * It was half this to begin with, on the reasoning that a threshold you have to overshoot
+ * reads as a control that ignored you once before answering. It does not: at 50 a single
+ * notch of an ordinary mouse turned two pages, and a page turn nobody asked for is a
+ * worse fault than a page turn that waits for the whole notch.
+ */
+const WHEEL_STEP = 100
+
+/**
+ * The class that takes the snapping off while this file is scrolling the column itself.
+ *
+ * Named once, at module scope, because `noUncheckedIndexedAccess` types every CSS-module
+ * lookup as possibly undefined and `classList.add` will not take that — and because the
+ * alternative, writing `scroll-snap-type` straight onto the element, would put a layout
+ * decision in here rather than in the stylesheet with the rest of them. The fallback is
+ * the unhashed name, which is what a build without CSS modules would have produced
+ * anyway.
+ */
+const FREE_SCROLLING = styles.freeScrolling ?? 'freeScrolling'
+
+/**
+ * The column of page thumbnails the drawing stands in, and the thing you scroll.
+ *
+ * The strip is a real scroll container: the pages are a column inside it, each one a
+ * snap point, and the live canvas is pinned over the middle of it. Scrolling is
+ * therefore the browser's — momentum, rubber-banding, the trackpad's whole feel — and
+ * what this component does is the two ends of it. It sets the padding that lets the
+ * first and last pages reach the middle, and it keeps the flipbook and the scroll
+ * position agreeing about which page you are on: a scroll turns the page, and a page
+ * turned any other way scrolls.
+ *
+ * **`scroll-snap-type: y mandatory` is what makes the drawing cut rather than slide.**
+ * The canvas never moves; the column under it does, and the page it is showing changes
+ * the moment a different slot is nearest the middle. That is the whole of "scroll
+ * normally, and the frame snaps from one to the next".
+ *
+ * It was a row until this layout, laid out sideways and positioned by `left` off the
+ * active page — the engine owned where it stood and nothing scrolled at all. What that
+ * cost is written down here rather than lost: the row could be eased on exactly the
+ * curve a page animation used, because moving it was a style change. A scroll container
+ * has no such property, so the same movements are animated by hand in `scrollToPage`,
+ * with the snapping switched off for as long as one is in flight so the browser and
+ * this file are never both steering.
+ *
+ * Create only. The playback page never renders this, and never allocates the per-page
+ * canvases: 640×360 of backing store each, which on a 200-page archive flipbook is tens
+ * of megabytes for something nobody can see.
+ */
 export function PageStrip({
 	engine,
 	pages,
@@ -41,42 +100,57 @@ export function PageStrip({
 	reorder = null,
 	shiftFor,
 }: PageStripProps) {
-	const container = useRef<HTMLDivElement | null>(null)
+	const scroller = useRef<HTMLDivElement | null>(null)
 	const firstPage = useRef<HTMLDivElement | null>(null)
-	const [metrics, setMetrics] = useState({ offset: 0, width: CANVAS_WIDTH, gutter: 0 })
+	const [metrics, setMetrics] = useState({ offset: 0, width: CANVAS_WIDTH, gutter: 0, view: 0 })
 	const scale = useThumbnailScale(engine, pages.length)
 
 	/*
-	 * Three numbers, all read off what the browser actually laid out.
+	 * Four numbers, all read off what the browser actually laid out.
 	 *
-	 * `offset` is where the live canvas sits relative to this container, and `width` is
-	 * how wide it is — which is 640 on a desktop and whatever the window could spare on
-	 * a phone, because the thumbnails are copies of the drawing and have to be exactly
-	 * the size of it to stand behind it. `gutter` is the page's own padding, taken from
-	 * the stylesheet rather than agreed with it, so the gap between pages can differ by
-	 * layout without this file knowing that layouts exist.
+	 * `offset` is where the top of the live canvas sits relative to the top of this
+	 * scroller, and `width` is how wide the canvas is — the thumbnails are copies of the
+	 * drawing and have to be exactly the size of it to stand behind it. `gutter` is the
+	 * page's own padding, taken from the stylesheet rather than agreed with it, so the
+	 * gap between pages can differ by layout without this file knowing that layouts
+	 * exist. `view` is the height of the scrollport, which is what the padding at the
+	 * two ends is measured against.
 	 */
 	const measure = useCallback(() => {
 		const canvas = canvasRef.current
-		const box = container.current
+		const box = scroller.current
 		const page = firstPage.current
 		if (!canvas || !box || !page) return
 
-		setMetrics({
-			offset: canvas.getBoundingClientRect().left - box.getBoundingClientRect().left,
+		const gutter = Number.parseFloat(getComputedStyle(page).paddingTop) || 0
+		const next = {
+			offset: canvas.getBoundingClientRect().top - box.getBoundingClientRect().top,
 			width: canvas.offsetWidth,
-			gutter: Number.parseFloat(getComputedStyle(page).paddingLeft) || 0,
-		})
+			gutter,
+			view: box.clientHeight,
+		}
+
+		// Only when something actually changed. This runs on every resize and on every
+		// frame the canvas's own observer reports, and a `setState` with equal numbers
+		// still re-renders a list that is one canvas per page.
+		setMetrics((current) =>
+			current.offset === next.offset &&
+			current.width === next.width &&
+			current.gutter === next.gutter &&
+			current.view === next.view
+				? current
+				: next,
+		)
 	}, [canvasRef])
 
 	/*
 	 * Both, because they answer different halves of it.
 	 *
-	 * The canvas changes width when the window does, but it also changes width when
+	 * The canvas changes size when the window does, but it also changes size when
 	 * nothing fires a resize at all — `--book-width` is drawn off `100dvh`, and on a
 	 * phone that moves as the browser's own chrome slides in and out. And the window
 	 * changes the canvas's *position* without changing its size at all, which is every
-	 * desktop window: the drawing stays 640 and the column re-centres under it.
+	 * desktop window: the drawing stays 640 and the stage re-centres under it.
 	 */
 	useEffect(() => {
 		measure()
@@ -93,8 +167,24 @@ export function PageStrip({
 		}
 	}, [measure, canvasRef])
 
-	/** One page to the next: the drawing's width plus a gutter either side. */
-	const step = metrics.width + metrics.gutter * 2
+	/** The height of one thumbnail, from the canvas's width and the flipbook's shape. */
+	const pageHeight = (metrics.width * CANVAS_HEIGHT) / CANVAS_WIDTH
+
+	/** One page to the next: the drawing's height plus a gutter above and below. */
+	const step = pageHeight + metrics.gutter * 2
+
+	/*
+	 * What lets the first and last pages reach the middle.
+	 *
+	 * A snap container can only scroll between 0 and its overflow, so without air at the
+	 * two ends page one can never be centred — it would sit at the top of the window with
+	 * the drawing somewhere below it. The top pad is where the canvas is, less the page's
+	 * own gutter, which is exactly the arithmetic the row's `left` used to be: it makes
+	 * `scrollTop === index * step` the position at which page `index` stands under the
+	 * drawing, whether or not the drawing is in the middle of the scrollport.
+	 */
+	const padTop = Math.max(0, metrics.offset - metrics.gutter)
+	const padBottom = Math.max(0, metrics.view - step - padTop)
 
 	// The engine throws pages from one slot to the next and needs to know how far that
 	// is. It can't be told at build time for the same reason it isn't measured there.
@@ -103,39 +193,260 @@ export function PageStrip({
 	}, [engine, step])
 
 	/*
-	 * Which slot the row is lined up on, which is normally the page you are drawing on.
+	 * Which slot the column is lined up on, which is normally the page you are drawing on.
 	 *
 	 * While a page is being carried it is the gesture's, and it is what that gesture
 	 * moves: it starts at the slot the page came out of, so the pages either side can
 	 * step aside without the whole flipbook moving with them; it advances a page at a
-	 * time while the page is held out to one side, which is the book running underneath
-	 * it; and it arrives at the destination at the moment the page is let go — which,
-	 * against the drawing sliding back to the middle of the column by exactly the same
-	 * distance, is the flipbook closing up round the page as one movement. See
-	 * `usePageReorder`, which is where the arithmetic of all three is written out.
+	 * time while the page is held out to one side, which is the book running past it; and
+	 * it arrives at the destination at the moment the page is let go — which, against the
+	 * drawing sliding back to the middle of the stage by exactly the same distance, is
+	 * the flipbook closing up round the page as one movement. See `usePageReorder`.
 	 */
 	const anchor = reorder ? reorder.anchor : activePage
-	const left = metrics.offset - metrics.gutter - anchor * step
+
+	/*
+	 * Everything a scroll or a wheel has to read, kept in a ref rather than closed over.
+	 *
+	 * The scroll handler is bound once and fires at whatever rate the compositor feels
+	 * like; rebinding it on every page turn would mean adding and removing a listener
+	 * several times a second while a flipbook is being scrubbed. So it reads the latest
+	 * of everything from here, which is the same bargain the reorder gesture makes with
+	 * its pointer.
+	 */
+	const latest = useRef({ engine, step, activePage, pages: pages.length, playing })
+	latest.current = { engine, step, activePage, pages: pages.length, playing }
+
+	/** True while this file is the one moving the scroller, so it doesn't answer itself. */
+	const driving = useRef(false)
+	const animation = useRef<number | null>(null)
+
+	/**
+	 * Puts page `index` under the drawing, over `duration` and on `easing`.
+	 *
+	 * Instant is the ordinary case and is not an animation at all: turning a page is a
+	 * cut. What is animated is the two movements that are part of something else — a
+	 * page being thrown into the next slot, and the flipbook closing up round a page
+	 * that has been carried somewhere — both of which the column has to travel with,
+	 * exactly as far and in exactly the same time, or the flipbook comes apart in the
+	 * middle of them.
+	 *
+	 * Snapping is switched off for the length of it. A mandatory snap container resnaps
+	 * after every scroll it is given, so an animation written a frame at a time would be
+	 * fighting the browser for the same property forty times a second; with it off, this
+	 * lands the scroller exactly on a snap point and hands it back.
+	 */
+	const scrollToPage = useCallback(
+		(index: number, duration = 0, easing?: (t: number) => number) => {
+			const box = scroller.current
+			if (!box) return
+
+			if (animation.current !== null) cancelAnimationFrame(animation.current)
+			animation.current = null
+
+			const to = index * latest.current.step
+			const from = box.scrollTop
+			if (Math.abs(to - from) < 1) return
+
+			driving.current = true
+
+			if (duration <= 0 || prefersReducedMotion()) {
+				box.scrollTop = to
+				// One frame, so the scroll event this just produced is seen while the flag is
+				// still up. `scrollTop` is synchronous but the event is not.
+				requestAnimationFrame(() => {
+					driving.current = false
+				})
+				return
+			}
+
+			box.classList.add(FREE_SCROLLING)
+			const started = performance.now()
+
+			const frame = (now: number) => {
+				const t = Math.min(1, (now - started) / duration)
+				box.scrollTop = from + (to - from) * (easing ? easing(t) : t)
+
+				if (t < 1) {
+					animation.current = requestAnimationFrame(frame)
+					return
+				}
+
+				animation.current = null
+				box.classList.remove(FREE_SCROLLING)
+				requestAnimationFrame(() => {
+					driving.current = false
+				})
+			}
+
+			animation.current = requestAnimationFrame(frame)
+		},
+		[],
+	)
+
+	useEffect(() => {
+		return () => {
+			if (animation.current !== null) cancelAnimationFrame(animation.current)
+		}
+	}, [])
+
+	/*
+	 * The flipbook telling the scroller where it is — the other direction from the one
+	 * below, and the reason both of them check before they act.
+	 *
+	 * A page turned by the page bar, an arrow key, playback stopping, a page added or
+	 * deleted or carried somewhere else: all of them change `anchor`, and none of them
+	 * has scrolled anything. `scrollToPage` returns without doing anything when the
+	 * scroller is already there, which is what makes this a no-op after a scroll that
+	 * turned the page itself rather than a second movement chasing the first.
+	 *
+	 * The duration is which of the three movements this is. A run under a held page
+	 * glides linearly for exactly as long as the gap until the next page — steps that
+	 * take precisely as long as the interval between them join into one continuous glide
+	 * — and the settle and the throw take the curves their own animations use.
+	 */
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `step` is read through `latest` inside `scrollToPage`, but a change of it moves every slot, so it has to re-run.
+	useEffect(() => {
+		if (playing) return
+
+		const duration = reorder?.settling
+			? SETTLE_MS
+			: (reorder?.slide ?? (throwing ? PAGE_TRAVEL_MS : 0))
+		const easing = reorder?.settling
+			? SETTLE_EASE
+			: reorder?.slide
+				? undefined
+				: throwing
+					? easeInOut
+					: undefined
+
+		scrollToPage(anchor, duration, easing)
+	}, [anchor, step, throwing, playing, reorder?.slide, reorder?.settling, scrollToPage])
+
+	/*
+	 * And the scroller telling the flipbook, which is the new half of this.
+	 *
+	 * Whichever slot is nearest the middle is the page being drawn on, and it changes
+	 * the instant the scroll crosses the halfway line between two of them — so the
+	 * drawing cuts from page to page while the column slides, rather than following it.
+	 * `round` is the whole of that.
+	 *
+	 * Nothing here debounces or waits for the scroll to end. Waiting is what would make
+	 * the canvas appear to come loose: it would go on showing the page you left while
+	 * the column carried a different thumbnail under it.
+	 */
+	useEffect(() => {
+		const box = scroller.current
+		if (!box) return
+
+		const onScroll = () => {
+			if (driving.current) return
+
+			const { engine: live, step: pitch, activePage: current, pages: count } = latest.current
+			if (latest.current.playing || pitch <= 0 || count === 0) return
+
+			const index = Math.max(0, Math.min(count - 1, Math.round(box.scrollTop / pitch)))
+			if (index !== current) live.goToPage(index)
+		}
+
+		box.addEventListener('scroll', onScroll, { passive: true })
+		return () => box.removeEventListener('scroll', onScroll)
+	}, [])
+
+	/*
+	 * A wheel over the drawing itself, which the scroller never sees.
+	 *
+	 * The canvas is pinned over the middle of the column rather than inside it — it has
+	 * to be, or it would scroll away with the pages — so it swallows every wheel event
+	 * that lands on it, which is most of them: the drawing is the biggest thing on the
+	 * page and the part a pointer is already over. Forwarded rather than ignored, and
+	 * spent a page at a time: this is the one scroll surface where the browser isn't
+	 * doing the snapping, so it does the snapping itself.
+	 *
+	 * The accumulator resets when the direction changes, so a flick back the other way
+	 * costs a whole page rather than whatever was left over from the last one.
+	 *
+	 * Not passive — it has to be able to refuse the page a scroll, which on a page with
+	 * nothing to scroll to is the rubber band and, on a trackpad, the browser's back
+	 * gesture.
+	 */
+	useEffect(() => {
+		const canvas = canvasRef.current
+		if (!canvas) return
+
+		let carried = 0
+
+		const onWheel = (event: WheelEvent) => {
+			event.preventDefault()
+
+			const {
+				engine: live,
+				step: pitch,
+				activePage: current,
+				pages: count,
+				playing: running,
+			} = latest.current
+			if (running || pitch <= 0 || count < 2) return
+
+			// Lines and pages, which a mouse in Firefox and a page-scrolling wheel report
+			// instead of pixels. 16 is a line; a page is the scrollport.
+			const delta =
+				event.deltaMode === 1
+					? event.deltaY * 16
+					: event.deltaMode === 2
+						? event.deltaY * (scroller.current?.clientHeight ?? 0)
+						: event.deltaY
+
+			if (delta === 0) return
+			if (Math.sign(delta) !== Math.sign(carried)) carried = 0
+			carried += delta
+
+			const steps = Math.trunc(carried / WHEEL_STEP)
+			if (steps === 0) return
+			carried -= steps * WHEEL_STEP
+
+			const index = Math.max(0, Math.min(count - 1, current + steps))
+			if (index === current) return
+
+			/*
+			 * The page, not the scroll — and that is the whole of the fix this once got
+			 * wrong. Scrolling the column directly does move the drawing, but it does it
+			 * behind the effect that keeps the two agreeing: this file suppresses its own
+			 * scroll handler while it is the one steering, so a wheel spent that way
+			 * arrived at the right slot with the flipbook still on the page it started on.
+			 * Turning the page instead puts the wheel on exactly the path the page bar and
+			 * the arrow keys are already on, and the scroll follows from it.
+			 */
+			live.goToPage(index)
+		}
+
+		canvas.addEventListener('wheel', onWheel, { passive: false })
+		return () => canvas.removeEventListener('wheel', onWheel)
+	}, [canvasRef])
 
 	// Which thumbnail the canvas is standing in front of, and so which one to hide.
 	// Nothing, while a page is still travelling into that slot.
 	const covered = arriving ? -1 : activePage
 
 	return (
-		<div className={styles.container} ref={container} aria-hidden="true">
+		<div
+			className={[
+				styles.scroller,
+				playing ? styles.playing : '',
+				reorder ? styles.carrying : '',
+				reorder?.slide ? styles.sliding : '',
+			]
+				.filter(Boolean)
+				.join(' ')}
+			ref={scroller}
+			aria-hidden="true"
+		>
 			<div
-				className={[
-					styles.strip,
-					playing ? styles.playing : '',
-					throwing ? styles.throwing : '',
-					reorder ? styles.carrying : '',
-					reorder?.slide ? styles.sliding : '',
-				]
-					.filter(Boolean)
-					.join(' ')}
+				className={styles.rail}
 				style={
 					{
-						left: `${left}px`,
+						paddingTop: `${padTop}px`,
+						paddingBottom: `${padBottom}px`,
 						// Only ever set while a page is in hand, which is what keeps the frame
 						// that hands the flipbook back from animating: the class and the
 						// transforms go in the same render, and a rule that isn't there can't
@@ -144,9 +455,6 @@ export function PageStrip({
 						// How long one page of the run takes, which is also how long until the
 						// next one starts. See `.sliding`.
 						'--slide': `${reorder?.slide ?? 0}ms`,
-						// And how long a thrown page takes to reach the next slot, which is
-						// how long the row has to get there with it. See `.throwing`.
-						'--throw': `${PAGE_TRAVEL_MS}ms`,
 						// How wide a page is drawn. The stylesheet adds its own gutters to it
 						// and this file reads those back, so neither has to state the other's
 						// number. See `measure`.
@@ -185,6 +493,42 @@ export function PageStrip({
 			</div>
 		</div>
 	)
+}
+
+/** `ease-in-out`, as a number, so a hand-run animation can share the keyframes' curve. */
+function easeInOut(t: number): number {
+	return cubicBezier(0.42, 0, 0.58, 1, t)
+}
+
+/**
+ * A CSS timing function's output for an input, by bisection.
+ *
+ * The two movements this file animates by hand are halves of movements the stylesheets
+ * animate with a `transition`, and they only read as one thing while both are on the
+ * same curve. Bisection rather than Newton because thirty iterations of it are nothing
+ * against a frame and it cannot fail to converge; `x` is monotonic for the two curves
+ * used here, both of which have their control points inside the unit square.
+ */
+function cubicBezier(x1: number, y1: number, x2: number, y2: number, t: number): number {
+	if (t <= 0) return 0
+	if (t >= 1) return 1
+
+	const curve = (a: number, b: number, u: number) => {
+		const v = 1 - u
+		return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u
+	}
+
+	let low = 0
+	let high = 1
+	let mid = t
+
+	for (let i = 0; i < 30; i++) {
+		mid = (low + high) / 2
+		if (curve(x1, x2, mid) < t) low = mid
+		else high = mid
+	}
+
+	return curve(y1, y2, mid)
 }
 
 /**

@@ -423,7 +423,7 @@ export class FlipbookEngine {
 	 * cycle that one into push and back, which was what made the fan one button rather
 	 * than three — and is exactly what could not survive a finger on the page, where
 	 * every press of a tool is also a press *of* it. The two halves of the fan are their
-	 * own controls now; see `setTransformMode` and `.transform` in `Tray.module.css`.
+	 * own controls now; see `setTransformMode` and the two mode buttons in `ToolPanel`.
 	 *
 	 * **Not held while a page animates**, unlike the page actions and undo. Drawing
 	 * through those 750ms has been allowed since 2013 and the scene is in its final

@@ -4,6 +4,7 @@ import { navigate, useLocation } from '../router/Router'
 import { ViewToggle } from '../routes/gallery/ViewToggle'
 import { CreateButton } from './CreateButton'
 import { SiteHeader } from './SiteHeader'
+import { useToolLayout } from './toolLayout'
 
 import canvasStyles from '../flipbook/components/FlipbookCanvas.module.css'
 import createStyles from '../routes/create/CreatePage.module.css'
@@ -62,12 +63,11 @@ export function RouteShell({ route }: RouteShellProps) {
 			// metadata lands, but this one is up for the whole of the route chunk's
 			// download, which is why a refresh showed "New" for so much longer than a
 			// navigation from the gallery did.
-			return <BookShell content={playbackStyles.content} remixOf={route.id} history={false} />
+			return <BookShell content={playbackStyles.content} remixOf={route.id} />
 		case 'create':
-			// No create button in the header: you are already here. What is up there
-			// instead is the four edit actions, so the shell draws those. Matches
-			// `CreatePage`.
-			return <BookShell content={createStyles.content} remixOf={null} history />
+			// Its own shape rather than the playback page's: the drawing tool is a rail, a
+			// stage and a page bar now, and the sheet of paper does not stand in a column.
+			return <CreateShell />
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
 			// placeholder in the shape of an apology is worse than a beat of nothing.
@@ -80,7 +80,7 @@ export function RouteShell({ route }: RouteShellProps) {
 }
 
 /**
- * The create and playback pages: one sheet of paper, pulsing, in the same column.
+ * The playback page: one sheet of paper, pulsing, in the column it lands in.
  *
  * `content` is the page's own class rather than a copy of it — it carries the column's
  * padding and `--book-reserve`, which is what decides how big the sheet is. Typed as
@@ -90,47 +90,14 @@ export function RouteShell({ route }: RouteShellProps) {
 function BookShell({
 	content,
 	remixOf,
-	history,
 }: {
 	content: string | undefined
-	/**
-	 * The flipbook whose page this is standing in for, when the header should be
-	 * offering to remix it — or null for a page whose header has no create button at
-	 * all, which is the create page's own.
-	 */
+	/** The flipbook whose page this is standing in for, so the header can offer a remix. */
 	remixOf: string | null
-	history: boolean
 }) {
 	return (
 		<>
-			<SiteHeader width="narrow">
-				{remixOf ? <CreateButton remixOf={remixOf} /> : null}
-				{/*
-				 * The edit actions, as the create page has them on a desktop: four discs at
-				 * the right-hand end of the header, and there is nothing yet to undo, redo,
-				 * copy or paste — so they are drawn in the state they will actually land in.
-				 * Pictures of buttons: they are `disabled`, so they are out of the tab order
-				 * and take no presses, which is the whole difference between this and the
-				 * real row.
-				 *
-				 * The glyphs are repeated here rather than shared, because anything this
-				 * file imports lands in the entry bundle and `EditActions` lives inside the
-				 * create route's chunk — which is the download this shell exists to cover.
-				 * Four characters; if they change there, they change here.
-				 *
-				 * Hidden on a phone by `.actionsTop`, exactly as the page's own are, so the
-				 * shell is the right shape at both widths from one piece of markup.
-				 */}
-				{history ? (
-					<div className={createStyles.actionsTop} aria-hidden="true">
-						{['↺', '↻', '↥', '↧'].map((glyph) => (
-							<button key={glyph} type="button" className={createStyles.action} disabled>
-								<span className={createStyles.actionGlyph}>{glyph}</span>
-							</button>
-						))}
-					</div>
-				) : null}
-			</SiteHeader>
+			<SiteHeader width="narrow">{remixOf ? <CreateButton remixOf={remixOf} /> : null}</SiteHeader>
 
 			<main className={content}>
 				<div className="center">
@@ -139,6 +106,60 @@ function BookShell({
 						    cast the shadow the page's own placeholder borrows. */}
 						<div className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`} aria-hidden="true" />
 					</div>
+				</div>
+			</main>
+
+			<Announcement />
+		</>
+	)
+}
+
+/**
+ * The drawing tool, before the drawing tool: the rail's space, and a sheet of paper
+ * pulsing in the middle of the stage.
+ *
+ * The header carries nothing at all — there is no create button on the page you create
+ * on, and the four edit actions that used to stand up there are in the panel now, which
+ * is precisely the thing this shell hasn't got yet. So it draws the *space* the panel
+ * will take and leaves it empty; see `.shellPanel`, and the note there on why an empty
+ * box beats a column of grey tiles.
+ *
+ * Every class here is the page's own, read off its stylesheet rather than copied, for the
+ * reason the note at the top of this file gives: a placeholder is only worth having if it
+ * is exactly the shape of the page, and `--book-reserve`, `--panel-width` and the stage's
+ * gutters all differ by layout. `.navBand` is empty for the same reason the rail is — the
+ * page bar is a control, and a grey pill that turns into a working one is two loading
+ * states where the page needs one.
+ */
+function CreateShell() {
+	// The page shape, before the page: `.stage` takes what the header leaves, and without
+	// this there is nothing for it to take a share of — the sheet of paper collapses to
+	// nothing and the shell draws an empty window. The page wears the same class, and the
+	// count inside the hook is what carries it across the handover between them.
+	useToolLayout()
+
+	return (
+		<>
+			<SiteHeader />
+
+			<main className={createStyles.content}>
+				<div className={createStyles.shellPanel} aria-hidden="true" />
+
+				<div className={createStyles.body}>
+					<div className={createStyles.stage}>
+						<div className={createStyles.paper}>
+							<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
+								{/* `.sheet` as well as `.skeleton`: there is no canvas under this one
+								    to cast the shadow the page's own placeholder borrows. */}
+								<div
+									className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`}
+									aria-hidden="true"
+								/>
+							</div>
+						</div>
+					</div>
+
+					<div className={createStyles.navBand} />
 				</div>
 			</main>
 
