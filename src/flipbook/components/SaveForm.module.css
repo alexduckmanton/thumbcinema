@@ -1,143 +1,151 @@
 /*
- * The save form, over the drawing.
+ * The save dialog.
  *
- * It covers the canvas rather than appearing below it: the flipbook is finished at
- * this point and the only thing left is to name it. The blue is the site's, at full
- * strength — the one moment the chrome is loud.
+ * A conventional modal: a black wash over the page, a white card in the middle of it.
+ * What it replaced was a blue panel laid over the canvas — the one moment the chrome
+ * was loud — and the reason it went is worth keeping: the panel was positioned inside
+ * `.book` and sized against the drawing, so once a page could be square it covered a
+ * 16:9 lid's worth of a taller sheet and left two different blues stacked on top of
+ * each other. A modal belongs to the window, not to the artwork.
  */
 
+.dialog {
+	/* `<dialog>` has a UA border, padding and `max-width: calc(100% - 6px - 2em)`, and
+	   all three are in the way of a card that states its own. */
+	max-width: min(440px, calc(100vw - 40px));
+	/* A phone in landscape with a keyboard up is a few hundred points tall, and a card
+	   taller than the window would put its own Save button off the bottom with no way to
+	   reach it — `<dialog>` centres by margin and does not scroll on its own. */
+	max-height: calc(100dvh - 40px);
+	overflow-y: auto;
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-card);
+	background: var(--white);
+	color: var(--ink);
+	box-shadow: rgba(0, 0, 0, 0.3) 0 12px 40px;
+}
+
+/*
+ * The wash.
+ *
+ * `::backdrop` rather than a sibling div, which is the whole reason this is a real
+ * dialog: it covers the viewport by definition, sits under this element and over
+ * everything else without a z-index to keep in sync, and takes no part in the layout.
+ */
+.dialog::backdrop {
+	background: rgba(0, 0, 0, 0.55);
+}
+
+/*
+ * In on open. The card scales up a touch as the wash fades, which is the difference
+ * between a dialog arriving and a dialog having always been there.
+ *
+ * On the element rather than on `[open]`: `showModal()` is what puts it in the top
+ * layer, and by the time it is in the DOM open it is already the thing being animated.
+ */
+.dialog {
+	animation: cardIn 0.16s ease-out;
+}
+
+.dialog::backdrop {
+	animation: washIn 0.16s ease-out;
+}
+
+@keyframes cardIn {
+	from {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+}
+
+@keyframes washIn {
+	from {
+		opacity: 0;
+	}
+}
+
+/*
+ * Generous, and the same all the way round except at the foot, where the buttons carry
+ * their own optical weight and want a little less above them than beside them.
+ */
 .form {
-	position: absolute;
-	top: 0;
-	left: 0;
-	z-index: 17;
-	width: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
 	padding: 40px;
-	color: var(--white);
 	line-height: 1.5;
 }
 
-.form fieldset {
-	position: relative;
-	margin: 0;
-	padding: 0 0 20px;
-	border: none;
+.heading {
+	/* A size up from the h2 it is, because in a card this is the only heading there is
+	   and it is competing with nothing. */
+	font-size: 28px;
 }
 
-.form legend {
-	padding: 0;
-	font-size: 25px;
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
 }
 
-.form ol {
-	margin: 0;
-	padding: 0;
-	list-style: none;
+.field label {
+	padding: 0 0 0 2px;
 }
 
-.form li {
-	padding-top: 20px;
-}
-
-.form label {
-	color: var(--white);
-}
-
-.form input[type='text'],
-.form textarea {
+.field input[type='text'],
+.field textarea {
 	display: block;
 	width: 100%;
-	border-color: #1a5af1;
-	background: #e9effe;
-	color: #07256b;
+	/* The controls are a size up from the site's 14px default: this is the one form on
+	   the site somebody types a sentence into, and it is the only thing in the card. */
+	font-size: 16px;
+	padding: 9px 10px;
+	border-radius: var(--radius-control);
 }
 
-.form input[type='text']:focus,
-.form textarea:focus {
-	border-color: #0c46cc;
-	background: var(--white);
-}
-
-.form textarea {
-	height: 63px;
+.field textarea {
+	height: 72px;
 }
 
 .optional {
-	opacity: 0.666;
+	color: var(--ink-soft);
 }
 
-/* The NSFW checkbox sits inline with its own label rather than above it — it's the
-   one field that reads as a sentence. */
-.checkbox {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.checkbox input {
-	width: auto;
-	margin: 0;
-}
-
-.checkbox label {
-	padding: 0;
-}
-
+/*
+ * Save first, then Cancel, and the gap between them is deliberate rather than the same
+ * as everything else: they are not a pair of equal options.
+ */
 .buttons {
 	display: flex;
 	align-items: center;
-	gap: 16px;
+	gap: 20px;
+	padding-top: 4px;
 }
 
 /*
- * Each row drops in on its own timing, which is the same trick the message banner
- * uses: neighbouring elements get different durations rather than different delays,
- * so they land out of order.
+ * On a phone the card takes the width it is given, and the padding comes in — 40px of
+ * inset either side of a 320px screen leaves 240px to type a title into.
  */
-.form li,
-.form legend,
-.form .buttons {
-	animation: dropIn 0.3s linear;
-}
+@media screen and (max-width: 460px) {
+	.dialog {
+		max-width: calc(100vw - 32px);
+	}
 
-.form li:nth-child(1) {
-	animation-duration: 0.3s;
-}
-.form li:nth-child(2) {
-	animation-duration: 0.2s;
-}
-.form li:nth-child(3) {
-	animation-duration: 0.4s;
-}
+	.form {
+		gap: 16px;
+		padding: 28px 24px;
+	}
 
-@keyframes dropIn {
-	0% {
-		opacity: 0;
-		transform: translate3d(0, -60px, 0);
-	}
-	30% {
-		opacity: 1;
-		transform: translate3d(0, 5px, 0);
-	}
-	60% {
-		transform: translate3d(0, -2px, 0);
-	}
-	100% {
-		transform: translate3d(0, 0, 0);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.form li,
-	.form legend,
-	.form .buttons {
-		animation: none;
+	.heading {
+		font-size: 25px;
 	}
 }
 
 /*
- * On a tablet the form is competing with an on-screen keyboard for a 360px-tall
- * space, so the optional field goes. It was optional anyway.
+ * The description goes on a short screen with a keyboard up, exactly as it did before:
+ * it is optional, and it is the thing worth losing when the card and an on-screen
+ * keyboard are dividing 360px of height between them.
  */
 @media screen and (max-width: 1024px) and (pointer: coarse) {
 	.description {
@@ -145,19 +153,9 @@
 	}
 }
 
-/*
- * The blue comes with the form on a phone.
- *
- * On a desktop this sits on the wash over the canvas — a lid over the drawing — and
- * is about as tall as one, so the couple of rows that hang below the bottom edge read
- * as belonging to the page rather than to the lid. Scaled to a phone the canvas is
- * under 200px tall and the form is three times that, which left two thirds of it as
- * white text on a grey background. So it carries its own blue here, opaque, and the
- * wash underneath has nothing left to do.
- */
-@media screen and (max-width: 730px), screen and (max-height: 560px) {
-	.form {
-		padding: 24px 20px;
-		background: var(--blue);
+@media (prefers-reduced-motion: reduce) {
+	.dialog,
+	.dialog::backdrop {
+		animation: none;
 	}
 }

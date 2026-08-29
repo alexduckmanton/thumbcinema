@@ -251,7 +251,6 @@ export interface SavePayload {
 	 * keeps the two pictures of the same drawing.
 	 */
 	cover: number
-	nsfw: boolean
 	/**
 	 * The flipbook this was drawn on top of, when the tool was opened from one.
 	 *
@@ -282,7 +281,6 @@ export async function saveFlipbook(
 		// which matters because that endpoint is the contract both deployments post
 		// to. See docs/data-formats.md.
 		cover: String(payload.cover),
-		nsfw: payload.nsfw ? '1' : '0',
 	})
 
 	if (payload.remixOf) form.set('remix_of', payload.remixOf)

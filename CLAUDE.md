@@ -197,9 +197,10 @@ Step so neither builds the other's branch.
 ## Featured, NSFW and admin mode
 
 Featured is the home page's default; All is everything else that isn't NSFW. New saves
-default to `featured = false` and are promoted by hand. NSFW hides a flipbook from both
-tabs but leaves its own URL working — that is the moderation lever, since saves are public
-immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visit
+default to both flags false and are promoted or flagged by hand — the save form's "adult
+stuff" checkbox is gone, so NSFW is now set only from admin mode. It hides a flipbook from
+both tabs but leaves its own URL working, which is the moderation lever, since saves are
+public immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visit
 `/?admin=<token>` once and it is kept in `localStorage`.
 
 - **Unset or under 16 characters and the admin API 404s entirely** — it fails closed, so

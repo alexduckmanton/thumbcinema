@@ -34,11 +34,16 @@ CREATE TABLE IF NOT EXISTS flipbooks (
 
     views        INTEGER     NOT NULL DEFAULT 0,
 
-    -- The save form still has the "this contains adult stuff" checkbox it had in
-    -- 2013. There are no accounts to report from any more, but honouring the
-    -- self-declaration costs one column: flagged flipbooks keep working on their
-    -- own URL and are left out of both browse tabs, exactly as before. It doubles
-    -- as the moderation lever, since admin mode can set it on anything.
+    -- Flagged flipbooks keep working on their own URL and are left out of both
+    -- browse tabs, exactly as in 2013.
+    --
+    -- It began as the save form's "this contains adult stuff" checkbox, a
+    -- self-declaration honoured for one column. That checkbox is gone from this
+    -- branch's save form — there are no accounts to report from any more, and one
+    -- box on the way out of a drawing was never going to be the thing that caught
+    -- anything — so this is now set by hand from admin mode, and every save from
+    -- here lands false. `time-capsule` still has the checkbox and still posts it,
+    -- which is why `saveFlipbook()` goes on reading the field.
     nsfw         BOOLEAN     NOT NULL DEFAULT false,
 
     -- The original WordPress post ID, for archive rows only. Lets us trace a row

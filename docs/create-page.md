@@ -246,8 +246,10 @@ is now true at both widths and the differences are called out where they exist.
   accessibility tree at any width. The desktop copy is **disabled while the save form is
   up**, because the footer's copy leaves with the footer and this one has nowhere to go —
   a live undo button in the corner is otherwise the one control still able to change a
-  drawing that is under the wash. `RouteShell` draws a disabled row too, so nothing
-  appears in the header at the handover.
+  drawing the reader has finished with. Belt and braces since the form became a modal
+  `<dialog>` — `showModal()` makes everything outside it inert, so the press would not
+  land anyway — but the disabled state is what `RouteShell` mirrors, and it draws a
+  disabled row too so nothing appears in the header at the handover.
 
   **The row is 6px apart on a phone and 8 on a desktop, and that is arithmetic.** Four
   48px discs and the save button are 320px of the footer's 328 on the narrowest layout
@@ -379,8 +381,8 @@ is now true at both widths and the differences are called out where they exist.
   **It comes off while the save form is up**, which is the one time this page has fields
   in it — a long description in a small textarea has to be pannable, and `touch-action`
   is an intersection down the ancestor chain that a descendant cannot give back. Nothing
-  is lost by it: the drawing is behind the wash by then, and `beforeunload` is already
-  guarding the reload.
+  is lost by it: the form is a modal `<dialog>` by then, so the page behind it is inert
+  anyway, and `beforeunload` is already guarding the reload.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then

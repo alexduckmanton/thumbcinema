@@ -222,25 +222,6 @@
 	font-size: 20px;
 }
 
-/*
- * The wash the save form sits on.
- *
- * Separate from the form because the form is taller than the canvas and this isn't:
- * the blue is a lid over the drawing, and the buttons that hang below it belong to
- * the page.
- */
-.wash {
-	position: absolute;
-	inset: 0;
-	z-index: 16;
-	background: rgba(74, 125, 244, 0.9);
-}
-
-/* While the artwork is on the wire the wash stays and the spinner sits on it, so
-   there is no second layer of blue. */
-.sending {
-	background: none;
-}
 
 .missing {
 	padding: 64px 0;

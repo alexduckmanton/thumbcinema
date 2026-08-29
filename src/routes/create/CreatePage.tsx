@@ -217,7 +217,6 @@ export function CreatePage() {
 					svg,
 					thumbnailDataUrl,
 					cover,
-					nsfw: values.nsfw,
 					// Permanent, and not offered as a choice. Pressing Remix is what makes
 					// this a remix; there is no box to untick on the way out, because a
 					// drawing made on top of somebody else's is one however much of theirs
@@ -345,12 +344,6 @@ export function CreatePage() {
 							</div>
 						) : null}
 
-						{phase === 'sending' ? (
-							<div className={`${canvasStyles.overlay} ${canvasStyles.sending}`}>
-								<Spinner label="Saving" />
-							</div>
-						) : null}
-
 						{/* The photograph being traced over. Above the canvas and multiplied into
 						    it, which is what lets the ink stay as dark as it was drawn — see
 						    `TraceLayer`. Never part of the artwork, and never photographed into a
@@ -413,8 +406,10 @@ export function CreatePage() {
 						    take every press before the stage underneath could have it. */}
 						{!onPaper && phase === 'drawing' ? <ZoomWindow page={page} /> : null}
 
-						{phase !== 'drawing' ? <div className={canvasStyles.wash} aria-hidden="true" /> : null}
-
+						{/* A modal, so it is not laid over the canvas and needs no wash under it
+						    — `::backdrop` covers the window. It stays up while the save is in
+						    flight, with the spinner in its own button, which is why this is
+						    `!== 'drawing'` rather than `=== 'naming'`. */}
 						{phase !== 'drawing' ? (
 							<SaveForm
 								saving={phase === 'sending'}
