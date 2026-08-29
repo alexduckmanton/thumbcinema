@@ -3,8 +3,24 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import type { FlipbookPage, FlipbookSummary } from '../../lib/api'
+import { markPublished, queueFlipbook, resetPending } from '../../offline/pending'
 import { GalleryPage } from './GalleryPage'
+import cardStyles from '../../flipbook/card/FlipbookCard.module.css'
 import styles from './GalleryPage.module.css'
+
+// The queue's storage, which jsdom hasn't got. See `src/offline/pending.test.ts`.
+const records = vi.hoisted(() => new Map<string, { id: string }>())
+
+vi.mock('../../offline/db', () => ({
+	readAll: vi.fn(async () => [...records.values()]),
+	read: vi.fn(async (id: string) => records.get(id)),
+	write: vi.fn(async (record: { id: string }) => {
+		records.set(record.id, record)
+	}),
+	erase: vi.fn(async (id: string) => {
+		records.delete(id)
+	}),
+}))
 
 const listFlipbooks = vi.fn<(...args: unknown[]) => Promise<FlipbookPage>>()
 
@@ -47,8 +63,28 @@ function skeletons() {
 	return document.querySelectorAll(`.${styles.skeleton}`)
 }
 
+function setOnline(online: boolean): void {
+	Object.defineProperty(navigator, 'onLine', { value: online, configurable: true })
+}
+
+/** A flipbook saved with no connection, waiting to be published. */
+function queue(title: string) {
+	return queueFlipbook({
+		title,
+		description: '',
+		svg: '<svg></svg>',
+		thumbnailDataUrl: 'data:image/png;base64,AAA',
+		cover: 0,
+		nsfw: false,
+		remixOf: null,
+	})
+}
+
 beforeEach(() => {
 	listFlipbooks.mockReset()
+	records.clear()
+	resetPending()
+	setOnline(true)
 	window.history.replaceState({}, '', '/')
 })
 
@@ -179,6 +215,88 @@ describe('GalleryPage', () => {
 
 		listFlipbooks.mockResolvedValue(page([flipbook('aaa')]))
 		await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+		expect(await screen.findByRole('link', { name: 'Flipbook aaa' })).toBeInTheDocument()
+	})
+
+	it('draws a flipbook saved offline at the top of All, faded and said so', async () => {
+		listFlipbooks.mockResolvedValue(page([flipbook('aaa')]))
+		await queue('A cat')
+		window.history.replaceState({}, '', '/?view=all')
+
+		render(<GalleryPage />)
+
+		const card = await screen.findByRole('link', {
+			name: 'A cat — saved on this device, not published yet',
+		})
+		expect(card.closest(`.${cardStyles.pending}`)).not.toBeNull()
+
+		// Above the listing, and its own drawing rather than the server's.
+		const links = screen.getAllByRole('link')
+		expect(links.indexOf(card)).toBeLessThan(
+			links.indexOf(screen.getByRole('link', { name: 'Flipbook aaa' })),
+		)
+		expect(card.querySelector('img')).toHaveAttribute('src', 'data:image/png;base64,AAA')
+	})
+
+	it('keeps them out of Featured, which is a curated list of rows that exist', async () => {
+		listFlipbooks.mockResolvedValue(page([flipbook('aaa')]))
+		await queue('A cat')
+
+		render(<GalleryPage />)
+
+		await screen.findByRole('link', { name: 'Flipbook aaa' })
+		expect(screen.queryByRole('link', { name: /A cat/ })).not.toBeInTheDocument()
+	})
+
+	it('stops showing a published one twice once the listing has caught up', async () => {
+		const entry = await queue('A cat')
+		await markPublished(entry.book.id, 'aaa')
+		listFlipbooks.mockResolvedValue(page([flipbook('aaa')]))
+		window.history.replaceState({}, '', '/?view=all')
+
+		render(<GalleryPage />)
+
+		// The row and the entry are the same flipbook now, and the row is the real one.
+		expect(await screen.findByRole('link', { name: 'Flipbook aaa' })).toBeInTheDocument()
+		expect(screen.getAllByRole('link', { name: /aaa|A cat/ })).toHaveLength(1)
+	})
+
+	it('says the internet is missing rather than blaming the server', async () => {
+		setOnline(false)
+		listFlipbooks.mockRejectedValue(new TypeError('Failed to fetch'))
+
+		render(<GalleryPage />)
+
+		expect(await screen.findByRole('heading', { name: 'You’re offline.' })).toBeInTheDocument()
+		expect(
+			screen.queryByRole('heading', { name: 'I definitely meant for this to happen.' }),
+		).not.toBeInTheDocument()
+	})
+
+	it('takes the Featured/All toggle away offline, and leaves the create button', async () => {
+		setOnline(false)
+		listFlipbooks.mockRejectedValue(new TypeError('Failed to fetch'))
+
+		render(<GalleryPage />)
+
+		await screen.findByRole('heading', { name: 'You’re offline.' })
+		// Two views of a listing that can't be fetched either way.
+		expect(screen.queryByRole('tab', { name: 'All' })).not.toBeInTheDocument()
+		// The one thing on this page that still works.
+		expect(screen.getByRole('link', { name: /New/ })).toBeInTheDocument()
+	})
+
+	it('asks again by itself when the connection comes back', async () => {
+		setOnline(false)
+		listFlipbooks.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+		render(<GalleryPage />)
+		await screen.findByRole('heading', { name: 'You’re offline.' })
+
+		listFlipbooks.mockResolvedValue(page([flipbook('aaa')]))
+		setOnline(true)
+		window.dispatchEvent(new Event('online'))
 
 		expect(await screen.findByRole('link', { name: 'Flipbook aaa' })).toBeInTheDocument()
 	})

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { Button } from '../../components/Button'
 import { CreateButton } from '../../components/CreateButton'
@@ -8,6 +8,8 @@ import { FlipbookCard } from '../../flipbook/card/FlipbookCard'
 import { loadPreview } from '../../flipbook/card/preview'
 import { useCardGesture } from '../../flipbook/card/useCardGesture'
 import type { GalleryView } from '../../lib/api'
+import { useOnline } from '../../offline/online'
+import { pendingSummary, usePending } from '../../offline/pending'
 import { Link, navigate, useLocation } from '../../router/Router'
 import { galleryPath, galleryView } from '../../router/routes'
 import { useGallery } from './useGallery'
@@ -43,6 +45,28 @@ export function GalleryPage() {
 
 	const { items, loading, exhausted, failed, loadMore, retry, updateItem } = useGallery(view)
 
+	const online = useOnline()
+
+	/*
+	 * Flipbooks saved with no connection, at the top of All until they're published.
+	 *
+	 * All rather than Featured, and it isn't a judgement about them: Featured is a
+	 * hand-curated list of rows in a table, and these aren't rows yet. All is
+	 * everything else, which is exactly what they are.
+	 *
+	 * They stay for a moment after they go up — see `PendingStatus` — so the card the
+	 * reader is looking at turns solid and becomes a link to the real flipbook rather
+	 * than vanishing mid-glance. What that costs is this filter: switch tabs after a
+	 * publish and the grid refetches, the real row comes back in the listing, and
+	 * without it the same flipbook would be on screen twice.
+	 */
+	const queued = usePending()
+	const shown = useMemo(() => {
+		if (view !== 'all') return []
+		const listed = new Set(items.map((item) => item.id))
+		return queued.filter((entry) => !entry.publishedAs || !listed.has(entry.publishedAs))
+	}, [queued, items, view])
+
 	const gesture = useCardGesture()
 
 	useEffect(() => {
@@ -67,12 +91,25 @@ export function GalleryPage() {
 	return (
 		<>
 			<SiteHeader actionsWrap>
-				<ViewToggle view={view} onChange={changeView} />
+				{/* Featured and All are two views of a listing there is no way to fetch with
+				    no connection, so offline the toggle is a control with nothing behind
+				    either side of it. The create button stays: it is the one thing here that
+				    still works. */}
+				{online ? <ViewToggle view={view} onChange={changeView} /> : null}
 				<CreateButton />
 			</SiteHeader>
 
 			<main className={styles.content}>
 				<div className={styles.grid}>
+					{shown.map((entry) => (
+						<FlipbookCard
+							key={entry.book.id}
+							item={pendingSummary(entry)}
+							gesture={gesture}
+							pending={entry.status !== 'published'}
+						/>
+					))}
+
 					{items.map((item) => (
 						<FlipbookCard
 							key={item.id}
@@ -112,7 +149,7 @@ export function GalleryPage() {
 					{failed && items.length > 0 ? <Button onClick={retry}>Load more</Button> : null}
 				</div>
 
-				{!loading && !items.length && !failed ? (
+				{!loading && !items.length && !shown.length && !failed ? (
 					<div className={`center ${styles.state}`}>
 						<h1>Nothing here yet.</h1>
 						<p>
@@ -121,7 +158,28 @@ export function GalleryPage() {
 					</div>
 				) : null}
 
-				{failed && !items.length ? (
+				{/*
+				 * A gallery is a live listing of somebody else's server, so with no
+				 * connection there is nothing to show and no amount of trying again will
+				 * change that. Saying so plainly — and pointing at the one thing that does
+				 * still work — beats the apology below, which is written for a server that
+				 * broke and blames the wrong party here.
+				 *
+				 * The grid above still stands: anything queued on this device is drawn
+				 * whether or not the listing arrived, which is why this doesn't fire when
+				 * there is something in it.
+				 */}
+				{failed && !items.length && !shown.length && !online ? (
+					<div className={`center ${styles.state} ${styles.offline}`}>
+						<h1>You&rsquo;re offline.</h1>
+						<p>
+							You can still <Link to="/create">create a flipbook</Link>. It&rsquo;ll publish next
+							time you&rsquo;re online.
+						</p>
+					</div>
+				) : null}
+
+				{failed && !items.length && !shown.length && online ? (
 					<div className={`center ${styles.state}`}>
 						<h1>I definitely meant for this to happen.</h1>
 						<p>

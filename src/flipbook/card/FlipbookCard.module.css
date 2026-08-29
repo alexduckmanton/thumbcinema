@@ -243,3 +243,26 @@
 .play:focus-visible {
 	outline: none;
 }
+
+/*
+ * A flipbook that is only on this device: saved with no connection, waiting for one.
+ *
+ * Faded, and that is the whole of the treatment — no badge, no ribbon, no second
+ * colour. The grid is a wall of drawings and anything added to one card is a thing
+ * every reader has to learn the meaning of; a card that is half there reads as half
+ * there. What it means in words is on the flipbook's own page, which is one tap away
+ * and is where somebody who wondered will go.
+ *
+ * Opacity rather than a lighter thumbnail, so the flipbook that plays on hover is
+ * faded too — it is the same drawing in the same state, and a preview at full strength
+ * over a faded card would look like the card had finished uploading.
+ */
+.pending {
+	opacity: 0.55;
+}
+
+/* Under the pointer it comes up to meet you, like any other card. The hover is the
+   grid saying "this one" and a card that stayed dim would read as disabled. */
+.pending:hover {
+	opacity: 0.8;
+}

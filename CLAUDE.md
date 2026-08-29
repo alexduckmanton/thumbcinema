@@ -45,6 +45,8 @@ src/
   App.tsx             route switch, lazy per route
   router/             matchRoute(), useLocation(), <Link>
   lib/                api client, admin token, device, messages, store, zoom
+  offline/            the queue of flipbooks saved with no connection, and the worker
+                      that makes the site open without one. No React below `online.ts`.
   components/         header, buttons, spinner, messages, admin toggles
     RouteShell.tsx    the page before the page — the Suspense fallback, per route
   routes/
@@ -165,8 +167,11 @@ Break one of these and something goes wrong somewhere else, usually silently.
   by `useFlipbookEngine` rather than imported at the top of `scene.ts`. A plain `import`
   of anything large anywhere under a route silently puts it back into that route's
   preload set, and the chunk table won't say so. After touching imports, run
-  `npm run build` and check: `GalleryPage-*.js` must import six chunks and none of them
-  paper; `PlaybackPage-*.js` must not import the card.
+  `npm run build` and check: `GalleryPage-*.js` must import five chunks and **none of
+  them paper**; `PlaybackPage-*.js` must not import the card. The count is the weaker
+  half of that check — it moved when the offline queue put `lib/api.ts` in the entry
+  bundle, which folded a shared chunk away and split another out — so what a change has
+  to answer for is *which* five, and paper being absent from them.
 - **One breakpoint, and it tests height as well as width**, written out in full in every
   file that has two layouts. A phone held sideways is 800 points wide and 375 tall, and a
   width test alone hands it a 640×360 canvas and a page strip in a window that can hold
@@ -177,6 +182,13 @@ Break one of these and something goes wrong somewhere else, usually silently.
   @media screen and (min-width: 731px) and (min-height: 561px)           /* desktop */
   ```
 
+- **A save that got no answer goes in the queue; a save that got a refusal does not.**
+  `isNetworkFailure()` is the test and it reads the *error*, not `navigator.onLine` —
+  everything in `src/lib/api.ts` throws `ApiError` when there was a response, so anything
+  else is the network. Queue a 413 and you have turned a message somebody can act on into
+  a card that will never publish. The queue is IndexedDB, never localStorage: a save is
+  the whole drawing, and localStorage is a ~5 MB origin budget already holding the crash
+  file. `docs/offline.md`.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash the
   names, so `.naming .tools` across two files silently matches nothing.
 - **Biome formats `src/` only**, and JSON and CSS not at all. `lib/`, `api/` and
@@ -286,6 +298,22 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   is a page load here, so `<Link>` goes through the router's `guardNavigation()` and back
   is answered rather than blocked — a duplicate entry is pushed so the first press lands
   on the same URL and can be asked about.
+- **A background upload that rejects shows the crash screen.** The create page listens
+  on `unhandledrejection` — that is how crash recovery is armed — so anything running
+  outside React has to swallow its own failures. `flushPending()` does; whatever it
+  swallowed stays in the queue for the next trigger.
+- **The service worker's precache list is generated from the bundle, and the build fails
+  if it can't be.** `serviceWorkerPlugin` in `vite.config.ts` fills two markers in
+  `src/offline/sw.js`; move or rename them and the build throws rather than shipping a
+  worker that caches nothing. It precaches `/` and not `/index.html`, for the same
+  `cleanUrls` reason the rewrite does — `cache.addAll` rejects on a redirect — and matches
+  with `ignoreVary`, without which a host sending `Vary: Origin` loses both typefaces
+  offline and nothing else.
+- **paper.js is the one thing the worker does *not* precache**, so the drawing tool works
+  offline only after one online visit to it — until then `/create` offline is the
+  `ErrorBoundary` saying the piece it needs isn't on the device yet. That is a deliberate
+  trade: it is two thirds of what the build emits, and only two routes ever ask for it.
+  The `/assets/` branch in `sw.js` is what keeps it once something does. `docs/offline.md`.
 - **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
   drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard on the
   document, and none of it should follow you to the flipbook page.
@@ -306,6 +334,7 @@ Open the one that covers what you're about to touch.
 | [`docs/create-page.md`](docs/create-page.md) | the create page's layout, the page bar, the tray, tracing over a photograph, and the playback page |
 | [`docs/gallery.md`](docs/gallery.md) | the grid, the hover preview that plays a flipbook without paper.js, and the play button |
 | [`docs/remixes.md`](docs/remixes.md) | editable copies, and how a lineage is stored in two columns |
+| [`docs/offline.md`](docs/offline.md) | drawing and saving with no connection: the queue, the service worker, and what publishes when |
 | [`docs/gif.md`](docs/gif.md) | `/f/:id.gif` — a rasteriser and a GIF writer, in Node, with no dependency |
 | [`docs/styling.md`](docs/styling.md) | the CSS conventions, the tokens, the sprite, and the two typefaces |
 | [`docs/data-formats.md`](docs/data-formats.md) | the two artwork formats, the save contract, thumbnails, storage |

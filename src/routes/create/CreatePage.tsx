@@ -22,12 +22,20 @@ import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { SETTLE_MS } from '../../flipbook/engine/reorder'
 import { usePageReorder } from '../../flipbook/usePageReorder'
-import { ApiError, getFlipbook, getFlipbookData, saveFlipbook } from '../../lib/api'
+import {
+	ApiError,
+	getFlipbook,
+	getFlipbookData,
+	isNetworkFailure,
+	saveFlipbook,
+} from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import { refuseMultiTouch } from '../../lib/zoom'
 import { registerMessage, showMessage } from '../../lib/messages'
+import { queueFlipbook } from '../../offline/pending'
+import { hasServiceWorker } from '../../offline/register'
 import { guardNavigation, navigate, useLocation } from '../../router/Router'
-import { remixSource } from '../../router/routes'
+import { flipbookPath, remixSource } from '../../router/routes'
 import canvasStyles from '../../flipbook/components/FlipbookCanvas.module.css'
 import styles from './CreatePage.module.css'
 import { Recovery } from './Recovery'
@@ -198,7 +206,7 @@ export function CreatePage() {
 				await nextPaint()
 				const { svg, thumbnailDataUrl, cover } = await engine.exportForSave()
 
-				const location = await saveFlipbook({
+				const payload = {
 					title: values.title,
 					description: values.description,
 					svg,
@@ -211,19 +219,52 @@ export function CreatePage() {
 					// is left by the end. The server checks the flipbook is really there
 					// and drops the link rather than refusing the save if it isn't.
 					remixOf,
-				})
+				}
 
-				// Left for the page we're about to land on.
-				registerMessage({
-					copy: "Nice one! Your flipbook's saved. Give yourself a pat on the back.",
-					cta: "Don't mind if I do",
-					type: 'success',
-				})
+				let location: string
+				let queued = false
+				try {
+					location = await saveFlipbook(payload)
+
+					// Left for the page we're about to land on.
+					registerMessage({
+						copy: "Nice one! Your flipbook's saved. Give yourself a pat on the back.",
+						cta: "Don't mind if I do",
+						type: 'success',
+					})
+				} catch (error) {
+					// A request that never got an answer is a connection, not a refusal —
+					// so the flipbook goes in the queue and the page carries on as if it had
+					// saved, because from here it has: it has an id, a permalink and a card
+					// in the gallery, and `sync.ts` posts it the moment there's a signal. A
+					// server that *did* answer is a different thing entirely and falls
+					// through to the banner below; a flipbook that is too big to save now
+					// will still be too big tomorrow. See docs/offline.md.
+					if (!isNetworkFailure(error)) throw error
+
+					const entry = await queueFlipbook(payload)
+					location = flipbookPath(entry.book.id)
+					queued = true
+
+					registerMessage({
+						copy: "You're offline. I'll publish the moment you're back.",
+						cta: 'Okay',
+						type: 'info',
+					})
+				}
 
 				// A full load rather than a client-side navigation: the drawing tool has
 				// a paper.js scene, a megabyte of artwork and an unsaved-work guard
 				// attached to this document, and none of it should follow us.
-				window.location.href = location
+				//
+				// Except with no connection and no service worker to answer for the site —
+				// a first visit, or a browser that refused to register one — where a real
+				// load is the browser's error page and the reader would think the save had
+				// failed. It hasn't; the queue is IndexedDB and is already written. So that
+				// one case stays inside the app, and pays for it by carrying the scene
+				// along. The guard is already off: `phase` is 'sending' by now.
+				if (queued && !hasServiceWorker()) navigate(location)
+				else window.location.href = location
 			} catch (error) {
 				setPhase('naming')
 

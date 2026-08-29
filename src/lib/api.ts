@@ -99,6 +99,22 @@ export class ApiError extends Error {
 	}
 }
 
+/**
+ * True when a request never got an answer at all: no connection, DNS gone, the radios
+ * off. As opposed to a server that answered and said no.
+ *
+ * Everything in this module throws `ApiError` when there was a response to read, so
+ * anything else is the network — that is the whole test, and it is deliberately not
+ * `navigator.onLine`, which claims an interface exists rather than that anything is
+ * reachable through it. A save that fails this way is the one the offline queue takes;
+ * a 413 is not, because a flipbook that is too big will still be too big tomorrow.
+ */
+export function isNetworkFailure(error: unknown): boolean {
+	if (error instanceof ApiError) return false
+	// An abort is this tab changing its mind, not the network failing.
+	return !(error instanceof DOMException && error.name === 'AbortError')
+}
+
 export interface RequestOptions {
 	/** Aborts the request — the gallery uses this when you switch tabs mid-fetch. */
 	signal?: AbortSignal
