@@ -5,9 +5,15 @@ import userEvent from '@testing-library/user-event'
 import { SaveForm } from './SaveForm'
 
 describe('SaveForm', () => {
-	it('focuses the title, so you can just start typing', () => {
+	it('does not focus the title, so no keyboard comes up with the form', () => {
+		// Focus still has to land inside — Esc and the Tab trap listen from there, and
+		// `inert` has just taken it away from whatever had it — but it lands on the
+		// overlay rather than on a text field, which on a phone would raise the keyboard
+		// over half the card before you had decided to type anything.
 		render(<SaveForm saving={false} onSave={vi.fn()} onCancel={vi.fn()} />)
-		expect(screen.getByLabelText('Title')).toHaveFocus()
+
+		expect(screen.getByLabelText('Title')).not.toHaveFocus()
+		expect(screen.getByRole('dialog')).toHaveFocus()
 	})
 
 	it('hands back what was filled in', async () => {
@@ -47,16 +53,41 @@ describe('SaveForm', () => {
 		expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
 	})
 
-	it('is a modal dialog, and opens itself as one', () => {
-		// `showModal()` rather than the `open` attribute is what gets the backdrop, the
-		// focus trap and an inert page behind it — and the drawing tool behind this one
-		// is a canvas listening for every pointer event there is.
-		const showModal = vi.spyOn(HTMLDialogElement.prototype, 'showModal')
-		render(<SaveForm saving={false} onSave={vi.fn()} onCancel={vi.fn()} />)
+	it('is a modal, and makes the page behind it inert', () => {
+		// Deliberately *not* a `<dialog>` opened with `showModal()`: that puts the element
+		// in the top layer, and on iOS the top layer stops the browser tinting its own
+		// toolbars from the page — so the wash stopped short of both of them. See the note
+		// in `SaveForm.module.css`. `inert` on `#root` is what replaces the dialog's free
+		// inert page, and the drawing tool behind this is a canvas listening for every
+		// pointer event there is.
+		const root = document.createElement('div')
+		root.id = 'root'
+		document.body.append(root)
 
-		expect(showModal).toHaveBeenCalled()
+		const { unmount } = render(<SaveForm saving={false} onSave={vi.fn()} onCancel={vi.fn()} />)
+
 		expect(screen.getByRole('dialog')).toBeInTheDocument()
-		showModal.mockRestore()
+		expect(document.querySelector('dialog')).toBeNull()
+		expect(root).toHaveAttribute('inert')
+
+		// And handed back when it closes, or the page stays dead.
+		unmount()
+		expect(root).not.toHaveAttribute('inert')
+		root.remove()
+	})
+
+	it('backs out on Escape, but not while it is saving', async () => {
+		// Esc on a modal dialog was the browser's `cancel` event; it is ours now.
+		const onCancel = vi.fn()
+		const { rerender } = render(<SaveForm saving={false} onSave={vi.fn()} onCancel={onCancel} />)
+
+		await userEvent.keyboard('{Escape}')
+		expect(onCancel).toHaveBeenCalledTimes(1)
+
+		// The artwork is already on the wire — there is nothing left to back out of.
+		rerender(<SaveForm saving onSave={vi.fn()} onCancel={onCancel} />)
+		await userEvent.keyboard('{Escape}')
+		expect(onCancel).toHaveBeenCalledTimes(1)
 	})
 
 	it('names itself from its own heading', () => {

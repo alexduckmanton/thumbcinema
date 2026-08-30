@@ -10,125 +10,108 @@
  */
 
 /*
- * The wash, and why it is a plain div in the document rather than the dialog's own
- * background or its `::backdrop`.
+ * The overlay: the wash, the whole window, and the thing that scrolls — one element,
+ * and the fact that it is one element is load-bearing on iOS.
  *
- * Since Safari 26, iOS tints its own toolbars — the strip behind the status bar and the
- * one behind the URL bar — from the page. **`<meta name="theme-color">` is no longer
- * read at all**, which is why setting it to the washed colour changed nothing. What is
- * read is the `background-color` of the `<body>`, or of a `position: fixed`/`sticky`
- * element near the edge of the viewport, which takes priority: within 4px of the top or
- * 3px of the bottom, at least 80% wide and 3px tall.
+ * Since Safari 26 the strip behind the status bar and the one behind the URL bar are
+ * tinted from the page. `<meta name="theme-color">` is not read at all any more; what is
+ * read is the background colour of the `<body>`, or of a `position: fixed`/`sticky`
+ * element lying against the edge of the viewport, which wins over the body. So the thing
+ * that paints the wash has to *be* such an element, or the wash arrives with a pale band
+ * of `--page` above and below it.
  *
- * A `<dialog>` opened with `showModal()` is in the **top layer**, and a wash painted
- * there was not being read — the toolbars went on showing `--page` and the wash arrived
- * with a pale band above and below it. The reference app has no such problem and no
- * clever CSS either: it does not use `<dialog>` at all, just a fixed full-screen div
- * that Safari can see. So that is what this is, and the dialog above it is transparent —
- * explicitly, because a fixed element with a transparent background is skipped by the
- * sampler rather than competing with this one.
+ * **This is why the modal is no longer a `<dialog>`.** `showModal()` puts an element in
+ * the top layer, and the top layer is never sampled — which cost three attempts to
+ * establish, because each one moved the wash somewhere else in it: the `::backdrop`
+ * first, then the dialog's own background, then a separate wash div underneath a
+ * transparent dialog. The third is the interesting one: the wash was then exactly the
+ * kind of element the sampler looks for, and the toolbars still did not follow it. An
+ * open modal dialog suppresses the sampling altogether, whatever it is painted in and
+ * wherever it sits — verified on the iOS 26.2 simulator against a reduced case, both
+ * with the dialog covering the viewport and with it inset 16px clear of both edges.
+ * Take the dialog away and the same wash tints both toolbars immediately.
+ *
+ * The other half of the fix is in `base.css`: the create page's lock makes `<body>`
+ * itself a fixed, opaque, full-viewport element, and that outranks anything laid over
+ * it. Both halves are needed — either one alone leaves the bands.
+ *
+ * What the `<dialog>` was giving us is now hand-rolled in `SaveForm`, which is the cost
+ * of this and worth stating: Esc, the focus trap, focus restored on close, and `inert`
+ * on the rest of the page. That is about thirty lines to replace an element that did it
+ * for nothing, and it buys a modal whose wash reaches the edges of the phone.
  *
  * Portalled to `<body>` (in `SaveForm`) for the same reason it is fixed: nothing above
  * it in the page's tree can then clip it or make itself its containing block.
+ *
+ * **The declaration list below is the reference app's, copied property for property**
+ * rather than reimplemented: the same longhand `top`/`left`/`right`/`bottom` instead of
+ * `inset`, the same `z-index: 1000`, the same `rgba(0, 0, 0, 0.5)` — its light-mode
+ * `--color-modal-backdrop` — and the same flex centring. Its wash reaches both of iOS's
+ * toolbars and ours reaches only the top one, and with the structure now identical the
+ * remaining difference had to be looked for in the values. So there are no near-misses
+ * left to explain: anything that still differs is a difference we chose.
+ *
+ * What is *not* in the reference and had to go somewhere: the safe-area gutter and the
+ * keyboard inset are now margins on the card. Same rendered result — the card sits the
+ * same distance off the notch and the home indicator, and rises the same way over the
+ * keyboard — but the wash itself is left as bare as the reference's.
+ *
+ * There is no `animation` property here any more, and that was the last near-miss: a CSS
+ * animation is not what the reference does and it is not a neutral difference — an
+ * animating element gets a compositing layer of its own, which is exactly the kind of
+ * thing the toolbar sampler is sensitive to. So the fade is done the reference's way
+ * instead: `opacity: 0` in the rule, and the Web Animations API takes it to 1 from
+ * `SaveForm`. (The reference reaches that API through Motion One; we call it directly,
+ * because `react`, `react-dom`, `paper` and `pg` are the only runtime dependencies.)
  */
-.wash {
+.overlay {
 	position: fixed;
-	inset: 0;
-	/* Under the dialog, over everything else. The dialog is in the top layer and paints
-	   above this whatever it says here; the number is about the page. */
-	z-index: 100;
-	background: rgba(0, 0, 0, 0.55);
-	animation: washIn 0.16s ease-out;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	opacity: 0;
 }
 
 /*
- * The overlay: the whole window, and the thing that scrolls.
+ * Centred by the overlay's `align-items`/`justify-content` now, as the reference does it,
+ * rather than by the `margin: auto` that was here before.
  *
- * The card inside it has no maximum height and takes the height it needs; when that is
- * more than the window has, this scrolls and the card is simply taller than the view.
- * The alternative — capping the card and scrolling its contents — puts a scrollbar
- * inside a rounded white box and clips its own padding, which reads as a bug.
+ * That is a real trade and worth naming: auto margins centre while there is room and fall
+ * back to the start when there isn't, so a card taller than the window stayed reachable
+ * from the top. Flex centring overflows both ends instead. The overlay is no longer a
+ * scroll container either — the reference's isn't — so a card taller than the window is
+ * now clipped rather than scrolled. It takes a very short window to get there; if it
+ * turns out to matter, the fix is the reference's own, which caps its card's height and
+ * scrolls the body inside it.
  *
- * The wash is the `.wash` div above rather than anything painted here — see its note.
+ * The gutter is this element's margin rather than the wash's padding for the same reason
+ * everything else moved: the wash is the reference's rule and nothing else. `flex-shrink`
+ * is what keeps `width: 100%` plus those margins inside the window.
  */
-.dialog {
-	/* The UA gives a modal dialog `position: fixed`, a border, padding, `margin: auto`
-	   and a max-width and max-height of roughly the viewport. All of it is in the way of
-	   an element that wants to *be* the viewport. */
-	position: fixed;
-	inset: 0;
+.card {
 	width: 100%;
-	height: 100%;
-	max-width: none;
-	max-height: none;
-	margin: 0;
-	border: none;
-	/* Transparent on purpose, twice over: the wash is the `.wash` div in the document
-	   above, and a fixed element with no background colour is one the iOS toolbar
-	   sampler skips rather than one it might read instead. */
-	background: transparent;
-
+	/* Capped so the card doesn't run the width of a desktop window. */
+	max-width: 520px;
 	/* The safe areas keep the card off the notch and the home indicator while the wash
 	   goes on covering them. The keyboard is taken off the bottom the same way — see
 	   `useKeyboardInset` for why it is an inset rather than a smaller overlay. */
-	padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+	margin: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
 		calc(max(16px, env(safe-area-inset-bottom)) + var(--keyboard-inset, 0px))
 		max(16px, env(safe-area-inset-left));
-
-	overflow-y: auto;
-	/* Momentum, and no pull-to-refresh reaching the page underneath. */
-	overscroll-behavior: contain;
-	display: flex;
-	color: var(--ink);
-}
-
-/* The wash is `.wash`; this would only composite over it and darken it. */
-.dialog::backdrop {
-	background: transparent;
-}
-
-/*
- * Centred by `margin: auto` rather than by `align-items: center`, and that is not a
- * style preference: a centred flex item that overflows its scroll container is centred
- * by *overflowing both ends*, and the top end of a scroll container cannot be scrolled
- * to. Auto margins centre while there is room and fall back to the start when there
- * isn't, which is exactly the behaviour a tall card in a short window needs.
- */
-.card {
-	margin: auto;
-	width: 100%;
-	/* Capped so the card doesn't run the width of a desktop window; the overlay's own
-	   padding is what gives it a 16px margin on a phone. */
-	max-width: 520px;
 	/* Rounder than a card, which is the site's 12px: this is a much bigger surface, and
 	   a radius that reads as generous on a 200px tile barely registers on a 520px sheet. */
 	border-radius: 24px;
 	background: var(--white);
 	box-shadow: rgba(0, 0, 0, 0.3) 0 12px 40px;
-}
-
-/*
- * In on open. The card scales up a touch as the wash fades, which is the difference
- * between a dialog arriving and a dialog having always been there.
- *
- * On the element rather than on `[open]`: `showModal()` is what puts it in the top
- * layer, and by the time it is in the DOM open it is already the thing being animated.
- */
-.card {
-	animation: cardIn 0.16s ease-out;
-}
-
-@keyframes cardIn {
-	from {
-		opacity: 0;
-		transform: scale(0.96);
-	}
-}
-
-@keyframes washIn {
-	from {
-		opacity: 0;
-	}
+	/* The starting frame, as on the wash: the entrance is animated from `SaveForm`. */
+	opacity: 0;
+	transform: scale(0.96);
 }
 
 /*
@@ -220,9 +203,3 @@
 	}
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.wash,
-	.card {
-		animation: none;
-	}
-}
