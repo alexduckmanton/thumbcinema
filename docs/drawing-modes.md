@@ -104,6 +104,16 @@ Things worth knowing before touching anything nearby:
   column starts below it, so a column a windowful tall ends a header's worth past the
   bottom of the window — clipped, so invisible, and sixty-odd pixels of field that no
   finger can reach.
+
+  **The minimum is `100dvh` and has to be**, which is a lesson rather than a preference.
+  It was `100%`, resolved against a `<body>` that the lock made `position: fixed` and so
+  viewport-tall. When that `position: fixed` came off — for the iOS toolbar tinting, see
+  the note in `base.css` — the body went back to `height: auto`, a percentage minimum
+  against an auto height computes to nothing, and the column quietly stopped at its own
+  content. Nothing looked wrong: the drawing, the bar and the tray were all where they
+  had always been. What had gone was the empty half of the window under them, so a stroke
+  started low simply never began. A viewport unit says what was meant without caring what
+  the body is doing.
 - **Two holders, and either will do.** A held tray button and a second finger are both a
   mouse button, and which one is to hand depends on how the phone is being held rather
   than on which is better. So a gesture can have *two* at once, and a release has to ask

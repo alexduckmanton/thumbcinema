@@ -32,19 +32,31 @@ is now true at both widths and the differences are called out where they exist.
   scaled with it, so it came out of the top of the drawing and stood in the air above
   it; on a desktop the whole 304px run used to be behind 360px of canvas, until the page
   bar arrived 8px below the canvas and the two tools showed through the gap as a row of
-  coloured slivers. `clip-path: inset(-44px …)` on the list cuts them 24px *into* the
-  bar — the middle of its 48px, clear of the 24px radius at either end — so the cut is
-  behind something opaque rather than flush with its edge. It was -20, which put the cut
-  exactly on the bar's bottom line: a hair from right, and it read as a picture with its
-  top sliced off rather than a tool going under a bar.
+  coloured slivers. `clip-path: inset(-68px …)` on the list keeps them out of exactly
+  that gap — 68 is the bar's top edge — and **that is the whole of what the clip does.**
 
-  **Selecting a tool slides it 20px, and that used to be 50.** The 50 is 2013's, from
-  when the thing above this row was 360px of *paper*: a tool sliding down came out from
-  under a sheet, and the extra length read as tool. What is above it now is a 48px
-  floating pill, and 50px of travel brought a bare stretch of barrel out below it — so
+  **What decides how much of a tool you see is the bar, not the clip.** The bar carries
+  `z-index: 10` and the tools carry 1, so it paints over them: what shows is the run
+  between the bar's bottom edge and wherever the tool's own `bottom` puts its tip. The
+  canvas covers the rest of the way up on its own. This is worth stating plainly because
+  it has already been got wrong once — the clip was moved from -20 to -44 to "stop the
+  tools reading as cropped", which cannot work and did nothing, since every value in that
+  range cuts a stretch the bar is already covering.
+
+  The two numbers that do move it are on `.tool`. It hangs 20px below the row rather than
+  10, which is free — the tray already carries 20px of padding under the list, so the tip
+  reaches the tray's own bottom edge and the row grows by nothing — and selecting one
+  slides it 20px rather than 50. The 50 is 2013's, from when the thing above this row was
+  360px of *paper*: a tool sliding down came out from under a sheet and the extra length
+  read as tool. Under a 48px floating pill it brought out a bare stretch of barrel, and
   the selected tool looked worse than the unselected one, which is the wrong way round
-  for the one in your hand. At 20 the coloured end is what moves, which is what the
-  movement is for.
+  for the one in your hand. The transform gets the same 20px where it had 11: it is the
+  tool whose picture reads worst when cut — a pencil's bottom 55px is a recognisable
+  point, a pocket knife's is a rounded red end that could be anything — so it was the one
+  revealing least on being picked up.
+
+  **None of this makes the transform whole.** It is a 151px picture in a band that shows
+  85, and the only levers left cost canvas: a taller row, or a shorter page bar.
 - **The page strip stays, scaled, and `PageNav` is added under it.** The strip was
   hidden on a phone at first, and everything about that was wrong: the page animations
   are two pages moving — one thrown out as another arrives — and half of each one was

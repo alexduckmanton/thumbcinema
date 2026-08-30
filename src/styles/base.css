@@ -243,7 +243,19 @@ html.locked:not(.pannable) body {
 html.locked #root {
 	display: flex;
 	flex-direction: column;
-	min-height: 100%;
+	/*
+	 * `100dvh`, and it was `100%`, which stopped meaning anything the moment the
+	 * `position: fixed` came off the `<body>` above. A percentage minimum resolves
+	 * against the parent's height, and an unfixed body is `height: auto` — so this
+	 * computed to nothing, `main` stopped at its content, and the empty band under the
+	 * tools was no longer part of the column.
+	 *
+	 * That band is not decoration: it is the field a finger aims from in the modes that
+	 * aim from below the drawing, so losing it is a dead strip across the bottom of the
+	 * page where a stroke simply doesn't start. The viewport unit says what was meant
+	 * either way and does not care what the body is doing.
+	 */
+	min-height: 100dvh;
 }
 
 html.locked main {
