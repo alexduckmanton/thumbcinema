@@ -499,9 +499,11 @@ somewhere in the white" never was.
   nothing, and every touch outside the paper and the controls comes back `null` — so the
   flipbook scrolls and nothing aims. That is v14 with its one input surface removed rather
   than v14 falling back to v13, and it is deliberate: v13's answer was to read the whole
-  white field, which is the thing this mode exists to stop doing. What the button buys is
-  the band the pad stood in, which `--book-reserve` gives back to the drawing. The button
-  lights while the pad is up, because losing cursor control is a trade worth naming.
+  white field, which is the thing this mode exists to stop doing. What the button buys is a
+  clear view of the pages the pad was lying over — and *only* that: the band it stood in
+  stays, because the create page's thumbnail column is pinned to where the drawing is and
+  giving the room back moved it. The button lights while the pad is up, because losing
+  cursor control is a trade worth naming.
 - **`html.locked` had to give back `pan-y`.** It said `touch-action: none`, which is the
   intersection down the ancestor chain and cannot be given back by a descendant — so the
   page strip could be scrolled by a wheel and not by a finger, whatever v14 did about the

@@ -271,10 +271,11 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   page was empty white and stopped being free when the flipbook became something to
   scroll — under v13 the pages cannot be moved by a finger at all. The pad is found by
   `[data-aim-pad]`, and it is hidden above the phone breakpoint, where a mouse has a
-  precise pointer and none of this is a problem it has. **The rail can put it away**: the
-  band it stands in is a term in `--book-reserve`, so the drawing grows into the room
-  wherever height is what caps its size — and with the pad down v14 has no cursor control
-  at all, which is the honest trade the lit button is reporting. `docs/drawing-modes.md`.
+  precise pointer and none of this is a problem it has. **The rail can put it away, and that
+  changes nothing but the pad** — the band it stands in stays, because `PageStrip` pins the
+  whole thumbnail column to where the drawing is and nothing tells it the drawing moved. With
+  the pad down v14 has no cursor control at all, which is the honest trade the lit button is
+  reporting. `docs/drawing-modes.md`.
 - **`html.locked` says `touch-action: pan-y`, not `none`.** `touch-action` is the
   intersection down the ancestor chain and a descendant cannot give back what an ancestor
   took, so `none` on the body meant nothing inside the page could be panned by a finger —
@@ -310,6 +311,17 @@ Admin mode is a single shared secret in `ADMIN_TOKEN`; there are no accounts. Vi
   in a *layout* effect, and layout effects run bottom-up — a parent's `ref` is not attached
   when a child's runs. State re-renders the child when the element arrives, which a ref
   cannot do.
+- **Nothing may move the drawing after the page has settled.** `PageStrip` measures where it
+  is once and pins the whole thumbnail column to that, and nothing tells it otherwise — so a
+  control that re-centres the paper leaves every page behind it out of line. Switching v14's
+  aiming pad off used to give its band back to the drawing, and that is exactly what went
+  wrong; the band stands now whether the pad is in it or not.
+- **`--rail-top` is the header's real height and `--chrome-top` is not.** The second is the
+  air the *drawing* keeps clear and is deliberately larger; the rail belongs against the
+  header, so it gets its own number, and that number is measured because `SiteHeader` has
+  four breakpoints of its own (including Save wrapping onto a second line on a narrow
+  phone). `CreatePage` writes it from a `ResizeObserver`; `--chrome-top` is the fallback the
+  boot shell uses.
 - **Sizes on the create page are `100svh`, never `100dvh`.** `dvh` changes with the
   browser's chrome, and everything here is measured off everything else: the aiming pad's
   height is a term in `--book-reserve`, `--book-reserve` decides how wide the drawing is,

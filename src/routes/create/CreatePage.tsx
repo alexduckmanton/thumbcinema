@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { SiteHeader } from '../../components/SiteHeader'
 import { Spinner } from '../../components/Spinner'
@@ -123,6 +123,46 @@ export function CreatePage() {
 		field.current = node
 		setScroller(node)
 	}, [])
+
+	/*
+	 * How tall the header actually is, handed to the page as `--rail-top` so the rail can
+	 * stand against it.
+	 *
+	 * The one measured number on this layout, and it is measured because it cannot be
+	 * stated: `SiteHeader` has four breakpoints of its own — the wordmark steps down twice,
+	 * the padding with it, and on a narrow phone Save wraps onto a second line and adds 56px
+	 * nobody could predict from here. Restating any of that would be a copy of another
+	 * component's stylesheet that goes quietly wrong the first time it changes.
+	 *
+	 * It is *not* `--chrome-top`, which stays a stated constant: that is the band the
+	 * drawing keeps clear, it is deliberately bigger than the header, and it has to be
+	 * something the boot shell can draw without measuring anything.
+	 *
+	 * A layout effect, so the rail is never painted in the wrong place, and a
+	 * `ResizeObserver` because the header changes height on a rotate, on a wrap, and when
+	 * Save leaves for the save form.
+	 */
+	const headerBar = useRef<HTMLDivElement | null>(null)
+	useLayoutEffect(() => {
+		const bar = headerBar.current
+		if (!bar || !scroller) return
+
+		const apply = () => {
+			scroller.style.setProperty(
+				'--rail-top',
+				`${Math.round(bar.getBoundingClientRect().height)}px`,
+			)
+		}
+		apply()
+
+		const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
+		observer?.observe(bar)
+
+		return () => {
+			observer?.disconnect()
+			scroller.style.removeProperty('--rail-top')
+		}
+	}, [scroller])
 
 	/*
 	 * The one `PointerLayer` this page has, which two canvases now read.
@@ -303,10 +343,6 @@ export function CreatePage() {
 		styles.content,
 		phase === 'drawing' ? '' : styles.naming,
 		phase === 'sending' ? styles.sending : '',
-		// The pad's band, given back to the drawing when the pad is not standing in it. A
-		// class rather than an inline property because what that band is worth in height is
-		// a number the stylesheet owns and answers differently by layout.
-		usesAimPad(drawMode) && pad ? '' : styles.padless,
 	]
 		.filter(Boolean)
 		.join(' ')
@@ -327,7 +363,7 @@ export function CreatePage() {
 			 * a page you were trying to look at; up here it is out of the flipbook entirely,
 			 * and it is the one thing on the page that is not about the drawing.
 			 */}
-			<div className={styles.headerBar}>
+			<div className={styles.headerBar} ref={headerBar}>
 				<SiteHeader>
 					<div
 						className={[

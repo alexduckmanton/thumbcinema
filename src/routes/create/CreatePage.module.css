@@ -88,7 +88,7 @@
 	 * Everything in the window that is not the drawing: the header band, the aiming pad's
 	 * band, and the air that lets you see the page before and the page after.
 	 */
-	--book-reserve: calc(126px + var(--pad-height));
+	--book-reserve: 236px;
 
 	/*
 	 * The rail's box, and how much room the layout keeps clear for it.
@@ -109,12 +109,6 @@
 	--stage-left: var(--rail-width);
 	--stage-gutter: 16px;
 
-	/* The middle of the stage: what the desktop rail is centred on, so it lines up with the
-	   drawing rather than with the window. */
-	--stage-mid: calc(
-		var(--chrome-top) + (100svh - var(--chrome-top) - var(--chrome-bottom)) / 2
-	);
-
 	/* The two bands at the ends of the window: the header, and the aiming pad. Stated
 	   rather than measured because they are furniture that does not move, and a fixed box
 	   that measured its way into position is one that lands a frame after the page does. */
@@ -122,14 +116,39 @@
 	--chrome-bottom: calc(var(--pad-height) + var(--pad-air) + 12px);
 
 	/*
-	 * v14's aiming pad, which `AimPad` takes its size from and the boot shell reserves.
+	 * Where the rail starts, which is the header's own bottom edge rather than the band
+	 * above the drawing.
+	 *
+	 * Those are two different numbers and used to be one. `--chrome-top` is the air the
+	 * *drawing* keeps clear at the top of the window, and it is deliberately more than the
+	 * header — a sheet of paper immediately under the wordmark is a crowded page. The rail
+	 * is the opposite claim: it is furniture, it belongs to the header, and the gap between
+	 * them is just a gap.
+	 *
+	 * It is the one number on this page that is measured, and the reason is that the header
+	 * has four breakpoints of its own — the wordmark comes down twice, the padding with it,
+	 * and Save wraps onto its own line on a narrow phone, which is 56px nobody could state
+	 * here without restating the whole of `SiteHeader.module.css`. `CreatePage` writes it
+	 * from a `ResizeObserver`. The value below is what stands until that lands, and what the
+	 * boot shell uses — which needs no better one, the shell having no rail to place.
+	 */
+	--rail-top: var(--chrome-top);
+
+	/*
+	 * v14's aiming pad, which `AimPad` takes its size from.
 	 *
 	 * `svh` and not `dvh`, which it was, and the difference is the whole of a bug this page
-	 * had. `--book-reserve` carries this number, `--book-reserve` decides how wide the
-	 * drawing is, and the drawing's size is what the page column is measured against — so a
-	 * pad stated in `dvh` is a scroll container that changes length every time a browser's
-	 * chrome slides in or out. Which stops a fling dead and then jumps it to a slot, exactly
-	 * as reported. Nothing on this page may be measured in `dvh`; see the note at the top.
+	 * had: `--chrome-bottom` is drawn off this number, `--chrome-bottom` is what the drawing
+	 * is sized between, and the drawing's size is what the page column is measured against —
+	 * so a pad stated in `dvh` is a scroll container that changes length every time a
+	 * browser's chrome slides in or out. Which stops a fling dead and then jumps it to a
+	 * slot. Nothing on this page may be measured in `dvh`; see the note at the top.
+	 *
+	 * **The band stands whether or not the pad is in it.** Switching the pad off is a
+	 * `display` change and nothing else: `--pad-height` does not move, so `--chrome-bottom`
+	 * does not, so the drawing does not — which matters because `PageStrip` measures the
+	 * drawing's position once and pins the whole column to it. A pad that re-centred the
+	 * paper left every thumbnail behind it standing in the wrong place.
 	 */
 	--pad-height: clamp(88px, 17svh, 132px);
 	--pad-air: calc(8px + env(safe-area-inset-bottom));
@@ -138,25 +157,6 @@
 /* Safari and Chrome want it said the other way. */
 .content::-webkit-scrollbar {
 	display: none;
-}
-
-/*
- * The pad's band, given back to the drawing when the pad is switched off.
- *
- * One property, because everything else is drawn off it: `--chrome-bottom` is the pad plus
- * its air, and `--book-reserve` — how much of the window is not the drawing — carries it as
- * a term rather than as a number. So the room the pad was in is genuinely given back: the
- * drawing re-centres in it always, and grows into it wherever the height is the thing
- * capping its size, which on a phone held sideways is most of the reason to switch the pad
- * off at all.
- *
- * `.content.padless` rather than `.padless`, and the extra class is load-bearing: the two
- * layouts below restate `--pad-height` on `.content`, which is the same specificity and
- * later in the file, so a bare class silently lost to them. It was measurable and quiet —
- * the pad went away at every width and the drawing grew into the room at only one of them.
- */
-.content.padless {
-	--pad-height: 0px;
 }
 
 /*
@@ -424,7 +424,7 @@
 	.content {
 		--chrome-top: 84px;
 		--pad-height: 56px;
-		--book-reserve: calc(104px + var(--pad-height));
+		--book-reserve: 160px;
 	}
 }
 

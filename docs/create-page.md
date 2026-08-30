@@ -28,8 +28,8 @@ What it is now, at both widths:
 
 ## The panel
 
-- **On a desktop the rail stands beside the drawing**, vertically centred on it and 16px
-  off its left edge, rather than pinned to the edge of the window. On a wide screen a column
+- **On a desktop the rail stands beside the drawing**, 16px off its left edge and starting
+  at the header's own bottom edge, rather than pinned to the edge of the window. On a wide screen a column
   in the far corner is a toolbar in a different postcode from the thing it works on. What
   makes it fit is that the drawing is centred in the *window* up here and the rail's lane is
   taken out of the paper's width on **both** sides — so the sheet stays centred and the rail
@@ -139,6 +139,21 @@ What it is now, at both widths:
   what the form appears inside. The two numbers are `--chrome-top` and `--chrome-bottom`,
   the bands at the ends of the window that are not the flipbook; the drawing takes what is
   between them.
+- **`--rail-top` is not `--chrome-top`, and it is the one number here that is measured.**
+  `--chrome-top` is the air the *drawing* keeps clear at the top of the window, and it is
+  deliberately more than the header: a sheet of paper immediately under the wordmark is a
+  crowded page. The rail makes the opposite claim — it is the header's own furniture, it
+  belongs against it, and the space between them is just a gap. Standing the rail on
+  `--chrome-top` left 45px of nothing under the wordmark on a desktop, and the rail
+  *overlapping* the header by 16px on a phone, both from the same stated constant.
+
+  So `CreatePage` measures the header with a `ResizeObserver` and writes its height onto the
+  page. It has to be measured: `SiteHeader` has four breakpoints of its own — the wordmark
+  steps down twice, its padding with it, and on a narrow phone Save wraps onto a second line
+  and adds 56px — and any number stated here would be a copy of another component's
+  stylesheet that goes quietly wrong the first time it changes. The stylesheet's fallback is
+  `--chrome-top`, which is what stands for the frame before the measurement lands and what
+  the boot shell uses, the shell having no rail to place.
 - **`main` is the scroll container, and everything else stands over it in `.chrome`.**
   The pages are a column in ordinary flow inside `main` — they are what makes that box tall
   — and the rail, the drawing, the aiming pad and the two scrims are all inside one sticky
@@ -278,17 +293,18 @@ What it is now, at both widths:
   them — and **semi-opaque with a 16px backdrop blur**, so the pages passing underneath are
   a texture rather than content competing with the dots. The fill is 0.72 because at 0.88
   there was nothing left underneath for the blur to work on.
-- **The rail can put the pad away**, and that button is the last tile above the drawing-mode
-  switch. It hides itself above the phone breakpoint, where the pad it is offering to hide
-  was never on screen — a control for something that is not there is the sort of thing that
-  makes a page feel unfinished. `--pad-height` is what it sets to zero, and everything else
-  is drawn off that one number: `--chrome-bottom` is the pad plus its air, and
-  `--book-reserve` carries the pad as a *term* rather than as a baked-in constant, so the
-  drawing genuinely grows into the room wherever height is what caps its size. On a phone
-  held sideways that is 409px of drawing becoming 508. It has to be `.content.padless`
-  rather than `.padless`: both layouts restate `--pad-height` on `.content` at the same
-  specificity and later in the file, so a bare class lost to them silently — the pad
-  disappeared at every width and the drawing grew at only one.
+- **The rail can put the pad away, and doing so changes nothing but the pad.** That button
+  is the last tile above the drawing-mode switch, and it hides itself above the phone
+  breakpoint, where the pad it is offering to hide was never on screen — a control for
+  something that is not there is the sort of thing that makes a page feel unfinished.
+
+  **The band the pad stands in stays whether the pad is in it or not**, and that is the
+  fix for a bug rather than an oversight. The first version gave the room back:
+  `--pad-height` went to zero, `--chrome-bottom` with it, and the drawing re-centred into
+  the space. Which broke the flipbook — `PageStrip` measures where the drawing is *once* and
+  pins the whole column of thumbnails to it, and nothing tells it the drawing has moved, so
+  every page behind the paper stood 33px out of line. The pad is furniture laid over the
+  page; switching it off is a `display` change and nothing else.
 
   It is a thing you do to look at something rather than a setting, so it is not persisted.
   The button lights while the pad is *up*, which is the honest report: with the pad down v14
