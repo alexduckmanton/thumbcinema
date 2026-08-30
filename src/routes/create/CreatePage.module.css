@@ -118,8 +118,10 @@
  * against the 11 the four-disc row this replaces had.
  *
  * The 38 is why there is a whole media query for it below rather than a number here:
- * `.action` itself stays at 48, which is what the disabled row in `RouteShell` and the
- * page bar's own controls are drawn at.
+ * `.action` itself stays at 48, which is the size a disc wants to be and the size the
+ * page bar's own controls are drawn at. No layout renders the base value — this row is
+ * `display: none` above the breakpoint — so it is the shape of the rule rather than a
+ * size anything sees.
  */
 .actions {
 	display: flex;
@@ -349,9 +351,9 @@
  * which five of them plus "Save" still clear each other by the width of a gutter inside
  * the 328px column a 360px phone gives, which is the narrowest layout this block holds.
  *
- * Stated as its own query rather than as the base value because `.action` is shared with
- * the disabled row `RouteShell` draws, which stands in a header and has no reason to
- * shrink.
+ * Stated as its own query rather than as the base value so the base stays the size a
+ * disc wants to be and each layout says what it can afford, rather than 38 reading as the
+ * size and 48 as the exception.
  */
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.action {

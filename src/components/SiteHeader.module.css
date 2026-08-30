@@ -33,10 +33,12 @@
 	max-width: 700px;
 }
 
-/* Under 730 the canvas stops being a fixed width and fills the window less a gutter,
-   so matching it means matching the gutter. `.center` sets the same pair, and the
-   narrowest breakpoint below takes both of them down to 16 together. */
-@media screen and (max-width: 730px) {
+/* Below the breakpoint the canvas stops being a fixed width and fills the window less a
+   gutter, so matching it means matching the gutter. `.center` switches on the same pair —
+   and the pair is the point: a phone held sideways is 800 points wide and 375 tall, so a
+   width test alone left this column capped at 700 while the content below it ran the full
+   width of the window. The narrowest breakpoint below takes both down to 16 together. */
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.narrow {
 		max-width: none;
 		padding-left: 20px;

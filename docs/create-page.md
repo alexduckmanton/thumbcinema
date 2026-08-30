@@ -1,7 +1,7 @@
 # The create page
 
-The layout, the page bar, the tray, tracing over a photograph, and the playback page
-that shares most of it. How a finger drives the tools is its own file:
+The layout, the page bar, the tray, tracing over a photograph, naming a flipbook, and
+the playback page that shares most of it. How a finger drives the tools is its own file:
 [`drawing-modes.md`](drawing-modes.md).
 
 The one place this is deliberately no longer a port. It started as the phone layout —
@@ -222,17 +222,23 @@ is now true at both widths and the differences are called out where they exist.
   mark, but the pencil is one size now, so what it says is which of the two marking tools
   is in hand.
 - **On a phone the bottom of the window is a footer bar: the camera and four edit actions
-  at one end, save at the other.** It was the save button alone, floating in the middle;
-  a bar is what lets the other five stand next to it without any of them looking like an
-  afterthought. The camera leads the row — it is the one disc there that isn't spending a
-  stack, so it stands at the far corner where the four that are can stay adjacent, and as
-  far from Save as the bar allows, those being the two presses least worth confusing. See
-  **Tracing over a photograph** below, and its note on what a fifth disc did to the
-  arithmetic. Fixed 8px off the bottom, because the column ends wherever the tools
-  happen to end and the rest of a phone screen is air. `transform`, not `top`, does the
-  fly-away when the form goes up — a box pinned by `bottom` can't use `top` without
-  being stretched between the two — and the desktop's fly-away moved to `transform` with
-  it, so the two differ by the direction and nothing else.
+  at one end, save at the other** — and, for an admin, the drawing-mode switch on the end
+  of the row. It was the save button alone, floating in the middle; a bar is what lets the
+  others stand next to it without any of them looking like an afterthought. The camera
+  leads the row — it is the one disc there that isn't spending a stack, so it stands at
+  the far corner where the four that are can stay adjacent, and as far from Save as the
+  bar allows, those being the two presses least worth confusing. The mode switch takes the
+  opposite end for the same reason in reverse: it is scaffolding, and the one control here
+  nobody should reach for by accident. See **Tracing over a photograph** below, and its
+  note on what a fifth disc did to the arithmetic. Fixed 8px off the bottom, because the
+  column ends wherever the tools happen to end and the rest of a phone screen is air.
+
+  **Nothing in this bar moves when the save form goes up, and that is a reversal.** The
+  row used to slide off the bottom of the window on a phone and off the top on a desktop,
+  and the tray's tools flew up out of their row to match — a 2013 keyframe kept through two
+  rewrites. It was right while the form was a panel laid over the canvas, because the form
+  was standing on the drawing. It is a modal now, and a modal puts `inert` on `main`, which
+  is the whole of what the fly-away bought. See **Naming a flipbook** below.
 - **Undo, redo, copy and paste are the phone's, and the phone's alone.** Each is a white
   disc exactly as tall as the save button and as wide as
   it is tall, wearing a Pecita glyph — ↺ ↻ ↥ ↧, set as live text for the same reason the
@@ -276,12 +282,10 @@ is now true at both widths and the differences are called out where they exist.
   ended 64px short of the bottom of the window and the drawing was that much smaller than
   the room it had. What is left over now is 6px at every size checked.
 
-  **The row is 6px apart on a phone and 8 on a desktop, and that is arithmetic.** Four
-  48px discs and the save button are 320px of the footer's 328 on the narrowest layout
-  that gets them at full size — a 360px Android phone. Below 360 they take the diet the
-  sideways layout already takes, 40px discs and a 40px save button, which is 264 of the
-  288 a 320px screen gives the column. A 280px folding cover screen still overruns by 16
-  and is left to: the paper there is 264px wide.
+  **The gaps and the sizes are arithmetic, and it is written out under **Tracing over a
+  photograph** below** — the camera made a five-across row out of a four-across one and
+  the numbers were redone for it, and the admin switch makes it six and takes the whole
+  row down another size. Both are `.actions` in `CreatePage.module.css`.
 - **The footer's ends are the paper's ends, and that needs a `max()`.** `--book-width`
   is a `min(100%, …)` and the bar is `position: fixed`, so its `100%` is the window
   where the column's is the column — upright, where the width binds, the difference
@@ -296,8 +300,9 @@ is now true at both widths and the differences are called out where they exist.
   sitting at the paper's left-hand edge. There is nothing under the page actions at the
   other end. The rule this replaces did the same thing for the save button alone, to
   keep it off the width popover — same band, same problem, one answer now instead of a
-  special case. `--book-reserve` is 212 in a short window rather than 250, because what
-  it used to be set from was the bottom of that popover and the popover is gone.
+  special case. `--book-reserve` is 154 in a short window: the popover it used to be set
+  from is gone, and the header went with it — see **The create page has no header at all**
+  above for both numbers.
 - **The bar comes up empty, and that is `.waiting`.** A saved flipbook arrives a page at
   a time, so until the second page lands it is a one-page flipbook — which puts the handle
   at the *right-hand* end, one page being the last page as much as the first. So the bar
@@ -420,9 +425,84 @@ is now true at both widths and the differences are called out where they exist.
   fine as the hardware allows: a steady 0.3px on a 3× screen is one device pixel per
   event.
 
+## Naming a flipbook
+
+A black wash over the window and a white card in the middle of it, asking for a title and
+an optional description. `SaveForm.tsx` and its stylesheet.
+
+**What it replaced was a blue panel laid over the canvas** — the one moment the chrome was
+loud — and the reason it went is the reason for most of what follows: the panel was
+positioned inside `.book` and sized against the drawing, so once a page could be square it
+covered a 16:9 lid's worth of a taller sheet and left two different blues stacked on each
+other. A modal belongs to the window, not to the artwork, and is measured against nothing.
+
+- **The "contains adult stuff" checkbox is gone.** A title is the only thing anybody has
+  to type. NSFW is set from admin mode now — see the note in `CLAUDE.md` — and the field
+  is still in the save contract because `time-capsule` still posts it.
+- **It is a positioned `<div>`, not a `<dialog>` opened with `showModal()`, and that is a
+  reversal worth stating.** The dialog gave us the backdrop, the inert page and the focus
+  trap for nothing, and those reasons still hold. What it also does is put the element in
+  the **top layer** — and since Safari 26, iOS tints the strip behind the status bar and
+  the strip behind the URL bar from the page, and **the top layer is never sampled**. So
+  the wash covered the drawing and left a pale band of `--page` above and below it.
+
+  That cost three attempts to establish, because each one moved the wash somewhere else
+  inside the dialog: the `::backdrop` first, then the dialog's own background, then a
+  separate wash div underneath a transparent dialog. The third is the interesting one —
+  the wash was by then exactly the kind of element the sampler looks for, and the toolbars
+  still didn't follow it. **An open modal dialog suppresses the sampling altogether**,
+  wherever the paint is and whatever it is painted in; verified on the iOS 26.2 simulator
+  against a reduced case, both with the dialog covering the viewport and with it inset
+  16px clear of both edges. Take the dialog away and the same wash tints both toolbars.
+
+  What is sampled is the background colour of `<body>`, or of a `position: fixed`/`sticky`
+  element lying against the edge of the viewport, which wins over the body. `<meta
+  name="theme-color">` is **not read at all** any more. So the overlay has to *be* such an
+  element, and the other half of the fix is in `base.css`: the create page's lock makes
+  `<body>` itself a fixed, opaque, full-viewport element. Both halves are needed — either
+  one alone leaves the bands.
+- **So four things the element used to do are hand-rolled**: Esc, the Tab trap, focus moved
+  in on open and put back on close, and `inert` on `#root`. That is about thirty lines to
+  replace an element that did it for nothing, and it buys a wash that reaches the edges of
+  the phone. `inert` goes on `#root` rather than on every sibling because the overlay is
+  portalled to `<body>` and so is that element's sibling; naming the one element the app
+  renders into is what keeps it from inerting the overlay itself.
+- **The order there is load-bearing.** `inert` blurs whatever it swallows, so focus has to
+  be placed *after* the attribute lands — which an `autoFocus` on the markup cannot do,
+  React applying that during commit.
+- **Focus lands on the overlay, not on the title field.** It has to land somewhere inside,
+  because that is what Esc and the Tab trap listen from and `inert` has just taken it off
+  whatever had it. Focusing the input instead raises the on-screen keyboard the moment the
+  form appears, which covers half the card and collapses Safari's own toolbar before you
+  have decided to type anything. Hence `tabIndex={-1}` on the overlay: focusable, not
+  tabbable, and not a text field.
+- **The keyboard is an inset, not a smaller overlay.** There is no CSS-only answer that
+  works where it needs to: `interactive-widget=resizes-content` is the declarative one and
+  WebKit has not shipped it, so on an iPhone `100dvh` is still the whole screen and a card
+  centred in it sits half behind the keyboard. `visualViewport` is what every engine
+  including iOS agrees on, and what `useKeyboardInset` publishes is the **inset** — the
+  overlay stays the full size of the window so the wash goes on reaching under the browser
+  chrome, and the keyboard is taken off the *card* as a margin. Sizing the overlay to the
+  visible height would have fixed the keyboard and put the pale bands back. `offsetTop` is
+  part of the sum, because iOS scrolls the layout viewport to bring a focused field up.
+- **The entrance is the Web Animations API, not a CSS animation, and that is not fussiness.**
+  An animating element gets a compositing layer of its own, which is exactly the kind of
+  thing the toolbar sampler is sensitive to. Both elements start at `opacity: 0` in the
+  stylesheet and `element.animate()` brings them up, with `fill: 'both'` holding the last
+  frame. Reduced motion is honoured in JavaScript rather than by a media query, because the
+  starting frame is now in CSS: with no animation to run, something still has to put the
+  two elements at their finished state or the form never appears at all.
+- **The page behind is left exactly as it was**, tools, page bar, handle and all. `inert`
+  is what makes that safe, and it is why none of the hiding the old panel needed is left.
+- **The document stays locked while the form is up, except for `touch-action`.** A page
+  scrolling behind a modal is the conflict the modal exists to avoid; but `touch-action:
+  none` is an intersection down the ancestor chain that a descendant cannot give back, and
+  a description longer than the 72px field has to be pannable. `.pannable` in `base.css` is
+  that one exception.
+
 ## Tracing over a photograph
 
-A sixth white disc at the left-hand end of the phone's footer takes a picture with the
+The white disc at the left-hand end of the phone's footer takes a picture with the
 camera and lays it over the paper at 30%, on the page you are on, to be drawn on top of.
 One finger drags it, two pinch to scale and turn it; tap the drawing to accept it, and
 press the disc again to move it, replace it or take it away. **Choose several and they are
@@ -726,9 +806,6 @@ be respected rather than discovered.
   `guardNavigation()`, and back is answered rather than blocked — a duplicate entry is
   pushed so the first press lands on the same URL and can be asked about. Cost: one
   extra entry, and a live forward button, while the flipbook is unsaved.
-- **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
-  drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
-  attached to the document, and none of it should follow you to the flipbook page.
 - **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
   drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
   attached to the document, and none of it should follow you to the flipbook page.

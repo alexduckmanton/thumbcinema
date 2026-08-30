@@ -74,9 +74,9 @@ export function RouteShell({ route }: RouteShellProps) {
 				/>
 			)
 		case 'create':
-			// No create button in the header: you are already here. What is up there
-			// instead is the four edit actions, so the shell draws those. Matches
-			// `CreatePage`.
+			// No header at all: no create button, because you are already here, and no
+			// wordmark either. `SiteHeader` drops the row rather than rendering an empty
+			// one, so the shell is a pulsing sheet and nothing else. Matches `CreatePage`.
 			return (
 				<BookShell
 					content={createStyles.content}

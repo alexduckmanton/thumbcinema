@@ -15,7 +15,6 @@ const form = new URLSearchParams({
     project: payload.svg,                  // paper.js exportSVG(), serialised
     imgBase64: payload.thumbnailDataUrl,   // a PNG of the cover page
     cover: String(payload.cover),          // which page that is
-    nsfw: payload.nsfw ? '1' : '0',
 })
 
 if (payload.remixOf) form.set('remix_of', payload.remixOf)  // what it was drawn on
@@ -47,8 +46,12 @@ So:
   save, which is the same thing as saying nothing saved over there is a remix.
 - `draft` and `postID` are gone. Drafts needed an account to return to them with, and
   the server ignored both fields anyway.
-- `nsfw` is honoured: flagged flipbooks keep working on their own URL but are left out
-  of the browse grid, which is exactly what the original did with the `nsfw` category.
+- `nsfw` is **still in the contract and no longer sent from here.** The server reads it
+  off the form (`lib/router.js`) because `time-capsule` still posts it, and honours it the
+  way the original did with the `nsfw` category: a flagged flipbook keeps working on its
+  own URL and is left out of both browse tabs. What went is this front end's checkbox —
+  flagging is an admin action on a published row now, so a save from here simply omits the
+  field and takes the column's `DEFAULT`.
 
 **Don't change this contract.** It's the 2013 endpoint, it is what the `time-capsule`
 deployment still posts to, and both deployments share one database.

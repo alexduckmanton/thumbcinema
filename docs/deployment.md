@@ -148,8 +148,10 @@ share one database, running it early means production's code meets the new colum
 first, which is fine, and never the other way round.
 
 New code that reads a new column therefore has to survive not finding it. See
-`querySvgAware()` in `lib/flipbooks.js`: `thumbnail_svg` missing is treated as no row
-having one, so the gallery shows PNGs rather than 500ing. Worth keeping up whenever
+`queryColumnAware()` in `lib/flipbooks.js`: `thumbnail_svg` missing is treated as no row
+having one, so the gallery shows PNGs rather than 500ing. It stands down one column at a
+time, because these arrived in separate migrations and a database can be missing any
+subset. Worth keeping up whenever
 another column is added — the alternative was a blank home page for the length of the
 window.
 

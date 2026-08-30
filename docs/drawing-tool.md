@@ -237,11 +237,12 @@ told to stand somewhere else for a moment.
   instead is a press area much bigger than the tab, grown by a pseudo-element *upwards*
   into that empty band and sideways — deliberately not downwards, which is the drawing.
 - **It is `z-index: 101`, one past the header**, and that is not decoration. Held
-  sideways the air above the paper is 8px deep, and the header's box runs the full width
-  of the window at 100: the top of the tab and most of the press area behind it are
-  inside it. Nothing is painted there — the wordmark is at the other end of the row — but
-  a box with no background is hit-tested exactly like one with, so at 16 the target was
-  five usable pixels deep on the layout with the least room to spare.
+  sideways the air above the paper is 8px deep, and `<header>` runs the full width of the
+  window at 100: the top of the tab and most of the press area behind it are inside it. It
+  paints nothing on this page — the create page drops the wordmark row altogether and what
+  is left of the element is the message banner — but a box with no background is
+  hit-tested exactly like one with, so at 16 the target was five usable pixels deep on the
+  layout with the least room to spare.
 - **The tools are held off, and by a different flag from the page actions.** `busy` is
   set for the length of the gesture, which is what holds the page buttons, undo and the
   page bar — but drawing through a page *animation* has been allowed since 2013 and
