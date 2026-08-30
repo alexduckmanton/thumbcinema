@@ -132,6 +132,24 @@
 }
 
 /*
+ * And the same row with the drawing-mode switch on the end of it, which only an admin
+ * has. Six discs and "Save" do not fit the arithmetic above — five at 38 leave 12px
+ * clear of the save button on a 360px phone, and a sixth overruns it by 30 — so the
+ * whole row comes down a size rather than the new disc being the odd one out.
+ *
+ * Scoped to the admin case so that what everybody else sees is untouched: 32 and 3
+ * leave 11px clear at 360 and 41 at 390, against 12 and 42 for the five-disc row.
+ */
+.actionsAdmin {
+	gap: 3px;
+}
+
+.actionsAdmin .action {
+	width: 32px;
+	height: 32px;
+}
+
+/*
  * One action: a white disc exactly as tall as the save button and as wide as it is tall.
  *
  * The same white and the same shadow as the page bar above it and the paper above

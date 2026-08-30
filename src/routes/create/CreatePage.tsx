@@ -31,6 +31,7 @@ import {
 	isNetworkFailure,
 	saveFlipbook,
 } from '../../lib/api'
+import { isAdmin } from '../../lib/admin'
 import { isTouch } from '../../lib/device'
 import { refuseMultiTouch } from '../../lib/zoom'
 import { registerMessage, showMessage } from '../../lib/messages'
@@ -314,10 +315,6 @@ export function CreatePage() {
 			 */}
 			<SiteHeader width="narrow" wordmark={false} />
 
-			{/* Scaffolding, and above everything so it stays reachable in every mode — including
-			    the two that park a magnifier under the top edge of the window. */}
-			<DrawModeSwitch mode={drawMode} />
-
 			<main className={contentClass} ref={field} style={pageVars(page) as React.CSSProperties}>
 				{engine && state ? (
 					<PageStrip
@@ -531,7 +528,7 @@ export function CreatePage() {
 						<EditActions
 							engine={engine}
 							state={state}
-							className={styles.actions}
+							className={isAdmin() ? `${styles.actions} ${styles.actionsAdmin}` : styles.actions}
 							leading={
 								<ActionButton
 									label={traceLabel(photo !== null, placing)}
@@ -542,6 +539,7 @@ export function CreatePage() {
 									onPress={pressTrace}
 								/>
 							}
+							trailing={<DrawModeSwitch mode={drawMode} className={styles.action} />}
 						/>
 
 						<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
@@ -696,6 +694,7 @@ function EditActions({
 	state,
 	className,
 	leading,
+	trailing,
 }: {
 	engine: FlipbookEngine | null
 	state: FlipbookState | null
@@ -708,6 +707,13 @@ function EditActions({
 	 * wordmark, where there is no camera to reach and the row is exactly the four.
 	 */
 	leading?: React.ReactNode
+	/**
+	 * And one standing behind them: the drawing-mode switch, for an admin.
+	 *
+	 * The far end of the row from the camera, and the far end from Save as well — it is
+	 * scaffolding, and the one control here nobody should reach for by accident.
+	 */
+	trailing?: React.ReactNode
 }) {
 	return (
 		<div className={className}>
@@ -740,6 +746,7 @@ function EditActions({
 				enabled={state?.canPaste ?? false}
 				onPress={() => engine?.pasteClipboard()}
 			/>
+			{trailing}
 		</div>
 	)
 }

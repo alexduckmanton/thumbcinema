@@ -7,8 +7,8 @@ v13 — the one the site ships. `src/flipbook/drawModes.ts`, `pointer.ts` and
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
 separate families and no consensus — so rather than pick one blind, thirteen of them are
-built behind an **admin-only** switch in the corner of the create page and drawn with side
-by side: a
+built behind an **admin-only** switch — the last disc in the phone's row of edit actions,
+wearing ⚿ — and drawn side by side: a
 follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
 over on half a second of stillness, four that move the cursor off the fingertip
 altogether, two that leave the finger where it is and magnify the drawing under it
@@ -33,6 +33,13 @@ the one that belongs to two groups at once, being v12 on the drawing and v10 off
 **v13 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
 rather than "whichever is last in the list" — and since the switch is admin-only it is now
 the only thing that decides what anybody else gets. See **v13** below for the mode itself.
+
+**Phone only**, because the row it sits in is. Not a loss worth working around: thirteen
+answers to "a finger is opaque" is a question about fingers, and a desktop has a pointer.
+It used to float in the top-right corner of every layout — a corner three of these modes
+like to park a magnifier in. The glyph is U+26BF ⚿, checked against Pecita's cmap rather
+than assumed: the face has the squared key and not U+1F512, and a key is the honest
+picture for a control you only see because you hold the token.
 
 **The switch is gated on the admin token**, the same shared secret the gallery's
 moderation toggles use and by the same one line (`isAdmin()`, `lib/admin.ts`). The other
@@ -169,7 +176,7 @@ Things worth knowing before touching anything nearby:
   were working against it, both fixed rather than worked around: the tray inherited the
   body's `touch-action: manipulation`, so a second contact on it is a candidate pinch and
   a browser may hold the touch back while it decides (`none` now, the other half of what
-  the canvas already says); and selecting a tool slides its button 50px down out from
+  the canvas already says); and selecting a tool slides its button 20px down out from
   under the finger that pressed it, which a click — needing the press and the release on
   the same element — can lose. Touch events have neither problem: every finger fires
   them, and a touch's events all target the element it started on however far anything

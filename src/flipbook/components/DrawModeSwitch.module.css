@@ -1,73 +1,33 @@
 /*
- * The drawing-mode switch: scaffolding, and dressed as scaffolding.
+ * The disc.
  *
- * It sits above everything — the header is 100 and the loupe 101, which is the
- * highest thing the page draws — because it has to be reachable in every mode,
- * including the two that put a magnifier under the top edge of the window.
- */
-.switcher {
-	position: fixed;
-	top: calc(8px + env(safe-area-inset-top));
-	right: calc(8px + env(safe-area-inset-right));
-	z-index: 120;
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 6px;
-	/* The caption below the button is a label, not a target; the button re-enables
-	   itself. Without this the whole column would be a hole in the drawing. */
-	pointer-events: none;
-}
-
-/*
- * The disc, matched to the undo and redo buttons rather than to anything of its own:
- * same white, same shadow, same rounding. Smaller than their 48, because this is not
- * a control anybody is meant to reach for while drawing.
+ * Everything that makes it look like one comes from the create page's `.action`, handed
+ * down as `className` — this is one of that row now, not a control of its own, so it has
+ * no size, no colour and no shadow here. What is left is the two things `.action` cannot
+ * know: that a `<select>` is laid over it, which needs a positioning context, and that
+ * the select is what takes the press.
  */
 .button {
 	position: relative;
-	display: flex;
-	width: 40px;
-	height: 40px;
-	align-items: center;
-	justify-content: center;
-	border-radius: var(--radius-pill);
-	background: var(--white);
-	box-shadow: var(--shadow-card);
-	pointer-events: auto;
 }
 
 /*
- * Three bars, shortest at the bottom.
+ * ⚿, in the hand the four glyphs beside it are set in.
  *
- * Drawn in CSS rather than taken from the icon sheet or set as a glyph. The sheet is
- * 2013's hand and is drawings of *things* — a pencil, an eraser, a page — and a
- * settings control is neither a thing nor part of that set; a font glyph would be a
- * bet on Inter shipping the character. Three boxes always render.
+ * It was three boxes drawn in CSS, on the reasoning that a font glyph is a bet on the
+ * face shipping the character. That reasoning stands and the bet was checked rather than
+ * taken: Pecita's cmap has U+26BF SQUARED KEY, and not U+1F512. A key in a box is also
+ * the more honest picture — this control is here because you hold the admin token.
+ *
+ * The 2px is `.action`'s own optical correction for this face; see `ActionButton`.
  */
-.icon {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 3px;
-}
-
-.icon span {
-	height: 2px;
-	border-radius: 1px;
-	background: var(--ink-strong);
-}
-
-.icon span:nth-child(1) {
-	width: 16px;
-}
-
-.icon span:nth-child(2) {
-	width: 12px;
-}
-
-.icon span:nth-child(3) {
-	width: 8px;
+.glyph {
+	position: relative;
+	top: 2px;
+	font-family: 'Pecita', cursive;
+	font-size: 22px;
+	line-height: 1;
+	color: var(--ink-strong);
 }
 
 /*
@@ -90,7 +50,7 @@
 	cursor: pointer;
 }
 
-.select:focus-visible + .icon,
+.select:focus-visible + .glyph,
 .button:focus-within {
 	outline: 2px solid var(--blue);
 	outline-offset: 3px;
@@ -103,8 +63,18 @@
  * Worth the pixels: these differ from each other by a rule rather than by a picture,
  * and half of them look identical until you touch the glass. Without this, testing
  * is a stream of "which one is this again".
+ *
+ * Fixed above the footer, on the right, because the disc that opens it is at the right
+ * end of the footer's own row. Out of the flow, so the row lays out without it, and
+ * `pointer-events: none` because it is a label rather than a target — a paragraph
+ * floating over the drawing must not be a hole in it.
  */
 .caption {
+	position: fixed;
+	right: calc(8px + env(safe-area-inset-right));
+	bottom: calc(72px + env(safe-area-inset-bottom));
+	z-index: 120;
+	pointer-events: none;
 	display: flex;
 	max-width: min(220px, 60vw);
 	flex-direction: column;

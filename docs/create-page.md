@@ -32,9 +32,19 @@ is now true at both widths and the differences are called out where they exist.
   scaled with it, so it came out of the top of the drawing and stood in the air above
   it; on a desktop the whole 304px run used to be behind 360px of canvas, until the page
   bar arrived 8px below the canvas and the two tools showed through the gap as a row of
-  coloured slivers. `clip-path: inset(-20px …)` on the list cuts them along the line the
-  page bar's bottom edge runs on, which is where the eye already reads them as going
-  under something.
+  coloured slivers. `clip-path: inset(-44px …)` on the list cuts them 24px *into* the
+  bar — the middle of its 48px, clear of the 24px radius at either end — so the cut is
+  behind something opaque rather than flush with its edge. It was -20, which put the cut
+  exactly on the bar's bottom line: a hair from right, and it read as a picture with its
+  top sliced off rather than a tool going under a bar.
+
+  **Selecting a tool slides it 20px, and that used to be 50.** The 50 is 2013's, from
+  when the thing above this row was 360px of *paper*: a tool sliding down came out from
+  under a sheet, and the extra length read as tool. What is above it now is a 48px
+  floating pill, and 50px of travel brought a bare stretch of barrel out below it — so
+  the selected tool looked worse than the unselected one, which is the wrong way round
+  for the one in your hand. At 20 the coloured end is what moves, which is what the
+  movement is for.
 - **The page strip stays, scaled, and `PageNav` is added under it.** The strip was
   hidden on a phone at first, and everything about that was wrong: the page animations
   are two pages moving — one thrown out as another arrives — and half of each one was

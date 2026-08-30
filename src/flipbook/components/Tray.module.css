@@ -37,7 +37,7 @@
  */
 
 /*
- * Cut off at the tray's own top edge, on both layouts.
+ * Cut off behind the page bar, on both layouts.
  *
  * This was the phone's, where the paper is 200px tall and the pencil is not scaled with
  * it, so the top of the pencil came out of the drawing and stood in the air above it. A
@@ -45,13 +45,22 @@
  * 304px run is behind 360px of paper. The page bar changed that — it sits 8px below the
  * canvas, and the two tools showed through the gap as a row of coloured slivers.
  *
- * 20px, because that is the tray's top padding and the list starts at the bottom of it,
- * which puts the cut on the line the bar's own bottom edge runs along — where the eye
- * already reads the tools as going under something. The other three sides are pushed out
- * of the way: the fan of arrows on the transform tool opens sideways and below.
+ * **44px, which puts the cut inside the bar rather than along its bottom edge.** It was
+ * 20 — the tray's own top padding, which lands the cut exactly where the bar ends. That
+ * is a hair's breadth from being right and reads as wrong: a tool the bar is *covering*
+ * looks like it carries on behind it, and a tool cut off flush with the bar's edge looks
+ * like a picture with its top sliced off. Selecting one makes it plain, because a
+ * selected tool slides down 50px and the cut moves from the narrow tip to the full width
+ * of the barrel.
+ *
+ * The number is the geometry and not a taste: the list starts 20px below the tray's top
+ * edge, the bar's own 48px ends on that edge, so -68 is the bar's top and -44 is 24px
+ * into it — the middle of a 48px bar, clear of the 24px radius at either end of it. The
+ * bar carries `z-index: 10` and these carry 1, so it paints over them. The other three
+ * sides are pushed out of the way: the transform tool's fan opens sideways and below.
  */
 .tools {
-	clip-path: inset(-20px -500px -500px -500px);
+	clip-path: inset(-44px -500px -500px -500px);
 }
 
 .tools li {
@@ -89,8 +98,21 @@
 	outline-offset: 2px;
 }
 
+/*
+ * Selected: the tool slides down out from under the bar.
+ *
+ * 20px, and it was 50. The 50 is 2013's, from when the thing above this row was the
+ * *paper* — 360px of it — so a tool sliding down came out from under a sheet and the
+ * extra length read as tool. What is above it now is the page bar, 48px of floating
+ * pill, and 50px of travel brought a bare stretch of barrel out below it: the selected
+ * tool looked worse than the unselected one, which is the wrong way round for the one
+ * that is in your hand.
+ *
+ * 20 keeps the coloured end — the point, the rubber, the hand — as the thing that
+ * moves, which is what the movement is for.
+ */
 .toolActive {
-	bottom: -60px;
+	bottom: -30px;
 }
 
 /*
