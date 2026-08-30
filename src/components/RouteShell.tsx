@@ -69,7 +69,7 @@ export function RouteShell({ route }: RouteShellProps) {
 				<BookShell
 					content={playbackStyles.content}
 					remixOf={route.id}
-					history={false}
+					wordmark
 					page={LEGACY_PAGE_SIZE}
 				/>
 			)
@@ -78,7 +78,12 @@ export function RouteShell({ route }: RouteShellProps) {
 			// instead is the four edit actions, so the shell draws those. Matches
 			// `CreatePage`.
 			return (
-				<BookShell content={createStyles.content} remixOf={null} history page={DEFAULT_PAGE_SIZE} />
+				<BookShell
+					content={createStyles.content}
+					remixOf={null}
+					wordmark={false}
+					page={DEFAULT_PAGE_SIZE}
+				/>
 			)
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
@@ -102,7 +107,7 @@ export function RouteShell({ route }: RouteShellProps) {
 function BookShell({
 	content,
 	remixOf,
-	history,
+	wordmark,
 	page,
 }: {
 	content: string | undefined
@@ -112,7 +117,8 @@ function BookShell({
 	 * all, which is the create page's own.
 	 */
 	remixOf: string | null
-	history: boolean
+	/** False on the create page, which has no wordmark — see `SiteHeader`. */
+	wordmark: boolean
 	/**
 	 * What shape to draw the sheet, which this is the one thing here that has to guess.
 	 *
@@ -131,33 +137,14 @@ function BookShell({
 }) {
 	return (
 		<>
-			<SiteHeader width="narrow">
+			{/*
+			 * The create page has neither wordmark nor header actions, so its shell has
+			 * none either and `SiteHeader` drops the row altogether. The playback page
+			 * keeps both, and its Remix button is the whole reason this shell knows which
+			 * flipbook is coming.
+			 */}
+			<SiteHeader width="narrow" wordmark={wordmark}>
 				{remixOf ? <CreateButton remixOf={remixOf} /> : null}
-				{/*
-				 * The edit actions, as the create page has them on a desktop: four discs at
-				 * the right-hand end of the header, and there is nothing yet to undo, redo,
-				 * copy or paste — so they are drawn in the state they will actually land in.
-				 * Pictures of buttons: they are `disabled`, so they are out of the tab order
-				 * and take no presses, which is the whole difference between this and the
-				 * real row.
-				 *
-				 * The glyphs are repeated here rather than shared, because anything this
-				 * file imports lands in the entry bundle and `EditActions` lives inside the
-				 * create route's chunk — which is the download this shell exists to cover.
-				 * Four characters; if they change there, they change here.
-				 *
-				 * Hidden on a phone by `.actionsTop`, exactly as the page's own are, so the
-				 * shell is the right shape at both widths from one piece of markup.
-				 */}
-				{history ? (
-					<div className={createStyles.actionsTop} aria-hidden="true">
-						{['↺', '↻', '↥', '↧'].map((glyph) => (
-							<button key={glyph} type="button" className={createStyles.action} disabled>
-								<span className={createStyles.actionGlyph}>{glyph}</span>
-							</button>
-						))}
-					</div>
-				) : null}
 			</SiteHeader>
 
 			<main className={content} style={pageVars(page) as React.CSSProperties}>

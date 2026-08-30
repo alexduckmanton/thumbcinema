@@ -305,21 +305,14 @@ export function CreatePage() {
 
 	return (
 		<>
-			{/* No create button — you are already here. What goes up there instead is the
-			    four edit actions, on the desktop layout only; see `EditActions`.
-
-			    Not offered while the save form is up: everything else on the page has
-			    either flown away or gone under the wash, and a live undo button up in the
-			    corner is the one control still able to change a drawing nobody can see.
-			    The footer's copy leaves with the footer; this one has nowhere to go, so it
-			    dims instead — which is what `.action:disabled` already says. */}
-			<SiteHeader width="narrow">
-				<EditActions
-					engine={engine}
-					state={phase === 'drawing' ? state : null}
-					className={styles.actionsTop}
-				/>
-			</SiteHeader>
+			{/*
+			 * No wordmark and no actions, so this renders nothing but the message banner.
+			 * The create page is the one page that isn't somewhere you read: the wordmark
+			 * and the header's own padding were 110px of a window a square page needs, and
+			 * the four edit actions that used to sit up here are gone at this width — see
+			 * `EditActions`. The footer's copy of them is still there on a phone.
+			 */}
+			<SiteHeader width="narrow" wordmark={false} />
 
 			{/* Scaffolding, and above everything so it stays reachable in every mode — including
 			    the two that park a magnifier under the top edge of the window. */}

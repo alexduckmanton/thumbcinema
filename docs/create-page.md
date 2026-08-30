@@ -211,8 +211,8 @@ is now true at both widths and the differences are called out where they exist.
   fly-away when the form goes up — a box pinned by `bottom` can't use `top` without
   being stretched between the two — and the desktop's fly-away moved to `transform` with
   it, so the two differ by the direction and nothing else.
-- **Undo, redo, copy and paste are on both layouts, in different corners, and are in the
-  markup twice.** Each is a white disc exactly as tall as the save button and as wide as
+- **Undo, redo, copy and paste are the phone's, and the phone's alone.** Each is a white
+  disc exactly as tall as the save button and as wide as
   it is tall, wearing a Pecita glyph — ↺ ↻ ↥ ↧, set as live text for the same reason the
   wordmark is: the icon sheet is drawings of *things*, and none of these four is a thing.
   Dimmed rather than hidden when there is nothing to spend, because which of them is
@@ -228,28 +228,32 @@ is now true at both widths and the differences are called out where they exist.
   which they would not in any face the rest of the site doesn't use. The tooltip and the
   accessible name carry the actual words.
 
-  On a phone they are the left-hand end of the footer, in that order — the two that spend
-  the history, then the two that spend the clipboard. On a desktop they are the header's
-  actions slot, beside the wordmark — which on this page is `narrow`, so its right-hand
-  edge is the right-hand edge of the 640px column and the discs land above the corner of
-  the paper. Undo and redo were phone-only at first, on the reasoning that ⌘Z is what a
-  hand on a keyboard reaches for. It is, and a fifty-step history that nothing on the
-  screen mentions is still a feature people find out about by accident — which is the
-  same argument for putting the clipboard up there too. They are at the *top* because the
-  bottom of that column is the save button's, and undo standing next to save is the pair
-  you least want to confuse.
+  They are the left-hand end of the footer, in that order — the two that spend the
+  history, then the two that spend the clipboard.
 
-  **Two copies with `display: none` on the wrong one**, rather than one box moved: the
-  two corners are in different parts of the tree — one is inside `<SiteHeader>`, the
-  other is a bar pinned to the bottom of the window — and no arrangement of CSS carries a
-  box between them. It costs a few elements and leaves exactly one row in the
-  accessibility tree at any width. The desktop copy is **disabled while the save form is
-  up**, because the footer's copy leaves with the footer and this one has nowhere to go —
-  a live undo button in the corner is otherwise the one control still able to change a
-  drawing the reader has finished with. Belt and braces since the form became a modal
-  `<dialog>` — `showModal()` makes everything outside it inert, so the press would not
-  land anyway — but the disabled state is what `RouteShell` mirrors, and it draws a
-  disabled row too so nothing appears in the header at the handover.
+  **There was a second copy of the row up beside the wordmark on a desktop, and it is
+  gone.** It went in with the argument that a fifty-step history nothing on screen
+  mentions is a feature people find out about by accident, which is true — but it was
+  a header's worth of a window that a square page needs, and a desktop is the one place
+  ⌘Z is already at hand. `useKeyboardShortcuts` is the whole of undo, redo, copy and
+  paste up there now. The wordmark went with it for the same reason; see below.
+
+  What that simplifies: the row is in the markup once, there is no `display: none` copy
+  to keep in step, and nothing has to be disabled while the save form is up — the footer
+  leaves with the footer, and the form is a modal `<dialog>` whose `showModal()` makes
+  everything outside it inert anyway.
+
+- **The create page has no header at all.** No wordmark, no actions — `SiteHeader` drops
+  the row rather than rendering an empty one, so its 40px of padding goes too. It is the
+  one page that isn't somewhere you read, and the ~110px it was spending on a sign is
+  most of what a 640×640 page needed over a 640×360 one. The cost is the only link home,
+  which the drawing tool had to interrupt anyway: `guardNavigation()` asks before it lets
+  go of unsaved work, and the back button asks the same question.
+
+  `--book-reserve` came down with it — 318 to 260 on a desktop, 212 to 154 in a short
+  window — and those are measured rather than reasoned. With the old values the column
+  ended 64px short of the bottom of the window and the drawing was that much smaller than
+  the room it had. What is left over now is 6px at every size checked.
 
   **The row is 6px apart on a phone and 8 on a desktop, and that is arithmetic.** Four
   48px discs and the save button are 320px of the footer's 328 on the narrowest layout
@@ -402,8 +406,8 @@ camera and lays it over the paper at 30%, on the page you are on, to be drawn on
 One finger drags it, two pinch to scale and turn it; tap the drawing to accept it, and
 press the disc again to move it, replace it or take it away. **Choose several and they are
 laid out one per frame**, making frames as they run off the end. **Phone layout only** —
-the disc is in `.actions`, which is `display: none` above the breakpoint, so the desktop's
-row beside the wordmark is the four it always was.
+the disc is in `.actions`, which is `display: none` above the breakpoint, and a desktop
+has no row of these at all.
 
 It is in two halves, and the split is the thing to understand first. **The picture is a
 pair of DOM layers over the canvas; the record of it belongs to the engine.**
