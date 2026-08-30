@@ -42,6 +42,8 @@ export function useGallery(view: GalleryView): GalleryResult {
 
 	const cursor = useRef<string | null>(null)
 	const inFlight = useRef<AbortController | null>(null)
+	/** Mirrors `failed` for the reconnect listener, which mustn't re-subscribe on it. */
+	const broke = useRef(false)
 	// Read inside the fetch so `loadMore` can stay a stable callback.
 	const state = useRef({ loading: false, exhausted: false })
 
@@ -50,6 +52,7 @@ export function useGallery(view: GalleryView): GalleryResult {
 
 		state.current.loading = true
 		setLoading(true)
+		broke.current = false
 		setFailed(false)
 
 		const controller = new AbortController()
@@ -75,6 +78,7 @@ export function useGallery(view: GalleryView): GalleryResult {
 			// `retry` is what clears this.
 			state.current.exhausted = true
 			setExhausted(true)
+			broke.current = true
 			setFailed(true)
 		} finally {
 			if (!controller.signal.aborted) {
@@ -100,11 +104,34 @@ export function useGallery(view: GalleryView): GalleryResult {
 		return () => inFlight.current?.abort()
 	}, [view, fetchPage])
 
+	/*
+	 * A page that failed for want of a connection asks again the moment there is one.
+	 *
+	 * The alternative is a grid that stays empty behind a "Try again" nobody can see a
+	 * reason to press — the connection came back, and as far as the reader is concerned
+	 * the site simply didn't notice. Only ever a *re*try: it fires on the browser's own
+	 * event, so a server that is failing while the connection is fine can't loop on it.
+	 */
+	useEffect(() => {
+		const onOnline = () => {
+			if (!broke.current) return
+
+			broke.current = false
+			state.current.exhausted = false
+			setExhausted(false)
+			void fetchPage(view)
+		}
+
+		window.addEventListener('online', onOnline)
+		return () => window.removeEventListener('online', onOnline)
+	}, [view, fetchPage])
+
 	const loadMore = useCallback(() => {
 		void fetchPage(view)
 	}, [fetchPage, view])
 
 	const retry = useCallback(() => {
+		broke.current = false
 		state.current.exhausted = false
 		setExhausted(false)
 		void fetchPage(view)

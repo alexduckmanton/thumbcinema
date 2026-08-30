@@ -4,6 +4,7 @@ import {
 	ApiError,
 	getFlipbook,
 	getFlipbookData,
+	isNetworkFailure,
 	listFlipbooks,
 	saveFlipbook,
 	setFlipbookFlags,
@@ -201,5 +202,21 @@ describe('saveFlipbook', () => {
 		}).catch((e: unknown) => e)
 
 		expect((error as ApiError).status).toBe(413)
+	})
+})
+
+describe('isNetworkFailure', () => {
+	it('is false for anything the server answered', () => {
+		expect(isNetworkFailure(new ApiError(413, 'Too big'))).toBe(false)
+		expect(isNetworkFailure(new ApiError(500, 'Oh dear'))).toBe(false)
+	})
+
+	it('is true for a request that never got an answer', () => {
+		// What fetch throws with no connection: no status, no body, no opinion.
+		expect(isNetworkFailure(new TypeError('Failed to fetch'))).toBe(true)
+	})
+
+	it('is false for a request this tab called off', () => {
+		expect(isNetworkFailure(new DOMException('Aborted', 'AbortError'))).toBe(false)
 	})
 })

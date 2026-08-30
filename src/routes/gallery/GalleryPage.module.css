@@ -171,6 +171,50 @@
 	text-align: center;
 }
 
+/*
+ * The one state that isn't an apology: no connection, and the site saying what still
+ * works.
+ *
+ * Set in Pecita, which nothing else on this page is. The wordmark is the site's own
+ * hand and this is the site talking rather than reporting — "you're offline" is a fact
+ * about the reader's afternoon, not an error, and the face is what keeps it from
+ * reading as one. The other two states here stay in Inter: they *are* reports.
+ *
+ * 44px against the 30px of an `h1`, because Pecita is a handwriting face with a small
+ * x-height and matches Inter's presence about half again as large — the same reasoning
+ * as the create button's label, which sets 30px Pecita beside 16px text.
+ */
+.offline h1 {
+	font-family: 'Pecita', cursive;
+	font-size: 44px;
+	/* Tight, because the ascenders and descenders of a joining script already carry the
+	   line further than its point size suggests. */
+	line-height: 1.05;
+}
+
+/*
+ * Air under the heading. A hand-drawn line and a line of Inter are two voices, and at
+ * the paragraph's own 1em they sit close enough to read as one block in two typefaces.
+ *
+ * And looser lines than the 1.333 `p` carries everywhere else: this is two lines of
+ * text alone in an empty window rather than a paragraph in a column, and the site's
+ * body leading — set for the playback page's description, under a flipbook, in a
+ * measure — reads tight when there is nothing around it. 1.5 rather than a change to
+ * the element default, which would move every line of copy on every page.
+ *
+ * `text-wrap: balance` for the shape of the block itself. On a phone this sentence
+ * breaks into a long line and a short one; balance evens them, which is what makes two
+ * centred lines read as a block rather than as a sentence that ran out. `pretty` is the
+ * other half of the same pair and does nothing here — it guards against a last line of
+ * one word, and this one's is three. Both are ignored where they aren't supported, and
+ * the wrap is the ordinary one there.
+ */
+.offline h1 + p {
+	margin-top: 28px;
+	line-height: 1.5;
+	text-wrap: balance;
+}
+
 /* A link in a sentence, but it re-runs a fetch rather than going anywhere, so it's
    a button wearing a link's clothes rather than an anchor with no href. */
 .retry {

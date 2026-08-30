@@ -185,11 +185,20 @@ function GalleryShell() {
 				    moment someone can click in, and a tab that ignores the press and then
 				    reappears working is worse than one that isn't there. Same handler as
 				    the gallery's: replace rather than push, because the toggle is a
-				    filter and not a place. */}
-				<ViewToggle
-					view={galleryView(search)}
-					onChange={(next) => navigate(galleryPath(next), { replace: true, preserveScroll: true })}
-				/>
+				    filter and not a place.
+
+				    And absent offline, for the same reason the gallery's own is — read
+				    directly rather than through `useOnline`, because this is a placeholder
+				    that renders once and the only thing it must not do is disagree with the
+				    page it stands in for. */}
+				{navigator.onLine === false ? null : (
+					<ViewToggle
+						view={galleryView(search)}
+						onChange={(next) =>
+							navigate(galleryPath(next), { replace: true, preserveScroll: true })
+						}
+					/>
+				)}
 				<CreateButton />
 			</SiteHeader>
 

@@ -42,6 +42,7 @@ is the constraint behind every rule about the schema.
 src/
   router/       ~60 lines over the History API
   lib/          api client, admin token, device, messages, store
+  offline/      the save queue and the worker. No React below `online.ts`.
   components/   header, buttons, spinner, messages, RouteShell
   routes/       gallery/, create/, playback/ — lazy, one chunk each
   flipbook/
@@ -150,6 +151,13 @@ Break one of these and something goes wrong somewhere else, usually silently.
   @media screen and (min-width: 731px) and (min-height: 561px)           /* desktop */
   ```
 
+- **A save that got no answer goes in the queue; a save that got a refusal does not.**
+  `isNetworkFailure()` is the test and it reads the *error*, not `navigator.onLine` —
+  everything in `src/lib/api.ts` throws `ApiError` when there was a response, so anything
+  else is the network. Queue a 413 and you have turned a message somebody can act on into
+  a card that will never publish. The queue is IndexedDB, never localStorage: a save is
+  the whole drawing, and localStorage is a ~5 MB origin budget already holding the crash
+  file. `docs/offline.md`.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash the
   names, so `.naming .tools` across two files silently matches nothing.
 - **Biome formats `src/` only**, and JSON and CSS not at all. `lib/`, `api/` and
@@ -224,6 +232,18 @@ public immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no account
   broken image.
 - The save request is capped at ~4 MB by Vercel and form encoding inflates SVG, so the
   practical ceiling is roughly a 2.5 MB drawing. The server answers 413.
+- A background upload that rejects shows the crash screen. The create page listens on
+  `unhandledrejection` — that is how crash recovery is armed — so anything running
+  outside React has to swallow its own failures. `flushPending()` does.
+- The service worker's precache list is generated from the bundle, and the build fails
+  if it can't be: `serviceWorkerPlugin` in `vite.config.ts` fills two markers in
+  `src/offline/sw.js`. It precaches `/` and not `/index.html`, for the same `cleanUrls`
+  reason the rewrite does — `cache.addAll` rejects on a redirect — and matches with
+  `ignoreVary`, without which a host sending `Vary: Origin` loses both typefaces offline.
+- paper.js is the one thing the worker does *not* precache, so the drawing tool works
+  offline only after one online visit to it. It is two thirds of what the build emits and
+  only two routes ask for it; the `/assets/` branch in `sw.js` keeps it once one does.
+  `docs/offline.md`.
 - A save compresses twice and brotli at quality 11 is the slow one. If saving feels slow,
   that is where to look — `brotli()` in `lib/flipbooks.js`, and dropping to 9 or 10 is
   the first thing to try, not dropping the column.
@@ -258,6 +278,7 @@ Open the one that covers what you're about to touch.
 | [`docs/create-page.md`](docs/create-page.md) | the create page's layout, the page bar, the tray, tracing over a photograph, and the playback page |
 | [`docs/gallery.md`](docs/gallery.md) | the grid, the hover preview that plays a flipbook without paper.js, and the play button |
 | [`docs/remixes.md`](docs/remixes.md) | editable copies, and how a lineage is stored in two columns |
+| [`docs/offline.md`](docs/offline.md) | drawing and saving with no connection: the queue, the service worker, and what publishes when |
 | [`docs/gif.md`](docs/gif.md) | `/f/:id.gif` — a rasteriser and a GIF writer, in Node, with no dependency |
 | [`docs/styling.md`](docs/styling.md) | the CSS conventions, the tokens, the sprite, and the two typefaces |
 | [`docs/data-formats.md`](docs/data-formats.md) | the two artwork formats, the save contract, thumbnails, storage |

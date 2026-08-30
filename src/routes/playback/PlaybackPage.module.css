@@ -245,3 +245,41 @@
 		break-after: page;
 	}
 }
+
+/*
+ * What a flipbook saved offline has to say for itself.
+ *
+ * Under the description rather than in place of it — the description is the author's
+ * and this is the site's — and in the same grey as the byline, because it is a note
+ * about the flipbook rather than part of it. The card in the gallery is faded and says
+ * nothing; this is where the fade is explained, which is why the wording is a sentence
+ * and not a label.
+ */
+.pending {
+	margin: 8px 0 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+	line-height: 1.4;
+}
+
+/*
+ * Discarding, as a link in the sentence rather than a button beside it.
+ *
+ * It destroys the only copy of a drawing, so it is deliberately not a button with a
+ * box around it: a box invites a press, and the press it would be inviting is the one
+ * thing on this page that can't be taken back. It reads as part of the sentence that
+ * explains the situation, and it asks before it does anything.
+ */
+.discard {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.discard:hover {
+	color: var(--ink);
+}

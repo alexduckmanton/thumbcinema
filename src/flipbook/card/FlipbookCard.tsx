@@ -71,6 +71,13 @@ export interface FlipbookCardProps {
 	gesture: ReturnType<typeof useCardGesture>
 	/** Admin only, and only where the list can update itself in place. */
 	onFlagsChange?: (flags: AdminFlagsState) => void
+	/**
+	 * A flipbook that is only on this device — saved with no connection and waiting to
+	 * be published. It draws faded, and its name says so; everything else about it is
+	 * an ordinary card, because everything else about it is an ordinary flipbook.
+	 * See `src/offline/pending.ts`.
+	 */
+	pending?: boolean
 }
 
 /**
@@ -87,7 +94,7 @@ export interface FlipbookCardProps {
  * offers to open it. The one control that wants a long press has to be somewhere that
  * isn't the anchor, and this is what that costs: one wrapper.
  */
-export function FlipbookCard({ item, gesture, onFlagsChange }: FlipbookCardProps) {
+export function FlipbookCard({ item, gesture, onFlagsChange, pending }: FlipbookCardProps) {
 	const { hover } = gesture
 	const mine = hover?.id === item.id
 	const playing = mine && hover.playing
@@ -103,7 +110,7 @@ export function FlipbookCard({ item, gesture, onFlagsChange }: FlipbookCardProps
 
 	return (
 		<div
-			className={styles.cell}
+			className={pending ? `${styles.cell} ${styles.pending}` : styles.cell}
 			style={
 				page
 					? ({ '--page-ratio': `${page.width} / ${page.height}` } as React.CSSProperties)
@@ -159,8 +166,14 @@ export function FlipbookCard({ item, gesture, onFlagsChange }: FlipbookCardProps
 				/>
 
 				{/* The card's only text. Clipped rather than hidden, because without it
-				    every link in the grid has no accessible name. */}
-				<span className="visuallyHidden">{name}</span>
+				    every link in the grid has no accessible name.
+
+				    A queued flipbook says so here, because the only other thing saying it
+				    is the fade — which is nothing at all to a screen reader, and not much
+				    to anyone who hasn't seen the grid without it. */}
+				<span className="visuallyHidden">
+					{pending ? `${name} — saved on this device, not published yet` : name}
+				</span>
 			</Link>
 
 			{/* The flipbook itself, on the card the pointer is on and on no other. The

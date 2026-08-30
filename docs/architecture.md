@@ -233,9 +233,14 @@ factory is named (`loadPreview`) so a page with cards on it can call it in an ef
 mount: by the time a pointer lands on a card the module is in memory and `lazy` resolves
 out of the module cache, so the Suspense boundary never shows. What must stay true is
 that neither the gallery's chunk nor the preview's reaches paper — `grep from\"
-dist/assets/GalleryPage-*.js` after a build is the check, and today it is six imports,
-none of them paper. (Six rather than five since the card moved into `flipbook/card/`
-and became a chunk of its own, shared with the playback page.)
+dist/assets/GalleryPage-*.js` after a build is the check, and today it is five imports,
+none of them paper: the runtime, the entry, `Button`, the icon sprite and the card.
+
+The *composition* is what to read, not the number. `lib/api.ts` used to be a shared
+chunk of its own in that list; it is in the entry bundle now, because `main.tsx` starts
+the offline queue and the queue posts saves — see [`offline.md`](offline.md). That
+folded one chunk away and split the icon sprite out into another, for no change in what
+the gallery downloads and no change in what it must not.
 
 **The remix list on the playback page is `lazy()` for the same reason at a smaller
 scale.** It brings the card and its gestures with it — 1.7 kB gzipped — and a plain
