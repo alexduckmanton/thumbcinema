@@ -50,8 +50,8 @@ properties, element defaults, and two utility classes.
   and pressed states came out of a Sass mixin that darkened the base by fixed amounts,
   and those are the values that shipped.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash
-  the names, so `.naming .tools` across two files silently matches nothing. When the
-  save form goes up, the tray is told to stow itself.
+  the names, so `.playing .tools` across two files silently matches nothing. A component
+  that has to know what the page is doing is told in a prop and styles itself from it.
 - **The icons are the 2013 sprite** (`src/styles/icons.module.css`). Hand-drawn, in
   the same hand as everything else; an icon font would look like a different site.
   The retina sheet has double the spacing as well as double the art, so one set of

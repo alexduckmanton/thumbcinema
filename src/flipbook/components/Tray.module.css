@@ -306,24 +306,12 @@
 }
 
 /*
- * Naming the flipbook: the tools fly up out of the tray and leave the form alone
- * with the drawing. The ease dips them down a few pixels before they go, which is
- * the anticipation the 2013 keyframes had.
+ * The tools used to fly up out of the tray while the flipbook was being named — a
+ * 2013 keyframe, kept through two rewrites — and they no longer do. That animation
+ * was there because the save form was a panel laid over the canvas and had to be
+ * left alone with the drawing. It is a modal now: it washes the whole window and puts
+ * `inert` on the page behind it, so there is nothing here to get out of the way of.
  */
-.stowed .group {
-	transform: translateY(-100px);
-	pointer-events: none;
-}
-
-.tray .group {
-	transition: transform 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045);
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.tray .group {
-		transition: none;
-	}
-}
 
 /* ---------------------------------------------------------------------------
  * Phones, and any window too small for the layout above.

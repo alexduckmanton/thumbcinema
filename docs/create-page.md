@@ -261,9 +261,8 @@ is now true at both widths and the differences are called out where they exist.
   paste up there now. The wordmark went with it for the same reason; see below.
 
   What that simplifies: the row is in the markup once, there is no `display: none` copy
-  to keep in step, and nothing has to be disabled while the save form is up — the footer
-  leaves with the footer, and the form is a modal `<dialog>` whose `showModal()` makes
-  everything outside it inert anyway.
+  to keep in step, and nothing has to be disabled while the save form is up — the form
+  puts `inert` on `main`, which takes the whole page out of reach in one attribute.
 
 - **The create page has no header at all.** No wordmark, no actions — `SiteHeader` drops
   the row rather than rendering an empty one, so its 40px of padding goes too. It is the
@@ -407,8 +406,8 @@ is now true at both widths and the differences are called out where they exist.
   **It comes off while the save form is up**, which is the one time this page has fields
   in it — a long description in a small textarea has to be pannable, and `touch-action`
   is an intersection down the ancestor chain that a descendant cannot give back. Nothing
-  is lost by it: the form is a modal `<dialog>` by then, so the page behind it is inert
-  anyway, and `beforeunload` is already guarding the reload.
+  is lost by it: the form has put `inert` on `main` by then, so the page behind it is
+  out of reach anyway, and `beforeunload` is already guarding the reload.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then

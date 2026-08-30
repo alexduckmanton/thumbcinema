@@ -140,7 +140,10 @@ Break one of these and something goes wrong somewhere else, usually silently.
   of anything large anywhere under a route silently puts it back into that route's
   preload set, and the chunk table won't say so. After touching imports, run
   `npm run build` and check the two invariants that matter: nothing paper in
-  `GalleryPage-*.js`, and no `useCardGesture` in `PlaybackPage-*.js`.
+  `GalleryPage-*.js`, and `useCardGesture-*.js` still a chunk of its own rather than
+  folded into either route. (Grepping the playback chunk for that name is not the check
+  — it appears there in the preload list for `RemixList`, which is the lazy import that
+  is supposed to be carrying it.)
 - **One breakpoint, and it tests height as well as width**, written out in full in every
   file that has two layouts. A phone held sideways is 800 points wide and 375 tall, and a
   width test alone hands it a full-size canvas and a page strip in a window that can hold
@@ -159,7 +162,7 @@ Break one of these and something goes wrong somewhere else, usually silently.
   the whole drawing, and localStorage is a ~5 MB origin budget already holding the crash
   file. `docs/offline.md`.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash the
-  names, so `.naming .tools` across two files silently matches nothing.
+  names, so `.playing .tools` across two files silently matches nothing.
 - **Biome formats `src/` only**, and JSON and CSS not at all. `lib/`, `api/` and
   `scripts/` are the untouched back end; the stylesheets are hand-set. A
   `// biome-ignore` needs its reason on one line, immediately above the code — a reason

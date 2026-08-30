@@ -225,9 +225,9 @@ told to stand somewhere else for a moment.
   its parent's level, so `.book` would drop below the page thumbnails at 9 and take the
   canvas's own 15 with it — the drawing would slide *behind* the flipbook it is being
   dragged through. `.dragging` restates 15. It is a class rather than a permanent
-  `translate3d(0,0,0)` because the same stacking context would put the save form and its
-  wash under the footer, and because a transform re-bases anything `position: fixed`
-  inside it. The page thumbnails' own transform is under `.carrying` for exactly that
+  `translate3d(0,0,0)` because a transform re-bases anything `position: fixed` inside it.
+  (The save form used to be the other half of that argument. It is portalled to `<body>`
+  now, so nothing about `.book` reaches it either way.) The page thumbnails' own transform is under `.carrying` for exactly that
   second reason: `freeze()` pins a thumbnail for a page animation by making it fixed, and
   a transform on every `.page` would quietly re-base every one of those.
 - **The tab is above the paper, not on it, and it costs the drawing no height.** The

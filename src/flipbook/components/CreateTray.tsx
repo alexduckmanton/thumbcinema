@@ -10,8 +10,6 @@ import styles from './Tray.module.css'
 export interface CreateTrayProps {
 	engine: FlipbookEngine
 	state: FlipbookState
-	/** True while the save form is up: the controls fly away and leave it alone. */
-	stowed?: boolean
 	/** Which drawing mode is on, which is only whether holding a tool means anything. */
 	mode: DrawMode
 }
@@ -31,7 +29,7 @@ export interface CreateTrayProps {
  * drawing and nothing else. The pencil's width popover went the same way: see
  * `DEFAULT_PENCIL_WIDTH`.
  */
-export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayProps) {
+export function CreateTray({ engine, state, mode }: CreateTrayProps) {
 	const { tool, transformIndex } = state
 
 	/*
@@ -134,10 +132,8 @@ export function CreateTray({ engine, state, stowed = false, mode }: CreateTrayPr
 		engine.selectTool(id)
 	}
 
-	const trayClass = [styles.tray, stowed ? styles.stowed : ''].filter(Boolean)
-
 	return (
-		<div className={trayClass.join(' ')}>
+		<div className={styles.tray}>
 			<ul className={`${styles.group} ${styles.tools}`}>
 				<li>
 					<button

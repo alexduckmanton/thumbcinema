@@ -1,6 +1,5 @@
 /*
- * The create page's own layout: the column, the save button, and what the whole page
- * does when a save starts.
+ * The create page's own layout: the column, the footer bar and the save button.
  *
  * Written for a phone first and let out at 731px, because the phone is the layout
  * with something to solve. A desktop has more room than the tool needs and the shape
@@ -99,10 +98,6 @@
 	align-items: center;
 	justify-content: space-between;
 	padding: 0 max(var(--column-gutter), calc((100% - var(--book-width)) / 2));
-	/* `transform` rather than `top`, which a box pinned by `bottom` can't use without
-	   being stretched between the two. The desktop's fly-away uses it as well, so the
-	   two layouts differ by the direction and nothing else. */
-	transition: opacity 0.4s ease-in, transform 0.4s ease-in;
 }
 
 /*
@@ -334,22 +329,16 @@
 }
 
 /*
- * Naming the flipbook: the footer leaves the same way the tools do, which on a phone
- * is downwards and off the bottom of the window.
+ * Naming the flipbook used to empty the page: this bar slid off the bottom of the
+ * window on a phone and off the top on a desktop, and the tray's tools flew up out of
+ * the row. That belonged to a save form that was a panel laid over the canvas — it had
+ * to be left alone with the drawing, because it was standing on it.
+ *
+ * The form is a modal now. It washes the whole window and puts `inert` on `main`, which
+ * is the whole of what the fly-away was buying: nothing under it can be pressed,
+ * focused or read out. So the page just stays as it was, which is also the page you get
+ * back if you cancel.
  */
-.naming .footer {
-	transform: translateY(120px);
-	opacity: 0;
-	/* Gone as far as a press is concerned the moment it starts leaving, rather than
-	   after the 0.4s: it is transparent all the way down and a transparent bar held
-	   over the page is a dead strip across it. */
-	pointer-events: none;
-}
-
-/* While the artwork is on the wire: nothing to press, and the wash stays up. */
-.sending {
-	pointer-events: none;
-}
 
 /*
  * The phone layout's discs, which are five where the desktop's are four.
@@ -524,15 +513,9 @@
 	.actions {
 		display: none;
 	}
-
-
-	.naming .footer {
-		transform: translateY(-200px);
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.footer,
 	.saveButton,
 	.action {
 		transition: none;

@@ -124,11 +124,10 @@ export function CreatePage() {
 
 	const remixLoaded = useRemixSource(engine, crash.decided && !crash.restored ? asked : null)
 
-	// Everything but the naming form, which has fields in it a finger may want to pan.
-	// Held still the whole time now, including while the save dialog is up: what it
-	// covers is behind an overlay, and a page scrolling underneath a modal is the
-	// scroll conflict the dialog's own scrolling exists to avoid. `pannable` is what
-	// lets the overlay be scrolled while the document is not — see `base.css`.
+	// Held still the whole time, the save form included: a page scrolling behind a modal
+	// is the scroll conflict the modal exists to avoid. `pannable` is what lets a finger
+	// pan inside the form — the description field is 72px tall and a longer description
+	// than that has to be scrollable — while the document stays put. See `base.css`.
 	useNoScrolling(true, { pannable: phase !== 'drawing' })
 
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools —
@@ -178,7 +177,7 @@ export function CreatePage() {
 	 * arriving, because the pages it would be standing on are being replaced.
 	 */
 	const playing = state?.playback !== 'none'
-	const showTrace = phase === 'drawing' && !state?.loading && !playing && photo !== null
+	const showTrace = !state?.loading && !playing && photo !== null
 
 	/**
 	 * The camera button, which is three buttons depending on what is already on the page.
@@ -205,7 +204,7 @@ export function CreatePage() {
 	 * while it is playing the strip isn't even on screen — and while a photo is in hand
 	 * the sheet is somewhere a finger is already dragging something else.
 	 */
-	const reorderable = phase === 'drawing' && pages > 1 && !state?.loading && !playing && !placing
+	const reorderable = pages > 1 && !state?.loading && !playing && !placing
 
 	const { reorder, bookRef, shiftFor, handleProps } = usePageReorder(engine, {
 		activePage: state?.activePage ?? 0,
@@ -296,14 +295,6 @@ export function CreatePage() {
 		[engine, remixOf],
 	)
 
-	const contentClass = [
-		styles.content,
-		phase === 'drawing' ? '' : styles.naming,
-		phase === 'sending' ? styles.sending : '',
-	]
-		.filter(Boolean)
-		.join(' ')
-
 	return (
 		<>
 			{/*
@@ -315,7 +306,16 @@ export function CreatePage() {
 			 */}
 			<SiteHeader width="narrow" wordmark={false} />
 
-			<main className={contentClass} ref={field} style={pageVars(page) as React.CSSProperties}>
+			{/*
+			 * Nothing here changes when the save form goes up, and that is deliberate: the
+			 * modal is a wash over the whole window now, and the page it covers is the page
+			 * you were just drawing on. The tools used to fly out of the tray and the footer
+			 * out of the bottom of the window, which was right while the form was a panel
+			 * laid over the canvas and had to be left alone with it. A modal needs none of
+			 * it — `SaveForm` puts `inert` on this element, so everything below is already
+			 * unpressable, unfocusable and out of the accessibility tree while it is up.
+			 */}
+			<main className={styles.content} ref={field} style={pageVars(page) as React.CSSProperties}>
 				{engine && state ? (
 					<PageStrip
 						engine={engine}
@@ -401,7 +401,7 @@ export function CreatePage() {
 
 						{/* v12's zoomed drawing surface, standing exactly where the canvas is.
 						    Inside `.book` and before the cursor, so the ring is drawn over it. */}
-						{onPaper && phase === 'drawing' ? (
+						{onPaper ? (
 							<ZoomStage
 								layer={layer}
 								engine={engine}
@@ -427,7 +427,7 @@ export function CreatePage() {
 						    placed. The layer is `usePointerLayer`'s now, called above and outside
 						    every one of these conditions, so the tray goes on working whatever
 						    this renders. */}
-						{state && phase === 'drawing' ? (
+						{state ? (
 							<InkCursor layer={layer} canvasRef={canvasRef} tool={state.tool} mode={drawMode} />
 						) : null}
 
@@ -439,10 +439,11 @@ export function CreatePage() {
 						    sheet this outline is drawn on covers the whole drawing, so leaving it
 						    up there would put a rectangle round the entire page and, far worse,
 						    take every press before the stage underneath could have it. */}
-						{!onPaper && phase === 'drawing' ? <ZoomWindow page={page} /> : null}
+						{!onPaper ? <ZoomWindow page={page} /> : null}
 
-						{/* A modal, so it is not laid over the canvas and needs no wash under it
-						    — `::backdrop` covers the window. It stays up while the save is in
+						{/* A modal: it paints its own wash over the whole window and is portalled
+						    out of here to `<body>`, so where it stands in this tree decides
+						    nothing about where it appears. It stays up while the save is in
 						    flight, with the spinner in its own button, which is why this is
 						    `!== 'drawing'` rather than `=== 'naming'`. */}
 						{phase !== 'drawing' ? (
@@ -456,18 +457,16 @@ export function CreatePage() {
 						{/* The tab on the top edge of the sheet. Inside `.book` because it is
 						    part of the page — it hangs above the paper, and it travels with it
 						    when the page is carried. */}
-						{phase === 'drawing' ? (
-							<PageHandle
-								handleProps={handleProps}
-								page={(state?.activePage ?? 0) + 1}
-								pages={pages}
-								carrying={reorder !== null}
-								disabled={!reorderable}
-							/>
-						) : null}
+						<PageHandle
+							handleProps={handleProps}
+							page={(state?.activePage ?? 0) + 1}
+							pages={pages}
+							carrying={reorder !== null}
+							disabled={!reorderable}
+						/>
 					</div>
 
-					{engine && state && phase === 'drawing' ? (
+					{engine && state ? (
 						<PageNav
 							engine={engine}
 							// Where the page would land while one is being carried, rather than
@@ -489,20 +488,13 @@ export function CreatePage() {
 						/>
 					) : null}
 
-					{engine && state ? (
-						<CreateTray
-							engine={engine}
-							state={state}
-							stowed={phase !== 'drawing'}
-							mode={drawMode}
-						/>
-					) : null}
+					{engine && state ? <CreateTray engine={engine} state={state} mode={drawMode} /> : null}
 
 					{/* And v11's second canvas, in whatever the column has left. It is rendered
 					    on every layout and hides itself where there is no room, because "is
 					    there a stage" is then one measurement rather than a media query
 					    written out again in JavaScript. */}
-					{isZoomStageMode(drawMode) && !onPaper && phase === 'drawing' ? (
+					{isZoomStageMode(drawMode) && !onPaper ? (
 						<ZoomStage
 							layer={layer}
 							engine={engine}
@@ -534,7 +526,7 @@ export function CreatePage() {
 									label={traceLabel(photo !== null, placing)}
 									glyph="⊙"
 									hint={traceLabel(photo !== null, placing)}
-									enabled={phase === 'drawing' && !camera.busy}
+									enabled={!camera.busy}
 									pressed={placing}
 									onPress={pressTrace}
 								/>
@@ -820,12 +812,12 @@ function ActionButton({
  * became somewhere to drag. What the class does, and why it takes four properties to do
  * it, is in `base.css`.
  *
- * `pannable` while the save dialog is up, which is the one time this page has something
- * in front of it that scrolls. It keeps every part of the lock except `touch-action:
- * none` — which is an intersection down the ancestor chain that a descendant cannot give
- * back, so with it on, the dialog could not be panned by a finger. The document stays
- * held still either way, which is the point: a page scrolling behind a modal is the
- * conflict the modal's own scrolling exists to avoid.
+ * `pannable` while the save form is up, which is the one time this page has something in
+ * front of it a finger may want to drag inside. It keeps every part of the lock except
+ * `touch-action: none` — which is an intersection down the ancestor chain that a
+ * descendant cannot give back, so with it on, not even the description field could be
+ * panned. The document stays held still either way, which is the point: a page scrolling
+ * behind a modal is the conflict the modal exists to avoid.
  */
 function useNoScrolling(enabled: boolean, { pannable = false } = {}): void {
 	useEffect(() => {
