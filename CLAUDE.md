@@ -14,8 +14,9 @@ bottom; the stack, layout and commands are in `package.json`, the directory list
   looks different from the 2013 revival is a bug unless the comment beside it says so.
   **The create page is the one exception and is now its own thing**: every control is a
   40×40 Pecita glyph in a rail down the left at both widths, the page bar is the whole of
-  page navigation and sits on the bottom edge of the window on a phone, the sheet casts no
-  shadow (`.flat`), and in v14 a finger aims from a pad
+  page navigation and sits on the bottom edge of the window on a phone, there is no header
+  row at all — Save is fixed in the top-right corner and the `<header>` is 0px of message
+  banner — the sheet casts no shadow (`.flat`), and in v14 a finger aims from a pad
   at the bottom of the screen. The hand-drawn tool sprite went with it, and so did the
   scrolling column of thumbnails, the tab above the paper that reordered pages, and a spell
   when you could draw past the page's edge. `docs/create-page.md` says what all of that

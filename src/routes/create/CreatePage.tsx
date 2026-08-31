@@ -302,28 +302,38 @@ export function CreatePage() {
 	return (
 		<>
 			{/*
-			 * The header, pinned to the top, carrying nothing but Save.
+			 * The header with nothing in it, which is 0px tall and still does one job.
 			 *
-			 * No wordmark: the create page is the one page that isn't somewhere you read, and
-			 * a 70px word plus a header's worth of padding is room a square page needs. What
-			 * is left is one button, and it is the right one to keep up here — it is the only
-			 * control on the page that isn't about the drawing.
+			 * It lost the wordmark first — the create page is the one page that isn't
+			 * somewhere you read — and now Save has left the row as well, so `SiteHeader`
+			 * drops the row altogether and what is left of the element is `Messages`. That
+			 * is why it is still rendered rather than deleted: the banner is absolutely
+			 * positioned against this, and it carries its own height for exactly this case.
 			 *
-			 * `position: fixed` on a wrapper rather than on `SiteHeader` itself, which is
-			 * shared with two pages that scroll normally.
+			 * What the row was costing is 68px on a phone and 84 on a desktop, off the top of
+			 * a page where the rail wants to start at the top of the window and the drawing is
+			 * bound by height at nearly every size.
 			 */}
-			<SiteHeader width="narrow" wordmark={false}>
-				<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
-					<button
-						type="button"
-						className={styles.saveButton}
-						onClick={() => setPhase('naming')}
-						disabled={pages < 2}
-					>
-						<span className={styles.saveLabel}>Save</span>
-					</button>
-				</div>
-			</SiteHeader>
+			<SiteHeader width="narrow" wordmark={false} />
+
+			{/*
+			 * Save, in the corner of the window rather than in a row of its own.
+			 *
+			 * It is the only control on the page that is not about the drawing, so it is the
+			 * one thing that can be furniture laid on top: `position: fixed` at the same 8px
+			 * the rail and the paper keep from their own edges. A row to hold one button was
+			 * a header's worth of height for it.
+			 */}
+			<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
+				<button
+					type="button"
+					className={styles.saveButton}
+					onClick={() => setPhase('naming')}
+					disabled={pages < 2}
+				>
+					<span className={styles.saveLabel}>Save</span>
+				</button>
+			</div>
 
 			{/*
 			 * The page: a rail, a stage, a page bar and — in v14 — an aiming pad, in one

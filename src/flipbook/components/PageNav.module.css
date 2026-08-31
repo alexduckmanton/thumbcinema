@@ -28,21 +28,24 @@
 	position: relative;
 	z-index: 10;
 	/*
-	 * The drawing's width and 8px past it either side.
+	 * Exactly the drawing's width.
 	 *
 	 * This is the flipbook's own ruler and takes the flipbook's width, rather than the
 	 * column's — sideways that is the difference between 263px and the whole window.
-	 * The 8px is the overhang: it halves the distance from the end of the bar to the
-	 * edge of the screen, which is enough to read as a control that runs the width of
-	 * the page rather than a second sheet of paper the same size as the first.
+	 *
+	 * It overhung by 8px either side, which was there to stop it reading as a second sheet
+	 * of paper the same size as the first. What says that now is the shape: this is a pill
+	 * on the grey where the drawing is a square of white, and one column of boxes all the
+	 * same width reads as one object where three different widths read as three. The
+	 * overhang also broke the 8px the page keeps from its edges, which is the more
+	 * immediate reason it went.
 	 *
 	 * Centred by translation rather than by `margin: auto`, because on a phone the
-	 * drawing is already the full width of the column and auto margins on a box wider
-	 * than its container both resolve to zero — which puts all 16px of the overhang on
-	 * the right.
+	 * drawing is already the full width of the column and auto margins on a box as wide
+	 * as its container resolve to zero either way.
 	 */
 	left: 50%;
-	width: calc(var(--book-width) + 16px);
+	width: var(--book-width);
 	height: var(--scrub-size);
 	transform: translateX(-50%);
 	/* Clear of the pages above. They are sheets of paper with a shadow under them and

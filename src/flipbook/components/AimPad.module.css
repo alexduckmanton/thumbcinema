@@ -25,11 +25,14 @@
 	 * away without moving the drawing. It has to be that way round — see the note on
 	 * `--chrome-bottom` in the create page's stylesheet, which is a bug this already had.
 	 *
-	 * **16px wider than the drawing, and centred on it.** Not the same width, which is what
-	 * it was: matching exactly read as another page below the drawing rather than as a thing
-	 * lying on the page. 8px past either edge is enough to say it is in front. `--stage-centre`
-	 * is where the drawing's middle is, stated once by the create page because the page bar is
-	 * centred on it too and neither of them is in the column that knows.
+	 * **Exactly the drawing's width, and centred on it.** It overhung by 8px either side for
+	 * a while, to say it was a thing lying *in front of* the page rather than another page
+	 * below it — which it needed while the page bar overhung too and the three boxes were
+	 * three different widths. One column of three things the same width says it more quietly
+	 * and without the overhang breaking the 8px the page keeps from its edges.
+	 * `--stage-centre` is where the drawing's middle is, stated once by the create page
+	 * because the page bar is centred on it too and neither of them is in the column that
+	 * knows.
 	 *
 	 * **Above the bar rather than below it**, which is the one thing about its position that
 	 * isn't obvious: the bar is on the window's own edge and this stands on top of it, because
@@ -44,7 +47,7 @@
 	bottom: var(--pad-bottom, 8px);
 	left: var(--stage-centre, 50vw);
 	z-index: 14;
-	width: calc(var(--book-width) + 16px);
+	width: var(--book-width);
 	transform: translateX(-50%);
 	/*
 	 * The page's height, handed down rather than stated here.

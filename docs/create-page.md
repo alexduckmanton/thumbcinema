@@ -12,15 +12,16 @@ screen rather than from anywhere in the white. The hand-drawn tool sprite went w
 
 ## The layout
 
-Four boxes and nothing else: a header carrying one button, a rail pinned to the left, the
-drawing taking whatever height is left, and the page bar under it. v14 adds a fifth over
-the bottom of the window — the aiming pad — which is furniture laid over the page rather
-than a box in it.
+Three boxes and two pieces of furniture. A rail pinned to the left, the drawing taking
+whatever height is left, and the page bar — which on a phone has left the column for the
+bottom edge of the window. Laid on top: v14's aiming pad, and Save in the top-right corner.
+There is a `<header>` still, and it is 0px tall: it holds nothing but the message banner
+now.
 
 - **Nothing scrolls, and everything is sized to what is left.** `html.locked` in
   `base.css` holds the document still and makes `#root` a flex column of a definite
-  height with `main` taking what the header leaves; `--book-reserve` is everything in the
-  window that is not the drawing, and the sheet is sized against `100svh` less that. A page
+  height with `main` taking what the header leaves — which since the header emptied is all
+  of it; `--book-reserve` is everything in the window that is not the drawing, and the sheet is sized against `100svh` less that. A page
   that scrolls while you draw on it is a page that has taken the stroke away from you.
 - **A square page is what makes `--book-reserve` worth getting right.** At 640 across, a
   square sheet is 640 tall where a 16:9 one was 360 — so the *height* term is what binds at
@@ -113,17 +114,21 @@ further, because `maxWidth` is the page and `defaultViewport` opens there.
 
 - **Every control is a 40×40 tile wearing a single Pecita glyph**, in one column: what
   marks the page, what changes the page, what undoes it, what it is traced from, and — for
-  an admin — the drawing-mode switch. Save is not in it; it is in the header, being the one
-  control on this page that is not about the drawing.
+  an admin — the drawing-mode switch. Save is not in it; it is fixed in the opposite corner
+  of the window, being the one control on this page that is not about the drawing.
 - **A rail at every width**, which it was not at first. The phone had the same buttons
   lying down in a bar along the bottom. Standing them up gave the row's overflow somewhere
   sensible to go — a column that runs past the bottom of a phone is a list you scroll,
   where a row that runs off the right-hand edge is a list nobody knows is there.
 - **It is `position: absolute` inside `main`, at `top: 0`.** `main` is the box that starts
-  where the header ends, so the rail is flush against the header *by construction* rather
-  than by arithmetic. It used to stand on a stated constant that was deliberately larger
-  than the header — the air the *drawing* keeps clear — which left 45px of nothing under
-  the header on a desktop and a 16px overlap on a phone.
+  where the header ends, so the rail is flush against it *by construction* rather than by
+  arithmetic — and now that the header is empty and 0px tall, that means the top of the
+  window. Which is the point: the row that held Save was 68px on a phone and 84 on a desktop
+  of somewhere the rail could have been standing. It used to stand on a stated constant that
+  was deliberately larger than the header — the air the *drawing* keeps clear — which left
+  45px of nothing under the header on a desktop and a 16px overlap on a phone. Its own air
+  is 8px now, the same as everything else here, so its first tile is level with the top of
+  the paper.
 - **On a desktop it stands beside the drawing**, 16px off its left edge, rather than pinned
   to the edge of the window: on a wide screen a column in the far corner is a toolbar in a
   different postcode from the thing it works on. What makes it fit is that the drawing is
@@ -156,20 +161,35 @@ further, because `maxWidth` is the page and `defaultViewport` opens there.
   ⊡ for duplicate is a page with its drawing still on it, which is a compromise and is worth
   knowing is one.
 
-### The header, and Save
+### Save, and the header that is left
 
 - **No wordmark.** It is a 70px word plus a header's worth of padding, and what it buys is
   a link home that the drawing tool has to interrupt anyway — `guardNavigation()` asks
   before it lets go of unsaved work. A square page needed the room more.
-- **Save is what is left up there**, at the right-hand end. It is the gallery's create
-  button seen from the other end — the two are the ends of one errand — so it is the same
-  yellow at the same rounding with the same shades, which are tokens and cannot drift. Not
-  the same component: that one collapses to a circle on scroll and is a link.
+- **And now no row either.** Save is `position: fixed` in the top-right corner, 8px from
+  both edges — the same 8 the rail keeps from the left and the paper from the right. A row
+  to hold one button was 68px of window on a phone and 84 on a desktop, taken off the top of
+  a page where the rail wants to start at the very top and the drawing is bound by height at
+  nearly every size. It is the one control here that is not about the drawing, which is what
+  makes it the one that can be furniture laid on top rather than a box in the column.
+  `--book-reserve` came down by the whole of it: 312 → 232 on a phone, 190 → 136 sideways,
+  196 → 100 on a desktop.
+- **Which leaves a `<header>` that is 0px tall, and it is still rendered.** `SiteHeader`
+  drops its row when it holds neither wordmark nor actions, and what remains is `Messages` —
+  the banner that says a save failed, absolutely positioned against the header and therefore
+  previously sized by it. It carries its own `min-height` now (56px, two lines and the air
+  round them) and lies over the top of the page, which is right for something transient with
+  a dismiss in it. Every header it covers elsewhere is taller than the floor, so nothing
+  about the gallery or playback moved.
+- **It is the gallery's create button seen from the other end** — the two are the ends of
+  one errand — so it is the same yellow at the same rounding with the same shades, which are
+  tokens and cannot drift. Not the same component: that one collapses to a circle on scroll
+  and is a link.
 - **A flipbook of one page is not one you can save**, so the button is disabled and
   invisible until the second page arrives — and stays in the layout, so nothing jumps when
-  it does. The boot shell draws that same empty box, and has to: `SiteHeader` drops the row
-  altogether when it holds neither wordmark nor actions, and a header 68px shorter than the
-  page's is a sheet of paper 34px higher up at the handover.
+  it does. The boot shell draws that same empty box in the same fixed corner, and has to:
+  the shell and the page have to agree about every box that could put the sheet of paper
+  somewhere else at the handover.
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
 - **The sheet casts no shadow here, and it does everywhere else.** `.flat` on the canvas.

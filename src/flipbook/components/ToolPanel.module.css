@@ -46,7 +46,10 @@
 	/* One number, and everything here is drawn off it. `--rail-width` is the create page's,
 	   because the drawing's own position is drawn off it too. */
 	--tile: 40px;
-	--pad: 12px;
+	/* 8, and the same 8 as everywhere else on this page: the rail starts at the top of the
+	   window now that the header is empty, so this is what puts its first tile level with
+	   the top of the paper rather than 4px below it. */
+	--pad: 8px;
 	--gap: 6px;
 }
 

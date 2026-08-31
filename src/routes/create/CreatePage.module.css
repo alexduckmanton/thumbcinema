@@ -36,7 +36,10 @@
 	 */
 	display: flex;
 	flex-direction: column;
-	padding-top: 20px;
+	/* The same 8px the rail keeps from the left of the window and the paper keeps from the
+	   right of it. It was 20 while there was a header above to be clear of; with the header
+	   empty and 0px tall, the top is an edge like the other three. */
+	padding-top: 8px;
 	/*
 	 * The aiming pad's band, plus air. The pad is `position: fixed` and out of this column
 	 * entirely — it has to be, so the rail's switch can take it away without moving the
@@ -80,15 +83,15 @@
 	 * every size now rather than at almost none — an over-generous reserve used to cost
 	 * nothing and now costs a visibly smaller drawing.
 	 *
-	 * 312 is 76 of header (the wordmark is gone; what is left is Save and the row's padding,
-	 * taken at the taller of the two phone breakpoints), 20 of padding above, 12 of slack,
-	 * and 204 of `--chrome-bottom` — which since the page bar moved to the bottom of the
-	 * window is everything under the drawing: 8 of air, 56 of bar, 8 more, and a 132px pad.
-	 * Stated rather than composed from those parts because the header's height is
-	 * `SiteHeader`'s business and differs at breakpoints this page does not have; the slack
-	 * is a few pixels at the sizes it is wrong at, and it is measured rather than guessed.
+	 * **There is no header in this number any more**, which is where 68 of it went: Save is
+	 * `position: fixed` in the corner of the window and the row that held it is gone. 232 is
+	 * 8 of padding above, 12 of slack, and 204 of `--chrome-bottom` — which since the page
+	 * bar moved to the bottom of the window is everything under the drawing: 8 of air, 56 of
+	 * bar, 8 more, and a 132px pad. Stated rather than composed from those parts because the
+	 * slack is a few pixels at the sizes it is wrong at, and it is measured rather than
+	 * guessed.
 	 */
-	--book-reserve: 312px;
+	--book-reserve: 232px;
 
 	/*
 	 * The rail's box, and how much room the layout keeps clear for it.
@@ -256,6 +259,25 @@
  * drawing.
  */
 .save {
+	/*
+	 * Furniture in the corner of the window, at the same 8px everything else on this page
+	 * keeps from the edge it is nearest.
+	 *
+	 * It was the only thing in the header, and a row to hold one button costs 68px on a
+	 * phone and 84 on a desktop — off the top of a page where the rail wants to start at the
+	 * top of the window and the drawing is bound by its height at nearly every size. Fixed
+	 * rather than absolute because nothing on this page scrolls and the save form's wash
+	 * would otherwise re-base it.
+	 *
+	 * `z-index: 40` is over the rail at 30, which it never meets — one is top-left and the
+	 * other top-right — and under the header at 100, which is now only the message banner:
+	 * a banner is transient, carries its own dismiss, and is the one thing on the page
+	 * entitled to cover a control for a moment.
+	 */
+	position: fixed;
+	top: 8px;
+	right: 8px;
+	z-index: 40;
 	transition: opacity 0.3s ease-in, transform 0.3s ease-in;
 }
 
@@ -343,9 +365,9 @@
 		padding-top: 8px;
 		--pad-height: 56px;
 		--nav-band: 44px;
-		/* 54 of header, 8 above, 12 of slack, and 116 of `--chrome-bottom`: 8, a 44px bar,
-		   8 more, and a 56px pad. */
-		--book-reserve: 190px;
+		/* 8 above, 12 of slack, and 116 of `--chrome-bottom`: 8, a 44px bar, 8 more, and a
+		   56px pad. */
+		--book-reserve: 136px;
 	}
 }
 
@@ -376,8 +398,8 @@
 		/* No pad up here, so the band it stands in goes with it. */
 		--chrome-bottom: 24px;
 		--book-max: 640px;
-		/* 84 of header, 20 above, 56 of bar, 36 below. */
-		--book-reserve: 196px;
+		/* 8 above, 56 of bar, 36 below. */
+		--book-reserve: 100px;
 	}
 
 	/*

@@ -184,19 +184,20 @@ function CreateShell() {
 			 *
 			 * The page shows a disabled, invisible Save from its first frame — a flipbook of
 			 * one page is not one you can save, and the button stays in the layout so nothing
-			 * jumps when the second page arrives. This is that same box, and it has to be here:
-			 * `SiteHeader` drops the row altogether when it holds neither wordmark nor actions,
-			 * and a header 68px shorter than the page's is a sheet of paper 34px higher up.
-			 * Not a real button — there is nothing to press, and nothing to put in the tab
-			 * order — just the shape of one, and `.noSave` makes it invisible either way.
+			 * jumps when the second page arrives. This is that same box, and it is `fixed` in
+			 * the corner of the window exactly as the page's own is, so neither the header
+			 * (now empty, and 0px tall on both) nor the button can put the sheet of paper in
+			 * a different place at the handover. Not a real button — there is nothing to
+			 * press, and nothing to put in the tab order — just the shape of one, and
+			 * `.noSave` makes it invisible either way.
 			 */}
-			<SiteHeader width="narrow" wordmark={false}>
-				<div className={`${createStyles.save} ${createStyles.noSave}`} aria-hidden="true">
-					<span className={createStyles.saveButton}>
-						<span className={createStyles.saveLabel}>Save</span>
-					</span>
-				</div>
-			</SiteHeader>
+			<SiteHeader width="narrow" wordmark={false} />
+
+			<div className={`${createStyles.save} ${createStyles.noSave}`} aria-hidden="true">
+				<span className={createStyles.saveButton}>
+					<span className={createStyles.saveLabel}>Save</span>
+				</span>
+			</div>
 
 			<main
 				className={createStyles.content}

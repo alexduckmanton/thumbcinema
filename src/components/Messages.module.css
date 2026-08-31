@@ -8,10 +8,29 @@
  * read as handwriting rather than a ticker.
  */
 
+/*
+ * `height: 100%` with a floor rather than `inset: 0`, and the floor is the create page's.
+ *
+ * On the gallery and on playback the header is a row with a wordmark in it and this covers
+ * the whole of it, which is what `inset: 0` said and what `height: 100%` goes on saying.
+ * The create page's header holds nothing at all now — no wordmark, and Save has gone to the
+ * corner of the window — so `SiteHeader` drops the row and the element is 0px tall. A banner
+ * stretched to nothing is a message nobody is ever shown, and it is the one page where the
+ * message that matters is an error about the save that just failed. So it brings its own
+ * height and lies over the top of the page, which is right for something transient with a
+ * dismiss in it. 56px is two lines of 15px and the air round them, which is what the two
+ * messages that reach the create page — the 413 and the generic save failure — come out at
+ * on the narrowest phone. Every header this covers elsewhere is taller than that, so the
+ * floor never binds there and nothing about the gallery or playback moves.
+ */
 .backdrop {
 	position: absolute;
-	inset: 0;
+	top: 0;
+	right: 0;
+	left: 0;
 	z-index: 1;
+	height: 100%;
+	min-height: 56px;
 	transition: background 0.4s ease-out;
 }
 
@@ -29,8 +48,12 @@
 
 .messages {
 	position: absolute;
-	inset: 0;
+	top: 0;
+	right: 0;
+	left: 0;
 	z-index: 2;
+	height: 100%;
+	min-height: 56px;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
