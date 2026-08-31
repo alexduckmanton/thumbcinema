@@ -95,6 +95,19 @@
 	--at: calc(var(--fraction, 0) * (100% - var(--scrub-size)) + var(--over, 0) * var(--scrub-size));
 }
 
+/*
+ * Over a pinched drawing, which is otherwise lying across this and taking its presses.
+ *
+ * Above the paper's 15 and above the tray's own lift at 16, so the three keep the order
+ * they have at rest: the bar over the tools, the tools over the sheet. Only while one is
+ * pinched — at rest the paper is nowhere near this, and a bar that outranked the drawing
+ * at all times would put the pencil's barrel back across the page on the desktop layout,
+ * which is what the numbers here exist to prevent. See `ZoomStage.module.css`.
+ */
+.raised {
+	z-index: 18;
+}
+
 .track:focus-visible {
 	outline: 2px solid var(--blue);
 	outline-offset: 2px;

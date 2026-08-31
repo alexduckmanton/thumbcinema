@@ -46,24 +46,41 @@
 }
 
 /*
- * v12's, which is the same stage standing in the paper's place.
+ * v12's and v13's, which is the same stage standing in the paper's place.
  *
- * No flex and nothing measured about its shape: it fills `.book`, so it is 16:9 and the
- * window it shows is 16:9 with it — the one case where the rectangle's aspect is the
- * page's own. It carries the paper's white, rounding and shadow because the canvas
- * underneath it is `visibility: hidden` while this is up, and a hidden element casts no
- * shadow; between them they are one sheet of paper, and only one of them is ever visible.
+ * No flex and nothing measured about its shape: it fills `.book`, so it is the page's own
+ * shape and the whole page is what it shows — up here the window is never anything less.
+ * It carries the paper's white, rounding and shadow because the canvas underneath it is
+ * `visibility: hidden` while this is up, and a hidden element casts no shadow; between
+ * them they are one sheet of paper, and only one of them is ever visible.
+ *
+ * **A pinch makes this bigger and it is allowed out of its frame**, which is what the
+ * origin and the rounding below are for. The sheet grows from the frame's top left —
+ * `PageZoom` measures from that corner and `ZoomStage` writes the transform — and runs
+ * out over the page thumbnails either side, under the page bar and the tray, and off the
+ * window. Nothing clips it: `.book` has no overflow rule, and the window is the only edge
+ * it meets.
  *
  * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: over
  * the page thumbnails at 9, under the cursor at 17 and under the trace photo's placing
  * chrome at 17 — which is what lets a photograph be placed on top of it in the one mode
- * where the two share a box.
+ * where the two share a box. What it also has to be under is the page bar and the tray,
+ * which a pinched sheet covers and which are no use covered: both lift over it while one
+ * is pinched, and that is `.raised` in `PageNav.module.css` and `Tray.module.css`.
  */
 .onPaper {
 	position: absolute;
 	z-index: 15;
 	inset: 0;
-	border-radius: var(--radius-card);
+	/* The corner `PageZoom`'s offsets are measured from. */
+	transform-origin: 0 0;
+	/*
+	 * The gallery card's corners, kept the size they are drawn at however far the sheet is
+	 * pinched: a flipbook is one object seen in three places and its corner is part of how
+	 * it is recognised, where a 32px radius is a different shape of thing. `--page-scale`
+	 * is 1 wherever nothing has written it, which is every mode but a pinched one.
+	 */
+	border-radius: calc(var(--radius-card) / var(--page-scale, 1));
 	background: var(--white);
 	box-shadow: var(--shadow-card);
 	/* A stroke is never a scroll, and two fingers here are a pinch of ours rather than
@@ -83,7 +100,7 @@
 	display: block;
 	width: 100%;
 	height: 100%;
-	border-radius: var(--radius-card);
+	border-radius: calc(var(--radius-card) / var(--page-scale, 1));
 	inset: 0;
 }
 

@@ -109,7 +109,22 @@ export function CreatePage() {
 	const page = state?.page ?? DEFAULT_PAGE_SIZE
 
 	const onPaper = stageOnPaper(drawMode)
-	const staged = useStage().view !== null && onPaper
+	const { view: stageView, zoom: sheet } = useStage()
+	const staged = stageView !== null && onPaper
+
+	/*
+	 * The drawing pinched out of its frame, which is the one state on this page where the
+	 * paper is lying over the furniture below it.
+	 *
+	 * The page bar and the tray lift above it while it is, so what grows underneath them
+	 * is the drawing and what stays pressable is the row of controls. Read here rather
+	 * than in either of them, because it is this page that knows there is a stage at all.
+	 *
+	 * Not while a trace photo is being placed: the stage stands the sheet back in its
+	 * frame for the length of that — see `suspended` — so there is nothing lying over
+	 * anything, and lifting the row would be a change nobody asked for mid-gesture.
+	 */
+	const pinched = staged && sheet.scale > 1 && !(state?.tracePlacing ?? false)
 
 	const crash = useCrashRecovery(engine, asked)
 
@@ -478,10 +493,15 @@ export function CreatePage() {
 							// fresh page too, and there is nothing to say about a flipbook of
 							// one page anyway.
 							waiting={state.loading}
+							// And over the drawing rather than under it while that has been
+							// pinched out of its frame and is lying across the bar.
+							raised={pinched}
 						/>
 					) : null}
 
-					{engine && state ? <CreateTray engine={engine} state={state} mode={drawMode} /> : null}
+					{engine && state ? (
+						<CreateTray engine={engine} state={state} mode={drawMode} raised={pinched} />
+					) : null}
 
 					{/* And v11's second canvas, in whatever the column has left. It is rendered
 					    on every layout and hides itself where there is no room, because "is

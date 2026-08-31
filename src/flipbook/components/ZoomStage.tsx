@@ -6,7 +6,15 @@ import { fittedSize, type TracePhoto } from '../engine/trace'
 import type { ModalToolId } from '../engine/tools/types'
 import type { PointerLayer } from '../pointer'
 import { useCursor } from '../usePointerLayer'
-import { clearStage, measureStage, setStageElement, useStage, type Viewport } from '../zoomStage'
+import {
+	clearStage,
+	measureStage,
+	type PageZoom,
+	RESTING_PAGE,
+	setStageElement,
+	useStage,
+	type Viewport,
+} from '../zoomStage'
 import { DrawnCursor } from './InkCursor'
 import styles from './ZoomStage.module.css'
 
@@ -92,8 +100,26 @@ export function ZoomStage({
 }: ZoomStageProps) {
 	const host = useRef<HTMLDivElement | null>(null)
 	const canvas = useRef<HTMLCanvasElement | null>(null)
-	const { view } = useStage()
+	const { view, zoom: standing } = useStage()
 	const cursor = useCursor(layer)
+
+	/*
+	 * How the sheet is standing, which is the whole of v12's and v13's zoom and nothing at
+	 * all to v11's: a pinch up here makes the *paper* bigger rather than the window
+	 * smaller, so it is a transform on this element and the canvas inside it goes on
+	 * drawing the whole page at the size the frame is.
+	 *
+	 * Nothing is written while it is resting, and that is deliberate rather than tidy: a
+	 * transform — `scale(1)` included — makes this element a stacking context, and the
+	 * cursor drawn inside it would stop being ordered against the page's own chrome the
+	 * moment it had one. A page nobody has pinched is the same element it always was.
+	 *
+	 * Suspended while a trace photo is being placed, for the reason the window is: up here
+	 * the placing layer and this are the same box, and its gestures are stated in the
+	 * paper's own pixels. The zoom is not lost — the store keeps it, and it comes back the
+	 * moment the photograph settles.
+	 */
+	const sheet = surface === 'paper' && !suspended ? standing : RESTING_PAGE
 
 	// The backing store, in device pixels, kept in state so React writes the attributes
 	// only when they change. Never assigned from a ref callback: writing `width` clears
@@ -242,7 +268,11 @@ export function ZoomStage({
 	}, [canvasRef, store.width, store.height])
 
 	return (
-		<div className={surface === 'paper' ? styles.onPaper : styles.stage} ref={host}>
+		<div
+			className={surface === 'paper' ? styles.onPaper : styles.stage}
+			ref={host}
+			style={pinched(sheet)}
+		>
 			{view ? (
 				<canvas ref={canvas} className={styles.canvas} width={store.width} height={store.height} />
 			) : null}
@@ -255,6 +285,24 @@ export function ZoomStage({
 			) : null}
 		</div>
 	)
+}
+
+/**
+ * The sheet where a pinch has left it, as a style — and nothing at all where it is home.
+ *
+ * `transform-origin` is the frame's top left, stated in the stylesheet, because that is
+ * the corner `PageZoom` measures from and the two have to agree. `--page-scale` is for
+ * the rounding: the corners are the gallery card's 8px and a card is one object at one
+ * size, so a sheet drawn four times as big keeps the same corner rather than growing a
+ * 32px one. The shadow is left to grow with it, being a bigger sheet's shadow.
+ */
+function pinched(zoom: PageZoom): React.CSSProperties | undefined {
+	if (zoom.scale === 1 && zoom.x === 0 && zoom.y === 0) return undefined
+
+	return {
+		transform: `translate3d(${zoom.x}px, ${zoom.y}px, 0) scale(${zoom.scale})`,
+		'--page-scale': zoom.scale,
+	} as React.CSSProperties
 }
 
 /**

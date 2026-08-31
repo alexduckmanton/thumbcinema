@@ -43,7 +43,10 @@ Break one of these and something goes wrong somewhere else, usually silently.
   because paper takes the coordinate space from the bounding rectangle and a canvas 350px
   wide on a phone would otherwise give a 350-unit project — strokes, thumbnails and saved
   SVG all that shape. CSS owns the display size and `getEventPoint` divides by the current
-  scale; not `view.zoom`, which folds itself into `exportSVG()`.
+  scale; not `view.zoom`, which folds itself into `exportSVG()`. **Pinching the page on a
+  phone is CSS as well** — a transform on the sheet, which the scene's own `ResizeObserver`
+  cannot see because a layout box doesn't move — so a finger there is mapped through
+  `onPage` in `zoomStage.ts` rather than through the scene. `docs/drawing-modes.md`.
 - **Two page sizes, and there will only ever be two.** `LEGACY_PAGE_SIZE` 640×360 (2012 to
   2026, the whole archive) and `SQUARE_PAGE_SIZE` 640×640 (since). A flipbook keeps its
   shape for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses and there is no UI.

@@ -10,6 +10,15 @@ import styles from './Tray.module.css'
 export interface CreateTrayProps {
 	engine: FlipbookEngine
 	state: FlipbookState
+	/**
+	 * True while the drawing has been pinched out of its frame and is lying over this row.
+	 *
+	 * The tools live *behind* the paper by design — each is a 304px picture anchored by its
+	 * tip, and all but the last few centimetres passes up behind whatever is above it — so
+	 * a sheet pinched to four times life size covers the row outright and takes its presses
+	 * with it. While one is, the row comes over the top. See `.raised`.
+	 */
+	raised?: boolean
 	/** Which drawing mode is on, which is only whether holding a tool means anything. */
 	mode: DrawMode
 }
@@ -29,7 +38,7 @@ export interface CreateTrayProps {
  * drawing and nothing else. The pencil's width popover went the same way: see
  * `DEFAULT_PENCIL_WIDTH`.
  */
-export function CreateTray({ engine, state, mode }: CreateTrayProps) {
+export function CreateTray({ engine, state, mode, raised = false }: CreateTrayProps) {
 	const { tool, transformIndex } = state
 
 	/*
@@ -133,7 +142,7 @@ export function CreateTray({ engine, state, mode }: CreateTrayProps) {
 	}
 
 	return (
-		<div className={styles.tray}>
+		<div className={raised ? `${styles.tray} ${styles.raised}` : styles.tray}>
 			<ul className={`${styles.group} ${styles.tools}`}>
 				<li>
 					<button

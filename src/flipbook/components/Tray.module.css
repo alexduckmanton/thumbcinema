@@ -8,6 +8,21 @@
  * toggles stand beside the title instead. See `.info` there.
  */
 
+/*
+ * Over a pinched drawing, which is otherwise lying across the whole row.
+ *
+ * v12 and v13 let the sheet be pinched out of its frame and it comes down over this,
+ * taking the tools with it — so while one is pinched the row lifts above the paper's 15
+ * and the drawing goes on growing underneath it. Under the page bar's own lift at 18,
+ * which keeps the three in the order they have at rest, and applied only while a sheet
+ * is pinched: a tray permanently above the canvas is two 304px pencils drawn straight
+ * across the drawing, which is what the numbers in this file are all about. See
+ * `ZoomStage.module.css`.
+ */
+.raised {
+	z-index: 16;
+}
+
 .tray {
 	position: relative;
 	display: flex;

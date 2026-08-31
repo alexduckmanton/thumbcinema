@@ -29,6 +29,16 @@ export interface PageNavProps {
 	 * running, which is when it eases onto each page instead.
 	 */
 	glide?: number | null
+	/**
+	 * True while the drawing has been pinched out of its frame and is lying over this.
+	 *
+	 * The bar is under the paper by a deliberate five in the stacking order — the tools'
+	 * long barrels pass behind both — and a sheet pinched to four times life size covers
+	 * it completely, along with every press meant for it. So while one is, the bar comes
+	 * over the top: the page carries on growing underneath it, which is what a page
+	 * growing past its frame ought to do to the furniture around it. See `.raised`.
+	 */
+	raised?: boolean
 }
 
 /**
@@ -72,6 +82,7 @@ export function PageNav({
 	playback,
 	waiting = false,
 	glide = null,
+	raised = false,
 }: PageNavProps) {
 	const track = useRef<HTMLDivElement | null>(null)
 	const handle = useRef<HTMLSpanElement | null>(null)
@@ -247,7 +258,12 @@ export function PageNav({
 			ref={track}
 			// The arrows go while it plays; see `.playing`. Both they and the handle go
 			// while there is nothing to point at; see `.waiting`.
-			className={[styles.track, playing ? styles.playing : '', waiting ? styles.waiting : '']
+			className={[
+				styles.track,
+				playing ? styles.playing : '',
+				waiting ? styles.waiting : '',
+				raised ? styles.raised : '',
+			]
 				.filter(Boolean)
 				.join(' ')}
 			role="slider"

@@ -21,9 +21,13 @@ import type { ModalToolId } from './engine/tools/types'
 import {
 	type Box,
 	centreViewport,
+	onPage,
+	type PageZoom,
+	panPage,
 	paperPoint,
 	panViewport,
 	type Point,
+	setPageZoom,
 	setViewport,
 	stage,
 	stageElement,
@@ -31,6 +35,8 @@ import {
 	stagePlace,
 	stagePoint,
 	type Viewport,
+	visiblePage,
+	zoomPage,
 	zoomViewport,
 } from './zoomStage'
 
@@ -427,11 +433,11 @@ export class PointerLayer {
 	 * the mode falls back to v2 whenever the answer is no. One condition, read in one
 	 * place, rather than a media query written out again in JavaScript.
 	 */
-	private get zoom(): { box: Box; view: Viewport } | null {
+	private get zoom(): Zoom | null {
 		if (!isZoomStageMode(this.mode)) return null
 
 		const current = stage()
-		return current.view ? { box: current.box, view: current.view } : null
+		return current.view ? { box: current.box, view: current.view, page: current.zoom } : null
 	}
 
 	/** Which of a zoomed mode's surfaces a touch landed on, or null for none of them. */
@@ -463,10 +469,19 @@ export class PointerLayer {
 	 * The band has no box of its own and needs none: nothing about a gesture down there is
 	 * a position on anything, only a delta, so it is measured in client coordinates and
 	 * the origin cancels. See `openField`.
+	 *
+	 * **The stage's box is `.book`'s wherever the stage stands in the paper's place**, and
+	 * that is the whole of what keeps a pinch measurable. Those two modes pinch the *sheet*
+	 * — the stage element carries a transform and its rectangle grows and slides with it —
+	 * so measuring a finger against it would be measuring against a frame that the gesture
+	 * is itself moving. `.book` is the same box at rest, is exactly where the paper belongs,
+	 * and never moves; `onPage` is what takes the sheet's own offset back out afterwards.
+	 * v11's stage is a second canvas in the band with a box of its own, and nothing ever
+	 * transforms it.
 	 */
 	private boxOf(surface: GestureSurface): DOMRect {
 		if (surface === 'field') return ORIGIN
-		const element = surface === 'stage' ? stageElement() : this.book
+		const element = surface === 'stage' && !stageOnPaper(this.mode) ? stageElement() : this.book
 		return (element ?? this.book).getBoundingClientRect()
 	}
 
@@ -1121,25 +1136,32 @@ export class PointerLayer {
 		event.preventDefault()
 
 		if (movers > 0) {
-			// Read afresh: a pinch on the stage may have moved the window since `zoom` was
-			// taken, and the cursor has to be nudged against the view it is being drawn in.
-			const view = stage().view ?? zoom.view
+			// Read afresh: a pinch on the stage may have moved the paper since `zoom` was
+			// taken, and the cursor has to be nudged against the drawing as it stands now.
+			const current = stage()
+			const view = current.view ?? zoom.view
+			const scale = stageOnPaper(this.mode) ? current.zoom.scale : 1
 
 			/*
-			 * Screen pixels into page units through that window, which is what makes the
-			 * cursor travel under the finger at the rate the drawing is being *shown* at
+			 * Screen pixels into page units through the drawing as it is currently *shown*,
 			 * rather than at the rate the artwork is stored in. At 1× a pixel of finger is a
-			 * pixel of cursor, exactly as it is in v10; at 4× it is a quarter of a page unit,
-			 * so the same drag places the mark four times as precisely. That is the whole
-			 * bargain of running these two modes together, and it falls out of holding the
-			 * cursor in project units rather than being arranged for.
+			 * pixel of cursor, exactly as it is in v10; with the sheet pinched to 4× it is a
+			 * quarter of a page unit, so the same drag places the mark four times as
+			 * precisely — and the cursor still travels under the finger at the finger's own
+			 * rate, because the scale cancels between the nudge and the drawing of it. That
+			 * is the whole bargain of running these two modes together, and it falls out of
+			 * holding the cursor in project units rather than being arranged for.
 			 */
-			const perX = zoom.box.width === 0 ? 0 : view.w / zoom.box.width
-			const perY = zoom.box.height === 0 ? 0 : view.h / zoom.box.height
+			const perX = zoom.box.width === 0 ? 0 : view.w / (zoom.box.width * scale)
+			const perY = zoom.box.height === 0 ? 0 : view.h / (zoom.box.height * scale)
+
+			// And kept where it can be seen, which off a pinched page is not the same as
+			// kept on the page. See `clampCursor`.
+			const bounds = this.visibleView() ?? view
 
 			this.cursorPage = {
-				x: clamp(this.cursorPage.x + (sumX / movers) * perX, view.x, view.x + view.w),
-				y: clamp(this.cursorPage.y + (sumY / movers) * perY, view.y, view.y + view.h),
+				x: clamp(this.cursorPage.x + (sumX / movers) * perX, bounds.x, bounds.x + bounds.w),
+				y: clamp(this.cursorPage.y + (sumY / movers) * perY, bounds.y, bounds.y + bounds.h),
 			}
 		}
 
@@ -1207,18 +1229,25 @@ export class PointerLayer {
 	}
 
 	/**
-	 * Keeps v13's cursor inside the window, so panning never leaves it off the screen.
+	 * Keeps v13's cursor on the part of the page you can actually see, so pinching and
+	 * panning never leave it off the screen.
 	 *
-	 * The alternative is to clamp it to the *page* and let the window slide off it, which
-	 * is more faithful to "a thing standing on the drawing" and is worse to use: a cursor
-	 * you cannot see is a cursor you have to go and find, and the only way to find it is to
-	 * pan back. Being nudged along by the edge of the window costs nothing by comparison —
+	 * The alternative is to clamp it to the *page* and let the view slide off it, which is
+	 * more faithful to "a thing standing on the drawing" and is worse to use: a cursor you
+	 * cannot see is a cursor you have to go and find, and the only way to find it is to pan
+	 * back. Being nudged along by the edge of what is showing costs nothing by comparison —
 	 * the cursor was going to be moved before it was next used anyway.
+	 *
+	 * What "showing" means differs between the two shapes of stage, which is why the paper
+	 * is measured rather than reasoned about. v11's band shows a window on the page and the
+	 * bound is that window. v13's sheet is the whole page at whatever size it has been
+	 * pinched to, hanging out of its frame and mostly off the window with it — so the bound
+	 * is the overlap between the sheet and the screen, which is `visiblePage`.
 	 */
 	private clampCursor(): void {
 		if (!aimsOffStage(this.mode)) return
 
-		const view = stage().view
+		const view = this.visibleView()
 		if (!view) return
 
 		this.cursorPage = {
@@ -1227,13 +1256,54 @@ export class PointerLayer {
 		}
 	}
 
+	/** How much of the page there is to stand a cursor on. See `clampCursor`. */
+	private visibleView(): Viewport | null {
+		const current = stage()
+		const view = current.view
+		if (!view) return null
+		if (!stageOnPaper(this.mode)) return view
+
+		const frame = this.boxOf('stage')
+		const { scale, x, y } = current.zoom
+
+		return visiblePage(
+			{
+				left: frame.left + x,
+				top: frame.top + y,
+				width: frame.width * scale,
+				height: frame.height * scale,
+			},
+			{ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight },
+			this.engine.page,
+		)
+	}
+
+	/**
+	 * A point on the frame, in the stage's own pixels — the ones its canvas and its cursor
+	 * are drawn in, which a pinch does not move.
+	 *
+	 * The identity in v11, whose stage is never transformed. In v12 and v13 the sheet is
+	 * standing somewhere else and at some other size, and this is where that is taken back
+	 * out: the frame is `.book`, the same box for the whole of a gesture, and what comes
+	 * out is where the finger is on the *paper* however far the paper has been pinched.
+	 */
+	private stageLocal(x: number, y: number, zoom: Zoom): Point {
+		return stageOnPaper(this.mode) ? onPage(zoom.page, x, y) : { x, y }
+	}
+
+	/** And the same point in the artwork, which is what every tool is handed. */
+	private stagePointAt(x: number, y: number, zoom: Zoom, view: Viewport = zoom.view): Point {
+		const at = this.stageLocal(x, y, zoom)
+		return stagePoint(view, at.x, at.y, zoom.box)
+	}
+
 	/** Puts the tool to work at the point on the page the finger is over on the stage. */
 	private workStage(gesture: Gesture): void {
 		const view = stage().view
 		const zoom = this.zoom
 		if (!view || !zoom) return
 
-		const at = stagePoint(view, gesture.inkX, gesture.inkY, zoom.box)
+		const at = this.stagePointAt(gesture.inkX, gesture.inkY, zoom, view)
 		const point = this.engine.inProject(at.x, at.y)
 
 		if (gesture.engaged) this.engine.toolDrag(point)
@@ -1353,10 +1423,25 @@ export class PointerLayer {
 		const aspect = aspectOf(zoom.box)
 		const page = this.engine.page
 
-		if (this.surface === 'stage') {
-			// Handling the drawing: fingers apart is a closer look, which is a *smaller*
-			// window, and the page under the fingers travels with them — so the window goes
-			// the other way.
+		if (this.surface === 'stage' && stageOnPaper(this.mode)) {
+			/*
+			 * Handling the sheet: fingers apart makes the *paper* bigger and it grows out of
+			 * its frame, over the strip and under the page bar and the tray. Nothing is
+			 * cropped, because the window was never anything less than the whole page — what
+			 * changes is how big the page is drawn and where its corner is.
+			 *
+			 * Both halves are measured against `.book`, which the transform does not move,
+			 * and the anchor is the fingers' own midpoint: what is under them at the start of
+			 * the frame is under them at the end of it, which is the only test a pinch has to
+			 * pass. The drag is the same midpoint travelling, so two fingers moved together
+			 * carry the sheet with them at exactly their own rate.
+			 */
+			const grown = zoomPage(zoom.page, zoom.box, ratio, { x: before.x, y: before.y })
+			setPageZoom(panPage(grown, after.x - before.x, after.y - before.y, zoom.box))
+		} else if (this.surface === 'stage') {
+			// v11's band, where the thing being handled is the *window*: fingers apart is a
+			// closer look, which is a smaller window, and the page under the fingers travels
+			// with them — so the window goes the other way.
 			const anchor = stagePoint(view, before.x, before.y, zoom.box)
 			const zoomed = zoomViewport(view, page, aspect, 1 / ratio, anchor)
 			setViewport(
@@ -1378,8 +1463,8 @@ export class PointerLayer {
 			setViewport(panViewport(zoomed, to.x - from.x, to.y - from.y, page, aspect))
 		}
 
-		// The window has moved under v13's cursor, which is standing on the page rather
-		// than on the glass and may now be off the side of it.
+		// The page has moved under v13's cursor, which is standing on the drawing rather
+		// than on the glass and may now be off the side of the screen.
 		this.clampCursor()
 		this.publish()
 	}
@@ -1503,7 +1588,7 @@ export class PointerLayer {
 		this.mouseX = x
 		this.mouseY = y
 
-		const at = stagePoint(zoom.view, x, y, zoom.box)
+		const at = this.stagePointAt(x, y, zoom)
 		this.engine.toolHover(this.engine.inProject(at.x, at.y))
 		this.publish()
 	}
@@ -1696,7 +1781,7 @@ export class PointerLayer {
 		// window and handed over in project units, not through the canvas.
 		const zoom = this.zoom
 		if (zoom && this.surface === 'stage') {
-			const at = stagePoint(zoom.view, gesture.inkX, gesture.inkY, zoom.box)
+			const at = this.stagePointAt(gesture.inkX, gesture.inkY, zoom)
 			this.engine.toolDown(this.engine.inProject(at.x, at.y))
 			return
 		}
@@ -1880,8 +1965,9 @@ export class PointerLayer {
 		 * be. It says it under a fingertip, where a 6px ring is 40px of finger away from
 		 * being visible, so there is nothing there to lose.
 		 */
+		const zoom = this.zoom
+
 		if (aimsOffStage(this.mode) && this.source === 'touch') {
-			const zoom = this.zoom
 			if (!zoom || this.half !== 'field') {
 				this.store.set({ cursor: null })
 				return
@@ -1892,10 +1978,18 @@ export class PointerLayer {
 			return
 		}
 
-		// A finger on the stage: the ring goes under the fingertip, which is v2's rule and
-		// what v11 and v12 take from it.
-		if (gesture && this.surface === 'stage') {
-			this.store.set({ cursor: this.stageCursor(gesture.inkX, gesture.inkY, gesture.engaged) })
+		/*
+		 * A finger on the stage: the ring goes under the fingertip, which is v2's rule and
+		 * what v11 and v12 take from it.
+		 *
+		 * In the stage's own pixels rather than the frame's, because that is where it is
+		 * drawn: the cursor is a child of the element the pinch transforms, so a ring placed
+		 * at the fingertip's distance from `.book` would be carried off by the same scale
+		 * that is already taking it there.
+		 */
+		if (gesture && zoom && this.surface === 'stage') {
+			const at = this.stageLocal(gesture.inkX, gesture.inkY, zoom)
+			this.store.set({ cursor: this.stageCursor(at.x, at.y, gesture.engaged) })
 			return
 		}
 
@@ -1903,8 +1997,9 @@ export class PointerLayer {
 		// surface, which is the one thing these modes have in common with the rest. v13's
 		// band is a finger's answer and a mouse never reaches this with one, so up here it
 		// is v12 exactly.
-		if (!gesture && this.source === 'mouse' && this.stageOver) {
-			this.store.set({ cursor: this.stageCursor(this.mouseX, this.mouseY, false) })
+		if (!gesture && zoom && this.source === 'mouse' && this.stageOver) {
+			const at = this.stageLocal(this.mouseX, this.mouseY, zoom)
+			this.store.set({ cursor: this.stageCursor(at.x, at.y, false) })
 			return
 		}
 
@@ -2115,8 +2210,11 @@ const ORIGIN = new DOMRect(0, 0, 0, 0)
 
 /** The stage as `PointerLayer` needs it: a window, and the box it is being shown in. */
 interface Zoom {
+	/** The frame the paper sits in, at rest: the drawing's own box, life size. */
 	box: Box
 	view: Viewport
+	/** Where the paper is standing in that frame, which only a pinch ever changes. */
+	page: PageZoom
 }
 
 interface Pinch {

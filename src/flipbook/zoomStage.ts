@@ -50,6 +50,130 @@ export const MAX_ZOOM = 4
 export const DEFAULT_ZOOM = 2
 
 /**
+ * How the paper itself is standing, which is the whole of v12's and v13's zoom.
+ *
+ * The two on-paper modes do not crop: their window is the whole page and never anything
+ * less, and a pinch makes the *sheet* bigger — it grows out of its frame, over the strip
+ * and under the page bar, the tray and the footer, which is what the thing under your
+ * fingers would do if you could pick it up. So what a pinch changes is where the paper is
+ * and how big, in the frame's own CSS pixels, and the window it is showing stays exactly
+ * as wide as the page.
+ *
+ * `x` and `y` are the paper's top-left corner measured from the frame's, which is what a
+ * `transform-origin: 0 0` translate wants; at rest both are zero and the scale is 1, which
+ * is the paper sitting in its frame and every mode that isn't one of these two.
+ *
+ * v11 is the odd one out and keeps `Viewport` to itself: its stage is a second canvas of
+ * its own shape in the band under the tools, so a window on the page is the only thing it
+ * could be showing. Nothing there ever moves this.
+ */
+export interface PageZoom {
+	scale: number
+	x: number
+	y: number
+}
+
+/** The paper in its frame, life size: what every mode but a pinched one is showing. */
+export const RESTING_PAGE: PageZoom = { scale: 1, x: 0, y: 0 }
+
+/**
+ * Puts the paper back inside the rules: no smaller than its frame, no bigger than
+ * `MAX_ZOOM`, and never dragged off the frame it belongs to.
+ *
+ * The offsets are clamped so the frame stays *covered*. A sheet bigger than its frame can
+ * be moved about behind it, and the part of it that hangs outside is the part that flows
+ * under the page bar and the tray — but the frame itself always has drawing in it, so
+ * there is no arrangement of a pinch and a drag that shows a strip of nothing where the
+ * page used to be, and letting go of the zoom drops the paper exactly home.
+ */
+export function clampPage(zoom: PageZoom, box: Box): PageZoom {
+	const scale = clamp(zoom.scale, 1, MAX_ZOOM)
+
+	return {
+		scale,
+		x: clamp(zoom.x, box.width - box.width * scale, 0),
+		y: clamp(zoom.y, box.height - box.height * scale, 0),
+	}
+}
+
+/**
+ * Scales the paper about a point on the frame, keeping whatever is under that point
+ * under it — the same promise `zoomViewport` makes, stated the other way up.
+ *
+ * `ratio` is what the scale is multiplied by, so fingers apart is a bigger sheet: the
+ * paper is the thing being handled here, where in v11's band the *window* is.
+ */
+export function zoomPage(zoom: PageZoom, box: Box, ratio: number, at: Point): PageZoom {
+	const scale = clamp(zoom.scale * ratio, 1, MAX_ZOOM)
+	// Against the scale that was actually reached rather than the ratio asked for, or the
+	// paper would slide sideways under a pinch that the clamp had already stopped.
+	const growth = zoom.scale === 0 ? 1 : scale / zoom.scale
+
+	return clampPage(
+		{ scale, x: at.x - (at.x - zoom.x) * growth, y: at.y - (at.y - zoom.y) * growth },
+		box,
+	)
+}
+
+/** Moves the paper by a delta in the frame's pixels, and no further than the rules allow. */
+export function panPage(zoom: PageZoom, dx: number, dy: number, box: Box): PageZoom {
+	return clampPage({ ...zoom, x: zoom.x + dx, y: zoom.y + dy }, box)
+}
+
+/**
+ * A point on the frame, as a point on the paper standing behind it.
+ *
+ * The pinch moves the sheet rather than the window, so a finger's distance from the
+ * frame's top left is not a distance on the drawing until the sheet's own offset and
+ * scale are taken back out. Everything that asks where a finger is on the page goes
+ * through here first and then through `stagePoint`, which is still the one place a
+ * position on the glass becomes a position in the artwork.
+ */
+export function onPage(zoom: PageZoom, x: number, y: number): Point {
+	return { x: (x - zoom.x) / zoom.scale, y: (y - zoom.y) / zoom.scale }
+}
+
+/**
+ * How much of the page is on screen, in project units — which is what v13's cursor is
+ * kept inside.
+ *
+ * A pinched page runs off the frame in every direction and mostly off the *window* with
+ * it, and a cursor standing on the part that is off the screen is a cursor you have to go
+ * and find. So the window is the bound rather than the frame: `paper` is where the sheet
+ * is on screen, `screen` is what there is to see it in, and what comes back is the
+ * overlap, expressed on the page.
+ */
+export function visiblePage(paper: Rect, screen: Rect, page: PageSize): Viewport {
+	const left = Math.max(paper.left, screen.left)
+	const top = Math.max(paper.top, screen.top)
+	const right = Math.min(paper.left + paper.width, screen.left + screen.width)
+	const bottom = Math.min(paper.top + paper.height, screen.top + screen.height)
+
+	// Nothing of it is showing, which a page dragged clean off a very short window can
+	// manage. The whole page then, rather than an empty rectangle a cursor can't be in.
+	if (right <= left || bottom <= top || paper.width === 0 || paper.height === 0) {
+		return { x: 0, y: 0, w: page.width, h: page.height }
+	}
+
+	const perX = page.width / paper.width
+	const perY = page.height / paper.height
+
+	return {
+		x: (left - paper.left) * perX,
+		y: (top - paper.top) * perY,
+		w: (right - left) * perX,
+		h: (bottom - top) * perY,
+	}
+}
+
+export interface Rect {
+	left: number
+	top: number
+	width: number
+	height: number
+}
+
+/**
  * The largest window of this shape that fits on the page.
  *
  * The stage's aspect is *measured* rather than stated — it is whatever the leftover band
@@ -206,24 +330,42 @@ export interface Box {
  * `view` is null exactly when there is no stage — no room for one, or a layout that
  * hides it — and that null is the single condition v11 falls back to v2 on.
  */
-const store = new Store<{ box: Box; view: Viewport | null }>({
+interface Stage {
+	box: Box
+	view: Viewport | null
+	/** How the paper is standing. Resting in every mode but a pinched v12 or v13. */
+	zoom: PageZoom
+}
+
+const store = new Store<Stage>({
 	box: { width: 0, height: 0 },
 	view: null,
+	zoom: RESTING_PAGE,
 })
 
 export const subscribeStage = store.subscribe
 
-export function stage(): { box: Box; view: Viewport | null } {
+export function stage(): Stage {
 	return store.snapshot
 }
 
 /** The stage, for React: the canvas that draws it, and the outline on the paper. */
-export function useStage(): { box: Box; view: Viewport | null } {
+export function useStage(): Stage {
 	return useStore(store)
 }
 
 export function stageView(): Viewport | null {
 	return store.snapshot.view
+}
+
+export function pageZoom(): PageZoom {
+	return store.snapshot.zoom
+}
+
+/** Where the pinch leaves the paper. Ignored where there is no stage to pinch. */
+export function setPageZoom(zoom: PageZoom): void {
+	if (store.snapshot.view === null) return
+	store.set({ ...store.snapshot, zoom })
 }
 
 /**
@@ -262,7 +404,7 @@ export function measureStage(box: Box, page: PageSize, zoom = DEFAULT_ZOOM): voi
 	const usable = box.width > 0 && box.height >= MIN_STAGE_HEIGHT
 
 	if (!usable) {
-		store.set({ box, view: null })
+		store.set({ box, view: null, zoom: RESTING_PAGE })
 		return
 	}
 
@@ -271,12 +413,17 @@ export function measureStage(box: Box, page: PageSize, zoom = DEFAULT_ZOOM): voi
 	store.set({
 		box,
 		view: previous ? clampViewport(previous, page, aspect) : defaultViewport(page, aspect, zoom),
+		// Carried over rather than reset, exactly as the window is — a resize here is
+		// nearly always a rotation or the address bar sliding, and losing your place is
+		// the same loss either way — but clamped, because the frame it is measured
+		// against has just changed size under it.
+		zoom: clampPage(current.zoom, box),
 	})
 }
 
 /** The stage is going away — the mode was switched off, or the page left. */
 export function clearStage(): void {
-	store.set({ box: { width: 0, height: 0 }, view: null })
+	store.set({ box: { width: 0, height: 0 }, view: null, zoom: RESTING_PAGE })
 }
 
 export function setViewport(view: Viewport): void {
