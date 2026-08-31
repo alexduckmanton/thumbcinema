@@ -1,163 +1,205 @@
 /*
- * The save form, over the drawing.
+ * The save dialog.
  *
- * It covers the canvas rather than appearing below it: the flipbook is finished at
- * this point and the only thing left is to name it. The blue is the site's, at full
- * strength — the one moment the chrome is loud.
+ * A conventional modal: a black wash over the page, a white card in the middle of it.
+ * What it replaced was a blue panel laid over the canvas — the one moment the chrome
+ * was loud — and the reason it went is worth keeping: the panel was positioned inside
+ * `.book` and sized against the drawing, so once a page could be square it covered a
+ * 16:9 lid's worth of a taller sheet and left two different blues stacked on top of
+ * each other. A modal belongs to the window, not to the artwork.
  */
 
-.form {
-	position: absolute;
+/*
+ * The overlay: the wash, the whole window, and the thing that scrolls — one element,
+ * and the fact that it is one element is load-bearing on iOS.
+ *
+ * Since Safari 26 the strip behind the status bar and the one behind the URL bar are
+ * tinted from the page. `<meta name="theme-color">` is not read at all any more; what is
+ * read is the background colour of the `<body>`, or of a `position: fixed`/`sticky`
+ * element lying against the edge of the viewport, which wins over the body. So the thing
+ * that paints the wash has to *be* such an element, or the wash arrives with a pale band
+ * of `--page` above and below it.
+ *
+ * **This is why the modal is no longer a `<dialog>`.** `showModal()` puts an element in
+ * the top layer, and the top layer is never sampled — which cost three attempts to
+ * establish, because each one moved the wash somewhere else in it: the `::backdrop`
+ * first, then the dialog's own background, then a separate wash div underneath a
+ * transparent dialog. The third is the interesting one: the wash was then exactly the
+ * kind of element the sampler looks for, and the toolbars still did not follow it. An
+ * open modal dialog suppresses the sampling altogether, whatever it is painted in and
+ * wherever it sits — verified on the iOS 26.2 simulator against a reduced case, both
+ * with the dialog covering the viewport and with it inset 16px clear of both edges.
+ * Take the dialog away and the same wash tints both toolbars immediately.
+ *
+ * The other half of the fix is in `base.css`: the create page's lock makes `<body>`
+ * itself a fixed, opaque, full-viewport element, and that outranks anything laid over
+ * it. Both halves are needed — either one alone leaves the bands.
+ *
+ * What the `<dialog>` was giving us is now hand-rolled in `SaveForm`, which is the cost
+ * of this and worth stating: Esc, the focus trap, focus restored on close, and `inert`
+ * on the rest of the page. That is about thirty lines to replace an element that did it
+ * for nothing, and it buys a modal whose wash reaches the edges of the phone.
+ *
+ * Portalled to `<body>` (in `SaveForm`) for the same reason it is fixed: nothing above
+ * it in the page's tree can then clip it or make itself its containing block.
+ *
+ * **The declaration list below is the reference app's, copied property for property**
+ * rather than reimplemented: the same longhand `top`/`left`/`right`/`bottom` instead of
+ * `inset`, the same `z-index: 1000`, the same `rgba(0, 0, 0, 0.5)` — its light-mode
+ * `--color-modal-backdrop` — and the same flex centring. Its wash reaches both of iOS's
+ * toolbars and ours reaches only the top one, and with the structure now identical the
+ * remaining difference had to be looked for in the values. So there are no near-misses
+ * left to explain: anything that still differs is a difference we chose.
+ *
+ * What is *not* in the reference and had to go somewhere: the safe-area gutter and the
+ * keyboard inset are now margins on the card. Same rendered result — the card sits the
+ * same distance off the notch and the home indicator, and rises the same way over the
+ * keyboard — but the wash itself is left as bare as the reference's.
+ *
+ * There is no `animation` property here any more, and that was the last near-miss: a CSS
+ * animation is not what the reference does and it is not a neutral difference — an
+ * animating element gets a compositing layer of its own, which is exactly the kind of
+ * thing the toolbar sampler is sensitive to. So the fade is done the reference's way
+ * instead: `opacity: 0` in the rule, and the Web Animations API takes it to 1 from
+ * `SaveForm`. (The reference reaches that API through Motion One; we call it directly,
+ * because `react`, `react-dom`, `paper` and `pg` are the only runtime dependencies.)
+ */
+.overlay {
+	position: fixed;
 	top: 0;
 	left: 0;
-	z-index: 17;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	opacity: 0;
+}
+
+/*
+ * Centred by the overlay's `align-items`/`justify-content` now, as the reference does it,
+ * rather than by the `margin: auto` that was here before.
+ *
+ * That is a real trade and worth naming: auto margins centre while there is room and fall
+ * back to the start when there isn't, so a card taller than the window stayed reachable
+ * from the top. Flex centring overflows both ends instead. The overlay is no longer a
+ * scroll container either — the reference's isn't — so a card taller than the window is
+ * now clipped rather than scrolled. It takes a very short window to get there; if it
+ * turns out to matter, the fix is the reference's own, which caps its card's height and
+ * scrolls the body inside it.
+ *
+ * The gutter is this element's margin rather than the wash's padding for the same reason
+ * everything else moved: the wash is the reference's rule and nothing else. `flex-shrink`
+ * is what keeps `width: 100%` plus those margins inside the window.
+ */
+.card {
 	width: 100%;
+	/* Capped so the card doesn't run the width of a desktop window. */
+	max-width: 520px;
+	/* The safe areas keep the card off the notch and the home indicator while the wash
+	   goes on covering them. The keyboard is taken off the bottom the same way — see
+	   `useKeyboardInset` for why it is an inset rather than a smaller overlay. */
+	margin: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+		calc(max(16px, env(safe-area-inset-bottom)) + var(--keyboard-inset, 0px))
+		max(16px, env(safe-area-inset-left));
+	/* Rounder than a card, which is the site's 12px: this is a much bigger surface, and
+	   a radius that reads as generous on a 200px tile barely registers on a 520px sheet. */
+	border-radius: 24px;
+	background: var(--white);
+	box-shadow: rgba(0, 0, 0, 0.3) 0 12px 40px;
+	/* The starting frame, as on the wash: the entrance is animated from `SaveForm`. */
+	opacity: 0;
+	transform: scale(0.96);
+}
+
+/*
+ * Generous, and the same all the way round except at the foot, where the buttons carry
+ * their own optical weight and want a little less above them than beside them.
+ */
+.form {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
 	padding: 40px;
-	color: var(--white);
 	line-height: 1.5;
 }
 
-.form fieldset {
+/*
+ * The wordmark's face, which is also the create button's and the save button's.
+ *
+ * Pecita is the hand the whole flipbook half of the site is written in — the logo, the
+ * button that starts one, the button in this card that finishes one — and a UI-sans
+ * heading between two of them was the one thing here still speaking in a different
+ * voice.
+ *
+ * 40px because Pecita has a shallow x-height and reads a size smaller than it is; this
+ * sits about where a 30px sans heading does. The 4px is the same correction the two
+ * buttons carry, and is a property of the face: Pecita's reported ascent and descent
+ * put the browser's line box lower than the ink actually sits, so a heading set flush
+ * against the padding above it looks like it is falling out of the card.
+ */
+.heading {
 	position: relative;
-	margin: 0;
-	padding: 0 0 20px;
-	border: none;
+	top: 4px;
+	font-family: 'Pecita', cursive;
+	font-size: 40px;
+	line-height: 1;
 }
 
-.form legend {
-	padding: 0;
-	font-size: 25px;
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
 }
 
-.form ol {
-	margin: 0;
-	padding: 0;
-	list-style: none;
+.field label {
+	padding: 0 0 0 2px;
 }
 
-.form li {
-	padding-top: 20px;
-}
-
-.form label {
-	color: var(--white);
-}
-
-.form input[type='text'],
-.form textarea {
+.field input[type='text'],
+.field textarea {
 	display: block;
 	width: 100%;
-	border-color: #1a5af1;
-	background: #e9effe;
-	color: #07256b;
+	/* The controls are a size up from the site's 14px default: this is the one form on
+	   the site somebody types a sentence into, and it is the only thing in the card. */
+	font-size: 16px;
+	padding: 9px 10px;
+	border-radius: var(--radius-control);
 }
 
-.form input[type='text']:focus,
-.form textarea:focus {
-	border-color: #0c46cc;
-	background: var(--white);
-}
-
-.form textarea {
-	height: 63px;
+.field textarea {
+	height: 72px;
 }
 
 .optional {
-	opacity: 0.666;
+	color: var(--ink-soft);
 }
 
-/* The NSFW checkbox sits inline with its own label rather than above it — it's the
-   one field that reads as a sentence. */
-.checkbox {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.checkbox input {
-	width: auto;
-	margin: 0;
-}
-
-.checkbox label {
-	padding: 0;
-}
-
+/*
+ * Save first, then Cancel, and the gap between them is deliberate rather than the same
+ * as everything else: they are not a pair of equal options.
+ */
 .buttons {
 	display: flex;
 	align-items: center;
-	gap: 16px;
+	gap: 20px;
+	padding-top: 4px;
 }
 
 /*
- * Each row drops in on its own timing, which is the same trick the message banner
- * uses: neighbouring elements get different durations rather than different delays,
- * so they land out of order.
+ * On a phone the card takes the width it is given, and the padding comes in — 40px of
+ * inset either side of a 320px screen leaves 240px to type a title into.
  */
-.form li,
-.form legend,
-.form .buttons {
-	animation: dropIn 0.3s linear;
-}
-
-.form li:nth-child(1) {
-	animation-duration: 0.3s;
-}
-.form li:nth-child(2) {
-	animation-duration: 0.2s;
-}
-.form li:nth-child(3) {
-	animation-duration: 0.4s;
-}
-
-@keyframes dropIn {
-	0% {
-		opacity: 0;
-		transform: translate3d(0, -60px, 0);
-	}
-	30% {
-		opacity: 1;
-		transform: translate3d(0, 5px, 0);
-	}
-	60% {
-		transform: translate3d(0, -2px, 0);
-	}
-	100% {
-		transform: translate3d(0, 0, 0);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.form li,
-	.form legend,
-	.form .buttons {
-		animation: none;
-	}
-}
-
-/*
- * On a tablet the form is competing with an on-screen keyboard for a 360px-tall
- * space, so the optional field goes. It was optional anyway.
- */
-@media screen and (max-width: 1024px) and (pointer: coarse) {
-	.description {
-		display: none;
-	}
-}
-
-/*
- * The blue comes with the form on a phone.
- *
- * On a desktop this sits on the wash over the canvas — a lid over the drawing — and
- * is about as tall as one, so the couple of rows that hang below the bottom edge read
- * as belonging to the page rather than to the lid. Scaled to a phone the canvas is
- * under 200px tall and the form is three times that, which left two thirds of it as
- * white text on a grey background. So it carries its own blue here, opaque, and the
- * wash underneath has nothing left to do.
- */
-@media screen and (max-width: 730px), screen and (max-height: 560px) {
+@media screen and (max-width: 460px) {
 	.form {
-		padding: 24px 20px;
-		background: var(--blue);
+		gap: 16px;
+		padding: 28px 24px;
+	}
+
+	.heading {
+		font-size: 36px;
 	}
 }
+

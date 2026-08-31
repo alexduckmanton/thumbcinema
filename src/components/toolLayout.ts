@@ -1,7 +1,7 @@
 import { useLayoutEffect } from 'react'
 
 /**
- * How many mounted components currently need the drawing tool's page shape.
+ * How many mounted components currently hold the drawing tool's page lock.
  *
  * Normally one, and for one frame at the handover it is two. The create route is lazy,
  * so its boot shell and the page itself are different components that want the same
@@ -13,24 +13,33 @@ import { useLayoutEffect } from 'react'
 let held = 0
 
 /**
- * The drawing tool's page shape: one windowful, with `main` taking whatever the header
- * leaves. See `html.tool` in `base.css`, which is where it is written down.
+ * `html.locked`: the drawing tool's page held still, and shaped.
  *
- * A layout effect rather than an effect, because what this sizes is the page: an
- * ordinary effect runs after the browser has painted, so the first frame of the create
- * route would be a stage with no height in it and a sheet of paper collapsed to nothing.
+ * Two things in one class, because they are the same claim made twice — see `base.css`.
+ * It stops the document scrolling, bouncing, pinching and pulling to refresh; and it makes
+ * `#root` a flex column of a definite height with `main` taking what the header leaves,
+ * which is what lets the create page's stage have a height to divide at all.
  *
- * Separate from the gesture lock — no rubber band, no pinch, no pull to refresh — which
- * is `html.locked` and comes off while the save form is up. See `useNoScrolling`.
+ * The second half is why the boot shell holds it too. Without it `main` stops at its
+ * content, the stage's `flex: 1` has nothing to grow into, and the shell draws its sheet
+ * of paper at the top of a window the page will centre it in — a jump at the exact moment
+ * this shell exists to make uneventful.
+ *
+ * A layout effect rather than an effect: an ordinary one runs after the browser has
+ * painted, so the first frame would be the unshaped page.
+ *
+ * The rest of the lock — `refuseMultiTouch()`, and the `pannable` escape the save form
+ * needs — belongs to the page and stays in `useNoScrolling`. Nothing the shell renders can
+ * be drawn on or typed into.
  */
-export function useToolLayout(): void {
+export function useLockedLayout(): void {
 	useLayoutEffect(() => {
 		held += 1
-		document.documentElement.classList.add('tool')
+		document.documentElement.classList.add('locked')
 
 		return () => {
 			held -= 1
-			if (held === 0) document.documentElement.classList.remove('tool')
+			if (held === 0) document.documentElement.classList.remove('locked')
 		}
 	}, [])
 }

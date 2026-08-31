@@ -44,7 +44,35 @@ export function App() {
 	)
 }
 
+/**
+ * The apology, and the one case where it would be the wrong one.
+ *
+ * A route is built from chunks that are fetched when it opens, and offline the ones
+ * that aren't on the device can't be — most of them are, but paper.js is cached the
+ * first time it is actually used rather than in advance (see `docs/offline.md`), so the
+ * drawing tool is the page this happens to. "Something broke" is both unhelpful and
+ * untrue there: nothing broke, a 210 KB download hasn't happened yet, and the fix is a
+ * connection rather than another go.
+ *
+ * Decided on `navigator.onLine` rather than on the error, which is three different
+ * strings in three browsers. It is a weak claim in general — see `online.ts` — but the
+ * advice it leads to is right for *any* failure with no connection, so being wrong
+ * about the cause costs nothing here.
+ */
 function Broken() {
+	if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+		return (
+			<main className="center" style={{ padding: '80px 0', textAlign: 'center' }}>
+				<h1>Not on this device yet.</h1>
+				<p>
+					This page needs a piece of the site that hasn&rsquo;t been downloaded. Open it once with a
+					connection and it&rsquo;ll be here next time, offline and all.{' '}
+					<Link to="/">The gallery</Link> still works.
+				</p>
+			</main>
+		)
+	}
+
 	return (
 		<main className="center" style={{ padding: '80px 0', textAlign: 'center' }}>
 			<h1>Well, that went wrong.</h1>

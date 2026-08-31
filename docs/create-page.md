@@ -1,426 +1,139 @@
 # The create page
 
-The panel, the scrolling column of pages, the page bar, tracing over a photograph, and
+The layout, the rail, the page bar, tracing over a photograph, naming a flipbook, and
 the playback page that shares most of it. How a finger drives the tools is its own file:
 [`drawing-modes.md`](drawing-modes.md).
 
-The one place this is deliberately no longer a port, and as of the 2026 layout it is no
-longer 2013's arrangement either. What it was: a single centred column — page strip,
-canvas, page bar, tools, save — with the flipbook laid out as a *row* that slid sideways
-behind the drawing, the tools standing under the paper as hand-drawn pictures, and the
-edit actions in the header on a desktop and in a bar across the bottom of the window on a
-phone. Three groups of controls in three places, none of which could see each other.
+**The one place on the site that is deliberately no longer a port.** Everywhere else the
+2026 rewrite kept 2013's design; here it was replaced. Every control is a 40×40 tile
+wearing a single Pecita glyph, in a rail down the left-hand side at every width; the page
+bar is the whole of page navigation; and a finger aims from a pad at the bottom of the
+screen rather than from anywhere in the white. The hand-drawn tool sprite went with it.
 
-What it is now, at both widths:
+## The layout
 
-- **Every control is in one rail down the left**, and every one of them is a 40×40 tile
-  wearing a single Pecita glyph. Save is not among them: it floats over the drawing in the
-  corner, as it always has.
-- **The flipbook is a column you scroll**, with the drawing pinned over the middle of it.
-  Scrolling is the browser's; `scroll-snap-type: y mandatory` is what makes the drawing
-  cut from page to page rather than slide about.
-- **The page bar is switched off**, and whether it comes back is an open decision — see
-  `PAGE_BAR` in `CreatePage.tsx`, which is where what it takes with it is written down.
-- **`main` is the scroller and the body is pinned.** The flipbook is that box's content and
-  everything else stands over it in one sticky wrapper. It was the *document* for a while,
-  to collapse iOS Safari's URL bar; the bar coming and going resized the viewport under the
-  drawing, which stalled the scroll, so the bar stays up now.
+Four boxes and nothing else: a header carrying one button, a rail pinned to the left, the
+drawing taking whatever height is left, and the page bar under it. v14 adds a fifth over
+the bottom of the window — the aiming pad — which is furniture laid over the page rather
+than a box in it.
 
-## The panel
+- **Nothing scrolls, and everything is sized to what is left.** `html.locked` in
+  `base.css` holds the document still and makes `#root` a flex column of a definite
+  height with `main` taking what the header leaves; `--book-reserve` is everything in the
+  window that is not the drawing, and the sheet is sized against `100svh` less that. A page
+  that scrolls while you draw on it is a page that has taken the stroke away from you.
+- **A square page is what makes `--book-reserve` worth getting right.** At 640 across, a
+  square sheet is 640 tall where a 16:9 one was 360 — so the *height* term is what binds at
+  almost every size now rather than at almost none, and an over-generous reserve that used
+  to cost nothing now costs a visibly smaller drawing. The numbers are broken down in the
+  stylesheet, and they are measured rather than reasoned.
+- **`100svh`, never `100dvh`.** Every box here is drawn off every other one: the aiming
+  pad's height is a term in `--chrome-bottom`, `--chrome-bottom` is a term in
+  `--book-reserve`, and `--book-reserve` is what the drawing is sized against. A unit that
+  changes when a browser slides its own chrome in or out is a drawing that resizes under
+  your hand. `svh` is the small viewport and is a constant.
 
-- **On a desktop the rail stands beside the drawing**, 16px off its left edge and starting
-  at the header's own bottom edge, rather than pinned to the edge of the window. On a wide screen a column
-  in the far corner is a toolbar in a different postcode from the thing it works on. What
-  makes it fit is that the drawing is centred in the *window* up here and the rail's lane is
-  taken out of the paper's width on **both** sides — so the sheet stays centred and the rail
-  always has somewhere to be. At the narrowest desktop this layout holds, 731px, that gives
-  a 547px drawing and puts the rail 20px from the left edge; without the symmetry it would
-  have been at -26.
-- **It is a rail at every width, and it lay down into a bar along the bottom for exactly
-  one version.** Two things were wrong with the bar. Twelve 40px tiles cannot fit across a
-  360px screen, so it had to scroll sideways — and a list that runs off the right-hand edge
-  is a list nobody knows is there, where a column that runs past the bottom of a phone is
-  one people scroll without being told to. And the flipbook is a column: a rail beside it
-  shares its axis, where a bar under it cut across the one direction everything else on the
-  page moves in. On a phone it is 56px — a tile and 8px either side — against the desktop's
-  72, because there the drawing is as wide as the stage will give it and every pixel of
-  rail is a pixel off the paper.
-- **Every button is 40×40, and wears a character rather than a picture.** The glyphs are
-  Pecita's, which is the wordmark's face and was already carrying ↺ ↻ ↥ ↧ for undo, redo,
-  copy and paste — so the tools joining them is one family at one size rather than
-  drawings of objects beside arrows. In order: ✎ draw, ⌫ erase, ✥ move/scale/rotate, ✍
-  push; ✚ new page, ⊡ duplicate, ✕ delete; ↺ ↻ ↥ ↧; ⊙ the camera.
-- **The glyphs are chosen against the font rather than from the usual set.** Pecita has no
-  scissors, no pair of overlapping sheets and — checked, this one matters — no play
-  triangle, so anything leaning on those would fall through to a system fallback and stop
-  looking like this website. Where the obvious mark is missing the tooltip and the
-  accessible name carry the words: ⊡ for duplicate is a page with its drawing still on it,
-  which is a compromise and is worth knowing is one.
-- **What it cost is the tool art, and that was the best thing on the old page.** The
-  pencil, the eraser and the transform hand were 304px pictures anchored by their tips,
-  cut off at the tray's top edge so the pencil appeared to hang off the bottom of the
-  paper with its length running up behind the drawing. Nothing about a 72px rail has
-  length for that. The sprite offsets are written down at the bottom of
-  `src/styles/icons.module.css` rather than deleted, because the sheet is a fixed image
-  and the next thing that wants one of them will want it at exactly those coordinates.
-- **The tool in hand takes the ink.** Selecting a tool used to slide its picture 50px down
-  out of the row, which is the one piece of that idea a tile in a rail cannot borrow —
-  there is nowhere to slide to. So a lit tile is dark with a white glyph, which is what
-  the camera disc already did for exactly this reason.
-- **There are four tools, not three, and transform's two modes are two of them.** They
-  were a fan of spokes behind one hand-drawn picture, then two tiles indented under one
-  tile — and both made you open a thing before you could reach either half of it. They
-  stand in the row with the pencil and the eraser now: ✥ moves, scales and rotates, ✍
-  pushes the line about, and pressing either picks transform up *in that mode*. What it
-  costs is one row of rail; what it buys is that every tool this page has is one press
-  away, and that the panel has no control whose only job is to reveal other controls.
+### There was a scrolling column of thumbnails, and there isn't now
 
-  **It needs `selectTransform`, and could not be done with the two calls it looks like.**
-  `selectTool` resets `transformIndex` to 0 as part of picking a tool up, so setting the
-  mode first has it thrown away; `setTransformMode` refuses unless transform is already in
-  hand, so setting it first does nothing at all. Pressing "push" landed on "move" either
-  way round. It also has to be atomic for the *held* press, because
-  `PointerLayer.engagePress` picks the tool up itself when the press names one that isn't
-  in hand — which would reset the mode a third time.
-- **The rail scrolls, and on a phone that is most of the time.** Twelve tiles and their
-  separators are about 590px, so a phone held upright has room for all of them and one held
-  sideways has room for four. On a desktop it binds below about 640px of window height.
-  Nothing that scrolls out of view is unreachable another way: the tools have keys, and
-  Save is not in the list at all.
-- **The tiles' shadows needed room, and that took a negative margin.** `overflow: hidden
-  auto` clips the *other* axis outright — that is what `hidden` means, and there is no
-  combination of values that scrolls one axis and lets the other overflow visibly — so
-  every tile had the left and right of its shadow sliced off flush with the panel, which
-  read as the buttons being cut out of the page rather than lying on it. The fix is room
-  rather than a different overflow: 8px of padding inside the scroller, and the same
-  negative margin outside it so the layout is unchanged.
-- **The camera is at both widths now.** It was the trace photo's front door and existed
-  only on a phone, because the desktop layout had nowhere to put it. There is somewhere
-  now, and a file picker is a camera on a machine that hasn't got one.
-- **Save is in the header, at the right-hand end.** It floated over the drawing until the
-  column went full-bleed, at which point a button in the corner was a button over a page you
-  were trying to look at. Up in the header it is out of the flipbook entirely, which is
-  right for the one control on the page that is not about the drawing — and it is beside the
-  wordmark, in the same hand. The header is `position: fixed` on this page, by a wrapper
-  here rather than in `SiteHeader`, which is shared with two pages that scroll normally.
-- **The drawing-mode switch moved into the rail**, at the bottom, admin-only as it always
-  was. Save took the corner it used to float in, and down there is where it belonged anyway:
-  it is scaffolding, it is the least urgent thing on the page, and a rail you have to scroll
-  is exactly the right place for a control you should have to go looking for. Its caption
-  hangs to the right of the rail, over the flipbook, which is the one place with room for a
-  sentence.
-- **What Save used to be, for the record.**
-  It spent one version pinned to the bottom of the rail, which was wrong twice: it was the
-  only thing in a list of 40px tiles that was not one, so the rail had an exception in it
-  at exactly the place a list should be most predictable; and the rail is a list of things
-  you do *to* the drawing, which the one press that ends the drawing is not. It is the
-  gallery's create button seen from the other end — same yellow, same rounding, same
-  shades, those being tokens — at 48px rather than 64, because this one shares a page with
-  twelve other controls.
+Worth writing down, because it worked and was still the wrong answer.
 
-  **Positioned against the stage rather than against the window**, which is what keeps it
-  clear of the two boxes under it: the page bar takes the drawing's width and v14's aiming
-  pad takes a band below that, and a button in the window's own corner landed on the pad.
+The flipbook was a column of full-size page thumbnails you scrolled, with the drawing
+pinned over the middle of it and `scroll-snap-type: y mandatory` making the sheet cut from
+page to page rather than slide. Scrolling was the browser's, so it had momentum and the
+trackpad's whole feel, and the pages either side of the drawing said where you were far
+better than a bar does.
 
-- **The panel is in the flow, not pinned to the window.** That is what lets it move from
-  one edge to the other with an `order` and nothing else, and what means the stage beside
-  it is the room that is *left* rather than the whole window with a strip of it covered
-  over. It is also why it can fly away when the save form goes up without the drawing
-  jumping across to fill the gap: the space stays, only the panel leaves.
+What it took to hold up:
 
-## The stage, and the flipbook as a column
+- a scroll container, and a decision about *which* box scrolls. The document, so iOS
+  Safari would collapse its URL bar — which then resized the viewport mid-fling, and a
+  mandatory snap container whose height moves mid-fling stops mid-fling and jumps. Then
+  back to a nested box, with the body pinned, which gave that up again.
+- a `position: sticky` wrapper holding every piece of chrome, because a `position: fixed`
+  element is **not** in a scroll container's chain — measured: a wheel over a fixed child
+  moved the scroller 0px and over a sticky one it moved by the delta exactly — so without
+  it a drag on the rail, or on the white either side of the paper, scrolled nothing.
+- a snap offset measured in JavaScript, because where the drawing actually ends up is the
+  one thing about that layout no stylesheet could state.
+- two rules stopping the scroll and the page number from answering each other, both of
+  which were bugs first: a scroll that turned the page had its momentum taken away at every
+  page, and a cancelled scroll animation could leave snapping switched off for the session.
+- one full-size canvas per page, at the device pixel ratio, under a memory ceiling that
+  iOS enforces by *blanking* canvases rather than by failing.
+
+The page bar does the same job in one control and 56px of height, and it can say where you
+are in a 200-page flipbook, which three visible thumbnails never could. `PageStrip` and its
+stylesheet are gone; the reorder gesture is unchanged and reads on the bar instead.
+
+### The rail
+
+- **Every control is a 40×40 tile wearing a single Pecita glyph**, in one column: what
+  marks the page, what changes the page, what undoes it, what it is traced from, and — for
+  an admin — the drawing-mode switch. Save is not in it; it is in the header, being the one
+  control on this page that is not about the drawing.
+- **A rail at every width**, which it was not at first. The phone had the same buttons
+  lying down in a bar along the bottom. Standing them up gave the row's overflow somewhere
+  sensible to go — a column that runs past the bottom of a phone is a list you scroll,
+  where a row that runs off the right-hand edge is a list nobody knows is there.
+- **It is `position: absolute` inside `main`, at `top: 0`.** `main` is the box that starts
+  where the header ends, so the rail is flush against the header *by construction* rather
+  than by arithmetic. It used to stand on a stated constant that was deliberately larger
+  than the header — the air the *drawing* keeps clear — which left 45px of nothing under
+  the header on a desktop and a 16px overlap on a phone.
+- **On a desktop it stands beside the drawing**, 16px off its left edge, rather than pinned
+  to the edge of the window: on a wide screen a column in the far corner is a toolbar in a
+  different postcode from the thing it works on. What makes it fit is that the drawing is
+  centred in the *window* up here and the rail's lane is taken out of the paper's width on
+  **both** sides. At the narrowest desktop this layout holds, 731px, that gives a 547px
+  drawing and puts the rail 20px from the left edge; without the symmetry it would have
+  been at -26.
+- **The bleed is what stops the shadows being clipped.** The rail scrolls when the list is
+  longer than the window, and `overflow` clips a tile's shadow at the edge of the box. It
+  carries 8px of padding with an equal negative margin, so the shadows have somewhere to
+  land and nothing moves.
+- **There are four tools, not three.** Transform's two modes used to be a fan of spokes
+  behind one picture, and then two buttons indented under one tile — both of which made you
+  open a thing before you could reach either half of it. They are ordinary tools now: ✥
+  moves, scales and rotates, ✍ pushes the line about, and pressing either picks transform
+  up in that mode. `selectTransform()` on the engine does both halves at once, because
+  picking the tool up resets the mode and setting the mode is refused until the tool is up
+  — either order on its own always landed on "move".
+- **The hand-drawn tool sprite is gone, and that is the real cost of this.** The tools were
+  304px pictures anchored by their tips, cut off at the tray's top edge so a pencil appeared
+  to hang off the bottom of the paper with its length running up behind the drawing. It was
+  the best thing on the old page and it could not come across: a rail 56px wide has no
+  length for a pencil to run up. What carries the hand instead is the face — Pecita is the
+  wordmark's, its dingbats are drawn rather than geometric, and ✎ ⌫ ✥ ✍ are the same pen as
+  ↺ ↻ ↥ ↧, which were already here.
+- **Which glyphs Pecita actually has decided the set**, checked against the font rather
+  than guessed: it has no scissors, no overlapping sheets and no play triangle, and a glyph
+  the face hasn't got falls silently through to a system font and stops looking like this
+  website. Where the obvious mark is missing the tooltip and the label carry the words —
+  ⊡ for duplicate is a page with its drawing still on it, which is a compromise and is worth
+  knowing is one.
+
+### The header, and Save
+
+- **No wordmark.** It is a 70px word plus a header's worth of padding, and what it buys is
+  a link home that the drawing tool has to interrupt anyway — `guardNavigation()` asks
+  before it lets go of unsaved work. A square page needed the room more.
+- **Save is what is left up there**, at the right-hand end. It is the gallery's create
+  button seen from the other end — the two are the ends of one errand — so it is the same
+  yellow at the same rounding with the same shades, which are tokens and cannot drift. Not
+  the same component: that one collapses to a circle on scroll and is a link.
+- **A flipbook of one page is not one you can save**, so the button is disabled and
+  invisible until the second page arrives — and stays in the layout, so nothing jumps when
+  it does. The boot shell draws that same empty box, and has to: `SiteHeader` drops the row
+  altogether when it holds neither wordmark nor actions, and a header 68px shorter than the
+  page's is a sheet of paper 34px higher up at the handover.
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
-- **`main` is exactly one windowful, and every box on the page is measured off two
-  numbers.** `html.tool` in `base.css` pins the body — `position: fixed; inset: 0`, no
-  height of its own — and `main` is `position: fixed; inset: 0` inside it, so the one box
-  that scrolls is the size of a viewport that no longer moves. That class is on for as long
-  as the drawing tool is mounted, including while the save form is up, because the stage is
-  what the form appears inside. The two numbers are `--chrome-top` and `--chrome-bottom`,
-  the bands at the ends of the window that are not the flipbook; the drawing takes what is
-  between them.
-- **`--rail-top` is not `--chrome-top`, and it is the one number here that is measured.**
-  `--chrome-top` is the air the *drawing* keeps clear at the top of the window, and it is
-  deliberately more than the header: a sheet of paper immediately under the wordmark is a
-  crowded page. The rail makes the opposite claim — it is the header's own furniture, it
-  belongs against it, and the space between them is just a gap. Standing the rail on
-  `--chrome-top` left 45px of nothing under the wordmark on a desktop, and the rail
-  *overlapping* the header by 16px on a phone, both from the same stated constant.
-
-  So `CreatePage` measures the header with a `ResizeObserver` and writes its height onto the
-  page. It has to be measured: `SiteHeader` has four breakpoints of its own — the wordmark
-  steps down twice, its padding with it, and on a narrow phone Save wraps onto a second line
-  and adds 56px — and any number stated here would be a copy of another component's
-  stylesheet that goes quietly wrong the first time it changes. The stylesheet's fallback is
-  `--chrome-top`, which is what stands for the frame before the measurement lands and what
-  the boot shell uses, the shell having no rail to place.
-- **`main` is the scroll container, and everything else stands over it in `.chrome`.**
-  The pages are a column in ordinary flow inside `main` — they are what makes that box tall
-  — and the rail, the drawing, the aiming pad and the two scrims are all inside one sticky
-  wrapper. The header is the single piece of chrome outside the scroller, because nothing
-  has to scroll *through* it. The live canvas is laid *over* the column rather than inside
-  it, because a canvas in the flow would scroll away with the pages.
-
-  **This has been both ways round, and the second answer is the one that ships.** It was
-  this; then it was the document, because **iOS Safari only collapses its URL bar for the
-  root scroller** and a flipbook running under the bar is worth having. Collapsing the bar
-  turned out to cost more than it bought: the bar comes and goes as you scroll, so the
-  viewport changes size while you are looking at it, and **a mandatory snap container whose
-  height moves mid-fling stops mid-fling** and then jumps to a slot the moment your finger
-  leaves. Which is exactly the stall this page had. A box that cannot resize cannot do that.
-
-  **`.chrome` is `position: sticky` and not a set of fixed boxes, and that is the whole
-  trick.** A fixed element is not in a scroll container's chain: measured both ways, a wheel
-  over a fixed child moved the scroller 0px and over a sticky one it moved by the delta
-  exactly. With fixed chrome a drag on the rail, or on the white either side of the paper,
-  scrolled nothing at all — and that drag is most of the window on a desktop. Sticky keeps a
-  box on the glass *and* in the chain.
-
-  Two details of the wrapper are load-bearing. It is **first in the flow**, because sticky
-  pins a box from its own place in the flow onward — written after the column it would be a
-  windowful below the fold, and the rail and the drawing simply absent until you had
-  scrolled the whole flipbook past. And it carries **`margin-bottom: -100svh`**, which gives
-  its own height back so a windowful of chrome does not add a blank page's worth of scroll
-  to the end of the flipbook. What is inside it is `position: absolute`, which — the wrapper
-  being the size of the scrollport and pinned to the top of it — is the arithmetic `fixed`
-  was doing anyway.
-
-  It costs two measurements. The drawing is not in the middle of the window — there is a
-  rail down one side — so the column's left edge is measured exactly as its top always was;
-  and `scroll-padding-top` is written straight onto the scroller by `PageStrip`, because
-  where the drawing actually ended up is the one thing about this layout a stylesheet cannot
-  state. Which is also why `PageStrip` takes the scroller as an *element* rather than a ref:
-  it needs it in a layout effect, and layout effects run bottom-up, so a parent's ref is not
-  attached yet when a child's runs.
-- **`100svh`, never `100dvh`, and the aiming pad is where that rule was quietly broken.**
-  The dynamic viewport unit is exactly what changes when a browser's chrome slides in and
-  out. Everything on this page is measured off everything else: `--pad-height` is a term in
-  `--book-reserve`, `--book-reserve` decides how wide the drawing is, and the drawing's size
-  is what the page column's length is measured from. So `clamp(88px, 17dvh, 132px)` on the
-  pad was a scroll container that changed length whenever a URL bar moved — a stall mid-
-  fling, and then a jump. The body is pinned now and the bar cannot move, and the rule
-  stands anyway: a page that only works while a browser behaves is a page that breaks when
-  one doesn't. For the same reason the boxes that must hold still — the drawing above all —
-  are anchored by `top` and an `svh` height rather than by a `bottom` offset.
-- **The snapping comes off inline, and how it used to come off is the point.** A mandatory
-  snap container resnaps after every scroll it is given, so the two animated scrolls need it
-  off for their duration. The rule doing that was a bare CSS-module class — (0,1,0) — losing
-  silently to `html.tool` — (0,1,1) — which set it. Nothing errored and nothing looked
-  broken: a 300ms ease simply arrived as a jump, because the browser resnapped every frame
-  of it. It moved to `base.css` to win that argument, and then off the stylesheet
-  altogether: `PageStrip` writes `scrollSnapType` on the scroller as an inline style, which
-  has no specificity argument to lose.
-- **Nothing sets the scroll position while you are scrolling, and getting that wrong is
-  what made the snap feel sudden.** The two directions are a loop, and closing it needs
-  more than "is the scroller already there": a scroll crossing the halfway line turns the
-  page, turning the page changes `anchor`, and the effect that answers `anchor` then found
-  the scroller *mid-gesture* — several pixels short of the slot it had just named — and set
-  `scrollTop` to close the gap. That is a hand's momentum being taken away at the moment it
-  crosses each page, on every page of every flick. `reported` is the fix: a page change the
-  scroll itself named is remembered and not answered. Everything else still is — an arrow
-  key, the wheel over the drawing, a page added or deleted, a reorder settling. Measured
-  after: one flick travels six pages with no reversal in the scroll trace and lands exactly
-  on a snap point.
-- **`round`, and nothing waits for the scroll to end.** Whichever slot is nearest the
-  middle is the page being drawn on, so the drawing cuts from page to page while the
-  column slides rather than following it. Waiting for a `scrollend` is what would make the
-  canvas appear to come loose: it would go on showing the page you left while the column
-  carried a different thumbnail under it.
-- **The padding at the two ends is what lets page one reach the drawing.** A snap container
-  scrolls between 0 and its overflow, so without air above the first page it can never get
-  there. The top pad is where the canvas actually is, less the page's own gutter —
-  measured, exactly as the row's `left` used to be — which makes `scrollTop === index *
-  step` the position at which page `index` stands under the drawing.
-- **`scroll-snap-align: start`, with a matching `scroll-padding-top`.** It was `center`,
-  which was right while the scroller was the stage: the drawing is centred in the stage, so
-  the middle of the scrollport and the middle of the paper were the same line. Once the
-  scroller became the window they stopped being — there is a header above the drawing — and
-  `center` snapped every page to the window's midpoint, leaving the thumbnails 55px out of
-  line with the sheet standing on them. `start` says where a page's top edge goes and the
-  padding says where that is, which is a thing this file measures rather than a thing that
-  happens to be true.
-- **No `scroll-snap-stop: always`.** It was on for a while and it is the wrong answer for
-  this list: it holds every flick to a single page, and a flipbook is fifty pages as often
-  as it is five. Momentum carries as far as it was thrown and the snap catches whichever
-  page it ends nearest.
-- **There is no wheel handler on the drawing, and its absence is the feature.** There was
-  one, and while the strip was a *nested* scroll container it had to exist: a wheel landing
-  on the canvas reached nothing and the flipbook sat still under the pointer, so it was
-  forwarded a page per notch. That was the right answer to the wrong layout, and it left the
-  page with two feels — natural scrolling with momentum and CSS snapping everywhere else, a
-  hard page-per-notch cut over the drawing itself. The drawing is `position: absolute`
-  inside a `position: sticky` box inside the scroller now — an ordinary descendant — so a
-  wheel over the canvas scrolls the flipbook by itself. Doing nothing is what makes the two
-  the same gesture, and it is the reason the chrome is sticky rather than fixed: a fixed
-  element is not in the chain at all, and the handler existed to paper over that.
-- **A finger on the paper draws; a finger on the strip either side of it scrolls.** The
-  overlay the drawing sits in is `pointer-events: none` with the sheet putting them back,
-  so the exposed column stays a place you can take hold of the flipbook. On a desktop that
-  is most of the stage.
-
-  **That took a new drawing mode to be true at all**, and it is the one thing this layout
-  broke that was not a layout problem. The shipping mode was v13, which reads every touch
-  that is not on the paper or on a control as an *aiming* drag — free while the rest of the
-  page was empty white, and not free once the pages were the rest of the page. Under v13
-  the flipbook cannot be scrolled by a finger: v13 wins every one of those drags. v14 is
-  v13 with the aiming moved into a panel of its own, and the two are otherwise identical.
-  See [`drawing-modes.md`](drawing-modes.md).
-
-  **`html.locked` had to give `pan-y` back**, too. It said `touch-action: none`, which is
-  the intersection down the ancestor chain and cannot be handed back by a descendant — so
-  the page strip could be scrolled by a wheel and not by a finger, whatever the drawing
-  mode did about the gestures. Pinch and double-tap zoom are still refused; the canvas, the
-  page handle, the page bar and the aiming pad each say `none` for themselves.
-- **The two edges the flipbook runs off are scrims, not crops.** A full-bleed column that
-  simply stopped at the top and bottom of the window would read as content escaping the
-  page. `.scrimTop` and `.scrimBottom` are fixed washes of the page's own grey — mostly
-  opaque where the header and the aiming pad are, fading to nothing where they end — so a
-  page arriving at either edge dissolves instead of being cut off. `pointer-events: none`
-  on both, or they would be two dead bands across a page you scroll; `z-index: 12`, which is
-  over the pages and under the paper, because on a short window the sheet reaches into both
-  bands and a wash over the drawing would be a wash over the thing you are drawing on. The
-  colour is written out at two alphas rather than fading to `transparent`, which
-  interpolates through transparent *black* in some engines and greys the fade.
-- **v14's aiming pad is the third box in the column**, under the page bar, at the bottom of
-  the screen. A panel a shade darker than the page with a 10px grid of dots on it: a
-  trackpad, drawn as one, because what it needed to stop being was a rule you cannot see.
-  It is inset to the same gutter as the paper and the bar above it, and that inset is
-  handed down as a custom property rather than reached for with a `.body > [data-aim-pad]`
-  selector — where the pad lines up is this page's business, how it is drawn is the pad's.
-  It is hidden above the phone breakpoint, where a mouse has a precise pointer and none of
-  what it answers is a problem. It is **16px wider than the drawing and centred on it** —
-  the same width read as another page in the column rather than as a thing lying on top of
-  them — and **semi-opaque with a 16px backdrop blur**, so the pages passing underneath are
-  a texture rather than content competing with the dots. The fill is 0.72 because at 0.88
-  there was nothing left underneath for the blur to work on.
-- **The rail can put the pad away, and doing so changes nothing but the pad.** That button
-  is the last tile above the drawing-mode switch, and it hides itself above the phone
-  breakpoint, where the pad it is offering to hide was never on screen — a control for
-  something that is not there is the sort of thing that makes a page feel unfinished.
-
-  **The band the pad stands in stays whether the pad is in it or not**, and that is the
-  fix for a bug rather than an oversight. The first version gave the room back:
-  `--pad-height` went to zero, `--chrome-bottom` with it, and the drawing re-centred into
-  the space. Which broke the flipbook — `PageStrip` measures where the drawing is *once* and
-  pins the whole column of thumbnails to it, and nothing tells it the drawing has moved, so
-  every page behind the paper stood 33px out of line. The pad is furniture laid over the
-  page; switching it off is a `display` change and nothing else.
-
-  It is a thing you do to look at something rather than a setting, so it is not persisted.
-  The button lights while the pad is *up*, which is the honest report: with the pad down v14
-  has nowhere for a finger to aim from and no cursor control at all. The tools and the paper
-  still work, and the cursor stays where it was.
-- **Every page change is a cut, including adding one.** Adding a page eased the scroll down
-  to the new one for a version, on the reasoning that the page had *moved* and the column
-  should be seen carrying it. Watched, it is the other way round: you press add and then
-  wait a third of a second while the flipbook slides, between asking for a page and being on
-  it. A new page is a page turn like any other.
-
-  **The reorder gesture is the only thing left that animates the scroll**, and only because
-  it is not a page turn: the run under a held page glides linearly for exactly as long as
-  the gap until the next one, and the settle eases home on the same curve the thumbnails
-  either side of the gap are using. Those two are movements you are watching on purpose.
-- **A cancelled scroll animation used to leave the snapping switched off for good, and that
-  is the worst bug this layout has had.** The snapping goes off for the length of an
-  animated scroll and came back on the frame it finished — and an animation that is
-  *cancelled* never reaches that frame. A reorder cancels one on every page of its run and
-  again at the settle, so a single drag could strand it: scroll snapping silently dead for
-  the rest of the session, page turns no longer landing on a page, and nothing in the
-  console. It came back on a reload, which is exactly what stranded state looks like from
-  the outside. Every exit from `scrollToPage` goes through `stop()` now, including the two
-  early returns and the unmount.
-- **Every thumbnail is visible, including the one the drawing is standing on.** It used to
-  be hidden — `opacity: 0` on the covered page — so the column read as one flipbook rather
-  than as a filmstrip with a hole punched in it. That was true while the strip was
-  positioned by arithmetic and only ever stood still. It is not true of a column you
-  scroll: the hole moves with the scroll, so a page you are dragging past *vanishes* as it
-  reaches the middle and comes back as it leaves — the most conspicuous thing on the screen
-  at exactly the moment you are looking at something else. Visible, they simply pass behind
-  the drawing, which is opaque and is the only sheet carrying a shadow. Nothing is lost: the
-  thumbnail under the drawing is a pixel-exact copy of it, which is what made hiding it
-  invisible in the first place. `arriving` is no longer the strip's business at all.
-- **The thumbnails are at half strength.** The column is a dozen identical white rectangles
-  and the sheet you are working on is one of them; the shadow says which, and on a page that
-  is mostly white paper a shadow is a thin argument. At 0.5 the flipbook reads as context —
-  what came before and what comes after — and the drawing reads as the thing in front of
-  you, which is what they respectively are.
-- **The page in hand disappears from the column, instantly.** A reorder is the one gesture
-  where a visible thumbnail under the drawing stops working: the drag lifts the paper *out*
-  of its slot, and what it uncovers is a second copy of the page you are holding, sitting in
-  the place you are trying to move it out of. It is hidden for the length of the drag, with
-  no transition — the copy should never be seen at all, and easing it away would be showing
-  it on purpose at the start of every drag.
-- **Only the drawing has a shadow, and the gutter went back up to 10px because of it.**
-  Every page used to carry `--shadow-card`, on the reasoning that the strip is the same
-  flipbook seen again and should be lit the same way. In a column that reads as a stack of
-  separate sheets each lifted off the page, with nothing distinguishing the one you are
-  drawing on. The shadow is the drawing's alone now: one sheet above the rest, the rest
-  lying flat under it. The gutter was 4px on a phone because the peek was paid for out of
-  the paper — which stopped being true when the column became the whole window — and with
-  no shadow to separate two white pages, 10px is the difference between two sheets and one.
-- **Playback hides the pages with `visibility`, not `display`.** Taking the column out of
-  the layout takes the scroll height with it, and the scroll position with that — so a
-  flipbook played from page forty came back to page one.
-- **The page animations are gone, and `animations.ts` is two constants.** They were
-  2013's keyframes, turned on their side when the flipbook became a column and then deleted
-  outright — the old thumbnail thrown up the column, the new canvas flown in, the deleted
-  page tumbling off the side, every page ahead of the gap pinned by `freeze()` so the strip
-  could travel out from under it. The trouble was never the movements. It was that all of
-  them were written against a strip *positioned by arithmetic*, and `freeze()` pins an
-  element to the viewport — which, once the strip became the content of a scroll container,
-  is precisely the thing that is moving. They were not stale so much as no longer about the
-  thing on screen. What replaces them is the scroll: one movement, of the one thing that
-  actually moves, made of the browser's own scrolling. The keyframes are in that file's
-  history, and what would have to come back with them is an answer to the frozen-page
-  problem, which was never written.
-- **There is a tab on the *side* of the paper, and dragging it moves the page** to another
-  place in the flipbook — or holding it above or below runs the flipbook past underneath.
-  It hung off the top edge while the flipbook was a row: the drag was sideways and the
-  band between the header and the paper was the one piece of empty space the layout had.
-  Up is now where the previous page is, so a tab there would be lying on the page before
-  it and dragging it upwards would start by pulling it through that page. It is on the
-  right-hand edge, in the margin beside the sheet, which is empty at every width. The
-  gesture is otherwise unchanged — `usePageReorder` reads `clientY` where it read
-  `clientX`, the keyboard's arrows are up and down, and the five pure functions in
-  `reorder.ts` never knew which axis they were on. See **Rearranging pages** above.
-- **The drawing's size is the `--book-width` formula, and it is declared on the create
-  page rather than in `base.css`.** The column that formula lived on — `.center`, 640px
-  wide, with the drawing and the tray and the page bar stacked in it — is not this page's
-  layout any more. It is the same `min(100%, cap, height-derived)`, read in two places for
-  the reason it always was: the page bar is the drawing's own width and 8px past it either
-  side, so `.paper` and `.navBand` carry the same padding and the two hundred percents
-  mean the same thing.
-- **The desktop cap is 640 and it is a cap rather than a pin, which it used not to be.**
-  `FlipbookCanvas.module.css` had a desktop rule pinning `.book` to a hard 640×360 with
-  `aspect-ratio: auto` beside it, written when the strip laid out full-size copies at a
-  *fixed* 660px pitch and positioned the row by arithmetic. The strip has measured its own
-  pitch for a long time, so the reason was gone — but the rule was still quietly outvoting
-  `--book-width` at the one width where it mattered, and on a desktop window too short for
-  a 360px sheet the drawing did not shrink, it *squashed*. It is gone, and `PageNav`'s
-  matching `width: 656px` block went with it: the bar tracks the drawing at every size
-  again, measured at 640/656, 516/532 and 358/374.
-- **The page bar's height is stated by the band rather than taken from the bar.** The
-  stage is `flex: 1` of what the band leaves, so the band's height decides how big the
-  drawing is — and the bar is not always in it. It is unmounted while the save form is up,
-  and the boot shell has no bar at all, `PageNav` being inside the route's chunk. Left to
-  size itself the band would be 68px tall on the page and 12px in the shell, and the sheet
-  of paper would jump the moment the route landed. `--nav-size` is `PageNav`'s own
-  `--scrub-size` said again, which is the one number here that is a copy: it cannot be
-  read off the bar, because the bar is inside the box being sized.
-- **The boot shell draws the rail's space, empty.** `RouteShell` may not import the
-  panel's stylesheet — it is in the entry bundle and the panel is in the route's chunk —
-  so `--panel-width` is declared on the create page's own stylesheet, which the shell is
-  already reading, and the shell renders a box of exactly that width with nothing in it.
-  A column of grey tiles that then turned into a column of white ones would be two loading
-  states where the page needs one. Both the shell and the page wear `html.tool`, which is
-  ref-counted in `useToolLayout` so the handover between them cannot drop it.
-
-- **Nothing knows the pitch at build time any more.** It was `CANVAS_WIDTH +
-  PAGE_MARGIN * 2`, a constant in three places; it is now measured — the component
-  reads the page's own padding back off the box, and hands the total to
-  `engine.setPageStep()`, which is what the keyframes that throw a page into the next
-  slot are built from. That is why `KEYFRAMES` is a table of functions rather than a
-  table of arrays, and why `PAGE_MARGIN` is gone from `constants.ts`.
+- **There is a tab on the top edge of the paper, and dragging it moves the page** to
+  another place in the flipbook — or holding it to one side runs the flipbook past
+  underneath. It is the only thing in the column that isn't 2013's,
+  and it is deliberately not *in* the column: it hangs in the empty band above the
+  drawing, so it changes no layout and `--book-reserve` is the same number it was. See
+  **Rearranging pages** above for the whole of it.
 - **`PageNav` is one white bar under the drawing: two arrows, a scrubber, and play.**
   The handle follows the finger while it's held and settles onto the nearest page when
   it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows playback as
@@ -443,7 +156,7 @@ What it is now, at both widths:
   puts the handle at the right-hand end**, not the left: one page is the last page as
   much as the first, and a handle at the near end reads as a flipbook you have the rest
   of still to come. The bar is the drawing's width and 8px past it either side —
-  `--book-width` is declared on `.center` so both are sized off one formula — which
+  `--book-width` is declared on the create page's `.content` so both are sized off one formula — which
   halves the distance to the edge of the screen and is what stops it reading as a
   second sheet of paper the same size as the first. It is centred by translation rather
   than by `margin: auto`, because on a phone the drawing is already the full width of
@@ -514,32 +227,6 @@ What it is now, at both widths:
   out of the lap rather than on top of it is what bought the wraparound for everything —
   the cost is that during `play` the handle is never the page it is showing, which of a
   flipbook turning over twelve times a second it never usefully was.
-- **The column doesn't ease at all. Turning a page is a cut.** It used to slide from page
-  to page over 0.3s, matched to the page animations' travel time, and it also eased on an
-  ordinary page turn where nothing is being thrown — half a second of the whole flipbook
-  sliding under the drawing every time you step a page, which reads as the pages being
-  dragged about rather than turned. Gone with the transition when it went: `scrubbing`
-  (create page → `PageStrip`, and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both
-  of which existed only to switch it off. What replaces the transition is
-  `scrollToPage(index)` with no duration at all, which sets `scrollTop` and hands the
-  scroller straight back.
-- **Except while a page is being thrown, which is where the 0.3s went.** Add and delete
-  animate — those are `animations.ts`, on the individual page, and they are a throw rather
-  than a step — but the keyframes only ever move two pages: the one being thrown and the
-  one taking its place. Everything *ahead of the gap* has to travel exactly as far, and
-  the scroll is the only thing carrying it. Switching it off outright took that with it:
-  on a three-page flipbook, adding a page slid the page you were on into the next slot and
-  teleported the one behind it clean off the side of the window on the same frame, which
-  reads as it vanishing rather than leaving. So the scroll is animated for the length of a
-  throw and at no other time — `PAGE_TRAVEL_MS`, which is where a thrown page *arrives*
-  (offset 0.4 of its 750ms) rather than how long its animation runs. The condition is
-  `state.busy && !state.reordering`: carrying a page animates the same scroll to the
-  gesture's own timing, and the two must never both be running.
-- **Frozen pages are what the slide is *for*, and they are the other half of it.** A
-  page that ends up where it started is pinned by `freeze()` so the row slides out from
-  under it; a page that is one slot from home is let go and rides the row. Which is
-  which is the whole of `freezeRange`'s two callers, and it only makes sense while the
-  row is something a page can ride.
 - **Circleplay is gone, at every width and out of the codebase.** It scrubbed the
   flipbook by drawing circles with the pointer, and it was 2013's cleverest control —
   three consecutive pointer positions making a triangle whose winding gave the direction
@@ -562,15 +249,6 @@ What it is now, at both widths:
   to stand it up in — and the `InkCursor` ring with it: the ring is still the size of the
   mark, but the pencil is one size now, so what it says is which of the two marking tools
   is in hand.
-- **The footer bar is gone, and so is the two-copies trick.** Undo, redo, copy and paste
-  used to be in the markup twice and shown once — the site header's actions slot on a
-  desktop, a bar pinned to the bottom of the window on a phone — because the two corners
-  are in different parts of the tree and no arrangement of CSS carries a box between them.
-  There is one panel now and one copy of them in it, so the header carries nothing at all
-  on this page and `.actionsTop`, `.actions`, `.footer` and `EditActions` are all gone
-  with the arithmetic that sized five discs and a save button into a 328px column. The
-  glyphs survived unchanged, and the note on why ↥ and ↧ are a compromise is in
-  **The panel** above.
 - **The bar comes up empty, and that is `.waiting`.** A saved flipbook arrives a page at
   a time, so until the second page lands it is a one-page flipbook — which puts the handle
   at the *right-hand* end, one page being the last page as much as the first. So the bar
@@ -585,23 +263,17 @@ What it is now, at both widths:
   hold of with a finger or a tab key. Playback passes `!ready` rather than `state.loading`:
   a long flipbook goes on landing for a while after it starts playing, and by then the bar
   is telling the truth about the pages it has.
-- **The page bar is switched off, and the decision is open.** `PAGE_BAR` in
-  `CreatePage.tsx` is one half of the switch and `display: none` on `.navBand` is the other;
-  they have to move together, because the band's height is what the stage is sized around
-  and the boot shell reserves the same box. What is on hold is written out there in full,
-  and the short version is that the column does most of what the bar did — scrolling is the
-  scrub, the arrows are the arrow keys — and cannot do two things: **play**, the bar's
-  handle being the only play button this page has and there being no keyboard shortcut for
-  it either, and **saying how far through you are**, which is also the only thing that moves
-  while a flipbook plays. The rest of this bullet is what it was when it was on:
-- **The page bar is on the desktop layout too, and its width is the formula everywhere.**
-  It was hidden above the breakpoint on the grounds that up there you can click straight
-  onto a page thumbnail. You can, and it is still the fastest way to a particular page —
-  but the strip cannot show a flipbook *playing*, and the handle running along the bar is
-  the only thing on either page that says how far through you are while it moves. It once
-  carried a desktop block stating `width: 656px`, for the reason written up in
-  `PageNav.module.css`; that block and the `.book` pin it existed to work around are both
-  gone, and the bar is `--book-width` plus 16 at every size.
+- **The page bar is on the desktop layout too, and there is no desktop block for it any
+  more.** It was hidden above the breakpoint on the grounds that up there you could click
+  straight onto a page thumbnail; then the thumbnails went, and it is now the only page
+  navigation there is at any width. Its desktop block used to state `width: 656px` rather
+  than take the `--book-width` formula, because `.book` was *pinned* to 640 up there while
+  the formula went on being height-derived — so between 561 and about 680px of window
+  height the formula answered a few hundred pixels while the drawing above stayed 640, and
+  a bar visibly narrower than the paper is worse than no bar. That pin is gone (see
+  `FlipbookCanvas.module.css`), the drawing shrinks with the same formula the bar does, and
+  stating the width now would be the same bug the other way round: a 656px bar under a
+  516px sheet.
 - **The pointer over the drawing is a ring, or one of four shapes.** `InkCursor`, which
   reads nothing but the `Cursor` `pointer.ts` publishes and knows nothing about paper.js.
 
@@ -611,8 +283,9 @@ What it is now, at both widths:
   project units and turned into a percentage of `.book`, which is exactly the size the
   canvas is shown at. So it needs no measuring and no JavaScript scale. Two things to
   keep straight there: a percentage *height* resolves against the height of the box, and
-  this box is 16:9, so the same expression on both axes drew an ellipse nearly twice as
-  wide as it was tall (`aspect-ratio: 1` instead); and there is a 6px floor, because a
+  the box is not square, so the same expression on both axes drew an ellipse nearly twice
+  as wide as it was tall on a 16:9 page (`aspect-ratio: 1` instead — which is also what
+  keeps it a circle now that a page can be square); and there is a 6px floor, because a
   three-unit stroke on a phone is under two pixels across and a ring that small has
   stopped previewing anything and gone back to being a cursor.
 
@@ -657,8 +330,7 @@ What it is now, at both widths:
   believe.** A pinch still got through occasionally, and the gap is which touches anything
   is watching: `PointerLayer` prevents the gestures it owns, but a touch that starts on a
   *control* is left alone by design — the page actions, undo, redo, save, the page bar and
-  its arrows, every thumbnail in the strip, and the whole header, which is outside the
-  field altogether. Two fingers landing there met nothing that objected. So the create page
+  its arrows, the rail, and the whole header, which is outside the field altogether. Two fingers landing there met nothing that objected. So the create page
   states the rule once, at the top, instead of relying on every control under it:
   `refuseMultiTouch()` cancels every multi-touch `touchmove` on the document while the tool
   is up. Nothing here scrolls, so the refusal costs nothing — which is exactly what is not
@@ -667,12 +339,9 @@ What it is now, at both widths:
   passive by default), and `touchmove` rather than `touchstart` (refusing a second contact
   landing would take the click off every control for anyone already resting a finger).
 
-  The create page goes further still, because the empty grey around the drawing is
+  The create page goes further still, because the empty white under the tools is now
   somewhere you draw from: `useNoScrolling` puts `.locked` on the root element for as long
-  as the tool is up, and `base.css` spends four properties on it, one per browser. **The
-  one thing on this page that scrolls is the page strip, and it is not the document** —
-  `main` is a scroll container of its own with `overscroll-behavior: contain`, so a flick
-  past the last page has nowhere to hand the rest of itself to. `overflow:
+  as the tool is up, and `base.css` spends four properties on it, one per browser. `overflow:
   hidden` on both html and body is the ordinary one — the page has never had anything to
   scroll *to*, `--book-reserve` sees to that, but it did have the rubber band, and the
   whole drawing sliding an inch under your finger on a stroke that started near the
@@ -687,11 +356,8 @@ What it is now, at both widths:
   **It comes off while the save form is up**, which is the one time this page has fields
   in it — a long description in a small textarea has to be pannable, and `touch-action`
   is an intersection down the ancestor chain that a descendant cannot give back. Nothing
-  is lost by it: the drawing is behind the wash by then, and `beforeunload` is already
-  guarding the reload. **`html.tool` does not come off with it.** That is the layout
-  rather than the gesture lock, and the stage it sizes is what the save form appears
-  inside — a stage that collapsed to its content the moment the form arrived would take
-  the form down with it.
+  is lost by it: the form has put `inert` on `main` by then, so the page behind it is
+  out of reach anyway, and `beforeunload` is already guarding the reload.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then
@@ -704,15 +370,90 @@ What it is now, at both widths:
   fine as the hardware allows: a steady 0.3px on a 3× screen is one device pixel per
   event.
 
+## Naming a flipbook
+
+A black wash over the window and a white card in the middle of it, asking for a title and
+an optional description. `SaveForm.tsx` and its stylesheet.
+
+**What it replaced was a blue panel laid over the canvas** — the one moment the chrome was
+loud — and the reason it went is the reason for most of what follows: the panel was
+positioned inside `.book` and sized against the drawing, so once a page could be square it
+covered a 16:9 lid's worth of a taller sheet and left two different blues stacked on each
+other. A modal belongs to the window, not to the artwork, and is measured against nothing.
+
+- **The "contains adult stuff" checkbox is gone.** A title is the only thing anybody has
+  to type. NSFW is set from admin mode now — see the note in `CLAUDE.md` — and the field
+  is still in the save contract because `time-capsule` still posts it.
+- **It is a positioned `<div>`, not a `<dialog>` opened with `showModal()`, and that is a
+  reversal worth stating.** The dialog gave us the backdrop, the inert page and the focus
+  trap for nothing, and those reasons still hold. What it also does is put the element in
+  the **top layer** — and since Safari 26, iOS tints the strip behind the status bar and
+  the strip behind the URL bar from the page, and **the top layer is never sampled**. So
+  the wash covered the drawing and left a pale band of `--page` above and below it.
+
+  That cost three attempts to establish, because each one moved the wash somewhere else
+  inside the dialog: the `::backdrop` first, then the dialog's own background, then a
+  separate wash div underneath a transparent dialog. The third is the interesting one —
+  the wash was by then exactly the kind of element the sampler looks for, and the toolbars
+  still didn't follow it. **An open modal dialog suppresses the sampling altogether**,
+  wherever the paint is and whatever it is painted in; verified on the iOS 26.2 simulator
+  against a reduced case, both with the dialog covering the viewport and with it inset
+  16px clear of both edges. Take the dialog away and the same wash tints both toolbars.
+
+  What is sampled is the background colour of `<body>`, or of a `position: fixed`/`sticky`
+  element lying against the edge of the viewport, which wins over the body. `<meta
+  name="theme-color">` is **not read at all** any more. So the overlay has to *be* such an
+  element, and the other half of the fix is in `base.css`: the create page's lock makes
+  `<body>` itself a fixed, opaque, full-viewport element. Both halves are needed — either
+  one alone leaves the bands.
+- **So four things the element used to do are hand-rolled**: Esc, the Tab trap, focus moved
+  in on open and put back on close, and `inert` on `#root`. That is about thirty lines to
+  replace an element that did it for nothing, and it buys a wash that reaches the edges of
+  the phone. `inert` goes on `#root` rather than on every sibling because the overlay is
+  portalled to `<body>` and so is that element's sibling; naming the one element the app
+  renders into is what keeps it from inerting the overlay itself.
+- **The order there is load-bearing.** `inert` blurs whatever it swallows, so focus has to
+  be placed *after* the attribute lands — which an `autoFocus` on the markup cannot do,
+  React applying that during commit.
+- **Focus lands on the overlay, not on the title field.** It has to land somewhere inside,
+  because that is what Esc and the Tab trap listen from and `inert` has just taken it off
+  whatever had it. Focusing the input instead raises the on-screen keyboard the moment the
+  form appears, which covers half the card and collapses Safari's own toolbar before you
+  have decided to type anything. Hence `tabIndex={-1}` on the overlay: focusable, not
+  tabbable, and not a text field.
+- **The keyboard is an inset, not a smaller overlay.** There is no CSS-only answer that
+  works where it needs to: `interactive-widget=resizes-content` is the declarative one and
+  WebKit has not shipped it, so on an iPhone `100dvh` is still the whole screen and a card
+  centred in it sits half behind the keyboard. `visualViewport` is what every engine
+  including iOS agrees on, and what `useKeyboardInset` publishes is the **inset** — the
+  overlay stays the full size of the window so the wash goes on reaching under the browser
+  chrome, and the keyboard is taken off the *card* as a margin. Sizing the overlay to the
+  visible height would have fixed the keyboard and put the pale bands back. `offsetTop` is
+  part of the sum, because iOS scrolls the layout viewport to bring a focused field up.
+- **The entrance is the Web Animations API, not a CSS animation, and that is not fussiness.**
+  An animating element gets a compositing layer of its own, which is exactly the kind of
+  thing the toolbar sampler is sensitive to. Both elements start at `opacity: 0` in the
+  stylesheet and `element.animate()` brings them up, with `fill: 'both'` holding the last
+  frame. Reduced motion is honoured in JavaScript rather than by a media query, because the
+  starting frame is now in CSS: with no animation to run, something still has to put the
+  two elements at their finished state or the form never appears at all.
+- **The page behind is left exactly as it was**, tools, page bar, handle and all. `inert`
+  is what makes that safe, and it is why none of the hiding the old panel needed is left.
+- **The document stays locked while the form is up, except for `touch-action`.** A page
+  scrolling behind a modal is the conflict the modal exists to avoid; but `touch-action:
+  none` is an intersection down the ancestor chain that a descendant cannot give back, and
+  a description longer than the 72px field has to be pannable. `.pannable` in `base.css` is
+  that one exception.
+
 ## Tracing over a photograph
 
-A sixth white disc at the left-hand end of the phone's footer takes a picture with the
-camera and lays it over the paper at 30%, on the page you are on, to be drawn on top of.
-One finger drags it, two pinch to scale and turn it; tap the drawing to accept it, and
-press the disc again to move it, replace it or take it away. **Choose several and they are
-laid out one per frame**, making frames as they run off the end. **Phone layout only** —
-the disc is in `.actions`, which is `display: none` above the breakpoint, so the desktop's
-row beside the wordmark is the four it always was.
+The ⊙ tile in the rail takes a picture with the camera and lays it over the paper at 30%,
+on the page you are on, to be drawn on top of. One finger drags it, two pinch to scale and
+turn it; tap the drawing to accept it, and press the tile again to move it, replace it or
+take it away. **Choose several and they are laid out one per frame**, making frames as they
+run off the end. **At both widths**, which it was not: it used to exist on the phone layout
+only, there being nowhere on the desktop to put it. A file picker is a camera on a machine
+that hasn't got one, so it is now offered where the hardware is and where it isn't.
 
 It is in two halves, and the split is the thing to understand first. **The picture is a
 pair of DOM layers over the canvas; the record of it belongs to the engine.**
@@ -720,13 +461,13 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
 - **The picture is never in the paper.js scene**, and that is the decision the rest
   follows from. A `Raster` in the project would be a fourth thing under `SYSTEM_LAYERS`,
   would be written into `exportSVG()` and so into every saved flipbook, would be
-  photographed by `captureActivePage` into the page strip and by `exportForSave` into the
-  cover, and would have to be taught to the undo history. A reference you trace over is
+  photographed by `exportForSave` into the cover, and would have to be taught to the undo
+  history. A reference you trace over is
   none of those: it is scaffolding, it belongs to the session rather than to the drawing,
   and the artwork has to come out byte-identical whether or not one was ever on screen. In
   the DOM all of that is true by construction rather than by remembering to exclude it in
-  six places. Verified as well as reasoned: the page strip's thumbnails hold zero coloured
-  pixels with a colour photograph on the sheet.
+  six places. Verified as well as reasoned: the exported SVG and the saved cover hold zero
+  coloured pixels with a colour photograph on the sheet.
 - **The record is `FlipbookState.trace`, in the engine**, keyed by page id, and it started
   in React. It had to move, because every question about a photo is a page question: it has
   to stay with its frame when a page is inserted before it, travel with that frame when it
@@ -756,7 +497,7 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   and multiplied it against transparency — which is the identity, and looks exactly like
   the blend silently not being applied. `.book` itself must *not* get `isolation: isolate`
   for the same reason `.dragging` costs a `z-index`: it would become a stacking context
-  permanently and drop the canvas below the page strip.
+  permanently and take the drawing out of the argument it is currently winning.
 
 **Undo and redo cover it, in the same stack as the drawing.**
 
@@ -786,14 +527,14 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   call in each; `beginPageChange` covers three of them at once.
 - **The tool is put down while a photo is in hand, and given back afterwards.** A tool in
   hand while a photograph is being moved about under it is two things answering the same
-  finger, and a panel showing one lit says the drawing is live when it isn't. It needs
+  finger, and a rail showing one lit says the drawing is live when it isn't. It needs
   `putToolDown` rather than `selectTool(null)`, because that one falls back to the pencil
   when `init()` refuses and an id of null looks exactly like a refusal to it. Reaching for
   a *different* tool is its own answer, so `selectTool` settles without giving the old one
   back.
 - **Which is why `InkCursor` stays mounted through all of it**, drawing nothing. It is
   what builds `PointerLayer`, and that is the only subscriber to `setToolPressed` — and on
-  a phone the panel's tools are driven by touch with `preventDefault()`, so there is no click behind
+  a phone the rail is driven by touch with `preventDefault()`, so there is no click behind
   it to fall back on. Rendering it only when there is a tool to draw a cursor for left the
   three tools completely dead while a photo was being placed, and reset the standing cursor
   to the middle of the page every time a photo was picked up. Neither is visible in a test
@@ -844,8 +585,10 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
 - **The picture is sized in numbers rather than by `object-fit: contain`.** They come to
   the same rectangle, but only one of them is a rectangle anything else can be drawn
   around: `object-fit` letterboxes inside the element's box, so the box stays the frame and
-  there is nowhere to hang an outline but around the whole sheet. The frame is 16:9 at every
-  width, so the fit is two `min`s and needs nothing measured. It is `fittedSize` in
+  there is nowhere to hang an outline but around the whole sheet. The frame keeps its shape
+  at every width, so the fit is two `min`s and needs nothing measured — it takes the page's
+  shape as an argument, because there are two of those now and a photo is fitted to the
+  paper it is lying on. It is `fittedSize` in
   `engine/trace.ts` rather than an expression here, because **three things read it**: the
   picture, the dashed outline, and v11's magnified stage, which draws the same photograph
   into a canvas from the same numbers.
@@ -875,9 +618,6 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   many photos there are. A batch is one thing you did; undoing it eight times to get back
   where you were is not undo. The step carries a `page` op per frame it made and the whole
   trace map either side of it, which between them are the entire operation.
-- **The frames it makes are inserted instantly rather than thrown.** `addBlankPage` plays
-  a 750ms animation and eight of those in a row is six seconds of the strip cartwheeling;
-  this is the same instant insert `applyStep` uses to put a page back.
 - **Nothing lands in hand, where a single photo does.** "In hand" is an offer to place
   *this* one, and there is no sensible answer to which of eight that would be — so they
   land centred and fitted, and pressing the camera on any frame picks that one up. You
@@ -893,11 +633,12 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   as long as the slowest one takes; sequentially it is one, thrown away as soon as the
   downscaled copy exists. A file that won't decode is skipped rather than failing the
   batch.
-- **`MAX_BATCH` is 24.** Each photo is ~4 MB decoded *and* gets a frame, whose thumbnail
-  in the strip is a canvas the size of the drawing — both are the budget
-  `HIDPI_PAGE_LIMIT` already lives under, and iOS enforces its canvas allowance by
-  *blanking* canvases rather than by failing. Anything past 24 is dropped and said so in
-  plain words rather than silently.
+- **`MAX_BATCH` is 24.** Each photo is about 4 MB decoded and is held until the tab
+  closes, and iOS enforces its per-tab canvas allowance by *blanking* canvases rather than
+  by failing. Anything past 24 is dropped and said so in plain words rather than silently.
+  This used to be the tighter of two limits — every frame also carried a full-size
+  thumbnail canvas in the page strip — and the strip is gone, so 24 is now the photos'
+  number alone and there is more room under it than there was.
 
 **And v11 draws it a second time.** The picture stays a pair of DOM layers over the paper
 — nothing here goes near the artwork, and that is the decision the whole feature is built
@@ -912,23 +653,9 @@ it up there, and the stage follows. See **v11** in
   file is already carrying the artwork and a phone camera JPEG is megabytes; a reference
   photo is also the one thing on this page that can be got back in two taps.
 - **The file is downscaled to 1280 on its long edge on the way in.** Twelve megapixels
-  decodes to about 48 MB, per photo, and there can be one on every page — which is the
-  budget the page strip already lives under (`HIDPI_PAGE_LIMIT`). Redrawing it through a
-  canvas also bakes in the EXIF orientation a phone writes, rather than carrying it about.
-
-**And the footer's arithmetic had to be redone for five discs.**
-
-- The narrowest layout that gets the row at full size is a 360px phone: a 328px column, of
-  which "Save" measures 110, leaving 218. Five 38px discs 4px apart are 206 of it, 12px
-  clear of the button — against the 11px the four 48px discs had. Below 360 and held
-  sideways they go to 36, as the row already did. Measured at 390, 360, 320, 844×390,
-  740×360 and 667×375: no overrun at any of them.
-- **Held sideways the leading disc grazes the pencil's tip, and that is not new.** The
-  sideways rule moves the whole bar right because each tool is a 304px picture anchored by
-  its tip and the leftmost of them hangs into the footer's band; a wider row reaches back
-  under it. Measured at 740×360, the overlap was 27×35px before this and is 36×31px now. It
-  cannot be closed by sizing — clearing it at 740 needs discs of about 24px — and it is a
-  decorative picture under a button that is drawn above it and stays pressable.
+  decodes to about 48 MB, per photo, and there can be one on every page. Redrawing it
+  through a canvas also bakes in the EXIF orientation a phone writes, rather than carrying
+  it about.
 
 ## The playback page
 
@@ -945,8 +672,7 @@ The same flipbook, the same page bar, and much less around it than there used to
   need marking off — the flipbook is a sheet of paper with a shadow under it, and the
   writing below is plainly about the sheet of paper. 2013 ruled it because the page also
   carried a byline, an avatar, a view count and two share buttons. `.ruled` had no users
-  left and went with the create page's own tray stylesheet, which is gone too — see
-  **The panel** above.
+  left and went with the stylesheet it was in.
 - **`PageNav` is here**, the create page's bar, at every width and full width under the
   flipbook. It is the only play button this page has: the handle is tapped to play and
   dragged to scrub, which is what took circleplay's job as well as play's. It stands 8px
@@ -956,8 +682,9 @@ The same flipbook, the same page bar, and much less around it than there used to
 - **There is no tray here at all any more, at any width.** It was the create page's row
   of controls carrying print, play, circleplay and the admin toggles; play became the
   handle above and circleplay was deleted, which left a full-width bar of chrome holding
-  one printer icon. `PlaybackTray.tsx` went first; `Tray.module.css` was the create page's
-  alone after that, and has now gone with the create page's tray as well.
+  one printer icon. `PlaybackTray.tsx` is gone, and so is `Tray.module.css`: the create
+  page's rail replaced the tray there too, so the last user of that stylesheet went with
+  this one.
 - **Print and the admin toggles stand at the other end of the title's row.** `.info` is
   a flex row: the title, byline and description on the left, those two on the right,
   aligned to `flex-start` so print sits beside the title rather than beside the middle of
@@ -972,41 +699,33 @@ The same flipbook, the same page bar, and much less around it than there used to
 
 ## Memory, and leaving the page
 
-The page strip and the trace photos share one budget, and iOS enforces its per-tab
-canvas allowance by *blanking* canvases rather than by failing — so the ceiling has to
-be respected rather than discovered.
+iOS enforces its per-tab canvas allowance by *blanking* canvases rather than by failing,
+so the ceiling has to be respected rather than discovered. There used to be two things
+under it and now there is one.
 
-- **Every page in the strip is a canvas the size of the drawing**, on both layouts — the
-  thumbnails are displayed smaller on a phone but they are not *drawn* smaller, because a
-  page that has to stand behind the live canvas at full fidelity when you're on it can't
-  be. And "full fidelity" is the *device* pixel ratio, not 640×360: a thumbnail is a copy
-  of a canvas paper draws at 1280×720 on a retina screen and shows at exactly the same
-  size, so at 640×360 it was a soft copy of a sharp drawing, standing right beside it.
-  `THUMBNAIL_SCALE` in `PageStrip` is that ratio, capped at 2 — 3.6 MB a page rather than
-  0.9.
-- **Which is why the strip has a page limit, and it is the memory that sets it.** Four
-  times the backing store is fine for a flipbook you drew by hand and is not fine for a
-  200-page archive one, which the drawing tool could not open until Remix and now can:
-  184 MB against 737 MB, and iOS enforces its per-tab canvas budget by *blanking*
-  canvases rather than by failing. So past `HIDPI_PAGE_LIMIT` — 50 pages at 2×, which is
-  the byte ceiling the strip already lived under — thumbnails go back to 1:1. The scale
-  never climbs back, because every change of it empties and redraws every canvas in the
-  strip, and buying sharpness back by deleting a page is not a trade worth making twice.
+- **The page strip was most of that budget, and it is gone.** Every page in it was a
+  canvas the size of the drawing at the device pixel ratio — a thumbnail stands behind the
+  live canvas at exactly its size, so at 1:1 it was a soft copy of a sharp drawing right
+  beside it — capped at 2× and costing 3.6 MB a page on a 16:9 flipbook. A square page is
+  78% more pixels again, which would have made it 6.6. Past `HIDPI_PAGE_LIMIT`, 50 pages,
+  the strip dropped back to 1:1 and never climbed back, because changing the scale emptied
+  and redrew every canvas in it.
+
+  A 200-page archive flipbook was 184 MB of thumbnails with that limit and 737 without,
+  which is what the limit was for. It is now zero, and the number that replaced all of it
+  is one control 56px tall.
 - **Trace photos are in that same budget, and every one taken is held until the tab
   closes.** Not until it is replaced or removed: the undo stack holds steps that name its
   object URL, so revoking early is a ⌘Z that brings back a broken image. `MAX_EDGE` is
   what keeps each one to about 4 MB decoded rather than the ~48 MB a phone camera hands
-  over, and each one costs a trip to the camera to make. See **Tracing over a
-  photograph**.
+  over, and each one costs a trip to the camera to make. With the strip gone they are the
+  whole of this budget. See **Tracing over a photograph**.
 - **An unsaved drawing holds a spare history entry.** 2013 left the page for real on
   every navigation, so `beforeunload` covered the logo and the back button along with
   everything else; here neither one is a page load. `<Link>` goes through the router's
   `guardNavigation()`, and back is answered rather than blocked — a duplicate entry is
   pushed so the first press lands on the same URL and can be asked about. Cost: one
   extra entry, and a live forward button, while the flipbook is unsaved.
-- **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
-  drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
-  attached to the document, and none of it should follow you to the flipbook page.
 - **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
   drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
   attached to the document, and none of it should follow you to the flipbook page.

@@ -19,8 +19,8 @@ documented at the point they matter:
   unit-tested. It's load-bearing twice over: it's most of why saved SVG compresses to
   ~25%, and the push tool assumes evenly spaced points.
 - **`view.update()` only draws when something changed**, and paper redraws on its own
-  every frame. So `scene.redraw()` is only needed before reading pixels back —
-  thumbnails, `toDataURL` — not after every change.
+  every frame. So `scene.redraw()` is only needed before reading pixels back — the saved
+  cover, `toDataURL` — not after every change.
 - **`setup()` leaves the project with no layers.** `project.activeLayer` is the getter
   that creates layer zero; `layers[0]` is undefined.
 - **`moveAbove`/`moveBelow` are `insertAbove`/`insertBelow`.**
@@ -48,12 +48,12 @@ documented at the point they matter:
   but anything comparing two serialisations of a page has to strip it, or *clicking on
   a drawing* looks like an edit. See `History.capture`.
 
-## The project is 640×360 whatever the canvas is shown at
+## The project is the flipbook's own size whatever the canvas is shown at
 
 `Scene.pinCoordinates()`, and it is the one thing to understand before touching how
 the canvas is sized. paper takes the project's coordinate space from the element's
 *bounding rectangle*, so a canvas displayed 350px wide on a phone gave a project 350
-units wide and everything drawn on it — strokes, thumbnails, the saved SVG — came out
+units wide and everything drawn on it — strokes, the saved cover, the saved SVG — came out
 that shape. The view size is stated instead of measured, and three things follow:
 
 - **CSS owns the display size, entirely.** paper writes an inline `width`/`height`
@@ -66,6 +66,62 @@ that shape. The view size is stated instead of measured, and three things follow
   its matrix into the output — a zoomed view would save the artwork at the phone's
   scale *and* wrap it in an extra `<g>`, which is the `LEADING_SYSTEM_GROUPS` invariant
   below.
+
+
+## Two page shapes
+
+There are two, and there will only ever be two:
+
+| | | |
+|---|---|---|
+| `LEGACY_PAGE_SIZE` | 640×360 | 2012–2026, and the whole archive |
+| `SQUARE_PAGE_SIZE` | 640×640 | everything drawn since |
+
+A flipbook keeps the shape it was drawn at permanently. **A remix of a 16:9 flipbook is
+16:9** — opening one in the drawing tool restates the scene's coordinate space from the
+file, because the coordinates being imported are in the file's own space and nothing else
+would make them land where they were drawn. Nobody picks a shape and there is no UI for
+it; the shape describes the flipbook rather than configuring it.
+
+**640 across for both is load-bearing, not a coincidence.** `DEFAULT_STROKE_WIDTH`,
+`FLATTEN_DISTANCE`, the ink cursor's radii and the push tool's reach are all in project
+units and were all calibrated against a 640-unit width. A 360×360 page would have made every
+one of them twice as coarse without anyone editing a line. `InkCursor` and the desktop
+`--book-width` cap both state that assumption where they rely
+on it.
+
+### Where the answer comes from
+
+**The artwork, always.** `pageSizeFromSvg()` reads the root `viewBox`, and **a file with
+no viewBox is 640×360** — which is not a fallback so much as a fact: paper 0.8 wrote no
+viewBox, no width and no height, so all 585 archive flipbooks are silent and all of them
+are that shape. paper 0.12 states all three.
+
+`lib/thumbnail.js` holds the server's copy, `pageSize()`, and the two **must agree byte
+for byte**. The server's answer goes into the `width`/`height` columns, which is what a
+gallery card is laid out as; the client's is what the drawing on that card is scaled by.
+Disagreeing means a tile of one shape holding a picture of another.
+
+The columns exist for one reason: the grid needs a shape *before* the artwork, and a card
+is a rectangle in a list long before anybody hovers it. Reading the answer off the file
+would mean decompressing megabytes per tile. Where the two could ever disagree the file
+wins — see `FlipbookEngine.loadSvg`, which resizes the scene off the file regardless of
+what the row claimed.
+
+### The beat where it isn't known yet
+
+`FlipbookState.page` is `null` until the shape is genuinely known, and that nullability is
+deliberate. The scene has to be built with *some* size the moment the canvas is in the
+DOM, and a page opened to show somebody else's flipbook cannot know which shape until the
+file lands — so a non-null default would be the engine asserting a guess over the row's
+own answer, which the playback page has had since its first fetch. A page that knows what
+it is opening says so at construction (`EngineOptions.page`, which the create page passes);
+one that doesn't waits to be told by `loadSvg`.
+
+`RouteShell` is the one place that genuinely has to guess, because it stands in front of a
+route that hasn't downloaded. It guesses per route: square for create (a blank flipbook),
+legacy for playback (every flipbook that already exists). Both self-correct, and being
+wrong costs one reflow on a page that is still mostly placeholder.
 
 ## Loading a saved flipbook
 
@@ -93,22 +149,13 @@ load-bearing:
   each page *and show it*, which is why a loading flipbook visibly drew itself — and
   why it couldn't play until the last page landed. That effect is gone deliberately;
   it is what paid for the load starting to play at once.
-- **Which is also why a loaded page has to be *asked* for its thumbnail.** A thumbnail
-  is a copy of the live canvas — `captureActivePage` draws whatever is on screen — and
-  every page of a load but the first is built behind what is on screen and never goes
-  in front of it. So opening a flipbook in the drawing tool gave a strip of blank white
-  sheets either side of the drawing, and each one stayed blank until you turned to it
-  *and drew on it*: the capture is on the ends of a pointer gesture, and turning a page
-  isn't one. `capturePage` shows the page it is copying and hands the scene straight
-  back, the way `captureCover` already photographs the cover at save time — nothing is
-  painted in between, because the browser paints at frame boundaries and all of it runs
-  in one go. `replay` marks every page it builds as owed one and `registerThumbnail`
-  pays as React hands each canvas over, which is the mechanism the history already used
-  for a page it had just put back: the element doesn't exist until React renders it, and
-  waiting a frame for it works exactly while somebody is watching and fails when nobody
-  is. It costs one extra `view.update()` per page of a load, spread across the same
-  renders the load is already causing. `owedThumbnails` is keyed by page id rather than
-  index, because both the things that fill it are about to renumber the flipbook.
+- **Loading no longer has to paint anything twice, and that is a saving worth noting.**
+  While the create page had a strip, every page of a load also owed a *thumbnail* — and a
+  thumbnail was a copy of the live canvas, so a page built behind what is on screen had to
+  be shown, read and handed back to get one. That was one extra `view.update()` per page of
+  every load, plus a whole mechanism (`owedThumbnails`, `registerThumbnail`,
+  `redrawThumbnails`) to pay for pages whose canvas React had not rendered yet. All of it
+  went with the strip. A load is now the pages and nothing else.
 - **Playback starts at two pages and won't lap while `loading` is set.** `scheduleFrame`
   holds the last page it has rather than looping three pages while the other forty
   arrive. So `loading` has to be cleared even when a load is abandoned — a flag left
@@ -118,43 +165,40 @@ load-bearing:
 ## Rearranging pages
 
 A tab on the top edge of the paper, dragged left or right: the drawing goes with the
-pointer, the pages either side step aside to open a gap, and letting go closes the
-flipbook up round it. Hold it out to one side and the rest of the flipbook comes past
+pointer, the page bar's handle travels to the slot it would land in, and letting go slides
+the drawing home. Hold it out to one side and the rest of the flipbook comes past
 underneath. `usePageReorder` is the gesture, `engine/reorder.ts` is the arithmetic under
 it, `PageHandle` is the tab, and `Scene.movePage` is the two lines that actually do it.
 Both layouts and both kinds of pointer, and the keyboard as well.
 
-Nothing new was added to the flipbook to make it possible: the strip was already a row
-of full-size copies of the drawing laid out at a measured pitch, and this is that row
-told to stand somewhere else for a moment.
+**The page bar is the only thing that says where the page is going.** There used to be a
+strip of full-size thumbnails either side of the drawing, laid out at a measured pitch, and
+this gesture was originally that row told to stand somewhere else for a moment. The strip is
+gone — `docs/create-page.md` says why — and the gesture is unchanged, which makes
+`activePage={reorder.to}` on `PageNav` load-bearing rather than a nicety.
 
-- **Nothing moves in the scene until the gesture ends.** The whole drag is the strip and
-  the canvas standing in different places; `FlipbookEngine.movePage` is called once, at
+- **Nothing moves in the scene until the gesture ends.** The whole drag is the drawing
+  standing somewhere it doesn't belong; `FlipbookEngine.movePage` is called once, at
   the landing. So a drag that wanders across the flipbook and comes back costs nothing —
   no history step, and no frame in which the flipbook was in a shape nobody asked for.
   It also means the *page* being dragged is never in an intermediate slot, which is what
   would otherwise have to be undone one slot at a time.
 - **The handover at the end is a frame in which nothing moves, and that is the whole
-  design.** Throughout the gesture the strip's row is anchored on the slot the page came
-  *out* of, and the page is drawn away from it by a transform. At the release the anchor
-  moves to the destination and the drawing's own offset goes back to zero — the same
-  distance in opposite directions — so what you watch is the flipbook and the page it now
-  contains sliding home as one thing. By the time `movePage` runs, every element is
-  already standing exactly where the reordered flipbook puts it: the array is spliced,
-  the row's `left` is recomputed to the number it already had, and each thumbnail swaps a
-  transform for a slot at the same coordinate. Worked through in `usePageReorder`, and
-  it is why `pageShift` gives the carried page an answer too even though nothing can see
-  it.
-- **The transitions only exist while a page is in hand.** `.carrying` on the strip and
-  `.settling` on the sheet, both gone in the same render as the commit — a transition
-  still on the element at that frame would be 300ms of easing a transform away to
-  nothing, on top of a layout change that already happened. It is also how the strip
-  keeps its rule that turning a page is a cut: it eases here and nowhere else.
-- **`--settle` is one number in one place.** The settle is three transitions on three
-  elements — the row's `left`, each thumbnail's `transform`, the drawing's own — plus the
-  `setTimeout` that waits for them, and they compose into a single movement only for as
-  long as all four agree. `SETTLE_MS` in `engine/reorder.ts` is handed to both
-  stylesheets as a custom property. Under `prefers-reduced-motion` the CSS drops the
+  design.** Throughout the gesture the destination is held on the slot the page came *out*
+  of, and the page is drawn away from it by a transform. At the release the destination
+  moves and the drawing's own offset goes back to zero, so what you watch is the sheet
+  sliding home to a bar that has already arrived. By the time `movePage` runs, everything
+  is already standing where the reordered flipbook puts it: the array is spliced and no
+  element moves. Worked through in `usePageReorder`.
+- **The transition only exists while a page is in hand.** `.settling` on the sheet, gone in
+  the same render as the commit — a transition still on the element at that frame would be
+  300ms of easing a transform away to nothing, on top of a layout change that already
+  happened. It is also how the page keeps its rule that turning a page is a cut: it eases
+  here and nowhere else.
+- **`--settle` is one number in one place.** The settle is two transitions — the drawing's
+  own and the page bar handle's — plus the `setTimeout` that waits for them, and they
+  compose into a single movement only for as long as all three agree. `SETTLE_MS` in
+  `engine/reorder.ts` is handed to the stylesheets as a custom property. Under `prefers-reduced-motion` the CSS drops the
   transitions and the timeout is zero, so the landing is immediate rather than
   half-eased.
 - **The offset does not go through React.** A pointer moves a hundred times a second and
@@ -166,14 +210,12 @@ told to stand somewhere else for a moment.
   drawing snaps home instead of sliding.
 - **The transform on `.book` costs a `z-index`, and the class costs less than the
   property would.** A transformed element is a stacking context painted as one thing at
-  its parent's level, so `.book` would drop below the page thumbnails at 9 and take the
-  canvas's own 15 with it — the drawing would slide *behind* the flipbook it is being
-  dragged through. `.dragging` restates 15. It is a class rather than a permanent
-  `translate3d(0,0,0)` because the same stacking context would put the save form and its
-  wash under the footer, and because a transform re-bases anything `position: fixed`
-  inside it. The page thumbnails' own transform is under `.carrying` for exactly that
-  second reason: `freeze()` pins a thumbnail for a page animation by making it fixed, and
-  a transform on every `.page` would quietly re-base every one of those.
+  its parent's level, so `.book` would drop below the page bar at 10 and take the canvas's
+  own 15 with it — the drawing would slide *behind* the bar it is being dragged above.
+  `.dragging` restates 15. It is a class rather than a permanent `translate3d(0,0,0)`
+  because a transform re-bases anything `position: fixed` inside it. (The save form used to
+  be the other half of that argument. It is portalled to `<body>` now, so nothing about
+  `.book` reaches it either way.)
 - **The tab is above the paper, not on it, and it costs the drawing no height.** The
   whole sheet is somewhere you draw, so a control lying on it would be a hole in the
   page; the gap between the header and the top of the paper is the column's own
@@ -181,11 +223,12 @@ told to stand somewhere else for a moment.
   instead is a press area much bigger than the tab, grown by a pseudo-element *upwards*
   into that empty band and sideways — deliberately not downwards, which is the drawing.
 - **It is `z-index: 101`, one past the header**, and that is not decoration. Held
-  sideways the air above the paper is 8px deep, and the header's box runs the full width
-  of the window at 100: the top of the tab and most of the press area behind it are
-  inside it. Nothing is painted there — the wordmark is at the other end of the row — but
-  a box with no background is hit-tested exactly like one with, so at 16 the target was
-  five usable pixels deep on the layout with the least room to spare.
+  sideways the air above the paper is 8px deep, and `<header>` runs the full width of the
+  window at 100: the top of the tab and most of the press area behind it are inside it. It
+  paints nothing on this page — the create page drops the wordmark row altogether and what
+  is left of the element is the message banner — but a box with no background is
+  hit-tested exactly like one with, so at 16 the target was five usable pixels deep on the
+  layout with the least room to spare.
 - **The tools are held off, and by a different flag from the page actions.** `busy` is
   set for the length of the gesture, which is what holds the page buttons, undo and the
   page bar — but drawing through a page *animation* has been allowed since 2013 and
@@ -235,17 +278,12 @@ staying exactly where your hand is.
   hopping a slot behind them. It reads the same value back at the commit, so the handover
   moves it by nothing.
 - **It is the anchor that moves, and that is the whole mechanism.** `Reorder.anchor` is
-  the slot the strip's row is lined up on — where the *flipbook* is standing, which is not
-  where the page is. A tick advances it by one; `to` is measured from it, so the
-  destination advances with it and the gap stays under the drawing while the row slides.
-  Nothing else in the gesture knows a run is happening: `--drag` is untouched, so the page
-  does not move at all, and the settle at the end is the same settle.
-- **The gap and the book move at the same time, and one page moves twice as far.** The
-  page being passed is both scrolling with the book and crossing the gap, which is a step
-  each — so on the frame it is passed it travels two. That is correct rather than a bug
-  (it is what "passing" is), and it happens under the drawing, which is where the gap is.
-  What it needs is for both halves to share a curve and a duration, which is why
-  `.sliding` sets the timing on the row *and* on the thumbnails.
+  the slot the *flipbook* is standing on, which is not where the page is. A tick advances it
+  by one; `to` is measured from it, so the destination advances with it and the page goes on
+  being held out by exactly as much as it was. Nothing else in the gesture knows a run is
+  happening: `--drag` is untouched, so the page does not move at all, and the settle at the
+  end is the same settle. What you watch is the bar's handle walking a slot at a time under
+  a drawing that is standing still.
 - **The run is linear and lasts exactly as long as the gap until the next page.**
   `--slide` is both numbers, so consecutive steps join into one continuous glide instead
   of reading as a series of hops — the trick `PageNav`'s sweep already uses to turn twelve
@@ -310,11 +348,11 @@ staying exactly where your hand is.
   of a run. Proved for every displacement in `reorder.test.ts` rather than checked at one.
   What it buys as a side effect is that a page dragged past either end of the flipbook
   hangs over nothing and slides home, which is a fair picture of there being nothing there.
-- **`.sliding` stays on the strip once a run has happened**, for the rest of the gesture.
-  Taking the class off would take its `transition` with it, and a transition removed
+- **`--glide` stays set once a run has happened**, for the rest of the gesture. Taking the
+  timing off would take the bar handle's `transition` with it, and a transition removed
   mid-flight does not stop — it finishes instantly, which is the last page of the run
-  snapping into place. Nothing moves the row while the run is stopped, so a rule with
-  nothing to animate costs nothing; the settle clears it in the same render that it wants
+  snapping into place. Nothing moves the handle while the run is stopped, so a rule with
+  nothing to animate costs nothing; the settle replaces it in the same render that it wants
   the other curve.
 - **Pulling back eases off and then stops it where it is, rather than unwinding it.** The
   run has genuinely carried the page along, so bringing it back to the middle of the column
@@ -334,7 +372,7 @@ and spent by the next ⌘Z. Four things about it are load-bearing:
 - **A step is a whole gesture, and the engine records it, not the tools.** Every edit
   on the canvas begins with a pointer going down on it and ends with the pointer coming
   up, so that is where the before and after are taken — `handlePointerDown` and
-  `handlePointerUp`, which were already there for the thumbnails. The transform tool
+  `handlePointerUp`, which were already there. The transform tool
   never took a snapshot at all, which is why moving something used to be permanent; it
   is undoable now without a line in it changing. The tools' own `scene.snapshot()`
   calls are gone.
@@ -361,13 +399,9 @@ and spent by the next ⌘Z. Four things about it are load-bearing:
 
 Also worth knowing:
 
-- **Page structure lands instantly.** Undoing a delete puts the page back on one frame
-  rather than replaying the 750ms throw. `animations.ts` is untouched — nothing calls
-  it from here.
-- **A restored page's thumbnail is drawn from `registerThumbnail`, not from a timer.**
-  Its `<canvas>` doesn't exist until React renders it, and a background tab runs no
-  animation frames at all — so waiting a frame or two works exactly while somebody is
-  watching and fails when nobody is, and the page comes back blank.
+- **Page structure lands instantly.** Undoing a delete puts the page back on one frame.
+  There is nothing left to replay: the 750ms throw is gone with the strip it was written
+  for, and `animations.ts` is one media query.
 - **`Op.index` is safe where `pageId` wouldn't be**, because the stack is spent
   last-in-first-out: when a step is applied the flipbook is in exactly the shape it was
   in when the step was recorded. `move`'s `from` and `to` are indices for the same
@@ -465,11 +499,10 @@ can't.
   serialises through — **and it has to be left empty between uses**, because
   `exportSVG` writes every layer in the project and a page's worth of ink parked there
   would be saved with the flipbook.
-- **The canvas has a z-index and the page bar has a lower one, and what they are ordered
-  against is the page strip.** Every thumbnail in the column carries a `z-index: 9`; the
-  drawing stands at 15 and the bar at 10, so the drawing is in front of the flipbook it
-  belongs to and the bar passes behind the page peeking up from below. It used to be the
-  tools they were ordered against — the pencil and eraser were 304px images anchored by
+- **The canvas has a z-index and the page bar has a lower one.** The drawing stands at 15
+  and the bar at 10, so the paper's shadow falls onto the top of the bar and the two read as
+  one object. What they used to be ordered against was the page strip — every thumbnail
+  carried a 9 — and before that the tools — the pencil and eraser were 304px images anchored by
   their tips, most of each sitting *behind* the canvas — and dropping either out of that
   order put enormous pencils across the drawing. The tools are glyphs in a panel now; the
   numbers stayed, and what they mean changed.
@@ -487,8 +520,8 @@ can't.
   up front — makes it two. Ask `settledPageCount()` whether this is a flipbook yet;
   the raw length flicks the play buttons on and fades the save button in and out.
 - **A page can't be added or removed in the same press that stops playback.** Playback
-  changes page every 83ms and a page animation runs for 750ms; doing both at once
-  leaves the strip in a heap. `beginPageChange()` stops playback and returns false, so
+  changes page every 83ms, and adding or removing one underneath that is a flipbook
+  changing length while something else is reading it. `beginPageChange()` stops playback and returns false, so
   the press buys the pause and the next one does the work. It lives in the engine, so
   the `n` and `d` shortcuts go through it as well as the buttons. The drawing tools
   don't need it — they stop playback themselves, and nothing is animating when they do.
@@ -498,34 +531,12 @@ can't.
   one out. It was worse than a no-op now that pressing a tool button also *uses* it —
   the press was refused, the hold went ahead, and the previous tool did the work. Undo and `goToPage` stay held, which is a different question: those change what
   is on the page the animation is carrying.
-- **The hidden thumbnail is not always the active page.** The strip hides whichever
-  page the canvas stands in front of — that is what `.covered` means — and during a
-  delete the arriving page is active from the first frame but takes 750ms to get
-  there. Keying that class off `activePage` hides it 4ms in and leaves it invisible
-  for its whole journey, so it reads as teleporting while every other page slides.
-  `state.arriving` holds the two apart; don't collapse them. It also steps the canvas
-  aside for the duration, because the canvas shows the arriving page immediately and
-  standing in the destination displaying the page still travelling towards it reads
-  as a static duplicate in front of the one that's moving.
-- **A page thumbnail can't be raised by its own z-index.** `.page` in the strip has
-  one, which makes it a stacking context, so a z-index on the `<canvas>` inside can
-  only order it against siblings it hasn't got — 2013's `deletePage` keyframes ask for
-  `z-index: 20` there and get nothing. Anything that has to come forward is lifted by
-  `freeze(el, { lift: true })`, which sets it on the wrapper instead. The page falling
-  away during a delete needs it: without it the first 300ms of the fall happen behind
-  the drawing canvas, which is the whole anticipation and the start of the plunge.
-- **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and a
-  ref runs at moments that have nothing to do with the size being wrong. Page thumbnails
-  take their size from JSX attributes, so React writes it only when it has changed.
-- **And a ref callback does *not* run again on a re-render**, which is the other half of
-  the same rule and was believed the other way round here until it was measured. It runs
-  when React mounts the element and when React replaces it, and that is all — a canvas
-  that is resized *in place* is the same element, so nothing fires. That is why
-  `owedThumbnails` (draw it when its canvas arrives) cannot pay for a resize and
-  `engine.redrawThumbnails()` exists: the strip calls it from a **layout** effect, in the
-  commit that resized the canvases and before the frame it would otherwise have been seen
-  in. Measured on React 19.2 by leaving every page owed a thumbnail and re-rendering the
-  strip: none of them was drawn, then or on any render after it.
+- **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and a ref
+  runs at moments that have nothing to do with the size being wrong. Anything that has to be
+  sized takes it from JSX attributes, so React writes it only when it has changed. And a ref
+  callback does *not* run again on a re-render — it runs when React mounts the element and
+  when React replaces it, and that is all, so a canvas resized *in place* fires nothing.
+  Measured on React 19.2 rather than assumed, when the page strip depended on it.
 
 - **The engine is built asynchronously, and `paperCore` is not what the types say.**
   paper arrives by `import()` now, so `useFlipbookEngine` is an ordinary effect rather

@@ -20,26 +20,22 @@
 
 .panel {
 	/*
-	 * Pinned to the left, because the flipbook is what scrolls on this page: a rail in the
-	 * flow would go up the screen with it. It starts at the header's own bottom edge —
-	 * `--rail-top`, which the create page measures, and *not* `--chrome-top`, which is the
-	 * wider band the drawing keeps clear — and runs to the bottom of the window.
+	 * Out of the flow and down the left-hand side, because the drawing is centred in what is
+	 * left of the window and a rail in the column would be above it rather than beside it.
 	 *
-	 * `absolute` against the create page's `.chrome`, which is a sticky box the size of the
-	 * scrollport — so these coordinates are the window's, exactly as they were when this said
-	 * `fixed`, and a drag across the rail still scrolls the flipbook. That last part is the
-	 * reason for the wrapper and not a nice side effect: a *fixed* element is not in the
-	 * scroller's chain at all, and a drag on a fixed rail moved nothing. Only the rail's own
-	 * overflow takes a drag away from it, and only when the list is long enough to have one.
-	 *
-	 * `pointer-events` because `.chrome` switches them off for the white between its boxes.
+	 * `absolute` against the create page's `main`, which is the box that starts where the
+	 * header ends — so `top: 0` is flush against the header by construction rather than by
+	 * arithmetic. It was `--chrome-top`, a stated constant that was deliberately larger than
+	 * the header because it is the air the *drawing* keeps clear, and standing the rail on it
+	 * left 45px of nothing under the header on a desktop and a 16px overlap on a phone. The
+	 * rail is the header's own furniture and belongs against it; there is no number to get
+	 * right if the box it is inside already ends in the right place.
 	 */
 	position: absolute;
-	top: var(--rail-top);
+	top: 0;
 	bottom: 0;
 	left: 0;
 	z-index: 30;
-	pointer-events: auto;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -47,8 +43,8 @@
 	padding: var(--pad) 0 calc(var(--pad) + 8px);
 	transition: transform 0.4s ease-in, opacity 0.4s ease-in;
 
-	/* One number, and everything here is drawn off it. `--rail-width` and `--chrome-top`
-	   are the create page's, because the drawing's own position is drawn off them too. */
+	/* One number, and everything here is drawn off it. `--rail-width` is the create page's,
+	   because the drawing's own position is drawn off it too. */
 	--tile: 40px;
 	--pad: 12px;
 	--gap: 6px;
@@ -276,18 +272,17 @@
 	/*
 	 * Beside the drawing rather than pinned to the edge of the window: on a wide screen a
 	 * column in the far corner is a toolbar in a different postcode from the thing it works
-	 * on. It starts at the header's bottom edge, same as it does on a phone.
+	 * on. It still starts at the top, which is the header's bottom edge.
 	 *
 	 * It was vertically centred on the drawing for a while, which read as a big deliberate
-	 * gap under the wordmark — 45px of it, with the same again below. The rail is part of
-	 * the header's furniture and belongs against it; centring made it a third thing floating
-	 * in the middle of the window.
+	 * gap under the header — 45px of it, with the same again below. The rail is part of the
+	 * header's furniture and belongs against it; centring made it a third thing floating in
+	 * the middle of the window.
 	 */
 	.panel {
-		top: var(--rail-top);
 		bottom: auto;
 		left: calc((100vw - var(--book-width)) / 2 - var(--rail-gap) - var(--rail-width));
-		max-height: calc(100svh - var(--rail-top) - 24px);
+		max-height: calc(100svh - 24px);
 		padding: var(--pad) 0;
 	}
 

@@ -11,37 +11,32 @@
  * a dotted texture that nothing else on the site has. A trackpad, in other words, which is
  * exactly what it is.
  *
- * **Not quite opaque, and it blurs what is behind it.** The flipbook is the document's own
- * scroll, so the column passes under the pad rather than being cropped against it. A 16px
- * backdrop blur turns those pages from content into a texture, which is what they are down
- * here; the create page's `.scrimBottom` does the fade above it.
+ * **Not quite opaque, and it blurs what is behind it.** There is nothing under it to speak
+ * of any more — it was laid over a scrolling column of page thumbnails, which is gone — but
+ * a pad you can see the page's own grey through still reads as a thing lying on the page
+ * rather than as a block cut out of it, and the blur is what keeps the bottom edge of the
+ * drawing soft where a short window brings the two together.
  */
 
 .pad {
 	/*
-	 * Pinned to the bottom of the window, because the document is what scrolls on this page.
-	 * Anchored by `bottom` rather than by `svh` arithmetic — unlike the drawing, which must
-	 * hold still — because the bottom of the window is exactly where this belongs, and when
-	 * iOS collapses its URL bar the pad should follow it down.
+	 * Pinned to the bottom of the window, and `fixed` rather than in the column: the band it
+	 * stands in is reserved whether the pad is in it or not, so the rail's switch can take it
+	 * away without moving the drawing. It has to be that way round — see the note on
+	 * `--chrome-bottom` in the create page's stylesheet, which is a bug this already had.
 	 *
 	 * **16px wider than the drawing, and centred on it.** Not the same width, which is what
-	 * it was: a pad exactly as wide as the thumbnails read as another page in the column
-	 * rather than as a thing lying on top of them. 8px past either edge is enough to say it
-	 * is in front. The centre is the middle of the stage, which is the window less whatever
-	 * the rail has taken off the left of it.
+	 * it was: matching exactly read as another page below the drawing rather than as a thing
+	 * lying on the page. 8px past either edge is enough to say it is in front. The centre is
+	 * the middle of the stage, which is the window less whatever the rail has taken off the
+	 * left of it.
 	 *
-	 * Over the flipbook: the pages carry `z-index: 9` and the drawing 15, so 14 puts the pad
-	 * above the column and still below the sheet — on a short window the two overlap, and a
-	 * pad drawn over the drawing would be a wash across the thing you are aiming at.
+	 * `z-index: 14` puts it over the page bar at 10 and still under the drawing at 15 — on a
+	 * short window the pad and the sheet overlap, and a pad drawn over the drawing would be a
+	 * wash across the thing you are aiming at.
 	 */
-	/* `absolute` against the create page's `.chrome`, a sticky box the size of the
-	   scrollport — so these are the window's coordinates, as they were when this said
-	   `fixed`, and the pad is still in the scroller's chain. `pointer-events` because
-	   `.chrome` switches them off for the white between its boxes; this one takes every
-	   touch that lands on it, which is the whole of what it is for. */
-	position: absolute;
+	position: fixed;
 	bottom: var(--pad-air, 0);
-	pointer-events: auto;
 	left: calc(var(--stage-left, 0px) + (100vw - var(--stage-left, 0px)) / 2);
 	z-index: 14;
 	width: calc(var(--book-width) + 16px);
@@ -49,11 +44,9 @@
 	/*
 	 * The page's height, handed down rather than stated here.
 	 *
-	 * Three things read it and only one of them is the pad: `--chrome-bottom` is drawn off
-	 * it, `--book-reserve` carries it as a term, and the boot shell reserves the same band
-	 * before this file has arrived. It is also what the rail's switch sets to zero to put the
-	 * pad away — see `.content.padless` — so the number has to live somewhere all of them can
-	 * see it.
+	 * Two things read it and only one of them is the pad: `--chrome-bottom` is drawn off it,
+	 * and `--book-reserve` is drawn off that — which is how the band below the drawing gets
+	 * reserved before this file has arrived, and stays reserved when the pad is switched off.
 	 */
 	height: var(--pad-height, 120px);
 	border-radius: var(--radius-card);

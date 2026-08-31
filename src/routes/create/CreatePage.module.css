@@ -1,101 +1,100 @@
 /*
- * The create page's layout: one box the size of the window, with the flipbook scrolling
- * inside it and everything else standing over it.
+ * The create page's layout: one windowful, held still, with a rail down the left of it.
  *
- * **The flipbook is the page's content and nothing else is.** The column of thumbnails is
- * ordinary flow inside `.content` — it is what makes that box tall — and the rail, the
- * drawing, the aiming pad and the two scrims are all inside `.chrome`, one sticky box
- * pinned to the top of the scrollport.
+ * Four boxes and nothing else. A header carrying one button; a rail of 40×40 Pecita tiles
+ * pinned to the left; the drawing, taking whatever height is left; and the page bar under
+ * it. v14 adds a fifth over the bottom of the window — the aiming pad — which is furniture
+ * laid over the page rather than a box in it.
  *
- * **What scrolls has been both ways round, and this is the second answer.** It was this;
- * then it was the document, because *iOS Safari only collapses its URL bar for the root
- * scroller* and the flipbook running under the bar is worth having. What that bought was
- * not worth what it cost: the bar comes and goes as you scroll, so the viewport changes
- * size while you are looking at it, and a mandatory snap container whose height moves
- * mid-fling stops mid-fling and then jumps. So the body is pinned again — see `html.tool`
- * in `base.css` — the URL bar stays up, and the box the flipbook is in never resizes.
+ * **This page scrolled for a while and it doesn't any more.** The flipbook was a column of
+ * thumbnails you scrolled with the drawing pinned over the middle, and getting that to work
+ * took a scroll container, a mandatory snap container, a `position: sticky` wrapper to keep
+ * the chrome inside the scroller's chain, a snap offset measured in JavaScript because no
+ * stylesheet could state it, two rules stopping the scroll and the page number from
+ * answering each other, and one full-size canvas per page under a memory ceiling. The page
+ * bar does the same job in one control and 60px of height, and it can say where you are in
+ * a 200-page flipbook, which three visible thumbnails never could. What that cost is
+ * written down in `docs/create-page.md` rather than lost.
  *
- * **`.chrome` is `position: sticky` rather than a set of `position: fixed` boxes, and that
- * is not decoration.** A fixed element is not in a scroll container's chain: a wheel or a
- * drag on the rail, or on the white either side of the paper, reached nothing and the
- * flipbook sat still under the pointer. Measured both ways — over a fixed child the
- * scroller moved 0px, over a sticky one it moved by the wheel delta exactly. Sticky keeps a
- * box on the glass *and* in the chain, which is the whole requirement.
- *
- * Every box inside it is measured off two numbers — `--chrome-top` and `--chrome-bottom`,
- * the bands at the two ends of the window that are not the flipbook — and off `100svh`
- * rather than `100dvh`. That last one matters here and nowhere else on the site: `dvh`
- * *changes* as the URL bar collapses. It cannot collapse any more, and the rule stays
- * anyway, because a page that only works while a browser behaves is a page that breaks when
- * one doesn't.
+ * So nothing here scrolls, and `html.locked` in `base.css` is what holds the document
+ * still. The drawing is sized to what is left after everything else has been counted —
+ * `--book-reserve` — because a page that scrolls while you draw on it is a page that has
+ * taken the stroke away from you.
  */
 
 .content {
-	/*
-	 * The scroller: a box the exact size of the viewport, holding still while the flipbook
-	 * goes past inside it. `position: fixed` rather than `absolute` because the body is
-	 * pinned and has no height to be `inset: 0` of.
-	 *
-	 * `scroll-snap-type` is what makes the drawing cut from page to page rather than slide:
-	 * every thumbnail is a snap point and the scroll always lands on one. It is switched off
-	 * — inline, from `PageStrip` — for exactly as long as that file is animating the scroll
-	 * itself, because a mandatory snap container resnaps after every scroll it is given and
-	 * the two would be fighting for the same property forty times a second. Inline rather
-	 * than by a class, which is the fix for a bug this had twice: a module class kept losing
-	 * a specificity argument to the rule that switched snapping on, silently, and the only
-	 * symptom was an eased scroll arriving as a jump. An inline style cannot lose that
-	 * argument.
-	 *
-	 * `scroll-padding-top` is set from the same file, and is where the drawing actually
-	 * ended up — the one thing about this layout that a stylesheet cannot state.
-	 *
-	 * `overscroll-behavior: contain` so a flick past the last page stops there rather than
-	 * handing the rest to a document that is pinned and cannot use it.
-	 */
-	position: fixed;
-	inset: 0;
-	overflow-y: auto;
-	overflow-x: hidden;
-	scroll-snap-type: y mandatory;
-	overscroll-behavior: contain;
+	position: relative;
+	width: 100%;
 
-	/* No scrollbar. The flipbook *is* the scroll indicator — the pages either side of the
-	   drawing say where you are far better than a 4px rule does — and on a desktop a
-	   permanent gutter down the right-hand edge would take 15px out of a centred drawing. */
-	scrollbar-width: none;
+	/*
+	 * A column: the stage takes what the header, the bar and the pad's band leave, and v11's
+	 * second canvas takes what the stage leaves after that.
+	 *
+	 * `html.locked main { flex: 1 }` in `base.css` is what stretches this to the bottom of
+	 * the window, which matters for more than tidiness: the empty white under the drawing is
+	 * the field a finger aims from in the modes that aim from below it.
+	 */
+	display: flex;
+	flex-direction: column;
+	padding-top: 20px;
+	/*
+	 * The aiming pad's band, plus air. The pad is `position: fixed` and out of this column
+	 * entirely — it has to be, so the rail's switch can take it away without moving the
+	 * drawing — so the column has to keep the room clear itself. Without this the page bar
+	 * sat *underneath* the pad, which is a control hidden behind a surface you drag on.
+	 * `--chrome-bottom` already carries the safe-area inset.
+	 */
+	padding-bottom: calc(var(--chrome-bottom) + 12px);
+	/* The rail's lane, on the layout where the rail stands in one. */
+	padding-left: var(--stage-left);
 
 	/*
 	 * How wide the sheet of paper is, and it is stated in viewport units rather than as a
 	 * `min(100%, …)`.
 	 *
-	 * The percentage worked while everything that read this number lived in the same box.
-	 * It is read from three now — the stage, the aiming pad and the boot shell — and `100%`
-	 * means something different in each. The pad, which has to come out exactly 16px wider
-	 * than the drawing, is the one it was wrong for. Written out, it is the same number
-	 * wherever it is read.
+	 * Two things read it that are not in this box — the aiming pad, which has to come out
+	 * exactly 16px wider than the drawing, and the rail, which stands beside it on a desktop
+	 * — and both are positioned against the window. `100%` means something different to each
+	 * of them. Written out, it is the same number wherever it is read.
 	 *
-	 * `100vw` is safe because the one box that scrolls has no scrollbar; see `.content`.
+	 * `--page-aspect` is the flipbook's own width over its height, set from `pageVars` on
+	 * this element. It has to be a decimal rather than the `640 / 360` that `aspect-ratio`
+	 * takes: this is inside `calc()`, where a division needs a plain number on the right.
+	 * The fallback is the legacy page — every flipbook that doesn't say what shape it is, is
+	 * that shape — but the create page always says, and what it says is square.
 	 */
 	--stage-width: calc(100vw - var(--stage-left) - var(--stage-gutter) * 2);
 	--book-width: min(
 		var(--stage-width),
 		var(--book-max),
-		calc((100svh - var(--book-reserve)) * 16 / 9)
+		calc((100svh - var(--book-reserve)) * var(--page-aspect, 1.7778))
 	);
 	--book-max: 100vw;
 
 	/*
-	 * Everything in the window that is not the drawing: the header band, the aiming pad's
-	 * band, and the air that lets you see the page before and the page after.
+	 * Everything in the window that is not the drawing: the header band, the page bar, the
+	 * aiming pad's band, this column's own padding, and a little slack.
+	 *
+	 * A square page is what makes this number worth getting right. At 640 across a square
+	 * sheet is 640 tall where a 16:9 one was 360, so the height term is what binds at almost
+	 * every size now rather than at almost none — an over-generous reserve used to cost
+	 * nothing and now costs a visibly smaller drawing.
+	 *
+	 * 316 is 76 of header (the wordmark is gone; what is left is Save and the row's padding,
+	 * taken at the taller of the two phone breakpoints), 20 of padding above, 56 of page bar,
+	 * and 164 below — the aiming pad's band and its air. Stated rather than composed from
+	 * those parts because the header's height is `SiteHeader`'s business and differs at
+	 * breakpoints this page does not have; the slack is a few pixels at the sizes it is
+	 * wrong at, and it is measured rather than guessed.
 	 */
-	--book-reserve: 236px;
+	--book-reserve: 316px;
 
 	/*
 	 * The rail's box, and how much room the layout keeps clear for it.
 	 *
 	 * Two numbers because they are two questions, and on a desktop they have different
 	 * answers. `--rail-width` is how wide the panel is. `--stage-left` is how far in from the
-	 * left the flipbook starts — the rail's width on a phone, where it is a column down the
+	 * left the drawing starts — the rail's width on a phone, where it is a column down the
 	 * edge, and *zero* on a desktop, where the drawing is centred in the window and the rail
 	 * floats beside it. What keeps the two from colliding up there is `--stage-gutter`, which
 	 * takes the rail's lane out of the drawing's width on **both** sides so the paper stays
@@ -109,163 +108,76 @@
 	--stage-left: var(--rail-width);
 	--stage-gutter: 16px;
 
-	/* The two bands at the ends of the window: the header, and the aiming pad. Stated
-	   rather than measured because they are furniture that does not move, and a fixed box
-	   that measured its way into position is one that lands a frame after the page does. */
-	--chrome-top: 104px;
-	--chrome-bottom: calc(var(--pad-height) + var(--pad-air) + 12px);
-
 	/*
-	 * Where the rail starts, which is the header's own bottom edge rather than the band
-	 * above the drawing.
+	 * The band at the bottom of the window the aiming pad stands in, and it stands whether
+	 * the pad is in it or not.
 	 *
-	 * Those are two different numbers and used to be one. `--chrome-top` is the air the
-	 * *drawing* keeps clear at the top of the window, and it is deliberately more than the
-	 * header — a sheet of paper immediately under the wordmark is a crowded page. The rail
-	 * is the opposite claim: it is furniture, it belongs to the header, and the gap between
-	 * them is just a gap.
-	 *
-	 * It is the one number on this page that is measured, and the reason is that the header
-	 * has four breakpoints of its own — the wordmark comes down twice, the padding with it,
-	 * and Save wraps onto its own line on a narrow phone, which is 56px nobody could state
-	 * here without restating the whole of `SiteHeader.module.css`. `CreatePage` writes it
-	 * from a `ResizeObserver`. The value below is what stands until that lands, and what the
-	 * boot shell uses — which needs no better one, the shell having no rail to place.
+	 * That is not tidiness, it is the fix for a bug. The rail has a switch that takes the pad
+	 * away, and the first version of it gave the band back to the drawing — which re-centred
+	 * the paper, and at the time the whole column of thumbnails was pinned to where the paper
+	 * had been. Nothing told it otherwise. The pad is furniture laid over the page; switching
+	 * it off is a `display` change and nothing else.
 	 */
-	--rail-top: var(--chrome-top);
+	--chrome-bottom: calc(var(--pad-height) + var(--pad-air) + 12px);
 
 	/*
 	 * v14's aiming pad, which `AimPad` takes its size from.
 	 *
-	 * `svh` and not `dvh`, which it was, and the difference is the whole of a bug this page
-	 * had: `--chrome-bottom` is drawn off this number, `--chrome-bottom` is what the drawing
-	 * is sized between, and the drawing's size is what the page column is measured against —
-	 * so a pad stated in `dvh` is a scroll container that changes length every time a
-	 * browser's chrome slides in or out. Which stops a fling dead and then jumps it to a
-	 * slot. Nothing on this page may be measured in `dvh`; see the note at the top.
-	 *
-	 * **The band stands whether or not the pad is in it.** Switching the pad off is a
-	 * `display` change and nothing else: `--pad-height` does not move, so `--chrome-bottom`
-	 * does not, so the drawing does not — which matters because `PageStrip` measures the
-	 * drawing's position once and pins the whole column to it. A pad that re-centred the
-	 * paper left every thumbnail behind it standing in the wrong place.
+	 * `svh` and not `dvh`. Nothing on this page may be measured in the dynamic viewport:
+	 * every box here is drawn off every other one — this number is a term in
+	 * `--chrome-bottom`, `--chrome-bottom` is a term in `--book-reserve`, and
+	 * `--book-reserve` is what the drawing is sized against — so a unit that changes when a
+	 * browser slides its own chrome in or out is a drawing that resizes under your hand.
 	 */
 	--pad-height: clamp(88px, 17svh, 132px);
 	--pad-air: calc(8px + env(safe-area-inset-bottom));
-}
 
-/* Safari and Chrome want it said the other way. */
-.content::-webkit-scrollbar {
-	display: none;
-}
-
-/*
- * Everything that stands still while the flipbook goes past.
- *
- * One box, the size of the scrollport, stuck to the top of it — so what is inside can be
- * `position: absolute` against it and land on exactly the pixel `position: fixed` used to.
- *
- * **First in the flow, with a negative bottom margin the same size.** Both halves of that
- * are load-bearing. Sticky pins an element from *its own place in the flow* onward, so this
- * box standing after the column would be a windowful below the fold and only arrive once
- * you had scrolled the whole flipbook past — the rail and the drawing simply absent until
- * then. And the margin gives the height straight back, so a windowful of chrome adds
- * nothing to the length of the document; without it the flipbook ends with one blank page's
- * worth of scroll that no page is in.
- *
- * `z-index: 10` puts the whole of it over the column, which carries 9. It is a stacking
- * context, which is fine and is worth knowing: the numbers inside it (the scrims at 12, the
- * pad at 14, the drawing at 15, the rail at 30) are now only argued out among themselves,
- * and every one of them is above every page either way.
- *
- * `pointer-events: none`, with each thing in it putting them back — see `.stage`, which
- * does not, because the white either side of the paper has to stay somewhere you can take
- * hold of the flipbook and scroll.
- */
-.chrome {
-	position: sticky;
-	top: 0;
-	z-index: 10;
-	height: 100svh;
-	margin-bottom: -100svh;
-	pointer-events: none;
+	/* The page bar's band: the bar's own height plus the margin it stands on. Named because
+	   three things have to agree about it — the band below, `--book-reserve` above, and the
+	   boot shell, which draws the band empty. */
+	--nav-band: 56px;
 }
 
 /*
- * The header, pinned to the top.
+ * The drawing, taking whatever the rest of the column leaves.
  *
- * `SiteHeader` is shared with two pages that scroll normally, so the fixing is done by a
- * wrapper here rather than in its own stylesheet. It is outside the scroller, which is the
- * one piece of chrome that can be: nothing has to scroll *through* the header. That also
- * keeps it out of `.chrome`'s stacking context, so the 100 it has always carried still
- * argues directly with the flipbook (9), the drawing (15) and the rail (30) and still wins.
- */
-.headerBar {
-	position: fixed;
-	top: 0;
-	right: 0;
-	left: 0;
-	z-index: 100;
-}
-
-/*
- * The drawing, pinned over the middle of the window.
- *
- * Laid over the column rather than inside it, which is the one thing about this layout
- * that has to be exactly this way round: a canvas in the flow would scroll away with the
- * pages, and a canvas that scrolls is a canvas you cannot draw on while the flipbook moves
- * underneath it.
- *
- * The height is `100svh` arithmetic rather than a `bottom` offset. The window no longer
- * grows and shrinks under it — the body is pinned — but the rule earns its place anyway: it
- * is the same number the boot shell draws its placeholder from, and a stage measured off its
- * container while the shell's container is a different box is a sheet of paper that moves at
- * the handover.
- *
- * `pointer-events: none`, with the sheet itself putting them back. What is left is the
- * column either side of the paper, which stays a place you can take hold of the flipbook
- * and scroll — on a desktop that is most of the window.
- *
- * `z-index: 15` is the canvas's own number and is load-bearing rather than decorative:
- * `.page` in the strip carries a 9, so without a number of its own the paper would be
- * painted *under* the thumbnails it is standing in front of.
+ * `min-height: 0` because it is a flex child that is allowed to shrink: without it a
+ * too-tall sheet would push the page bar off the bottom of a window that has nowhere to
+ * scroll to, which is the one failure this layout cannot recover from.
  */
 .stage {
-	position: absolute;
-	top: var(--chrome-top);
-	right: 0;
-	left: var(--stage-left);
-	z-index: 15;
 	display: flex;
-	height: calc(100svh - var(--chrome-top) - var(--chrome-bottom));
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
 	align-items: center;
+	/*
+	 * Centred, and the page bar is centred *with* it rather than left at the bottom of the
+	 * column. The two are one object: the bar says which page the drawing is showing, and a
+	 * bar that drifts away from the sheet as the window gets taller is a caption that has
+	 * come off its picture.
+	 */
 	justify-content: center;
 	padding: 0 var(--stage-gutter);
-	pointer-events: none;
-}
-
-.stage > * {
-	pointer-events: auto;
 }
 
 /*
- * **Switched off, and the decision is still open.** See `PAGE_BAR` in `CreatePage.tsx`,
- * which is the other half of this switch and says what taking it out for good would mean —
- * play has nowhere else to live. Taking the bar off is `display: none` here and the
- * constant there, and they have to move together.
+ * The page bar's band, under the drawing.
+ *
+ * It has a stated height, and that is what makes the boot shell exact: the shell draws this
+ * box empty — a bar is a control, and a grey pill that turns into a working one is two
+ * loading states where the page needs one — so the height has to be something the shell can
+ * state without having the bar. `PageNav` centres itself inside it.
  */
 .navBand {
-	display: none;
-	/* Inside `.chrome`, which switches pointer events off for the empty white between its
-	   boxes. Every control in it has to say this for itself. */
-	pointer-events: auto;
+	height: var(--nav-band);
+	flex-shrink: 0;
 }
 
-/* While the artwork is on the wire: nothing to press, and the wash stays up. */
+/* While the artwork is on the wire: nothing to press. */
 .sending {
 	pointer-events: none;
 }
-
 /*
  * Save, at the right-hand end of the header.
  *
@@ -355,89 +267,33 @@
 }
 
 /*
- * The two edges the flipbook runs off, softened.
- *
- * The column fills the whole scrollport, so it carries on past the top and bottom of what
- * you are working in rather than stopping against them. Left alone that reads as content
- * escaping the page; these are what turn it into content *going* somewhere — a wash of the
- * page's own grey, mostly opaque where the header and the aiming pad are and fading to
- * nothing where they end.
- *
- * The colour is `--page` written out at two alphas rather than fading to `transparent`,
- * which interpolates through transparent *black* in some engines and greys the fade.
- *
- * Over the pages (9) and under the drawing (15): on a short window the sheet reaches into
- * both bands, and a wash over the drawing would be a wash over the thing you are drawing
- * on.
- */
-.scrim {
-	position: absolute;
-	right: 0;
-	left: 0;
-	z-index: 12;
-	pointer-events: none;
-}
-
-.scrimTop {
-	top: 0;
-	height: var(--chrome-top);
-	background: linear-gradient(
-		to bottom,
-		rgba(241, 241, 241, 0.92) 0,
-		rgba(241, 241, 241, 0.92) 56%,
-		rgba(241, 241, 241, 0) 100%
-	);
-}
-
-/* The pad paints its own blurred grey over this, so what the scrim does down there is the
-   fade above it rather than the wash under it. */
-.scrimBottom {
-	bottom: 0;
-	height: calc(var(--chrome-bottom) + 48px);
-	background: linear-gradient(
-		to top,
-		rgba(241, 241, 241, 0.92) 0,
-		rgba(241, 241, 241, 0.92) 40%,
-		rgba(241, 241, 241, 0) 100%
-	);
-}
-
-/*
- * The boot shell needs no placeholder boxes any more, and that is worth writing down.
- *
- * It used to render two — a rail-shaped one and a pad-shaped one — because the layout was a
- * flex row and the drawing was centred in whatever those two left. Everything is positioned
- * off custom properties now, so the stage sits where `--stage-left`, `--chrome-top` and
- * `--chrome-bottom` put it whether or not anything is actually standing in those places. The shell sets the same properties by using the same class, and the
- * sheet of paper lands on the same pixel with nothing else on the page at all.
- */
-
-/*
  * A phone held sideways.
  *
- * The canvas is 16:9 and so is the screen, which ought to be the best this thing ever
- * looks — except that everything around it is competing for 375 points of height rather
- * than 812. The pad comes down to a strip and the header band with it; what a trackpad
- * needs is area and travel, and held sideways this one is 750px wide.
+ * The canvas is square now and the screen is 16:9, which is the worst case this layout has:
+ * everything around the drawing is competing for 375 points of height rather than 812. The
+ * pad comes down to a strip, the column's padding with it, and what is left is still a
+ * square sheet about 230px on a side.
  */
 @media screen and (max-height: 560px) {
 	.content {
-		--chrome-top: 84px;
+		padding-top: 8px;
 		--pad-height: 56px;
-		--book-reserve: 160px;
+		--nav-band: 44px;
+		/* 54 of header, 8 above, 44 of bar, 88 below. */
+		--book-reserve: 194px;
 	}
 }
 
 /*
- * A desktop: a wider rail, more air at the top, and no aiming pad at all — a mouse has a
- * precise pointer and none of what the pad answers is a problem it has.
+ * A desktop: a wider lane for the rail, and no aiming pad at all — a mouse has a precise
+ * pointer and none of what the pad answers is a problem it has.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
 		/*
 		 * The rail is not a column down the edge of the window up here. It stands beside the
-		 * drawing — vertically centred on it, 16px off its left edge — so the two read as one
-		 * object rather than as a toolbar and a document at opposite ends of a wide screen.
+		 * drawing — 16px off its left edge — so the two read as one object rather than as a
+		 * toolbar and a document at opposite ends of a wide screen.
 		 *
 		 * Which means the flipbook is centred in the *window* (`--stage-left: 0`) and the
 		 * rail's lane is taken out of the drawing's width on both sides instead. That keeps
@@ -449,10 +305,11 @@
 		--rail-gap: 16px;
 		--stage-gutter: calc(20px + var(--rail-width) + var(--rail-gap));
 
-		--chrome-top: 132px;
-		--chrome-bottom: 32px;
+		/* No pad up here, so the band it stands in goes with it. */
+		--chrome-bottom: 24px;
 		--book-max: 640px;
-		--book-reserve: 212px;
+		/* 84 of header, 20 above, 56 of bar, 36 below. */
+		--book-reserve: 196px;
 	}
 }
 

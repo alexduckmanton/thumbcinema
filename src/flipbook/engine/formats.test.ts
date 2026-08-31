@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
+import { LEGACY_PAGE_SIZE } from './constants'
 import {
 	ArtworkError,
 	assertLeadingGroups,
 	LEADING_SYSTEM_GROUPS,
+	pageSizeFromSvg,
 	parseLegacyPages,
 	parseSvgPages,
 	strokeGeometry,
@@ -232,5 +234,72 @@ describe('assertLeadingGroups', () => {
 
 	it('catches a short export before it is saved and shifts every page', () => {
 		expect(() => assertLeadingGroups(svg(4), 4)).toThrow(ArtworkError)
+	})
+})
+
+/*
+ * What shape a file says it is.
+ *
+ * The single rule the whole two-aspect-ratio change rests on: **no viewBox means
+ * 640×360**. paper 0.8 wrote none, so every archive row is silent and every one of them
+ * is that shape; paper 0.12 states all three attributes. `lib/thumbnail.js` holds the
+ * server's copy of this function and has to agree with it row for row — the column it
+ * writes is what a card is laid out against, and this is what the drawing is scaled by.
+ */
+describe('pageSizeFromSvg', () => {
+	it('reads the viewBox paper 0.12 writes', () => {
+		expect(
+			pageSizeFromSvg('<svg width="640" height="640" viewBox="0,0,640,640"><g/></svg>'),
+		).toEqual({ width: 640, height: 640 })
+	})
+
+	it('is the legacy page for the archive, which states nothing at all', () => {
+		// The exact root paper 0.8 wrote, and all 585 archive rows begin with it.
+		expect(pageSizeFromSvg('<svg xmlns="http://www.w3.org/2000/svg"><g/><g/><g/></svg>')).toEqual(
+			LEGACY_PAGE_SIZE,
+		)
+	})
+
+	it('takes either separator, because paper has written both', () => {
+		expect(pageSizeFromSvg('<svg viewBox="0 0 640 360"/>')).toEqual({ width: 640, height: 360 })
+		expect(pageSizeFromSvg('<svg viewBox="0,0,640,360"/>')).toEqual({ width: 640, height: 360 })
+		expect(pageSizeFromSvg('<svg viewBox=" 0 , 0 , 640 , 640 "/>')).toEqual({
+			width: 640,
+			height: 640,
+		})
+	})
+
+	it('ignores width and height when a viewBox says otherwise', () => {
+		// Those two are a display size; the viewBox is the space the coordinates are in,
+		// and the coordinates are the only thing that has to be got right.
+		expect(pageSizeFromSvg('<svg width="320" height="180" viewBox="0,0,640,640"/>')).toEqual({
+			width: 640,
+			height: 640,
+		})
+	})
+
+	it('falls back rather than throwing on anything malformed', () => {
+		// A flipbook that renders at the wrong shape is recoverable; one that refuses to
+		// open is somebody's drawing gone. Every one of these is the legacy page.
+		for (const bad of [
+			'',
+			'not svg at all',
+			'<svg viewBox=""/>',
+			'<svg viewBox="0 0 640"/>',
+			'<svg viewBox="0 0 0 360"/>',
+			'<svg viewBox="0 0 -640 360"/>',
+			'<svg viewBox="a b c d"/>',
+		]) {
+			expect(pageSizeFromSvg(bad)).toEqual(LEGACY_PAGE_SIZE)
+		}
+	})
+
+	it('does not mistake a viewBox further down the document for the root’s', () => {
+		// A nested <svg> is not something this tool writes, but "the first viewBox in the
+		// file" would be a quietly wrong rule to rely on if it ever did.
+		expect(pageSizeFromSvg('<svg viewBox="0,0,640,640"><svg viewBox="0,0,10,10"/></svg>')).toEqual({
+			width: 640,
+			height: 640,
+		})
 	})
 })

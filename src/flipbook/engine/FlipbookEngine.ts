@@ -1,9 +1,9 @@
 import { Store } from '../../lib/store'
 import { Clipboard } from './clipboard'
-import { DEFAULT_PAGE_STEP } from './animations'
-import { CANVAS_HEIGHT, CANVAS_WIDTH, FPS, PENCIL_COLOR } from './constants'
+import { DEFAULT_PAGE_SIZE, FPS, LEGACY_PAGE_SIZE, type PageSize, PENCIL_COLOR } from './constants'
 import {
 	assertLeadingGroups,
+	pageSizeFromSvg,
 	parseLegacyPages,
 	parseSvgPages,
 	strokeGeometry,
@@ -33,17 +33,6 @@ export type EngineMode = 'create' | 'playback'
 export interface FlipbookState {
 	pages: PageState[]
 	activePage: number
-
-	/**
-	 * True while a page thumbnail is sliding into the slot the drawing canvas stands
-	 * in, and hasn't got there yet.
-	 *
-	 * The strip hides whichever thumbnail is behind the canvas, and that is normally
-	 * the active page. During a delete the next page becomes active the instant you
-	 * click — so it was being hidden 4ms in and spending its whole 750ms journey
-	 * invisible, which read as it teleporting into place while every other page slid.
-	 * While this is set the strip hides nothing.
-	 */
 
 	/** Null on the playback page, which has no drawing tools at all. */
 	tool: ModalToolId | null
@@ -96,7 +85,7 @@ export interface FlipbookState {
 	 *
 	 * What is *not* here is the picture. That is a DOM layer over the canvas — see
 	 * `TraceLayer` — and no part of a trace photo ever reaches the scene, a page
-	 * thumbnail, the printed booklet or the save.
+	 * the printed booklet or the save.
 	 */
 	trace: TracePhotos
 
@@ -104,28 +93,51 @@ export interface FlipbookState {
 	 * True while the photo on the active page is in hand rather than lying on it.
 	 *
 	 * The tool is put down for the length of it — a photograph being moved about is not
-	 * a moment to also be drawing, and a tray showing a tool selected says the drawing is
+	 * a moment to also be drawing, and a rail showing a tool lit says the drawing is
 	 * live when it isn't — and every page operation settles it. See `settleTrace`.
 	 */
 	tracePlacing: boolean
+
+	/**
+	 * The shape of a page, in project units — or null while it is genuinely not known.
+	 *
+	 * In the store because it is what React lays the page out against: the frame's
+	 * `aspect-ratio`, the trace layer's placement, the zoom stage's arithmetic.
+	 *
+	 * Null is the honest answer for a flipbook that is still on the wire, and it is
+	 * load-bearing rather than tidy. The scene has to be built with *some* size the
+	 * moment the canvas exists, and a page opened to show somebody else's flipbook has
+	 * no way of knowing which one until the file lands — so a non-null default here
+	 * would be this engine asserting a shape it had guessed, over the top of the row's
+	 * own answer, which the playback page has had since its first fetch. A page that
+	 * knows what it is opening says so at construction (`EngineOptions.page`); one that
+	 * doesn't waits and is told by `loadSvg`.
+	 */
+	page: PageSize | null
 }
 
 export interface EngineOptions {
 	mode: EngineMode
 	isTouch: boolean
+	/**
+	 * The shape to open at, for a page that starts empty. Defaults to a new flipbook's.
+	 *
+	 * Only ever the starting point: loading artwork restates it from the file, which is
+	 * the authority. See `Scene.resize` and `pageSizeFromSvg`.
+	 */
+	page?: PageSize
 }
 
 /**
  * The drawing tool.
  *
  * Owns a paper.js scene, the tools that act on it, and just enough derived state
- * for React to render a toolbar and a page strip around it. Nothing in here imports
+ * for React to render a toolbar and a page bar around it. Nothing in here imports
  * React: the engine is driven by method calls and reports back through `store`,
  * which is what lets the fiddly parts be exercised without rendering anything.
  *
- * Two modes share it. `create` is the full tool; `playback` skips the tools, the
- * page thumbnails and the onion skin entirely, which is most of why a 200-page
- * archive flipbook opens quickly.
+ * Two modes share it. `create` is the full tool; `playback` skips the tools and the
+ * onion skin entirely, which is part of why a 200-page archive flipbook opens quickly.
  */
 export class FlipbookEngine {
 	readonly store: Store<FlipbookState>
@@ -141,12 +153,6 @@ export class FlipbookEngine {
 	private readonly transform: TransformTool | null
 	private readonly push: PushTool | null
 
-	/** One canvas per page, registered by React as the strip renders. */
-	private readonly thumbnails = new Map<number, HTMLCanvasElement>()
-
-	/** How far one page is from the next on screen. See `setPageStep`. */
-	private pitch = DEFAULT_PAGE_STEP
-
 	private nextPageId = 1
 	private playTimer: number | null = null
 	private destroyed = false
@@ -161,7 +167,7 @@ export class FlipbookEngine {
 	constructor(canvas: HTMLCanvasElement, options: EngineOptions, paperCore: PaperCore) {
 		this.mode = options.mode
 
-		this.scene = new Scene(canvas, paperCore)
+		this.scene = new Scene(canvas, paperCore, options.page ?? DEFAULT_PAGE_SIZE)
 		this.selection = new Selection(this.scene)
 		this.history = new History(this.scene)
 		this.clipboard = new Clipboard(this.scene)
@@ -175,6 +181,7 @@ export class FlipbookEngine {
 		this.selection.onChange = () => this.publishSelection()
 
 		this.store = new Store<FlipbookState>({
+			page: options.page ?? null,
 			pages: [{ id: this.nextPageId++, segments: 0 }],
 			activePage: 0,
 			tool: options.mode === 'create' ? 'pencil' : null,
@@ -218,8 +225,8 @@ export class FlipbookEngine {
 			this.pencil.activate()
 
 			// Down on the canvas, up on the document: a stroke that runs off the edge
-			// of the canvas still releases somewhere, and its page thumbnail still has
-			// to be redrawn. Listening for mouseup on the canvas alone missed those.
+			// of the canvas still releases somewhere, and its stroke still has to be
+			// committed. Listening for mouseup on the canvas alone missed those.
 			canvas.addEventListener('mousedown', this.handlePointerDown)
 			canvas.addEventListener('touchstart', this.handlePointerDown, { passive: true })
 			document.addEventListener('mouseup', this.handlePointerUp)
@@ -244,164 +251,27 @@ export class FlipbookEngine {
 		this.scene.destroy()
 	}
 
-	// --- page thumbnails -----------------------------------------------------
+	// --- the page, and its shape ---------------------------------------------
 
-	/**
-	 * React hands over each page's `<canvas>` as it mounts.
-	 *
-	 * Only the create page has a strip, so on playback this is never called and the
-	 * per-page canvases are never allocated — 640×360 of backing store each, which
-	 * on a long archive flipbook is the difference between tens of megabytes and none.
-	 */
-	registerThumbnail(pageId: number, element: HTMLCanvasElement | null): void {
-		if (!element) {
-			this.thumbnails.delete(pageId)
-			return
-		}
-
-		// Deliberately does *not* size the canvas. Assigning `width` resets a canvas's
-		// bitmap, and this runs at moments that have nothing to do with the size being
-		// wrong. The size is a JSX attribute on the element instead — see `PageStrip`,
-		// which has two of them and a rule about crossing between.
-		this.thumbnails.set(pageId, element)
-
-		// A duplicated page's thumbnail is seeded from the page it was copied from,
-		// here rather than on the next capture, so it is never briefly blank.
-		if (this.seedNext?.pageId === pageId) {
-			element.getContext('2d')?.drawImage(this.seedNext.source, 0, 0, element.width, element.height)
-			this.seedNext = null
-		}
-
-		/*
-		 * A page that exists in the scene but has never been drawn here, painted the
-		 * moment it has something to be painted on.
-		 *
-		 * Two things arrive that way and neither can draw itself where it happens. A page
-		 * the history puts back has no `<canvas>` until React makes one on the next
-		 * render; so does every page of a flipbook being replayed into the tool, all of
-		 * which are built behind the one on screen. Waiting a frame or two would work
-		 * while anyone is watching and fail exactly when nobody is — a background tab runs
-		 * no animation frames at all, and the pages would come back blank. This is the
-		 * moment the element exists, and there is no waiting in it.
-		 */
-		if (this.owedThumbnails.delete(pageId)) this.capturePageById(pageId, element)
+	/** The shape of a page, in project units. The artwork decides it; see `loadSvg`. */
+	get page(): PageSize {
+		return this.scene.page
 	}
 
 	/**
-	 * The pages whose thumbnails are owed a drawing as soon as React renders one.
+	 * Restates the coordinate space and tells React about it.
 	 *
-	 * Ids rather than indices, because both the things that fill this — a load and the
-	 * history — are about to change which page is at which index.
+	 * Two steps rather than one because the scene and the layout answer to different
+	 * people: paper needs the view resized before it is handed any geometry, and the
+	 * page above needs the same number to size the frame the canvas is drawn in. A
+	 * no-op unless the artwork is from the other era, which is what makes it safe to
+	 * call on every load.
 	 */
-	private readonly owedThumbnails = new Set<number>()
+	private resizePage(page: PageSize): void {
+		if (page.width === this.scene.page.width && page.height === this.scene.page.height) return
 
-	/**
-	 * Draws every page's thumbnail again, now.
-	 *
-	 * The strip's own call, for the one thing that empties a thumbnail without the page
-	 * changing: assigning either dimension of a canvas resets its bitmap, and the strip
-	 * resizes all of them when it changes the scale it draws at. It has to be a call
-	 * rather than a set of ids left owed, because owing is paid by `registerThumbnail`
-	 * and that only runs when React *mounts* an element — a canvas that is resized in
-	 * place is the same element, and its ref never fires again. Which is what the strip's
-	 * layout effect is: after the resize, before the frame it would have been seen in.
-	 */
-	redrawThumbnails(): void {
-		if (this.mode !== 'create') return
-
-		for (const page of this.store.snapshot.pages) {
-			const target = this.thumbnails.get(page.id)
-			// A page React hasn't rendered yet is owed one instead, which is the same
-			// answer the loader and the history give.
-			if (target) this.capturePageById(page.id, target)
-			else this.owedThumbnails.add(page.id)
-		}
-	}
-
-	/**
-	 * How far it is from one page to the next, measured off the strip.
-	 *
-	 * Every animation that throws a page into the next slot travels exactly this far,
-	 * and the strip is a row of copies of the drawing — which is 640 wide on a desktop
-	 * and about half that on a phone. So the number can't be a constant, and it is the
-	 * strip that knows it. See `PageStrip`, which measures and reports it.
-	 */
-	setPageStep(step: number): void {
-		if (step > 0) this.pitch = step
-	}
-
-	/**
-	 * The same number, read back.
-	 *
-	 * The reorder gesture measures a drag in pages, so it needs the pitch the strip is
-	 * currently laid out at — and the strip has already told the engine what that is, so
-	 * asking here is cheaper than measuring it a second time and can't disagree.
-	 */
-	get pageStep(): number {
-		return this.pitch
-	}
-
-	/** Copies the live canvas onto the active page's thumbnail. */
-	captureActivePage(): void {
-		if (this.mode !== 'create') return
-
-		const index = this.scene.activePage
-		const page = this.store.snapshot.pages[index]
-		const target = page ? this.thumbnails.get(page.id) : undefined
-		if (!target) return
-
-		this.capturePage(index, target)
-	}
-
-	/** The same, of whichever page carries `pageId`. */
-	private capturePageById(pageId: number, target: HTMLCanvasElement): void {
-		const index = this.store.snapshot.pages.findIndex((page) => page.id === pageId)
-		if (index >= 0) this.capturePage(index, target)
-	}
-
-	/**
-	 * Draws page `index` onto `target`.
-	 *
-	 * A thumbnail is a copy of the live canvas, so a page that isn't the one on screen
-	 * has to be *put* on screen to be copied — shown, read, and handed back, which is
-	 * what `captureCover` already does to photograph the cover page at save time.
-	 * Nothing is painted in between: the browser paints at frame boundaries and every
-	 * line of this runs in one go, so the page being drawn on never flickers.
-	 *
-	 * Which matters because it is how a loaded flipbook gets its strip. Every page but
-	 * the first is built behind whatever is showing (see `Scene.appendPage`), so a
-	 * capture that could only read the active page left forty blank thumbnails either
-	 * side of the drawing until each one had been turned to and drawn on.
-	 */
-	private capturePage(index: number, target: HTMLCanvasElement): void {
-		if (index < 0 || index >= this.scene.pageCount) return
-
-		const context = target.getContext('2d')
-		if (!context) return
-
-		// Both read the layer the reader is standing on, so both are asked before that
-		// changes underneath them and put back after it has been handed back.
-		this.selection.hideChrome()
-		this.scene.hideOnion()
-
-		const standing = this.scene.activePage
-		const elsewhere = index !== standing
-		if (elsewhere) this.scene.setActivePage(index, { playing: true })
-
-		this.scene.redraw()
-
-		context.clearRect(0, 0, target.width, target.height)
-		// Scaled explicitly. paper.js sizes the drawing canvas's backing store by
-		// the device pixel ratio, so on a retina screen it is 1280×720 behind a
-		// 640×360 element — and an unscaled drawImage would copy the top-left
-		// quarter of it at double size.
-		context.drawImage(this.scene.canvas, 0, 0, target.width, target.height)
-
-		if (elsewhere) this.scene.setActivePage(standing, { playing: true })
-
-		this.selection.showChrome()
-		this.refreshOnion()
-		this.scene.redraw()
+		this.scene.resize(page)
+		this.store.set({ page: this.scene.page })
 	}
 
 	// --- tools ---------------------------------------------------------------
@@ -552,8 +422,6 @@ export class FlipbookEngine {
 		this.history.begin(index, page.id)
 		this.selection.deleteSelected()
 		this.history.commit(index)
-
-		this.captureActivePage()
 	}
 
 	/**
@@ -570,7 +438,6 @@ export class FlipbookEngine {
 
 		this.selection.clear()
 		this.activeTool?.init()
-		this.captureActivePage()
 	}
 
 	// --- copy and paste ------------------------------------------------------
@@ -620,9 +487,8 @@ export class FlipbookEngine {
 	 *    held, so a pencil stroke drawn there would land in it rather than on the page.
 	 *    Pasting with a pencil in your hand and then being able to do nothing with what
 	 *    arrived is the worse of the two surprises.
-	 *  - **Held while the flipbook is busy or loading.** A page animation is 750ms in
-	 *    which the strip is mid-flight, and a load is replacing every page there is;
-	 *    dropping a drawing into either is dropping it somewhere nobody chose.
+	 *  - **Held while the flipbook is busy or loading.** A load is replacing every page
+	 *    there is, and dropping a drawing into that is dropping it somewhere nobody chose.
 	 */
 	pasteClipboard(): void {
 		const { busy, loading } = this.store.snapshot
@@ -654,7 +520,6 @@ export class FlipbookEngine {
 		this.history.commit(index)
 		this.publishSelection()
 		this.recountActivePage()
-		this.captureActivePage()
 	}
 
 	/**
@@ -770,7 +635,6 @@ export class FlipbookEngine {
 			// Read before it goes, so the journey back has something to put there.
 			op.ink = this.history.inkOf(index)
 			this.scene.removePage(index)
-			this.thumbnails.delete(op.pageId)
 			pages.splice(index, 1)
 			vacated = index
 		}
@@ -787,13 +651,6 @@ export class FlipbookEngine {
 		this.refreshOnion()
 		this.scene.redraw()
 
-		// Two ways for the page we land on to get its thumbnail back, and which applies
-		// depends on whether it was here a moment ago. A page whose contents changed
-		// already has a canvas in the strip and is drawn now; a page the step has just
-		// restored has none until React renders it, and is drawn on arrival.
-		const landed = pages[landing]
-		if (landed && !this.thumbnails.has(landed.id)) this.owedThumbnails.add(landed.id)
-
 		// The trace photos travel with the step rather than being recomputed from it:
 		// whole map, both directions, and absent on every step that didn't touch them.
 		// See `Step.trace`. Put down first, because what a step restores is a drawing
@@ -806,7 +663,6 @@ export class FlipbookEngine {
 			: this.store.snapshot.trace
 
 		this.store.set({ pages, activePage: landing, trace })
-		this.captureActivePage()
 	}
 
 	// --- the trace photo -----------------------------------------------------
@@ -822,7 +678,7 @@ export class FlipbookEngine {
 	 *
 	 * What is *not* here is the picture. See `TraceLayer`: it is a DOM layer over the
 	 * canvas, blended into it, and no part of a trace photo is ever written into the
-	 * scene, a page thumbnail, the printed booklet or the save.
+	 * scene, the printed booklet or the save.
 	 */
 	get tracePhoto(): TracePhoto | null {
 		const id = this.activePageId
@@ -867,9 +723,6 @@ export class FlipbookEngine {
 	 *    and undoing it eight times to get back to where you were is not undo. The step
 	 *    carries a `page` op per frame it made and the whole trace map either side of it,
 	 *    which between them are the entire operation.
-	 *  - **The pages are inserted instantly rather than thrown.** `addBlankPage` plays a
-	 *    750ms animation, and eight of those in a row is six seconds of the strip
-	 *    cartwheeling. This is the same instant insert `applyStep` uses to put a page back.
 	 *  - **Nothing lands in hand, where a single photo does.** "In hand" is an offer to
 	 *    place *this* one, and there is no sensible answer to which of eight that would be.
 	 *    They all land centred and fitted, and pressing the camera on any frame picks that
@@ -893,7 +746,6 @@ export class FlipbookEngine {
 
 		this.settleTrace()
 		this.selection.clear()
-		this.captureActivePage()
 
 		const start = this.store.snapshot.activePage
 		const pages = [...this.store.snapshot.pages]
@@ -1047,11 +899,10 @@ export class FlipbookEngine {
 	 * Whether a page can be added or removed right now — and if playback is what's in
 	 * the way, stops it so the next press can go through.
 	 *
-	 * Playback swaps the visible page every 83ms and a page animation is 750ms of
-	 * pinned thumbnails and a canvas mid-flight; doing both at once left the strip in
-	 * a heap. Pausing and carrying on in one press was how that happened, so the press
-	 * buys the pause and nothing else. The tools don't need this — they stop playback
-	 * themselves and nothing is animating when they do.
+	 * Playback swaps the visible page every 83ms, and adding or deleting one underneath
+	 * that is a flipbook changing length while something else is reading it. Pausing and
+	 * carrying on in one press was how that used to happen, so the press buys the pause and
+	 * nothing else. The tools don't need this — they stop playback themselves.
 	 */
 	private beginPageChange(): boolean {
 		if (this.store.snapshot.busy) return false
@@ -1075,7 +926,6 @@ export class FlipbookEngine {
 		// selection held through a page change is a set of strokes belonging to a page
 		// you are no longer on — and the next Escape pastes them onto this one.
 		this.selection.clear()
-		this.captureActivePage()
 
 		const from = this.scene.activePage
 		const source = this.store.snapshot.pages[from]
@@ -1110,7 +960,6 @@ export class FlipbookEngine {
 		 */
 		const carrying = this.store.snapshot.transformIndex === 0
 		const held = this.selection.clear()
-		this.captureActivePage()
 
 		const from = this.scene.activePage
 		const original = this.store.snapshot.pages[from]
@@ -1118,8 +967,7 @@ export class FlipbookEngine {
 		this.scene.duplicatePage(from)
 
 		// The copy takes the current page's place; you carry on drawing on the original.
-		const source = this.thumbnailFor(from)
-		const id = this.insertPageState(from, original?.segments ?? 0, source)
+		const id = this.insertPageState(from, original?.segments ?? 0)
 
 		/*
 		 * The trace photo stays in the slot it was placed in, which is now the copy.
@@ -1158,11 +1006,6 @@ export class FlipbookEngine {
 		if (!this.beginPageChange()) return
 
 		this.selection.clear()
-
-		// The thumbnail is about to stand in for the canvas, in the same place and at
-		// the same size, so any drift between the two would show as a jump the moment
-		// the canvas steps aside.
-		this.captureActivePage()
 
 		const index = this.scene.activePage
 		const pages = this.store.snapshot.pages
@@ -1204,19 +1047,16 @@ export class FlipbookEngine {
 		/*
 		 * And the whole of it, now that pages do not animate.
 		 *
-		 * What was here was 750ms of choreography: the doomed thumbnail pinned and thrown
-		 * off the screen, its neighbour pinned and slid into the gap, every page before the
-		 * gap frozen so the strip could travel out from under them, and the canvas standing
-		 * aside for the arriving page. All of it existed to make a *row positioned by
-		 * arithmetic* look like paper moving, and none of it survived the row becoming a
-		 * column you scroll — the frozen pages were pinned against a viewport the scroll was
-		 * moving underneath. What replaces it is the scroll itself: the page leaves, the
-		 * flipbook is one shorter, and `PageStrip` eases the scroll position to wherever the
-		 * page you are left on now is. See `scrollToPage`.
+		 * What was here was 750ms of choreography: the doomed thumbnail pinned and thrown off
+		 * the screen, its neighbour pinned and slid into the gap, every page before the gap
+		 * frozen so the strip could travel out from under them, and the canvas standing aside
+		 * for the arriving page. All of it existed to make a *row of thumbnails positioned by
+		 * arithmetic* look like paper moving, and there is no row of thumbnails any more —
+		 * see `docs/create-page.md`. The page leaves, the flipbook is one shorter, and the
+		 * page bar's handle is what moves.
 		 */
 		this.scene.setActivePage(sibling)
 		this.scene.removePage(index)
-		this.thumbnails.delete(doomed.id)
 
 		// The page's trace photo goes with it, and comes back with it: the step below
 		// carries the map both ways round, so one press of undo restores the drawing and
@@ -1268,15 +1108,12 @@ export class FlipbookEngine {
 	 * flipbook.
 	 *
 	 * Nothing moves here. What this does is settle the page before it is picked up — put
-	 * the selection down, bring its thumbnail up to date — and then hold everything else
-	 * still for the length of the gesture: `busy` stops the page actions, undo and the
-	 * page bar, and `reordering` stops the tools. The thumbnail matters because the
-	 * strip is about to be the only thing on screen saying where this page is, and a
-	 * copy of the drawing several strokes out of date is a page you would not recognise
-	 * as the one in your hand.
+	 * the selection down, settle any photo in hand — and then hold everything else still
+	 * for the length of the gesture: `busy` stops the page actions, undo and the page bar,
+	 * and `reordering` stops the tools.
 	 *
-	 * Returns false if now is not the moment — a page animation in flight, a flipbook
-	 * still arriving, or a single page, which has nowhere to go. The caller does nothing
+	 * Returns false if now is not the moment — the flipbook already busy, still arriving,
+	 * or a single page, which has nowhere to go. The caller does nothing
 	 * rather than starting a gesture that can't finish.
 	 */
 	beginReorder(): boolean {
@@ -1286,7 +1123,6 @@ export class FlipbookEngine {
 
 		this.settleTrace()
 		this.selection.clear()
-		this.captureActivePage()
 		this.store.set({ busy: true, reordering: true })
 		return true
 	}
@@ -1300,8 +1136,8 @@ export class FlipbookEngine {
 	 * Puts the page down where it was carried to, and lets go.
 	 *
 	 * Called once, at the end of the gesture, rather than as the page passes each slot:
-	 * everything up to this point has been the strip and the canvas standing in
-	 * different places, and the scene has not been touched. So a drag that wanders
+	 * everything up to this point has been the drawing following a pointer and the page
+	 * bar's handle following the drawing, and the scene has not been touched. So a drag that wanders
 	 * across the flipbook and comes back is one step in the history or none, and the
 	 * flipbook it is recorded against never spent a frame in a shape nobody asked for.
 	 *
@@ -1508,11 +1344,11 @@ export class FlipbookEngine {
 	/**
 	 * A PNG of the page that gets to represent the flipbook in the gallery.
 	 *
-	 * Drawn through an offscreen canvas at exactly 640×360 rather than straight off
+	 * Drawn through an offscreen canvas at exactly the page size rather than straight off
 	 * the live one: paper scales its backing store by the device pixel ratio, so
-	 * `toDataURL` there would produce a 1280×720 image on a retina screen and a
-	 * 640×360 one elsewhere. Every stored thumbnail is the same size regardless of
-	 * the machine it was drawn on.
+	 * `toDataURL` there would produce an image twice the size on a retina screen and a
+	 * page-sized one elsewhere. Every stored thumbnail is the size of the page it is of
+	 * regardless of the machine it was drawn on.
 	 *
 	 * Still written on every save, and still a PNG, even though the gallery now shows
 	 * the SVG instead: `time-capsule` reads this column and serves it as `image/png`,
@@ -1527,15 +1363,15 @@ export class FlipbookEngine {
 		this.scene.redraw()
 
 		const frame = document.createElement('canvas')
-		frame.width = CANVAS_WIDTH
-		frame.height = CANVAS_HEIGHT
+		frame.width = this.scene.page.width
+		frame.height = this.scene.page.height
 
 		const context = frame.getContext('2d')
 		if (context) {
 			// A flipbook is ink on paper, and PNG has no paper unless you paint it.
 			context.fillStyle = '#fff'
-			context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
-			context.drawImage(this.scene.canvas, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+			context.fillRect(0, 0, this.scene.page.width, this.scene.page.height)
+			context.drawImage(this.scene.canvas, 0, 0, this.scene.page.width, this.scene.page.height)
 		}
 
 		this.scene.setActivePage(original, { playing: true })
@@ -1567,6 +1403,13 @@ export class FlipbookEngine {
 	 */
 	async loadSvg(text: string, signal?: AbortSignal): Promise<void> {
 		const pages = parseSvgPages(text)
+
+		// Before a single stroke is imported, and before the store is told anything: the
+		// coordinates in this file are in the file's own space, and the scene has to be
+		// in that space to receive them. A flipbook drawn at 640×360 stays 640×360 for
+		// ever — including when it is opened here to be remixed.
+		this.resizePage(pageSizeFromSvg(text))
+
 		this.store.set({ loading: true, loadProgress: 0 })
 
 		await this.replay(pages.length, signal, (index, layer) => {
@@ -1629,6 +1472,15 @@ export class FlipbookEngine {
 
 	async loadLegacy(text: string, signal?: AbortSignal): Promise<void> {
 		const pages = parseLegacyPages(text)
+
+		// Always the legacy page, and unconditionally rather than by fallback: the 2012
+		// format is a list of layers with no root element to carry a viewBox, and it
+		// predates any other page shape by fourteen years. Without this a 2012 flipbook
+		// opened on a page whose engine defaults to square replays 640×360 coordinates
+		// into a 640×640 project — every stroke lands in the top two thirds of the paper,
+		// which reads as a drawing that has shrunk rather than as anything broken.
+		this.resizePage(LEGACY_PAGE_SIZE)
+
 		this.store.set({ loading: true, loadProgress: 0 })
 
 		await this.replay(pages.length, signal, (index) => {
@@ -1672,11 +1524,6 @@ export class FlipbookEngine {
 				const id = this.nextPageId++
 				pages.push({ id, segments: countSegments(layer) })
 
-				// Every one of them is owed a thumbnail: they are built behind the page on
-				// screen, and the strip's canvas for this page doesn't exist until React has
-				// been told the page does. Drawn on arrival, by `registerThumbnail`.
-				if (this.mode === 'create') this.owedThumbnails.add(id)
-
 				// Yield when the budget is spent, not once per page. The 2013 loader did
 				// one page per setTimeout(0), so a 200-page flipbook cost 200 trips
 				// through the task queue with the main thread idle for most of each.
@@ -1715,7 +1562,6 @@ export class FlipbookEngine {
 			// flipbook that has begun must not do.
 			if (this.store.snapshot.playback === 'none') {
 				this.refreshOnion()
-				this.captureActivePage()
 			}
 			this.scene.redraw()
 		} finally {
@@ -1970,7 +1816,6 @@ export class FlipbookEngine {
 			// selection on the way through was held back by `publishSelection`.
 			this.publishSelection()
 			this.recountActivePage()
-			this.captureActivePage()
 		}, 0)
 	}
 
@@ -1991,35 +1836,17 @@ export class FlipbookEngine {
 	/**
 	 * Adds a page record at `index`.
 	 *
-	 * `seed` is the canvas the new page was copied from: a duplicate's thumbnail
-	 * has to show the drawing immediately, because it is a copy of a page you are
-	 * looking at and a blank frame would read as having lost it.
-	 *
 	 * Returns the id it gave the page, which is what the history holds on to — indices
 	 * move as pages come and go, and a step that named one would start pointing at the
 	 * wrong page the moment it was any use.
 	 */
-	private insertPageState(
-		index: number,
-		segments: number,
-		seed?: HTMLCanvasElement | null,
-	): number {
+	private insertPageState(index: number, segments: number): number {
 		const id = this.nextPageId++
 		const pages = [...this.store.snapshot.pages]
 		pages.splice(index, 0, { id, segments })
 
-		if (seed) this.seedNext = { pageId: id, source: seed }
-
 		this.store.set({ pages, activePage: this.scene.activePage })
 		return id
-	}
-
-	/** Set by `duplicatePage` so the copy's thumbnail is right from its first frame. */
-	private seedNext: { pageId: number; source: HTMLCanvasElement } | null = null
-
-	private thumbnailFor(index: number): HTMLCanvasElement | null {
-		const page = this.store.snapshot.pages[index]
-		return page ? (this.thumbnails.get(page.id) ?? null) : null
 	}
 
 	private setBusy(busy: boolean): void {

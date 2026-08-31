@@ -1,43 +1,41 @@
 /*
- * The tab on the side of the drawing, which is how a page is picked up and carried
+ * The tab on the top edge of the drawing, which is how a page is picked up and carried
  * somewhere else in the flipbook.
  *
- * It hung off the *top* edge while the flipbook was a row: the drag was sideways, and
- * the band between the header and the paper was the one piece of empty space the layout
- * had. The column moved it. Up is now where the previous page is — a tab above the sheet
- * would be lying on the page before it, and dragging it upwards would start by pulling it
- * through that page — so it has gone round to the right-hand edge, which is empty at
- * every width and is perpendicular to nothing the flipbook does.
+ * Positioned against `.book` and hung entirely *above* it: the sheet of paper is the
+ * one thing on this page that must stay clear, so a control lying on it would be a
+ * patch of drawing you can't draw on. The gap it stands in is the column's own
+ * padding-top, which was empty — so the handle costs the flipbook no height at all and
+ * `--book-reserve` is unchanged at every width.
  *
- * Positioned against `.book` and hung entirely *outside* it: the sheet of paper is the
- * one thing on this page that must stay clear, so a control lying on it would be a patch
- * of drawing you can't draw on.
- *
- * It is white with the paper's shadow, like the page bar below the drawing and the tiles
- * in the panel: these are the controls that belong to the flipbook rather than to the
- * page, and they are all lit the same way.
+ * It is white with the paper's shadow, like the page bar below the drawing and the
+ * discs beside it: these are the controls that belong to the flipbook rather than to
+ * the page, and they are all lit the same way.
  */
 
 .handle {
 	position: absolute;
-	top: 50%;
-	left: calc(100% + var(--handle-gap));
+	bottom: calc(100% + var(--handle-gap));
+	left: 50%;
 
 	/*
-	 * Over the drawing and over the thumbnails either side of it.
+	 * Over the drawing — and over the header, which is the one that isn't obvious.
 	 *
-	 * 101 is one past the header, which is `z-index: 100` and runs the full width of the
-	 * window: a box with no background is hit-tested exactly like one with, so on a short
-	 * window where the header's row reaches down past the top of the paper, a lower tab
-	 * would have its press taken by a header that paints nothing there.
+	 * The tab stands in the air above the paper, and held sideways that air is only 8px
+	 * deep: the header's box runs the full width of the window at `z-index: 100`, so the
+	 * top of the tab and most of the press area behind it are inside it. Nothing is
+	 * *painted* there — the wordmark is at the other end of the row — but a box with no
+	 * background is hit-tested exactly like one with, so at 16 the target would be five
+	 * usable pixels deep on the layout with the least room to spare. 101 is one past the
+	 * header and below everything that is meant to cover the page.
 	 */
 	z-index: 101;
 
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--handle-width);
-	height: 72px;
+	width: 72px;
+	height: var(--handle-height);
 	padding: 0;
 
 	border: none;
@@ -47,34 +45,33 @@
 	cursor: grab;
 
 	/* A drag here is the gesture; the page must not take it for a scroll or a pinch —
-	   which on this layout is no longer a figure of speech, because the column behind it
-	   is a real scroll container and a vertical drag is exactly what scrolls it. */
+	   the same statement the canvas below and the page bar underneath both make. */
 	touch-action: none;
 	user-select: none;
 	-webkit-touch-callout: none;
 
-	transform: translateY(-50%);
+	transform: translateX(-50%);
 	transition: opacity 0.15s linear, background 0.12s ease-out, box-shadow 0.2s ease-out;
 
-	--handle-width: 14px;
+	--handle-height: 14px;
 	--handle-gap: 5px;
 }
 
 /*
  * The target, which is much bigger than the tab.
  *
- * 14px of pill is the right *picture* — it is a tab on a sheet of paper, and one wide
+ * 14px of pill is the right *picture* — it is a tab on a sheet of paper, and one deep
  * enough to press comfortably would be a shelf — but it is nothing like enough to aim a
- * finger at. So the press area is grown outwards by a pseudo-element, which costs no
- * layout and moves nothing: out into the empty margin beside the paper, and up and down
- * past the ends of the tab, both of which are places nothing else wants. Deliberately
- * *not* inwards — that is the drawing, and a dead strip down the side of the page would
- * be exactly the hole this control is positioned to avoid.
+ * finger at. So the press area is grown upwards and sideways by a pseudo-element, which
+ * costs no layout and moves nothing: up into the empty band under the header, and out
+ * to either side of the tab, both of which are places nothing else wants. Deliberately
+ * *not* downwards — that is the drawing, and a dead strip across the top of the page
+ * would be exactly the hole this control is positioned to avoid.
  */
 .handle::before {
 	content: '';
 	position: absolute;
-	inset: -14px -18px -14px 0;
+	inset: -18px -14px 0;
 }
 
 .handle:disabled {
@@ -103,13 +100,13 @@
 	cursor: grabbing;
 }
 
-/* Three bars. Horizontal, because the movement is vertical — a grip reads as the thing
-   it is gripped against, and they turned with the flipbook. */
+/* Three bars. Vertical, because the movement is horizontal — a grip reads as the thing
+   it is gripped against, and a row of dots would say nothing about which way it goes. */
 .grip {
-	width: 6px;
-	height: 22px;
+	width: 22px;
+	height: 6px;
 	background-image: linear-gradient(
-		to bottom,
+		to right,
 		var(--ink-soft) 0 2px,
 		transparent 2px 10px,
 		var(--ink-soft) 10px 12px,
@@ -120,31 +117,15 @@
 }
 
 /*
- * A phone, where the margin beside the paper is the column's gutter and nothing more.
+ * A phone, where the tab is the same size and the band above it is smaller.
  *
- * The drawing is as wide as the stage will give it, so what the tab has to fit in is the
- * 16px of side padding — 12 and 3 leaves a pixel, where the desktop's 14 and 5 would put
- * two of it off the edge of the screen. The press area is unchanged and still reaches
- * well past both.
+ * The column's padding-top is 20px here too, so nothing changes upright. Held sideways
+ * it is 8px, which is less than the tab is tall — so there the gap closes up and the
+ * tab overlaps the top of the header's own air rather than the drawing.
  */
-@media screen and (max-width: 730px), screen and (max-height: 560px) {
+@media screen and (max-height: 560px) {
 	.handle {
-		height: 56px;
-		--handle-width: 12px;
 		--handle-gap: 3px;
-	}
-
-	.grip {
-		width: 6px;
-		height: 16px;
-		background-image: linear-gradient(
-			to bottom,
-			var(--ink-soft) 0 2px,
-			transparent 2px 7px,
-			var(--ink-soft) 7px 9px,
-			transparent 9px 14px,
-			var(--ink-soft) 14px 16px
-		);
 	}
 }
 

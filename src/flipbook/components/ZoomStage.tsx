@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../engine/constants'
+import { DEFAULT_PAGE_SIZE, type PageSize } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { fittedSize, type TracePhoto } from '../engine/trace'
 import type { ModalToolId } from '../engine/tools/types'
@@ -59,10 +59,9 @@ export interface ZoomStageProps {
  * **It is a copy, not a second drawing.** There is one paper.js project and one canvas it
  * renders into; this reads pixels out of that canvas with a single `drawImage` per frame,
  * the way the loupe already does, and hands a finger's position back through the same
- * window the other way. So there is nothing here for the save path, the history or the
- * page strip to know about — an intercepted gesture that arrives from down here is the
- * same gesture, one history step, one thumbnail, and the artwork is still 640×360
- * whatever this is showing.
+ * window the other way. So there is nothing here for the save path or the history to know
+ * about — an intercepted gesture that arrives from down here is the same gesture and one
+ * history step, and the artwork is still its own size whatever this is showing.
  *
  * Copying rather than re-rendering is also what keeps it honest: what you see is the live
  * canvas, so the stroke in progress, the onion skin and a selected stroke's blue are all
@@ -73,8 +72,8 @@ export interface ZoomStageProps {
  * you would call blurry.
  *
  * **The size is measured, not stated**, and that is what the whole mode is arranged
- * around. This takes the band the column has left over once the strip, the paper, the
- * page bar and the tray have taken theirs, so its shape is whatever the phone leaves it —
+ * around. This takes the band the column has left over once the paper and the page bar
+ * have taken theirs, so its shape is whatever the window leaves it —
  * and the outline on the paper takes its aspect ratio from here rather than the other way
  * round. Below `MIN_STAGE_HEIGHT`, or on a layout where the stylesheet hides this
  * outright, `measureStage` reports no stage at all and v11 falls back to v2.
@@ -102,9 +101,9 @@ export function ZoomStage({
 
 	/*
 	 * One observer for the life of the mode, and it is the only thing that says how big
-	 * the stage is. The content box rather than `getBoundingClientRect`, for the reason
-	 * the page strip gives: a rectangle reports whatever transform is mid-flight, and a
-	 * layout box doesn't.
+	 * the stage is. The content box rather than `getBoundingClientRect`: a rectangle reports
+	 * whatever transform is mid-flight, and a layout box doesn't — which matters because the
+	 * drawing above is transformed for the whole of a reorder.
 	 */
 	// Read at measuring time rather than closed over: the effect runs once and the mode
 	// can only change by unmounting this, but a value read through a ref cannot go stale.
@@ -120,7 +119,7 @@ export function ZoomStage({
 		const read = () => {
 			const width = element.clientWidth
 			const height = element.clientHeight
-			measureStage({ width, height }, zoom.current)
+			measureStage({ width, height }, live.current?.page ?? DEFAULT_PAGE_SIZE, zoom.current)
 
 			const dpr = Math.min(window.devicePixelRatio || 1, 3)
 			const next = { width: Math.round(width * dpr), height: Math.round(height * dpr) }
@@ -190,11 +189,18 @@ export function ZoomStage({
 		}
 	}, [url])
 
+	// The page's own size, read at draw time rather than closed over for the same reason
+	// the engine is: a remix resizes the scene when its artwork lands, and a frame loop
+	// built before that would go on scaling against the shape it opened at.
+	const page = useRef<PageSize>(engine?.page ?? DEFAULT_PAGE_SIZE)
+	page.current = engine?.page ?? page.current
+
 	// Read by the frame loop rather than closed over, so a pinch — which changes this
 	// sixty times a second — doesn't tear down and rebuild the loop on every frame of
 	// itself. Same bargain `InkCursor` makes with the pointer.
 	const showing = useRef(view)
-	showing.current = suspended && view ? { x: 0, y: 0, w: CANVAS_WIDTH, h: CANVAS_HEIGHT } : view
+	showing.current =
+		suspended && view ? { x: 0, y: 0, w: page.current.width, h: page.current.height } : view
 
 	const live = useRef(engine)
 	live.current = engine
@@ -223,7 +229,7 @@ export function ZoomStage({
 			// made. See `FlipbookEngine.redraw`.
 			live.current?.redraw()
 
-			paint(canvas.current, canvasRef.current, showing.current, {
+			paint(canvas.current, canvasRef.current, showing.current, page.current, {
 				picture: picture.current,
 				...trace.current,
 			})
@@ -263,6 +269,7 @@ function paint(
 	stage: HTMLCanvasElement | null,
 	source: HTMLCanvasElement | null,
 	view: Viewport | null,
+	page: PageSize,
 	trace: Trace,
 ): void {
 	if (!stage || !source || !view || source.width === 0) return
@@ -275,7 +282,7 @@ function paint(
 	context.fillStyle = '#fff'
 	context.fillRect(0, 0, stage.width, stage.height)
 
-	const density = source.width / CANVAS_WIDTH
+	const density = source.width / page.width
 
 	context.drawImage(
 		source,
@@ -289,7 +296,7 @@ function paint(
 		stage.height,
 	)
 
-	paintTrace(context, stage, view, trace)
+	paintTrace(context, stage, view, page, trace)
 }
 
 /**
@@ -320,6 +327,7 @@ function paintTrace(
 	context: CanvasRenderingContext2D,
 	stage: HTMLCanvasElement,
 	view: Viewport,
+	page: PageSize,
 	{ picture, photo, placing }: Trace,
 ): void {
 	if (!picture || !photo || !picture.complete || picture.naturalWidth === 0) return
@@ -330,9 +338,9 @@ function paintTrace(
 	const kx = stage.width / view.w
 	const ky = stage.height / view.h
 
-	const fit = fittedSize(photo)
-	const width = fit.width * CANVAS_WIDTH
-	const height = fit.height * CANVAS_HEIGHT
+	const fit = fittedSize(photo, page)
+	const width = fit.width * page.width
+	const height = fit.height * page.height
 	const at = photo.placement
 
 	context.save()
@@ -345,13 +353,10 @@ function paintTrace(
 	// clip in the same place or a window at the edge of the page would show picture where
 	// the paper shows none.
 	context.beginPath()
-	context.rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+	context.rect(0, 0, page.width, page.height)
 	context.clip()
 
-	context.translate(
-		CANVAS_WIDTH / 2 + at.x * CANVAS_WIDTH,
-		CANVAS_HEIGHT / 2 + at.y * CANVAS_HEIGHT,
-	)
+	context.translate(page.width / 2 + at.x * page.width, page.height / 2 + at.y * page.height)
 	context.rotate((at.rotation * Math.PI) / 180)
 	context.scale(at.scale, at.scale)
 
@@ -403,7 +408,7 @@ const PLACING_OPACITY = 0.55
  * over the top of it is the one thing that stops them being reached. See
  * `PointerLayer.zoomTouchStart`.
  */
-export function ZoomWindow() {
+export function ZoomWindow({ page = DEFAULT_PAGE_SIZE }: { page?: PageSize }) {
 	const { view } = useStage()
 	if (!view) return null
 
@@ -412,10 +417,10 @@ export function ZoomWindow() {
 			<div
 				className={styles.window}
 				style={{
-					left: `${(view.x / CANVAS_WIDTH) * 100}%`,
-					top: `${(view.y / CANVAS_HEIGHT) * 100}%`,
-					width: `${(view.w / CANVAS_WIDTH) * 100}%`,
-					height: `${(view.h / CANVAS_HEIGHT) * 100}%`,
+					left: `${(view.x / page.width) * 100}%`,
+					top: `${(view.y / page.height) * 100}%`,
+					width: `${(view.w / page.width) * 100}%`,
+					height: `${(view.h / page.height) * 100}%`,
 				}}
 			/>
 		</div>

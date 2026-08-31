@@ -4,6 +4,7 @@ import {
 	ApiError,
 	getFlipbook,
 	getFlipbookData,
+	isNetworkFailure,
 	listFlipbooks,
 	saveFlipbook,
 	setFlipbookFlags,
@@ -113,7 +114,6 @@ describe('saveFlipbook', () => {
 			svg: '<svg/>',
 			thumbnailDataUrl: 'data:image/png;base64,AAAA',
 			cover: 3,
-			nsfw: false,
 		})
 
 		expect(location).toBe('/f/abc123')
@@ -132,10 +132,15 @@ describe('saveFlipbook', () => {
 		// Which page the PNG is of, so the server cuts the SVG thumbnail from that
 		// same page rather than picking one of its own.
 		expect(body.get('cover')).toBe('3')
-		expect(body.get('nsfw')).toBe('0')
 	})
 
-	it('sends nsfw as the 1 the server checks for', async () => {
+	it('does not send nsfw at all, which the server reads as false', async () => {
+		// The save form's "contains adult stuff" checkbox is gone — flagging is an
+		// admin action now. The field is omitted rather than sent as '0' for the same
+		// reason `remix_of` is: this endpoint is the contract both deployments post to,
+		// and a field that is never anything but one value is one fewer thing for the
+		// other one to have an opinion about. `saveFlipbook()` in `lib/router.js` reads
+		// an absent value as false.
 		fetchMock.mockResolvedValue(textResponse('/f/x'))
 
 		await saveFlipbook({
@@ -144,12 +149,11 @@ describe('saveFlipbook', () => {
 			svg: '<svg/>',
 			thumbnailDataUrl: '',
 			cover: 0,
-			nsfw: true,
 		})
 
 		expect(
-			new URLSearchParams(String((fetchMock.mock.calls[0]![1] as RequestInit).body)).get('nsfw'),
-		).toBe('1')
+			new URLSearchParams(String((fetchMock.mock.calls[0]![1] as RequestInit).body)).has('nsfw'),
+		).toBe(false)
 	})
 
 	it('names what a remix was drawn on top of', async () => {
@@ -161,7 +165,6 @@ describe('saveFlipbook', () => {
 			svg: '<svg/>',
 			thumbnailDataUrl: '',
 			cover: 0,
-			nsfw: false,
 			remixOf: 'original1',
 		})
 
@@ -178,7 +181,6 @@ describe('saveFlipbook', () => {
 			svg: '<svg/>',
 			thumbnailDataUrl: '',
 			cover: 0,
-			nsfw: false,
 		})
 
 		// Absent rather than empty. This is the endpoint both deployments post to, and
@@ -197,9 +199,24 @@ describe('saveFlipbook', () => {
 			svg: '<svg/>',
 			thumbnailDataUrl: '',
 			cover: 0,
-			nsfw: false,
 		}).catch((e: unknown) => e)
 
 		expect((error as ApiError).status).toBe(413)
+	})
+})
+
+describe('isNetworkFailure', () => {
+	it('is false for anything the server answered', () => {
+		expect(isNetworkFailure(new ApiError(413, 'Too big'))).toBe(false)
+		expect(isNetworkFailure(new ApiError(500, 'Oh dear'))).toBe(false)
+	})
+
+	it('is true for a request that never got an answer', () => {
+		// What fetch throws with no connection: no status, no body, no opinion.
+		expect(isNetworkFailure(new TypeError('Failed to fetch'))).toBe(true)
+	})
+
+	it('is false for a request this tab called off', () => {
+		expect(isNetworkFailure(new DOMException('Aborted', 'AbortError'))).toBe(false)
 	})
 })

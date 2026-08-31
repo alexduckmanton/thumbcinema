@@ -212,25 +212,3 @@ export function slideDirection(drag: number, to: number, pages: number, step: nu
 	const next = to + direction
 	return next >= 0 && next <= pages - 1 ? direction : 0
 }
-
-/**
- * Where page `index` has to stand while the page from slot `from` is being carried to
- * slot `to`: one step aside if the carried page has to pass through it, and nowhere at
- * all otherwise.
- *
- * Only ever one step, whatever the distance dragged — a page three slots along is
- * displaced by exactly one, because the two pages either side of it are moving too and
- * what they are all doing is closing up a gap and opening another one.
- *
- * The carried page gets an answer as well, and it is the whole of the way. Nothing can
- * see it — the live canvas is standing in front of the page being dragged, and the
- * canvas is what actually follows the pointer — but it has to be *left* in the slot it
- * is being dropped into, or handing the flipbook back to the strip at the end of the
- * gesture would move it.
- */
-export function pageShift(index: number, from: number, to: number, step: number): number {
-	if (index === from) return (to - from) * step
-	if (index > from && index <= to) return -step
-	if (index >= to && index < from) return step
-	return 0
-}

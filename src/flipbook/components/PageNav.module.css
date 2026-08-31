@@ -20,13 +20,9 @@
  *
  * White, like the sheet of paper above it, on the grey of the page.
  *
- * z-index for the same reason the canvas has one, and against the same thing: the page
- * strip is a column of thumbnails each carrying a `z-index: 9`, and the bar sits directly
- * under the bottom of it. Without a number of its own a page peeking up from below would
- * be painted over the bar rather than behind it.
- *
- * 10 rather than the canvas's 15: under the paper, which carries a shadow of its own
- * and drops it into the gap and onto the top of this.
+ * z-index 10, under the canvas's 15: the paper carries a shadow of its own and drops it
+ * into the gap and onto the top of this, which is most of what makes the bar read as
+ * belonging to the flipbook rather than sitting beside it.
  */
 .track {
 	position: relative;
@@ -304,7 +300,7 @@
  * the only thing on screen that says where that is against the whole flipbook. So it
  * follows the destination rather than the page being drawn on, and while the book is
  * running underneath the page it has to travel at the book's speed: `--glide` is the
- * same number `--slide` is on the strip, so the handle and the pages cover their ground
+ * same number the drag itself uses, so the handle and the drawing cover their ground
  * together instead of the handle hopping a page behind. Linear for the reason the sweep
  * above is linear — consecutive steps that each take exactly as long as the gap between
  * them read as one movement.

@@ -4,7 +4,10 @@ import { navigate, useLocation } from '../router/Router'
 import { ViewToggle } from '../routes/gallery/ViewToggle'
 import { CreateButton } from './CreateButton'
 import { SiteHeader } from './SiteHeader'
-import { useToolLayout } from './toolLayout'
+import { useLockedLayout } from './toolLayout'
+
+import { DEFAULT_PAGE_SIZE, LEGACY_PAGE_SIZE, type PageSize } from '../flipbook/engine/constants'
+import { pageVars } from '../flipbook/pageVars'
 
 import canvasStyles from '../flipbook/components/FlipbookCanvas.module.css'
 import createStyles from '../routes/create/CreatePage.module.css'
@@ -63,10 +66,18 @@ export function RouteShell({ route }: RouteShellProps) {
 			// metadata lands, but this one is up for the whole of the route chunk's
 			// download, which is why a refresh showed "New" for so much longer than a
 			// navigation from the gallery did.
-			return <BookShell content={playbackStyles.content} remixOf={route.id} />
+			return (
+				<BookShell
+					content={playbackStyles.content}
+					remixOf={route.id}
+					wordmark
+					page={LEGACY_PAGE_SIZE}
+				/>
+			)
 		case 'create':
 			// Its own shape rather than the playback page's: the drawing tool is a rail, a
-			// stage and a page bar now, and the sheet of paper does not stand in a column.
+			// stage, a page bar and an aiming pad, and the sheet of paper does not stand in
+			// a column.
 			return <CreateShell />
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
@@ -90,16 +101,43 @@ export function RouteShell({ route }: RouteShellProps) {
 function BookShell({
 	content,
 	remixOf,
+	wordmark,
+	page,
 }: {
 	content: string | undefined
 	/** The flipbook whose page this is standing in for, so the header can offer a remix. */
 	remixOf: string | null
+	/** False on the create page, which has no wordmark — see `SiteHeader`. */
+	wordmark: boolean
+	/**
+	 * What shape to draw the sheet, which this is the one thing here that has to guess.
+	 *
+	 * A shell stands in front of a route that hasn't downloaded yet, so there is nothing
+	 * to ask — and the two routes have different best guesses. The create page opens a
+	 * blank flipbook, and a blank flipbook is square; the playback page opens somebody
+	 * else's, and every flipbook that already exists is 640×360. Each is right in the
+	 * overwhelming majority and wrong in the same way when it isn't — a remix opened
+	 * square, a square flipbook played back — which costs one reflow at the handover on
+	 * a page that is still mostly placeholder.
+	 *
+	 * The alternative is holding the shell up on a metadata fetch, which is the download
+	 * this exists to cover.
+	 */
+	page: PageSize
 }) {
 	return (
 		<>
-			<SiteHeader width="narrow">{remixOf ? <CreateButton remixOf={remixOf} /> : null}</SiteHeader>
+			{/*
+			 * The create page has neither wordmark nor header actions, so its shell has
+			 * none either and `SiteHeader` drops the row altogether. The playback page
+			 * keeps both, and its Remix button is the whole reason this shell knows which
+			 * flipbook is coming.
+			 */}
+			<SiteHeader width="narrow" wordmark={wordmark}>
+				{remixOf ? <CreateButton remixOf={remixOf} /> : null}
+			</SiteHeader>
 
-			<main className={content}>
+			<main className={content} style={pageVars(page) as React.CSSProperties}>
 				<div className="center">
 					<div className={canvasStyles.book}>
 						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
@@ -126,42 +164,59 @@ function BookShell({
  *
  * Every class here is the page's own, read off its stylesheet rather than copied, for the
  * reason the note at the top of this file gives: a placeholder is only worth having if it is
- * exactly the shape of the page, and `--book-reserve`, `--stage-left`, `--chrome-top` and
- * the stage's gutters all differ by layout. Which is also why there are no placeholder boxes
+ * exactly the shape of the page, and `--book-reserve`, `--stage-left` and the stage's
+ * gutters all differ by layout. Which is also why there are no placeholder boxes
  * left in here at all: everything is positioned off those properties now, so the sheet of
  * paper lands on the same pixel with nothing else on the page — measured at both widths, and
  * it is exact.
  */
 function CreateShell() {
-	// The page shape, before the page: `.stage` takes what the header leaves, and without
-	// this there is nothing for it to take a share of — the sheet of paper collapses to
-	// nothing and the shell draws an empty window. The page wears the same class, and the
-	// count inside the hook is what carries it across the handover between them.
-	useToolLayout()
+	// The page's shape as well as the page's lock: without it `main` stops at its content,
+	// the stage has nothing to grow into, and the sheet of paper is drawn at the top of a
+	// window the page centres it in. The count inside the hook is what carries the class
+	// across the handover without a frame of it being off.
+	useLockedLayout()
 
 	return (
 		<>
-			<div className={createStyles.headerBar}>
-				<SiteHeader />
-			</div>
+			{/*
+			 * No wordmark, and Save's *space* rather than Save.
+			 *
+			 * The page shows a disabled, invisible Save from its first frame — a flipbook of
+			 * one page is not one you can save, and the button stays in the layout so nothing
+			 * jumps when the second page arrives. This is that same box, and it has to be here:
+			 * `SiteHeader` drops the row altogether when it holds neither wordmark nor actions,
+			 * and a header 68px shorter than the page's is a sheet of paper 34px higher up.
+			 * Not a real button — there is nothing to press, and nothing to put in the tab
+			 * order — just the shape of one, and `.noSave` makes it invisible either way.
+			 */}
+			<SiteHeader width="narrow" wordmark={false}>
+				<div className={`${createStyles.save} ${createStyles.noSave}`} aria-hidden="true">
+					<span className={createStyles.saveButton}>
+						<span className={createStyles.saveLabel}>Save</span>
+					</span>
+				</div>
+			</SiteHeader>
 
-			<main className={createStyles.content}>
-				{/* `.chrome` as well as `.stage`, because the stage is positioned *against* it —
-				    the page's own note explains why one is inside the other. Without it the
-				    stage would be measured off `main`, which today is the same box and might
-				    one day not be, and a sheet of paper that moves at the handover is the one
-				    thing this shell exists to prevent. */}
-				<div className={createStyles.chrome}>
-					<div className={createStyles.stage}>
-						<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
-							{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
-							    cast the shadow the page's own placeholder borrows. */}
-							<div
-								className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`}
-								aria-hidden="true"
-							/>
-						</div>
+			<main
+				className={createStyles.content}
+				style={pageVars(DEFAULT_PAGE_SIZE) as React.CSSProperties}
+			>
+				{/* Square, because the create page opens a blank flipbook and a blank flipbook
+				    is square. A remix is the exception and costs one reflow at the handover.
+				    See `BookShell`, which makes the same guess from the other end. */}
+				<div className={createStyles.stage}>
+					<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
+						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
+						    cast the shadow the page's own placeholder borrows. */}
+						<div className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`} aria-hidden="true" />
 					</div>
+
+					{/* The page bar's band, drawn empty — and inside the stage, because the stage
+					    centres the two of them together and the sheet would stand in a different
+					    place without it. The bar is a control, and a grey pill that turns into a
+					    working one is two loading states where the page needs one. */}
+					<div className={createStyles.navBand} />
 				</div>
 			</main>
 
@@ -180,11 +235,20 @@ function GalleryShell() {
 				    moment someone can click in, and a tab that ignores the press and then
 				    reappears working is worse than one that isn't there. Same handler as
 				    the gallery's: replace rather than push, because the toggle is a
-				    filter and not a place. */}
-				<ViewToggle
-					view={galleryView(search)}
-					onChange={(next) => navigate(galleryPath(next), { replace: true, preserveScroll: true })}
-				/>
+				    filter and not a place.
+
+				    And absent offline, for the same reason the gallery's own is — read
+				    directly rather than through `useOnline`, because this is a placeholder
+				    that renders once and the only thing it must not do is disagree with the
+				    page it stands in for. */}
+				{navigator.onLine === false ? null : (
+					<ViewToggle
+						view={galleryView(search)}
+						onChange={(next) =>
+							navigate(galleryPath(next), { replace: true, preserveScroll: true })
+						}
+					/>
+				)}
 				<CreateButton />
 			</SiteHeader>
 

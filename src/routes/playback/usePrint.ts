@@ -27,7 +27,7 @@ export function usePrint(engine: FlipbookEngine | null) {
 		const target = container.current
 		if (!engine || !target) return
 
-		target.replaceChildren(...buildPrintSheets(engine.exportSvgElement()))
+		target.replaceChildren(...buildPrintSheets(engine.exportSvgElement(), engine.page))
 		window.print()
 	}, [engine])
 

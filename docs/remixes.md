@@ -1,13 +1,16 @@
 # Remixes
 
-Pressing **Remix** opens the drawing tool on a full editable copy of a flipbook, and
-what you save from there is listed under the original. Two nullable columns and one
-partial index; no new table and no new endpoint.
-
 Pressing **Remix** on a flipbook opens the drawing tool on a full editable copy of it,
 and what you save from there is listed under the original. Two nullable columns and one
 partial index; no new table, no new route, no new endpoint.
 
+- **A remix keeps the shape of what it was drawn from.** A remix of a 16:9 flipbook is
+  640×360 for ever, including a remix of that remix — the drawing tool restates its
+  coordinate space from the file it opened, because the coordinates being imported are in
+  that file's space and nothing else would land them where they were drawn. It is the one
+  place a page size is inherited rather than being what a new flipbook gets, and it is why
+  the two shapes will go on appearing in the gallery indefinitely rather than the older one
+  ageing out. See `docs/drawing-tool.md`.
 - **`remix_of` is the direct parent and `remix_root` is the oldest ancestor, and both
   are stored** even though the lineage is displayed flat. The root is what makes the
   list one indexed keyset scan instead of a recursive CTE on every playback page; the

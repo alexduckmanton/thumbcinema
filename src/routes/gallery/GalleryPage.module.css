@@ -6,11 +6,24 @@
  * medium-square tiles. It was the most interesting thing on the page, which was the
  * point when the page was mostly a yellow banner.
  *
- * With the banner gone the flipbooks are the page, and every one of them is the same
- * 640×360 canvas, so they get the same tile. It also fixes what the mosaic couldn't:
- * between the fixed widths — a 900px window, a tablet in landscape — the old grid
- * left a ragged margin down one side. auto-fill picks a column count and the cards
- * take up the slack.
+ * With the banner gone the flipbooks are the page, so they get one tile each, in a
+ * column count `auto-fill` picks. It also fixes what the mosaic couldn't: between the
+ * fixed widths — a 900px window, a tablet in landscape — the old grid left a ragged
+ * margin down one side, and here the cards take up the slack.
+ *
+ * **The cards are no longer all one shape.** Everything drawn up to 2026 is 16:9 and
+ * everything since is square, so a card is whatever its flipbook is — `FlipbookCard`
+ * sets its own `aspect-ratio` from the row — and the tracks below size on width alone.
+ * Nothing is cropped or letterboxed to make them agree, which was the alternative and
+ * the worse one: these are drawings, and a drawing shown at the wrong shape or with its
+ * edges cut off is the one thing a gallery of drawings must not do.
+ *
+ * What that costs is a ragged bottom edge on a row that holds both shapes, and the
+ * ordering is what keeps that rare: both tabs are newest-first, so shapes arrive in
+ * runs and a mixed row is the boundary between two eras rather than the general case.
+ * Remixes are the exception — a remix of a 16:9 flipbook is 16:9 and carries today's
+ * date — so it is a sprinkle rather than nothing. `grid-lanes` below packs those out
+ * where it is supported.
  */
 
 .grid {
@@ -20,11 +33,44 @@
 	   than a bare 320px — a grid track won't shrink below its minimum, so a hard 320
 	   pushes the column wider than a 320px phone and the page scrolls sideways. */
 	grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+	/*
+	 * Cards state their own height through `aspect-ratio`, and the default `stretch`
+	 * would overrule it: a definite width plus a stretched height is two definite
+	 * lengths, and `aspect-ratio` loses that argument. Without this every card in a row
+	 * is silently the height of the tallest, which is the cropping this change exists
+	 * to avoid, arriving by the back door.
+	 */
+	align-items: start;
 	gap: 22px;
 	width: 100%;
 	max-width: 1440px;
 	margin: 0 auto;
 	padding: 0 30px;
+}
+
+/*
+ * Packed rather than aligned, where the browser can.
+ *
+ * With two page shapes in one grid, a row holding both leaves air under the shorter
+ * cards. `grid-lanes` fills it — each card goes into whichever column is shortest
+ * instead of sitting in a row — and the declaration above is exactly the fallback for
+ * everywhere it isn't supported, which as of writing is everywhere but Safari: Chromium
+ * has had it behind a flag since 140 with no ship milestone set, and the syntax was
+ * still gaining keywords in August 2026. So this is the enhancement and the grid above
+ * is the design; if the two are ever weighed against each other, the one that runs
+ * everywhere wins.
+ *
+ * `flow-tolerance` is generous on purpose. Packing by shortest column reorders focus
+ * away from source order, which is a WCAG 2.4.3 failure waiting to happen on a grid of
+ * links — and treating near-equal columns as equal is what keeps the placement in step
+ * with the DOM. There are only ever two card heights here, so columns diverge in
+ * predictable steps and a wide tolerance costs very little packing.
+ */
+@supports (display: grid-lanes) {
+	.grid {
+		display: grid-lanes;
+		flow-tolerance: 100px;
+	}
 }
 
 /*
@@ -44,7 +90,16 @@
  * a blank screen.
  */
 .skeleton {
-	aspect-ratio: 16 / 9;
+	/*
+	 * Square, because that is what new flipbooks are and the top of both tabs is where
+	 * a placeholder stands. It is occasionally wrong — a remix of a 16:9 flipbook is
+	 * 16:9 and lands among them — and being wrong here costs one card's worth of shift
+	 * when the page arrives, against machinery to predict a shape nobody has fetched yet.
+	 *
+	 * `RouteShell` draws this same rectangle from the entry bundle and has to agree with
+	 * it, which is why the number is here rather than worked out from anything.
+	 */
+	aspect-ratio: 1;
 	border-radius: var(--radius-card);
 	/*
 	 * A white card that fades out and back, not a grey one that lights up.
@@ -114,6 +169,50 @@
 .state {
 	padding: 48px 0;
 	text-align: center;
+}
+
+/*
+ * The one state that isn't an apology: no connection, and the site saying what still
+ * works.
+ *
+ * Set in Pecita, which nothing else on this page is. The wordmark is the site's own
+ * hand and this is the site talking rather than reporting — "you're offline" is a fact
+ * about the reader's afternoon, not an error, and the face is what keeps it from
+ * reading as one. The other two states here stay in Inter: they *are* reports.
+ *
+ * 44px against the 30px of an `h1`, because Pecita is a handwriting face with a small
+ * x-height and matches Inter's presence about half again as large — the same reasoning
+ * as the create button's label, which sets 30px Pecita beside 16px text.
+ */
+.offline h1 {
+	font-family: 'Pecita', cursive;
+	font-size: 44px;
+	/* Tight, because the ascenders and descenders of a joining script already carry the
+	   line further than its point size suggests. */
+	line-height: 1.05;
+}
+
+/*
+ * Air under the heading. A hand-drawn line and a line of Inter are two voices, and at
+ * the paragraph's own 1em they sit close enough to read as one block in two typefaces.
+ *
+ * And looser lines than the 1.333 `p` carries everywhere else: this is two lines of
+ * text alone in an empty window rather than a paragraph in a column, and the site's
+ * body leading — set for the playback page's description, under a flipbook, in a
+ * measure — reads tight when there is nothing around it. 1.5 rather than a change to
+ * the element default, which would move every line of copy on every page.
+ *
+ * `text-wrap: balance` for the shape of the block itself. On a phone this sentence
+ * breaks into a long line and a short one; balance evens them, which is what makes two
+ * centred lines read as a block rather than as a sentence that ran out. `pretty` is the
+ * other half of the same pair and does nothing here — it guards against a last line of
+ * one word, and this one's is three. Both are ignored where they aren't supported, and
+ * the wrap is the ordinary one there.
+ */
+.offline h1 + p {
+	margin-top: 28px;
+	line-height: 1.5;
+	text-wrap: balance;
 }
 
 /* A link in a sentence, but it re-runs a fetch rather than going anywhere, so it's

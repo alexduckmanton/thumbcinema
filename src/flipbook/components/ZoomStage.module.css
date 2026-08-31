@@ -55,9 +55,9 @@
  * shadow; between them they are one sheet of paper, and only one of them is ever visible.
  *
  * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: over
- * the page thumbnails at 9, under the cursor at 17 and under the trace photo's placing
- * chrome at 17 — which is what lets a photograph be placed on top of it in the one mode
- * where the two share a box.
+ * the page bar at 10, under the cursor at 17 and under the trace photo's placing chrome at
+ * 17 — which is what lets a photograph be placed on top of it in the one mode where the two
+ * share a box.
  */
 .onPaper {
 	position: absolute;
@@ -96,7 +96,7 @@
  * that is no longer a drawing surface. paper binds `mousedown` to that canvas in its own
  * constructor and nothing inside the engine talks it out of that; a sheet on top of it is
  * the answer, and unlike `pointer-events: none` on the canvas it doesn't drop the touch
- * through to the page thumbnails standing behind the drawing.
+ * through to whatever is standing behind the drawing.
  *
  * Under the page's own handle at 101 and over the canvas at 15.
  */

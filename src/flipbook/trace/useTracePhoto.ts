@@ -20,7 +20,7 @@ const MAX_EDGE = 1280
  * How many photographs one batch may bring in.
  *
  * Each one is about 4 MB decoded after the downscale, and each one also gets a frame —
- * whose thumbnail in the strip is a canvas the size of the drawing. Both budgets are the
+ * and every one taken is held until the tab closes. Both budgets are the
  * one `HIDPI_PAGE_LIMIT` already lives under, and iOS enforces its per-tab canvas
  * allowance by *blanking* canvases rather than by failing, so overrunning it is invisible
  * until the flipbook is full of white sheets. Twenty-four is a generous sequence and a

@@ -37,6 +37,11 @@ backup turned out to be a zero-byte file, so the artwork made it and the titles,
 authors and view counts did not. The home page's Featured list was reconstructed from
 what's left — see [`docs/archive.md`](docs/archive.md).
 
+It works **offline**: with no connection the site still opens, the drawing tool still
+draws — once you've opened it online at least once — and a save is kept on the device and
+published by itself the next time you're online. See
+[`docs/offline.md`](docs/offline.md).
+
 The gallery has a **Featured / All** toggle and an infinite scroll. Featured is what
 the 2013 home page showed; new saves start off it and are promoted by hand from admin
 mode, which is a single token rather than a login.
@@ -81,6 +86,7 @@ src/
   flipbook/      the drawing tool — engine/ has no React in it
   components/    header, buttons, messages, admin toggles
   lib/           API client, admin token, device, messages
+  offline/       the queue of flipbooks saved with no connection, and the worker
   router/        ~60 lines over the History API
   styles/        tokens, element defaults, the 2013 icon sprite
 public/          fonts, images, favicons, sadbrowser.html
@@ -101,6 +107,7 @@ _original/       the WordPress backups (gitignored, read-only, do not delete)
 - [`docs/create-page.md`](docs/create-page.md) — the create page, tracing over a photograph, and playback
 - [`docs/gallery.md`](docs/gallery.md) — the grid, the hover preview, and the play button
 - [`docs/remixes.md`](docs/remixes.md) — editable copies, and how a lineage is stored
+- [`docs/offline.md`](docs/offline.md) — drawing and saving with no connection, and what publishes when
 - [`docs/gif.md`](docs/gif.md) — `/f/:id.gif`, rendered in Node with no dependency
 - [`docs/styling.md`](docs/styling.md) — the CSS conventions, the tokens, the type
 - [`docs/data-formats.md`](docs/data-formats.md) — the save contract, the two artwork formats, thumbnails, storage

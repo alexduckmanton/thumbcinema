@@ -34,11 +34,16 @@ CREATE TABLE IF NOT EXISTS flipbooks (
 
     views        INTEGER     NOT NULL DEFAULT 0,
 
-    -- The save form still has the "this contains adult stuff" checkbox it had in
-    -- 2013. There are no accounts to report from any more, but honouring the
-    -- self-declaration costs one column: flagged flipbooks keep working on their
-    -- own URL and are left out of both browse tabs, exactly as before. It doubles
-    -- as the moderation lever, since admin mode can set it on anything.
+    -- Flagged flipbooks keep working on their own URL and are left out of both
+    -- browse tabs, exactly as in 2013.
+    --
+    -- It began as the save form's "this contains adult stuff" checkbox, a
+    -- self-declaration honoured for one column. That checkbox is gone from this
+    -- branch's save form — there are no accounts to report from any more, and one
+    -- box on the way out of a drawing was never going to be the thing that caught
+    -- anything — so this is now set by hand from admin mode, and every save from
+    -- here lands false. `time-capsule` still has the checkbox and still posts it,
+    -- which is why `saveFlipbook()` goes on reading the field.
     nsfw         BOOLEAN     NOT NULL DEFAULT false,
 
     -- The original WordPress post ID, for archive rows only. Lets us trace a row
@@ -132,6 +137,30 @@ ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS thumbnail_svg BYTEA;
 -- for a constraint the application is already enforcing.
 ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS remix_of   TEXT;
 ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS remix_root TEXT;
+
+-- The shape of a page, in the project units the artwork's coordinates are in.
+--
+-- Two shapes exist and only ever will: 640x360 for everything drawn between 2012 and
+-- 2026, and 640x640 for everything drawn since. A flipbook keeps the shape it was drawn
+-- at permanently — a remix of a 16:9 flipbook is 16:9 — so this describes the row rather
+-- than configuring it, and there is no way for anyone to choose.
+--
+-- **The default is the whole migration.** Every row that existed before this column did
+-- is 640x360, so the DEFAULT is not a placeholder to be backfilled over: it is the right
+-- answer for all 594 of them, and `npm run db:migrate` finishes the job on its own.
+--
+-- It is also the honest answer for the deployment that doesn't know about this. The
+-- 2013 front end draws into a hard-coded 640x360 project and cannot be taught a second
+-- shape, so `time-capsule` saves land here at the default and are correct, and its
+-- gallery filters on this column to leave out what it can't draw. See docs/architecture.md.
+--
+-- Why a column at all, when the artwork already carries a viewBox that says the same
+-- thing: the gallery needs the shape to lay a card out, and the card is a rectangle in
+-- a grid long before anybody hovers it. Reading it off the file would mean decompressing
+-- megabytes of drawing per tile. The file stays the authority for anything that *draws*
+-- — see `pageSizeFromSvg` — and this is the copy you can query.
+ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS width  INTEGER NOT NULL DEFAULT 640;
+ALTER TABLE flipbooks ADD COLUMN IF NOT EXISTS height INTEGER NOT NULL DEFAULT 360;
 
 -- The WordPress author ID, parsed from the archive filename ({post}_u{user}_...).
 -- It is the entire evidence base for the featured reconstruction, so it's kept:

@@ -15,7 +15,6 @@ const form = new URLSearchParams({
     project: payload.svg,                  // paper.js exportSVG(), serialised
     imgBase64: payload.thumbnailDataUrl,   // a PNG of the cover page
     cover: String(payload.cover),          // which page that is
-    nsfw: payload.nsfw ? '1' : '0',
 })
 
 if (payload.remixOf) form.set('remix_of', payload.remixOf)  // what it was drawn on
@@ -47,8 +46,12 @@ So:
   save, which is the same thing as saying nothing saved over there is a remix.
 - `draft` and `postID` are gone. Drafts needed an account to return to them with, and
   the server ignored both fields anyway.
-- `nsfw` is honoured: flagged flipbooks keep working on their own URL but are left out
-  of the browse grid, which is exactly what the original did with the `nsfw` category.
+- `nsfw` is **still in the contract and no longer sent from here.** The server reads it
+  off the form (`lib/router.js`) because `time-capsule` still posts it, and honours it the
+  way the original did with the `nsfw` category: a flagged flipbook keeps working on its
+  own URL and is left out of both browse tabs. What went is this front end's checkbox —
+  flagging is an admin action on a published row now, so a save from here simply omits the
+  field and takes the column's `DEFAULT`.
 
 **Don't change this contract.** It's the 2013 endpoint, it is what the `time-capsule`
 deployment still posts to, and both deployments share one database.
@@ -152,7 +155,7 @@ A flipbook is stored with two of them and the gallery shows the second:
 
 | Column | What | Served as |
 |---|---|---|
-| `thumbnail` | a 640×360 PNG of the cover page | `/api/flipbooks/:id/thumbnail` |
+| `thumbnail` | a PNG of the cover page, at the flipbook's own project size | `/api/flipbooks/:id/thumbnail` |
 | `thumbnail_svg` | that same page as a standalone SVG, brotli'd | `/api/flipbooks/:id/thumbnail.svg` |
 
 On a real row those are 10,060 bytes and 718. The SVG is also vector, so it is sharp at
@@ -180,9 +183,11 @@ paper 0.8 wrote a bare `<svg xmlns="…">` with no viewBox, width or height on i
 0.12 writes `width="640" height="360" viewBox="0,0,640,360"`. A lifted page that carries
 neither has no intrinsic size, and an `<img>` gives a dimensionless SVG the 300×150
 default and draws the page 1:1 into it, so the card shows a corner of the drawing
-enlarged. This is the only place anything asks the file how big it is — the engine and
-the gallery's preview renderer both state 640×360 themselves — so it is the only place
-the omission shows. The window is stated rather than fitted to the ink: a stroke drawn
+enlarged. At the time this was the only place anything asked the file how big it was —
+the engine and the preview renderer both stated 640×360 themselves — so it was the only
+place the omission showed. Asking the file is now what everything does, because there are
+two page shapes; `rootAttributes` needed no change, since a file with no viewBox *is* the
+legacy page. The window is stated rather than fitted to the ink: a stroke drawn
 off the edge keeps its whole geometry, and archive pages routinely hold coordinates far
 outside the canvas, which the viewBox clips exactly as the PNG and playback do.
 
@@ -220,16 +225,20 @@ different distances from paper.js:
 
 The first two share `engine/formats.ts`, which is a pure function of a string and so
 can be read twice. `lib/gif.js` cannot use it — there is no build step shared between
-`lib/` and `src/`, which is the same reason `LEADING_SYSTEM_GROUPS` and the 640×360
-project size are already written twice — so it reads the format itself, on top of
+`lib/` and `src/`, which is the same reason `LEADING_SYSTEM_GROUPS` and the page-size
+rule are already written twice — so it reads the format itself, on top of
 `lib/thumbnail.js`'s tag scanner rather than a fourth hand-written one.
 
 What all three agree on, and what a fourth would have to: the three leading system
 groups, the three stroke vocabularies (`<path d>`, `<polyline points>`, `<line>`), the
-width falling back from the stroke to its group to 2, and the project being 640×360
-whatever the file says. **A new stroke vocabulary would have to be added in two
-places**, `formats.ts` and `lib/gif.js`, and the symptom of missing one is a flipbook
-that plays perfectly and comes out blank as a GIF.
+width falling back from the stroke to its group to 2, and **the file being the authority
+on its own size** — the root `viewBox`, and 640×360 when there isn't one. That last rule
+is written twice on purpose and the two copies have to agree byte for byte:
+`pageSizeFromSvg()` in `formats.ts` and `pageSize()` in `lib/thumbnail.js`. **A new stroke
+vocabulary would have to be added in two places**, `formats.ts` and `lib/gif.js`, and the
+symptom of missing one is a flipbook that plays perfectly and comes out blank as a GIF.
+The symptom of the two size readers disagreeing is a card of one shape holding a drawing
+of another.
 
 ## Serving a flipbook as a GIF
 
@@ -239,7 +248,7 @@ its own, and the dev server's middleware states the same mapping.
 
 | | |
 |---|---|
-| Size | 640×360, the project size, always |
+| Size | the flipbook's own project size — 640×360 up to 2026, 640×640 since, and 640×360 for any file that doesn't say |
 | Frame rate | 12fps, as delays of 8, 8, 9 hundredths — 1/12s is 8.333 and GIF has no way to say so |
 | Colours | 16 greys, from paper `#fff` to ink `#444` |
 | Frames | one per page, whole and opaque; **not** diffed against each other |

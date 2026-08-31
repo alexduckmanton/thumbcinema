@@ -61,6 +61,33 @@ The 2013 front end still runs, unchanged, on the `time-capsule` branch and again
 same database — which makes it the reference for any question about how the old
 behaviour worked.
 
+### The one thing the two deployments cannot share
+
+`time-capsule` draws into a hard-coded 640×360 paper project and has no concept of a
+`viewBox`. Since 2026 this branch also saves 640×640 flipbooks, and there is no additive
+change that teaches a frozen front end about a second page shape.
+
+The schema half is fine. `width`/`height` are additive with a `DEFAULT` that is the right
+answer for every row that predates them, and `time-capsule`'s `createFlipbook()` doesn't
+mention them, so its saves land at 640×360 — which is genuinely what they are. Nothing
+about the data is wrong in either direction.
+
+**The rendering half is left alone deliberately.** A square flipbook over there is
+cropped, not broken:
+
+- **Its card** shows the middle of the drawing. The 2013 tiles are fixed sizes painted
+  with `background-size: cover`, so a 640×640 PNG fills the width and overflows the
+  height.
+- **Playing it** shows the top 56%. `flip/canvas.js` is a 640×360 element and
+  `flip/data.js` does `importSVG` per page, so coordinates below y=360 are simply
+  outside the viewport.
+
+Nothing throws, nothing 404s, no image breaks. Filtering those rows out of that
+deployment's gallery was considered and rejected: it would mean editing the branch whose
+entire job is to be frozen, and it would break the property that sharing one database
+exists to provide — a flipbook saved in either version appears in both. A cropped card on
+a reference exhibit is the cheaper of the two.
+
 ## Why one function
 
 Every API path is rewritten to a single `/api` function in `vercel.json`:
@@ -206,9 +233,14 @@ factory is named (`loadPreview`) so a page with cards on it can call it in an ef
 mount: by the time a pointer lands on a card the module is in memory and `lazy` resolves
 out of the module cache, so the Suspense boundary never shows. What must stay true is
 that neither the gallery's chunk nor the preview's reaches paper — `grep from\"
-dist/assets/GalleryPage-*.js` after a build is the check, and today it is six imports,
-none of them paper. (Six rather than five since the card moved into `flipbook/card/`
-and became a chunk of its own, shared with the playback page.)
+dist/assets/GalleryPage-*.js` after a build is the check, and today it is five imports,
+none of them paper: the runtime, the entry, `Button`, the icon sprite and the card.
+
+The *composition* is what to read, not the number. `lib/api.ts` used to be a shared
+chunk of its own in that list; it is in the entry bundle now, because `main.tsx` starts
+the offline queue and the queue posts saves — see [`offline.md`](offline.md). That
+folded one chunk away and split the icon sprite out into another, for no change in what
+the gallery downloads and no change in what it must not.
 
 **The remix list on the playback page is `lazy()` for the same reason at a smaller
 scale.** It brings the card and its gestures with it — 1.7 kB gzipped — and a plain

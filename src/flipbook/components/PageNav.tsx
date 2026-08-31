@@ -34,14 +34,15 @@ export interface PageNavProps {
 /**
  * Back a page, forward a page, and a scrubber for everything in between.
  *
- * On both layouts now. It was the phone's answer to a strip of thumbnails you can see
- * but not reach — the drawing takes nearly the whole window down there and all that
- * shows of the pages either side is a few millimetres — and it was hidden on a desktop
- * on the grounds that up here you can click straight onto a thumbnail. You can, and it
- * is still the fastest way to a particular page. What the strip cannot do is show a
- * flipbook *playing*: it is a row of pages that happens to change which one is behind
- * the canvas, and the handle running along the bar is the only thing on either page
- * that says how far through you are while it moves.
+ * **The whole of page navigation, at both widths.** It began as the phone's answer to a
+ * strip of thumbnails you could see but not reach — the drawing takes nearly the whole
+ * window down there — and was hidden on a desktop on the grounds that up there you could
+ * click straight onto a thumbnail. Two things settled it. A strip cannot show a flipbook
+ * *playing*: it is a row of pages that happens to change which one is behind the canvas,
+ * and the handle running along the bar is the only thing on either page that says how far
+ * through you are while it moves. And a strip cannot say where you are in a *long*
+ * flipbook: three visible thumbnails against a bar that holds two hundred pages. The strip
+ * is gone; see `docs/create-page.md`.
  *
  * The handle is on a page, not between pages: it follows the pointer while you're
  * holding it and settles onto the nearest of `pages` positions when you let go, the two
@@ -276,7 +277,7 @@ export function PageNav({
 					// The engine's own frame, so the handle can't fall out of step with the
 					// flipbook it is following.
 					'--frame': `${1000 / FPS}ms`,
-					// And the strip's own, for the same reason, while a page is being carried.
+					// And the reorder gesture's own, for the same reason, while a page is carried.
 					'--glide': `${glide ?? 0}ms`,
 				} as React.CSSProperties
 			}
@@ -444,9 +445,8 @@ interface Sweep {
  * scales never have to be converted between. Off a stop by a fraction of a pixel after
  * a few laps, which is a number nobody is reading.
  *
- * State worked out during render rather than in an effect, the same as the strip's
- * snap-on-removal: the engine publishes a page change and this is a fact about that
- * render, not something to go and do afterwards. `page` is what the last answer was
+ * State worked out during render rather than in an effect: the engine publishes a page
+ * change and this is a fact about that render, not something to go and do afterwards. `page` is what the last answer was
  * for, so a re-render that isn't a page turn — a resize, a tool change — doesn't
  * advance the sweep.
  */
