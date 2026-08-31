@@ -55,12 +55,19 @@ Break one of these and something goes wrong somewhere else, usually silently.
   shape for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses and there is no UI.
   Both are 640 across on purpose — stroke widths, the ink cursor and the strip's pitch are
   calibrated against that width.
-- **You cannot zoom out past the whole page.** The create page pinches to zoom — `zoomStage.ts`
-  and `ZoomStage`, phone widths only, because it exists for v14's aiming pad and a mouse
-  occludes nothing. `maxWidth` is the page and `defaultViewport` opens there, so the resting
-  view is the widest there is: pinching only ever goes in and comes back to exactly the size
-  the layout chose. There is no drawable surround and there was one for about a day;
-  `docs/create-page.md` says why it went and what it cost while it was there.
+- **Pinching moves the sheet, it does not magnify a window.** The create page pinches to
+  zoom — `zoomStage.ts` and `ZoomStage`, phone widths only, because it exists for v14's
+  aiming pad and a mouse occludes nothing — and on a stage standing in the paper's place the
+  viewport is written out as a CSS transform of `.sheet` (`stageTransform`), so the paper
+  itself scales and slides under the page bar, the pad and the rail while `paint` copies the
+  whole page 1:1. v11's band still does the other reading, `drawImage` of the window into a
+  fixed box; both are the same four numbers. **`.onPaper`, the host, must not move** — it is
+  what `measureStage` observes and what every pointer coordinate is a fraction of — and
+  `.book` needs `.under` for its stacking context, or the sheet's 15 buries the page bar.
+  **You cannot zoom out past the whole page**: `maxWidth` is the page and `defaultViewport`
+  opens there, so the transform is the identity at rest and pinching only ever goes in.
+  There is no drawable surround and there was one for about a day; `docs/create-page.md`
+  says why it went and what it cost while it was there.
 - **Reordering pages has an engine but no control.** `FlipbookEngine.movePage`, its `move`
   history op and `beginReorder`/`endReorder` are live and tested, and nothing in the UI calls
   them — the tab above the paper went with the layout it belonged to. Whatever replaces it

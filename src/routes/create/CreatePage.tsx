@@ -363,8 +363,9 @@ export function CreatePage() {
 
 				<div className={styles.stage}>
 					{/* `.fitted` is the same clamp the boot shell's placeholder is laid out
-					    with, so the sheet doesn't move when the route lands on top of it. */}
-					<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
+					    with, so the sheet doesn't move when the route lands on top of it, and
+					    `.under` is the stacking context a zoomed sheet passes beneath. */}
+					<div className={`${canvasStyles.book} ${canvasStyles.fitted} ${canvasStyles.under}`}>
 						<canvas
 							ref={canvasRef}
 							className={[

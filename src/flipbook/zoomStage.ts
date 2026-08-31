@@ -182,6 +182,45 @@ export function stagePlace(view: Viewport, at: Point, box: Box): Point {
 	}
 }
 
+/**
+ * The window, as a CSS transform of the sheet it is a window on.
+ *
+ * **This is what makes a stage standing in the paper's place a sheet of paper rather than
+ * a magnifying glass.** The other reading of a viewport — the one `paint` does for v11's
+ * band — is "copy this rectangle of the page into a box that never moves", and on a
+ * surface that *is* the drawing that reads as being locked inside a hole: the paper stays
+ * exactly where it was and its contents swell inside it. Written as a transform instead,
+ * the sheet itself grows and slides, off under the rail and the page bar and past the
+ * edges of the window, which is what taking hold of a piece of paper looks like.
+ *
+ * `transform-origin: 0 0`, and the translate is in percentages of the sheet's own resting
+ * box so this needs no measurement of anything: CSS resolves them against the border box,
+ * which is the box the viewport's fractions are already against. Read left to right as
+ * matrix multiplication — the scale applies first, then the translate, which is therefore
+ * *not* multiplied by it.
+ *
+ * The scale is uniform, which is exact only where the box has the page's aspect. It does:
+ * this is `.onPaper`, which is `inset: 0` inside a frame whose `aspect-ratio` is the
+ * page's. v11's band is any shape at all, and is why `paint` still has the other reading.
+ *
+ * Nothing here clamps. `clampViewport` has already refused every window that would show
+ * anything but page, so the sheet always covers the frame at least once over: you can go
+ * in and move about, and coming back out stops at exactly the size the layout chose.
+ */
+export function stageTransform(view: Viewport | null, page: PageSize): string {
+	if (!view || view.w === 0 || view.h === 0) return 'none'
+
+	const across = (-view.x / view.w) * 100
+	const down = (-view.y / view.h) * 100
+
+	return `translate(${across}%, ${down}%) scale(${page.width / view.w})`
+}
+
+/** The whole page as a window, which is what a sheet at rest is showing. */
+export function pageViewport(page: PageSize): Viewport {
+	return { x: 0, y: 0, w: page.width, h: page.height }
+}
+
 /** And a point on the paper, in its CSS pixels, the same way. The paper is the page. */
 export function paperPoint(x: number, y: number, box: Box, page: PageSize): Point {
 	return {

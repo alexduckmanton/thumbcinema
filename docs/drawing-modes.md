@@ -262,9 +262,33 @@ own because v11 shares none of the machinery the other ten do.
   units — so it needs telling which page, since there are two shapes and the bounds differ. The outline, the magnified copy and where a finger lands in the
   artwork are three readings of those four, so there is one thing to be right about rather
   than three.
+- **A stage in the band is a window; a stage in the paper's place is a sheet of paper.**
+  Same four numbers, two readings of them, and the difference is the whole feel of the
+  thing. v11's band copies the rectangle into a box that never moves, so magnifying is
+  something the copy does and what you watch is the drawing swelling inside a hole. In
+  v12–v14 the stage *is* the drawing, and a hole is the wrong thing for it to be: there the
+  rectangle is written out as a CSS transform (`stageTransform`), the sheet itself scales
+  and slides — off under the page bar, the aiming pad and the rail, and past the edges of
+  the window — and `paint` copies the whole page 1:1 underneath it. Built the other way
+  first, and using it is what settled it: a drawing surface you are locked inside reads as
+  something being done *to* the picture rather than as picking it up.
+- **The transform moves the sheet and nothing else, which is why the gestures needed no
+  changes at all.** `.onPaper` is the host and stays exactly where it was — it is what
+  `measureStage` observes, what a touch is measured against, and where the cursor ring is
+  drawn — and `.sheet` inside it carries the transform, the white and the rounding. So
+  every number `PointerLayer` works in is still a fraction of a rectangle that hasn't
+  moved, and a finger out on the part of the sheet that hangs off the frame is handled by
+  the thing that already handled a finger sliding off an edge: `stagePoint` extrapolates
+  rather than clamping. `transform-origin: 0 0` and translations in percentages of that
+  resting box, so the transform needs no measurement of anything.
+- **The sheet always covers the frame, because `clampViewport` already says so.** You
+  cannot zoom out past the whole page and you cannot pan past its edges, so the paper is
+  never smaller than the box it rests in and there is never a gap beside it. Coming back
+  out lands on exactly the size the layout chose — the transform is the identity at rest,
+  which is also what makes this cost nothing when nobody pinches.
 - **The trace photograph is drawn into the stage, not laid over it.** On the paper the
   picture is a sibling of the canvas with `mix-blend-mode: multiply`, and it can be,
-  because the paper *is* the whole page and a layer can simply cover it. Down here the
+  because the paper *is* the whole page and a layer can simply cover it. In the band the
   stage is a window on the page, so the photo has to go through the placement and then
   through the window, with only the part inside it drawn — `paintTrace` does that with the
   same transform chain `.plate` states in CSS, in the page's own units, and clips to the

@@ -10,8 +10,10 @@ import {
 	minWidth,
 	paperPoint,
 	panViewport,
+	pageViewport,
 	stagePlace,
 	stagePoint,
+	stageTransform,
 	type Viewport,
 	zoomViewport,
 } from './zoomStage'
@@ -298,5 +300,96 @@ describe('a square page', () => {
 			x: SQUARE.width,
 			y: SQUARE.height,
 		})
+	})
+})
+
+/*
+ * The viewport read as a transform of the sheet rather than as a window into a box.
+ *
+ * The failure here looks like nothing at all — a page that zooms, just not about the right
+ * point, or a sheet that drifts a few units a pinch — so the cases are the two ends and
+ * the middle, stated as "where does this corner of the artwork end up".
+ */
+describe('the sheet’s transform', () => {
+	/** Where a project point lands, in fractions of the sheet’s resting box. */
+	const lands = (view: Viewport, at: { x: number; y: number }, page = SQUARE_PAGE_SIZE) => {
+		const parsed = /translate\((-?[\d.]+)%, (-?[\d.]+)%\) scale\(([\d.]+)\)/.exec(
+			stageTransform(view, page),
+		)
+		if (!parsed) throw new Error(`not a transform: ${stageTransform(view, page)}`)
+
+		const across = Number(parsed[1])
+		const down = Number(parsed[2])
+		const scale = Number(parsed[3])
+		// `translate(T) scale(s)` is T ∘ s, so the scale applies first and the translate is
+		// not multiplied by it — which is the one thing about the string that is easy to
+		// get backwards.
+		return {
+			x: across / 100 + scale * (at.x / page.width),
+			y: down / 100 + scale * (at.y / page.height),
+		}
+	}
+
+	it('is the identity at rest, so nothing about the layout moves', () => {
+		expect(stageTransform(pageViewport(SQUARE_PAGE_SIZE), SQUARE_PAGE_SIZE)).toBe(
+			'translate(0%, 0%) scale(1)',
+		)
+	})
+
+	it('puts the window’s own corners on the box’s corners', () => {
+		const view = { x: 160, y: 160, w: 320, h: 320 }
+
+		expect(lands(view, { x: 160, y: 160 })).toEqual({ x: 0, y: 0 })
+
+		const far = lands(view, { x: 480, y: 480 })
+		expect(far.x).toBeCloseTo(1, 6)
+		expect(far.y).toBeCloseTo(1, 6)
+	})
+
+	it('grows the sheet past the box rather than magnifying inside it', () => {
+		// The whole difference from `paint`'s reading. At 2× the page's own corners are a
+		// box-width apart *outside* the box on each side, which is a sheet hanging off it.
+		const view = { x: 160, y: 160, w: 320, h: 320 }
+
+		expect(lands(view, { x: 0, y: 0 }).x).toBeCloseTo(-0.5, 6)
+		expect(lands(view, { x: 640, y: 640 }).x).toBeCloseTo(1.5, 6)
+	})
+
+	it('says the same thing as the window it is another reading of', () => {
+		// `stagePoint` maps the resting box onto the artwork, and this maps the artwork
+		// onto the resting box. They are inverses, and everything in `PointerLayer` is
+		// correct only for as long as they are.
+		const box = { width: 302, height: 302 }
+
+		for (const view of [
+			pageViewport(SQUARE_PAGE_SIZE),
+			{ x: 160, y: 160, w: 320, h: 320 },
+			{ x: 0, y: 480, w: 160, h: 160 },
+		]) {
+			for (const at of [
+				{ x: 0, y: 0 },
+				{ x: 200, y: 90 },
+				{ x: 640, y: 640 },
+			]) {
+				const placed = lands(view, at)
+				const back = stagePoint(view, placed.x * box.width, placed.y * box.height, box)
+
+				expect(back.x).toBeCloseTo(at.x, 6)
+				expect(back.y).toBeCloseTo(at.y, 6)
+			}
+		}
+	})
+
+	it('is the legacy page’s shape as readily as the square one’s', () => {
+		const view = { x: 0, y: 0, w: 320, h: 180 }
+		const far = lands(view, { x: 320, y: 180 }, LEGACY_PAGE_SIZE)
+
+		expect(far.x).toBeCloseTo(1, 6)
+		expect(far.y).toBeCloseTo(1, 6)
+	})
+
+	it('answers rather than dividing by a window with no width', () => {
+		expect(stageTransform(null, SQUARE_PAGE_SIZE)).toBe('none')
+		expect(stageTransform({ x: 0, y: 0, w: 0, h: 0 }, SQUARE_PAGE_SIZE)).toBe('none')
 	})
 })

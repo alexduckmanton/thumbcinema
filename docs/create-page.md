@@ -100,10 +100,14 @@ you made was as valid as every other and only a hairline said which ones counted
 thing you were making — a 640-wide page that will be played back at 640 — read as a detail
 of something larger. Cropping to the sheet is what makes it a sheet.
 
-**Pinch to zoom survived it**, and was the good half all along: `zoomStage.ts`, `ZoomStage`
-and v14's aiming pad are unchanged. You can go in as far as `MAX_ZOOM` and come back out to
-exactly the size the layout chose and no further, because `maxWidth` is the page and
-`defaultViewport` opens there.
+**Pinch to zoom survived it**, and was the good half all along — but not the way it was
+built. Cropping back to the page put the zoom back into a fixed box, and a magnified window
+inside a rectangle that never moves is the drawing being done to rather than picked up. So
+the viewport is written out as a CSS transform now and the sheet itself scales and slides,
+off under the page bar and the aiming pad and the rail: `stageTransform` in `zoomStage.ts`,
+`.sheet` in `ZoomStage.module.css`, and `docs/drawing-modes.md` for the whole of it. You can
+go in as far as `MAX_ZOOM` and come back out to exactly the size the layout chose and no
+further, because `maxWidth` is the page and `defaultViewport` opens there.
 
 ### The rail
 

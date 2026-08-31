@@ -48,29 +48,62 @@
 /*
  * v12's, which is the same stage standing in the paper's place.
  *
- * No flex and nothing measured about its shape: it fills `.book`, so it is 16:9 and the
- * window it shows is 16:9 with it — the one case where the rectangle's aspect is the
- * page's own. It carries the paper's white, rounding and shadow because the canvas
- * underneath it is `visibility: hidden` while this is up, and a hidden element casts no
- * shadow; between them they are one sheet of paper, and only one of them is ever visible.
+ * No flex and nothing measured about its shape: it fills `.book`, so it is the page's own
+ * shape and the window it shows is that shape with it. **It does not move, and that is the
+ * point of it**: this is the box `measureStage` observes and the box a touch is measured
+ * against, so every number the pointer works in stays a fraction of a rectangle that is
+ * where it was. What moves is `.sheet` inside it.
  *
- * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: over
- * the page bar at 10, under the cursor at 17 and under the trace photo's placing chrome at
- * 17 — which is what lets a photograph be placed on top of it in the one mode where the two
- * share a box.
+ * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: under
+ * the cursor at 17 and under the trace photo's placing chrome at 17, which is what lets a
+ * photograph be placed on top of it in the one mode where the two share a box. On the
+ * create page the page bar, the aiming pad and the rail are all *above* it, and that is
+ * not an accident — the sheet slides under all three. See `.under` on `FlipbookCanvas`.
+ *
+ * No white, no rounding and no shadow here: they belong to the sheet, which is the thing
+ * that is a piece of paper. v11's band is a different box and keeps its own; see `.stage`.
  */
 .onPaper {
 	position: absolute;
 	z-index: 15;
 	inset: 0;
-	border-radius: var(--radius-card);
-	background: var(--white);
-	box-shadow: var(--shadow-card);
 	/* A stroke is never a scroll, and two fingers here are a pinch of ours rather than
 	   the browser's. */
 	touch-action: none;
 	user-select: none;
 	-webkit-touch-callout: none;
+}
+
+/*
+ * The sheet of paper, and the only thing a pinch moves.
+ *
+ * `stageTransform` writes `transform` onto this and `transform-origin: 0 0` is what those
+ * percentages are resolved against. Deliberately allowed out of its parent: zoomed in, the
+ * paper is bigger than the frame it rests in and hangs off every side of it, which is the
+ * whole difference between holding a sheet of paper and looking through a hole at one.
+ *
+ * `will-change` because this is written sixty times a second for the length of a pinch,
+ * and a promoted layer is the difference between compositing the transform and repainting
+ * a canvas under it.
+ */
+.sheet {
+	position: absolute;
+	inset: 0;
+	transform-origin: 0 0;
+	will-change: transform;
+}
+
+/*
+ * The paper's own dressing, on the surface that *is* the paper.
+ *
+ * A descendant selector inside one module, which is the allowed kind: v11's band carries
+ * white and a shadow on its own box because the sheet in it never moves, and up here they
+ * have to travel with the transform or the drawing would slide out from under its own
+ * white. No shadow, because on the create page the sheet doesn't cast one — see `.flat`.
+ */
+.onPaper .sheet {
+	border-radius: var(--radius-card);
+	background: var(--white);
 }
 
 /*

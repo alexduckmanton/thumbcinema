@@ -95,6 +95,23 @@
 }
 
 /*
+ * The create page's frame, which everything inside it stays below.
+ *
+ * A stacking context, and 5 is chosen to be under the page bar's 10. Zoomed in, the sheet
+ * is bigger than this box and hangs off every side of it — across the bar, under the
+ * aiming pad at 14 and under the rail at 30 — and all three are controls, so all three
+ * have to be on top. Without a context here the sheet's own `z-index: 15` would beat every
+ * one of them and a pinch would bury the page bar under the drawing.
+ *
+ * On the frame rather than on the sheet, because a context has to contain the number it is
+ * arguing with: 5 here takes the stage's 15 and the trace photo's 16 and 17 down with it,
+ * and their order among themselves is untouched.
+ */
+.under {
+	z-index: 5;
+}
+
+/*
  * The create page's sheet, which casts no shadow.
  *
  * Everywhere else a flipbook is one object among others — a card in the grid, a drawing
