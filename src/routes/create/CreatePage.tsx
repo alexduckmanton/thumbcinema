@@ -395,22 +395,27 @@ export function CreatePage() {
 							.join(' ')}
 						style={{ '--settle': `${SETTLE_MS}ms` } as React.CSSProperties}
 					>
-						<canvas
-							ref={canvasRef}
-							className={[
-								canvasStyles.canvas,
-								// A page being carried is a page sliding about under the pointer,
-								// and paper listens for a mousedown on this element directly — so
-								// the press is taken off it here rather than refused inside. The
-								// finger's half of that is in `PointerLayer.engage`.
-								state?.reordering ? canvasStyles.inert : '',
-								// And v12 stands its own canvas in front of this one, so paper
-								// goes on drawing here and nothing looks at it. See `.staged`.
-								staged ? canvasStyles.staged : '',
-							]
-								.filter(Boolean)
-								.join(' ')}
-						/>
+						{/* The sheet is the page-shaped hole the canvas is seen through: the
+						    element itself is the whole drawable canvas, twice the page in each
+						    direction, and only the middle of it is the flipbook. See `.sheet`. */}
+						<div className={canvasStyles.sheet}>
+							<canvas
+								ref={canvasRef}
+								className={[
+									canvasStyles.canvas,
+									// A page being carried is a page sliding about under the pointer,
+									// and paper listens for a mousedown on this element directly — so
+									// the press is taken off it here rather than refused inside. The
+									// finger's half of that is in `PointerLayer.engage`.
+									state?.reordering ? canvasStyles.inert : '',
+									// And v12 stands its own canvas in front of this one, so paper
+									// goes on drawing here and nothing looks at it. See `.staged`.
+									staged ? canvasStyles.staged : '',
+								]
+									.filter(Boolean)
+									.join(' ')}
+							/>
+						</div>
 
 						{/* Two ways a flipbook lands in the drawing tool and they are not the
 					    same event: one is your own work coming back after a crash, the

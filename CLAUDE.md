@@ -48,11 +48,27 @@ Break one of these and something goes wrong somewhere else, usually silently.
   wide on a phone would otherwise give a 350-unit project — strokes, thumbnails and saved
   SVG all that shape. CSS owns the display size and `getEventPoint` divides by the current
   scale; not `view.zoom`, which folds itself into `exportSVG()`.
+- **The canvas is `CANVAS_SCALE` times the page and the page keeps its origin at (0,0).**
+  The create page is an infinite canvas with a crop frame on it: you can draw twice the
+  page in each direction, the page sits in the middle, and the surround is *negative* on
+  both axes. That last part is what keeps the saved file byte-identical to what it always
+  was — every coordinate in the artwork means what it meant. Three things follow and each
+  has bitten: `Scene.exportRoot()` must pin the export to the page (paper's default is the
+  view's bounds, which now states the extent's shape **and** collapses every layer into one
+  group); `withoutOverspill()` must actually delete ink outside the frame at save, because
+  the viewBox hides it and does not drop it; and `getEventPoint` scales about
+  `canvasOrigin` rather than about zero, or a mouse draws several hundred units from the
+  pointer. `docs/create-page.md`.
 - **Two page sizes, and there will only ever be two.** `LEGACY_PAGE_SIZE` 640×360 (2012 to
   2026, the whole archive) and `SQUARE_PAGE_SIZE` 640×640 (since). A flipbook keeps its
   shape for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses and there is no UI.
   Both are 640 across on purpose — stroke widths, the ink cursor and the strip's pitch are
   calibrated against that width.
+- **`.sheet` is the page-shaped hole the canvas is seen through**, and the paper's white,
+  rounding and shadow live on it rather than on the canvas. The element is the whole 2×
+  extent — it has to be rendered, because the zoom stage shows a window of it by copying
+  pixels — so `200%`/`-50%` in `FlipbookCanvas.module.css` and `CANVAS_SCALE` have to
+  agree. Both pages that render a canvas need the wrapper; playback shares the scene.
 - **The artwork is the authority on its own shape, and no viewBox means 640×360** (paper
   0.8 wrote none, so the whole archive is silent and all of it is the legacy page).
   `pageSizeFromSvg()` and `pageSize()` (`lib/thumbnail.js`) are the client and server

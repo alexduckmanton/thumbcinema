@@ -48,30 +48,62 @@
 }
 
 /*
- * z-index 15 is load-bearing, and what it is load-bearing against is the trace photo and
- * its chrome, which stand at 16 and 17 inside this same box.
+ * The sheet: the page's own rectangle, and what clips the canvas down to it.
  *
- * It used to be the tray: the pencil and eraser were 304px-tall images anchored at their
- * tips, so most of each one sat *behind* the canvas and only the last few centimetres
- * showed below its bottom edge. Those are gone — see `ToolPanel` — and so is the column of
- * thumbnails that needed it next. What is left needing it is the photograph you trace
- * over: drop the canvas below 16 and the reference is painted over the ink.
+ * z-index 15 is load-bearing, and what it is load-bearing against is the trace photo and
+ * its chrome, which stand at 16 and 17 inside this same box. It used to be the tray: the
+ * pencil and eraser were 304px-tall images anchored at their tips, so most of each one sat
+ * *behind* the canvas and only the last few centimetres showed below its bottom edge. Those
+ * are gone — see `ToolPanel` — and so is the column of thumbnails that needed it next. What
+ * is left needing it is the photograph you trace over: drop this below 16 and the reference
+ * is painted over the ink.
+ *
+ * The canvas is bigger than the page now. The drawable area is `CANVAS_SCALE` times the
+ * page in each direction with the page centred in it — see `canvasExtent` — and the whole
+ * of that has to be *rendered*, because the zoom stage shows a window of it by copying
+ * pixels out. So the element is drawn at the extent's size and this box is the page-shaped
+ * hole it is seen through.
+ *
+ * Which is why the paper's own dressing lives here rather than on the canvas: the white,
+ * the rounding and the shadow belong to the page, and on the canvas they would be around
+ * the whole surround and mostly off-screen. `overflow: hidden` is what makes the box a
+ * hole, and it also takes the surround out of the hit test, so a pointer can only ever
+ * land on the flipbook at rest.
+ *
+ * A wrapper rather than `overflow: hidden` on `.book` itself, because the page handle
+ * hangs in the air *above* the paper and is inside `.book` so it travels with it during a
+ * reorder. Clipping there would cut the tab off.
  */
-.canvas {
-	position: relative;
+.sheet {
+	position: absolute;
 	z-index: 15;
-	width: 100%;
-	height: 100%;
+	inset: 0;
+	overflow: hidden;
 	background: var(--white);
-	/* The gallery card's corners, as well as its shadow. It was 2px — 2013's number,
-	   from before the cards were rounded — and a flipbook you are drawing on with
-	   squarer corners than the same flipbook in the grid is the same object twice. */
 	border-radius: var(--radius-card);
-	/* The gallery card's shadow. A thumbnail in a card is one of a
-	   stack of sheets and takes the flat drop that says so; this is the flipbook
-	   itself, and it is the same object the gallery is full of. */
 	box-shadow: var(--shadow-card);
 	transition: background 0.4s ease-out, box-shadow 0.4s ease-out;
+}
+
+/*
+ * The canvas, drawn at the extent's size and centred on the sheet.
+ *
+ * `200%` and `-50%` are `CANVAS_SCALE` written in CSS: the element is that many times the
+ * page's box and offset by half the difference, so the page's own portion of it lands
+ * exactly on the sheet. The two have to agree — `canvasExtent` and this — and the number
+ * is small enough and stated in few enough places that agreeing is cheaper than plumbing a
+ * custom property through the two pages that render this.
+ *
+ * It also puts `displayScale` back where it was: the element is 2× the box and the extent
+ * is 2× the page, so the ratio between them is the one it has always been and the pointer
+ * arithmetic in `pinCoordinates` is unchanged by any of this.
+ */
+.canvas {
+	position: absolute;
+	top: -50%;
+	left: -50%;
+	width: 200%;
+	height: 200%;
 
 	/*
 	 * A drag here is a stroke, not a scroll, and a long press is a stroke that paused

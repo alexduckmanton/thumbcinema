@@ -1,5 +1,5 @@
 import { Store, useStore } from '../lib/store'
-import type { PageSize } from './engine/constants'
+import { canvasExtent, canvasOrigin, type PageSize } from './engine/constants'
 
 /**
  * The window on the page that the zoom stage is showing, in project units.
@@ -50,25 +50,47 @@ export const MAX_ZOOM = 4
 export const DEFAULT_ZOOM = 2
 
 /**
- * The largest window of this shape that fits on the page.
+ * Everything you can reach, in project units — the drawable canvas, not the page.
  *
- * The stage's aspect is *measured* rather than stated — it is whatever the leftover band
- * comes out as — so it is nearly always wider than the page itself, and the biggest
- * window is therefore the full width of the page and only part of its height. That is
- * not a limitation to work around: the paper above is the view that shows everything,
- * and this one is the view you draw in.
+ * The page keeps its origin at (0,0) and the surround is negative on both axes, so this
+ * starts at `canvasOrigin` and is `CANVAS_SCALE` times the page in each direction. Every
+ * limit below is against this rather than against the page, which is the whole of what
+ * makes the canvas larger than the flipbook: `clampViewport` is the one place that ever
+ * said "not past the edge of the page", and it now says "not past the edge of the canvas".
  */
-export function maxWidth(page: PageSize, aspect: number): number {
-	return Math.min(page.width, page.height * aspect)
+function bounds(page: PageSize): { x: number; y: number; width: number; height: number } {
+	return { ...canvasOrigin(page), ...canvasExtent(page) }
 }
 
-/** And the smallest, which is where `MAX_ZOOM` bites — or the largest, on a tall stage. */
+/**
+ * The largest window of this shape that fits on the canvas.
+ *
+ * The stage's aspect is *measured* rather than stated — it is whatever the surface comes
+ * out as — so the biggest window is whichever of the canvas's two dimensions binds first.
+ *
+ * This is how far you can zoom *out*, and it is why the surround is reachable at all: at
+ * rest the window is the page, and pinching out from there widens it until it holds the
+ * whole canvas. On a desktop nothing ever pinches, so the window stays the page and the
+ * surround is simply never seen — which is the deliberate answer, not an oversight.
+ */
+export function maxWidth(page: PageSize, aspect: number): number {
+	const canvas = bounds(page)
+	return Math.min(canvas.width, canvas.height * aspect)
+}
+
+/**
+ * And the smallest, which is where `MAX_ZOOM` bites — or the largest, on a tall stage.
+ *
+ * Against the *page* rather than the canvas: how far in you can zoom is a question about
+ * the ink — four times life size is where a 3-unit stroke is a line you can place with a
+ * fingertip — and that answer does not change because there is more paper around it.
+ */
 export function minWidth(page: PageSize, aspect: number): number {
 	return Math.min(maxWidth(page, aspect), page.width / MAX_ZOOM)
 }
 
 /**
- * Puts a window back inside the rules: the stage's shape, the zoom limits, and the page.
+ * Puts a window back inside the rules: the stage's shape, the zoom limits, and the canvas.
  *
  * The order matters and is the whole function. The width is clamped first because the
  * height is derived from it, then the height follows from the aspect, and only then is
@@ -78,16 +100,24 @@ export function minWidth(page: PageSize, aspect: number): number {
 export function clampViewport(view: Viewport, page: PageSize, aspect: number): Viewport {
 	const w = clamp(view.w, minWidth(page, aspect), maxWidth(page, aspect))
 	const h = w / aspect
+	const canvas = bounds(page)
 
 	return {
 		w,
 		h,
-		x: clamp(view.x, 0, page.width - w),
-		y: clamp(view.y, 0, page.height - h),
+		x: clamp(view.x, canvas.x, canvas.x + canvas.width - w),
+		y: clamp(view.y, canvas.y, canvas.y + canvas.height - h),
 	}
 }
 
-/** The middle of the page at `zoom`, or as near to it as the limits allow. */
+/**
+ * The middle of the *page* at `zoom`, or as near to it as the limits allow.
+ *
+ * The page and not the canvas, which is what makes the resting view the frame exactly: at
+ * `zoom` 1 this is the flipbook and nothing else, at every width and on every device. The
+ * surround is somewhere you go rather than somewhere you start, so nothing about the
+ * layout changes because it exists.
+ */
 export function defaultViewport(page: PageSize, aspect: number, zoom = DEFAULT_ZOOM): Viewport {
 	const w = page.width / zoom
 	const h = w / aspect
@@ -123,7 +153,7 @@ export function zoomViewport(
 	return clampViewport({ w, h, x: at.x - fx * w, y: at.y - fy * h }, page, aspect)
 }
 
-/** Moves the window by a delta in project units, and no further than the page. */
+/** Moves the window by a delta in project units, and no further than the canvas. */
 export function panViewport(
 	view: Viewport,
 	dx: number,

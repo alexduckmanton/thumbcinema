@@ -291,7 +291,13 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 			<main className={styles.content} style={pageVars(page) as React.CSSProperties}>
 				<div className="center">
 					<div className={canvasStyles.book}>
-						<canvas ref={canvasRef} className={canvasStyles.canvas} />
+						{/* The canvas is the whole drawable area — twice the page in each
+						    direction — and `.sheet` is the page-shaped hole it is seen through.
+						    Playback never draws, but it shares the scene with the create page and
+						    so shares its coordinate space. */}
+						<div className={canvasStyles.sheet}>
+							<canvas ref={canvasRef} className={canvasStyles.canvas} />
+						</div>
 
 						{/* The flipbook, before it is one. Nothing to say to a screen reader —
 						    it's a picture of an absence — so the announcement is text, in a

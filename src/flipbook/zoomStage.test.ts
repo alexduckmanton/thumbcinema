@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { LEGACY_PAGE_SIZE, SQUARE_PAGE_SIZE } from './engine/constants'
+import { canvasExtent, canvasOrigin, LEGACY_PAGE_SIZE, SQUARE_PAGE_SIZE } from './engine/constants'
 import {
 	centreViewport,
 	clampViewport,
@@ -30,11 +30,25 @@ const WIDE = 358 / 150
 /** And a stage taller than the page's own shape, which is what binds the other way. */
 const TALL = 300 / 240
 
-const inside = (view: Viewport) =>
-	view.x >= -0.001 &&
-	view.y >= -0.001 &&
-	view.x + view.w <= PAGE.width + 0.001 &&
-	view.y + view.h <= PAGE.height + 0.001
+/**
+ * Whether a window is on the *canvas*, which is the page plus the surround round it.
+ *
+ * It used to be "on the page". The create page is an infinite canvas with a crop frame on
+ * it now — you can draw `CANVAS_SCALE` times the page in each direction, with the page
+ * centred — so every limit here is against the canvas and the page's own edges are no
+ * longer edges at all. See `canvasExtent`.
+ */
+const onCanvas = (view: Viewport, page = PAGE) => {
+	const size = canvasExtent(page)
+	const origin = canvasOrigin(page)
+
+	return (
+		view.x >= origin.x - 0.001 &&
+		view.y >= origin.y - 0.001 &&
+		view.x + view.w <= origin.x + size.width + 0.001 &&
+		view.y + view.h <= origin.y + size.height + 0.001
+	)
+}
 
 describe('the window the stage shows', () => {
 	it('is the stage’s own shape, whatever the page’s is', () => {
@@ -50,27 +64,37 @@ describe('the window the stage shows', () => {
 		expect(view.y + view.h / 2).toBeCloseTo(PAGE.height / 2, 6)
 	})
 
-	it('never hangs off the page, at any size or position', () => {
+	it('never hangs off the canvas, at any size or position', () => {
 		for (const aspect of [WIDE, TALL, 16 / 9]) {
-			for (const w of [10, 160, 320, 640, 2000]) {
-				for (const x of [-500, -1, 0, 320, 640, 1200]) {
-					for (const y of [-500, 0, 180, 360, 900]) {
-						expect(inside(clampViewport({ x, y, w, h: w / aspect }, PAGE, aspect))).toBe(true)
+			for (const w of [10, 160, 320, 640, 2000, 5000]) {
+				for (const x of [-2000, -500, -1, 0, 320, 640, 1200, 3000]) {
+					for (const y of [-2000, -500, 0, 180, 360, 900, 3000]) {
+						expect(onCanvas(clampViewport({ x, y, w, h: w / aspect }, PAGE, aspect))).toBe(true)
 					}
 				}
 			}
 		}
 	})
 
-	it('is the full width of the page when the stage is wider than 16:9', () => {
-		expect(maxWidth(PAGE, WIDE)).toBe(PAGE.width)
-		// And only part of its height, which is what the paper above is for.
-		expect(PAGE.width / WIDE).toBeLessThan(PAGE.height)
+	it('goes out past the page, which is the whole of the surround', () => {
+		// The page's own edges stopped being edges. A window sitting entirely in the
+		// negative surround is a legal window, and this is the one assertion that says so.
+		const view = clampViewport({ x: -300, y: -160, w: 200, h: 200 / WIDE }, PAGE, WIDE)
+
+		expect(view.x).toBeCloseTo(-300, 6)
+		expect(view.y).toBeCloseTo(-160, 6)
 	})
 
-	it('is bound by the page’s height when the stage is taller than 16:9', () => {
-		expect(maxWidth(PAGE, TALL)).toBeCloseTo(PAGE.height * TALL, 6)
-		expect(maxWidth(PAGE, TALL)).toBeLessThan(PAGE.width)
+	it('is the full width of the canvas when the stage is wider than the canvas is', () => {
+		expect(maxWidth(PAGE, WIDE)).toBe(canvasExtent(PAGE).width)
+		// And only part of its height, which is what pinching about is for.
+		expect(canvasExtent(PAGE).width / WIDE).toBeLessThan(canvasExtent(PAGE).height)
+	})
+
+	it('is bound by the canvas’s height when the stage is taller than the canvas is', () => {
+		const canvas = canvasExtent(PAGE)
+		expect(maxWidth(PAGE, TALL)).toBeCloseTo(canvas.height * TALL, 6)
+		expect(maxWidth(PAGE, TALL)).toBeLessThan(canvas.width)
 	})
 
 	it('goes in as far as MAX_ZOOM and no further', () => {
@@ -87,7 +111,16 @@ describe('the window the stage shows', () => {
 	it('survives a stage whose largest window is already past the zoom limit', () => {
 		const sliver = 358 / 70
 		expect(minWidth(PAGE, sliver)).toBeLessThanOrEqual(maxWidth(PAGE, sliver))
-		expect(inside(clampViewport({ x: 0, y: 0, w: 9999, h: 9999 }, PAGE, sliver))).toBe(true)
+		expect(onCanvas(clampViewport({ x: 0, y: 0, w: 9999, h: 9999 }, PAGE, sliver))).toBe(true)
+	})
+
+	/*
+	 * How far *in* you can go is a question about the ink rather than about how much
+	 * paper there is, so the surround must not have moved it. Four times life size is
+	 * where a 3-unit stroke is a line you can place with a fingertip.
+	 */
+	it('goes in exactly as far as it did before there was a surround', () => {
+		expect(minWidth(PAGE, WIDE)).toBeCloseTo(PAGE.width / MAX_ZOOM, 6)
 	})
 })
 
@@ -102,12 +135,12 @@ describe('pinching', () => {
 		expect((at.y - zoomed.y) / zoomed.h).toBeCloseTo(0.75, 6)
 	})
 
-	it('holds the stage’s shape and stays on the page', () => {
+	it('holds the stage’s shape and stays on the canvas', () => {
 		let view = defaultViewport(PAGE, WIDE)
 		for (const scale of [0.5, 0.5, 0.5, 2, 2, 2, 2, 0.8, 1.4]) {
 			view = zoomViewport(view, PAGE, WIDE, scale, { x: view.x, y: view.y })
 			expect(view.w / view.h).toBeCloseTo(WIDE, 6)
-			expect(inside(view)).toBe(true)
+			expect(onCanvas(view)).toBe(true)
 		}
 	})
 
@@ -119,7 +152,7 @@ describe('pinching', () => {
 	it('answers for an anchor outside the window', () => {
 		const view = defaultViewport(PAGE, WIDE)
 		const zoomed = zoomViewport(view, PAGE, WIDE, 0.5, { x: -400, y: 900 })
-		expect(inside(zoomed)).toBe(true)
+		expect(onCanvas(zoomed)).toBe(true)
 		expect(zoomed.w / zoomed.h).toBeCloseTo(WIDE, 6)
 	})
 
@@ -141,11 +174,14 @@ describe('panning', () => {
 		expect(moved.y).toBeCloseTo(view.y - 10, 6)
 	})
 
-	it('stops at the edge rather than following the finger off it', () => {
+	it('stops at the canvas’s edge rather than following the finger off it', () => {
 		const view = defaultViewport(PAGE, WIDE)
 		const moved = panViewport(view, 9999, 9999, PAGE, WIDE)
-		expect(moved.x).toBeCloseTo(PAGE.width - view.w, 6)
-		expect(moved.y).toBeCloseTo(PAGE.height - view.h, 6)
+		const canvas = canvasExtent(PAGE)
+		const origin = canvasOrigin(PAGE)
+
+		expect(moved.x).toBeCloseTo(origin.x + canvas.width - view.w, 6)
+		expect(moved.y).toBeCloseTo(origin.y + canvas.height - view.h, 6)
 	})
 
 	it('centres on a point when the outline is dragged to it', () => {
@@ -249,16 +285,20 @@ describe('a square page', () => {
 	const SQUARE = SQUARE_PAGE_SIZE
 
 	it('lets a wide stage take the full width, as the legacy page does', () => {
-		expect(maxWidth(SQUARE, WIDE)).toBe(SQUARE.width)
+		expect(maxWidth(SQUARE, WIDE)).toBe(canvasExtent(SQUARE).width)
 	})
 
 	it('is bound by its own height, which is a different bound from the legacy page’s', () => {
 		// `TALL` is 300/240 — taller than the legacy page and *wider* than a square one —
 		// so the same stage is bound by two different things on the two pages: by the
-		// legacy page's 360 of height, and by the square page's 640 of width. Which is
-		// the whole reason this is an argument rather than a pair of constants.
-		expect(maxWidth(SQUARE, TALL)).toBe(SQUARE.width)
-		expect(maxWidth(LEGACY_PAGE_SIZE, TALL)).toBeCloseTo(LEGACY_PAGE_SIZE.height * TALL, 6)
+		// legacy page's height, and by the square page's width. Which is the whole reason
+		// this is an argument rather than a pair of constants. The surround scales both,
+		// so the relationship between them is unchanged.
+		expect(maxWidth(SQUARE, TALL)).toBe(canvasExtent(SQUARE).width)
+		expect(maxWidth(LEGACY_PAGE_SIZE, TALL)).toBeCloseTo(
+			canvasExtent(LEGACY_PAGE_SIZE).height * TALL,
+			6,
+		)
 		expect(maxWidth(SQUARE, TALL)).toBeGreaterThan(maxWidth(LEGACY_PAGE_SIZE, TALL))
 	})
 
@@ -274,18 +314,14 @@ describe('a square page', () => {
 		expect(view.y + view.h / 2).toBeCloseTo(SQUARE.height / 2, 6)
 	})
 
-	it('never hangs off the page, at any size or position', () => {
-		const on = (view: Viewport) =>
-			view.x >= -0.001 &&
-			view.y >= -0.001 &&
-			view.x + view.w <= SQUARE.width + 0.001 &&
-			view.y + view.h <= SQUARE.height + 0.001
-
+	it('never hangs off its own canvas, at any size or position', () => {
 		for (const aspect of [WIDE, TALL, 1]) {
-			for (const w of [10, 320, 640, 2000]) {
-				for (const x of [-500, 0, 320, 1200]) {
-					for (const y of [-500, 0, 320, 900]) {
-						expect(on(clampViewport({ x, y, w, h: w / aspect }, SQUARE, aspect))).toBe(true)
+			for (const w of [10, 320, 640, 2000, 5000]) {
+				for (const x of [-2000, -500, 0, 320, 1200, 3000]) {
+					for (const y of [-2000, -500, 0, 320, 900, 3000]) {
+						expect(
+							onCanvas(clampViewport({ x, y, w, h: w / aspect }, SQUARE, aspect), SQUARE),
+						).toBe(true)
 					}
 				}
 			}

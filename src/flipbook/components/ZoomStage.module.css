@@ -148,3 +148,37 @@
 		display: none;
 	}
 }
+
+/*
+ * The crop frame: where the page is on a canvas that is bigger than it.
+ *
+ * A hairline and a shadow, and no fill at all — what is inside it is the drawing, and a
+ * wash over the thing you are drawing on would be the one place this must not be. The
+ * surround outside it is the same white: you draw on paper everywhere, and the line is
+ * what says which of it gets saved.
+ *
+ * `outline` rather than `border`, so it is drawn *outside* the rectangle and the frame's
+ * inside is exactly the page — a border would sit within the box and put half a pixel of
+ * the drawing under the line at every zoom. The radius matches the sheet's, so at rest,
+ * when the frame and the stage coincide, the two edges are the same edge.
+ *
+ * `pointer-events: none` because the whole surface is somewhere you draw. This is a mark
+ * on the paper, not a control, and there is nothing to press.
+ */
+.crop {
+	position: absolute;
+	z-index: 16;
+	outline: 1px solid rgba(0, 0, 0, 0.18);
+	border-radius: var(--radius-card);
+	pointer-events: none;
+
+	/*
+	 * The paper's own shadow, on the frame rather than on the window.
+	 *
+	 * At rest the two are the same rectangle and this is the shadow the sheet has always
+	 * had. Zoomed out it is what keeps the flipbook reading as a sheet of paper lying on a
+	 * larger surface, rather than as a rectangle ruled on it — which is the difference
+	 * between a crop mark you understand at a glance and one you have to be told about.
+	 */
+	box-shadow: var(--shadow-card);
+}

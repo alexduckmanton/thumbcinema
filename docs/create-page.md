@@ -65,6 +65,76 @@ The page bar does the same job in one control and 56px of height, and it can say
 are in a 200-page flipbook, which three visible thumbnails never could. `PageStrip` and its
 stylesheet are gone; the reorder gesture is unchanged and reads on the bar instead.
 
+### The canvas is bigger than the flipbook
+
+You can draw past the edge of the page, and what is inside the frame at save time is the
+flipbook. `CANVAS_SCALE` is 2: the drawable area is twice the page in each direction with
+the page centred in it, so a square page gets 1280×1280 and a legacy 16:9 remix 1280×720.
+
+- **Stated in project units, never against the window.** How much room there is to draw in
+  is a property of the flipbook exactly as its shape is; a surround measured against the
+  screen would give a phone and a desktop different drawings from the same gestures.
+- **The page keeps its origin at (0,0) and the surround is negative**, rather than the page
+  being offset into a larger space. That is the decision everything else rests on: every
+  coordinate in the artwork means what it has always meant, so a flipbook drawn on the
+  extended canvas is byte-identical to one drawn before there was one.
+- **At rest the view is exactly the frame**, at every width and on every device, so nothing
+  about the layout changed because this exists. The sheet is 604px on a desktop and 302 on
+  a phone, the same numbers as before. The surround is somewhere you go, not somewhere you
+  start.
+- **You get there by pinching, and only by pinching.** There is no desktop gesture, which
+  means the surround is unreachable with a mouse and free on an iPad — v14 puts the zoom
+  stage on the paper at both widths and the breakpoint does not gate it. That is the
+  deliberate answer rather than an omission: the tool is touch-first, and a wheel gesture
+  nobody asked for is a wheel gesture that fights the page.
+- **`Scene.exportRoot()` pins the export to the page, and it is load-bearing.** paper
+  exports the *view's* bounds by default, which is now the whole extent — and the result is
+  wrong twice over, both quietly enough to reach production: the root states the extent's
+  size, so every flipbook saved would read back as a page twice its shape on its card, its
+  playback page and every remix of it for ever; and the non-identity view matrix makes
+  paper wrap the whole project in a single `<g>`, collapsing the layer-per-page structure
+  the format rests on. `assertLeadingGroups` catches the second. Nothing but this catches
+  the first. Proved in `scene.test.ts` against a real project — including a case asserting
+  what the *raw* export gives, so dropping the `bounds` option fails loudly.
+- **The overspill is deleted at save rather than left to the viewBox.** The viewBox clips
+  it on the way back in, so it is invisible — and it still travels, and the save request is
+  capped at about 2.5 MB of drawing. A canvas four times the area could spend most of that
+  budget on strokes nobody will ever see. `Scene.withoutOverspill()` takes out anything
+  whose `strokeBounds` misses the page, exports, and puts it back at the index it came
+  from. A stroke that *crosses* the edge stays whole and is clipped on display: the
+  geometry that survives is the geometry that was drawn, and every renderer of this file
+  already clips to the root.
+- **Crash recovery keeps the surround.** It uses the same pinned root — a file stating the
+  extent would restore as the wrong page shape — but not `withoutOverspill`: that file is
+  the session rather than the artwork, and a crash should give back what was on the canvas
+  rather than what would have been saved. It does make the crash file bigger, and it lives
+  in localStorage's ~5 MB budget.
+- **`getEventPoint` scales about the canvas's origin, not about zero.** paper's answer
+  already carries the view's translation, so a plain divide scales that offset along with
+  the position and lands every event hundreds of units away. Caught by a stroke that simply
+  did not appear — and only on a desktop, because a finger goes through `PointerLayer` and
+  the stage's own mapping while a mouse goes through this. Touch went on working perfectly
+  at every width while a pointer drew nothing at all.
+- **`.sheet` is the page-shaped hole the canvas is seen through.** The element is drawn at
+  the extent's size — the whole area has to be *rendered*, because the zoom stage shows a
+  window of it by copying pixels out — and the sheet clips it back to the page. Which is
+  why the paper's white, rounding and shadow moved onto the sheet: on the canvas they would
+  be around the surround and mostly off-screen. `overflow: hidden` also takes the surround
+  out of the hit test, so at rest a pointer can only ever land on the flipbook. It is a
+  wrapper rather than `overflow: hidden` on `.book` because the page handle hangs in the
+  air *above* the paper and is inside `.book` so it travels during a reorder — clipping
+  there would cut the tab off.
+- **The crop frame is a DOM box positioned from the viewport**, for the same reason the
+  trace photo is a DOM layer: nothing that is not the drawing may ever be in a position to
+  end up in the drawing. It is stated in percentages of the stage, so it needs no
+  measurement of its own and cannot fall out of step with the canvas beside it. At rest all
+  four come out 0% and 100% and it lies exactly on the sheet's edge, which is why nothing
+  looks different until somebody pinches. It carries the paper's shadow so that zoomed out
+  the flipbook reads as a sheet lying on a larger surface rather than as a rectangle ruled
+  on one.
+- **It cannot be moved and it cannot be pressed.** The frame is fixed in the artwork's own
+  coordinates; what moves is the view.
+
 ### The rail
 
 - **Every control is a 40×40 tile wearing a single Pecita glyph**, in one column: what
