@@ -68,10 +68,11 @@ function bounds(page: PageSize): { x: number; y: number; width: number; height: 
  * The stage's aspect is *measured* rather than stated — it is whatever the surface comes
  * out as — so the biggest window is whichever of the canvas's two dimensions binds first.
  *
- * This is how far you can zoom *out*, and it is why the surround is reachable at all: at
- * rest the window is the page, and pinching out from there widens it until it holds the
- * whole canvas. On a desktop nothing ever pinches, so the window stays the page and the
- * surround is simply never seen — which is the deliberate answer, not an oversight.
+ * **This is where a stage opens and it is as far out as it goes.** You cannot zoom out
+ * past the whole canvas, which is what makes the resting view the widest one there is —
+ * pinching only ever goes in, and comes back to exactly the size the layout chose. A
+ * surface you could pull away from would leave the flipbook smaller than the page it is,
+ * for no gain: there is nothing beyond the canvas to see.
  */
 export function maxWidth(page: PageSize, aspect: number): number {
 	const canvas = bounds(page)
@@ -111,18 +112,41 @@ export function clampViewport(view: Viewport, page: PageSize, aspect: number): V
 }
 
 /**
- * The middle of the *page* at `zoom`, or as near to it as the limits allow.
+ * The middle of the canvas at `zoom`, or as near to it as the limits allow.
  *
- * The page and not the canvas, which is what makes the resting view the frame exactly: at
- * `zoom` 1 this is the flipbook and nothing else, at every width and on every device. The
- * surround is somewhere you go rather than somewhere you start, so nothing about the
- * layout changes because it exists.
+ * **`zoom` is against the canvas, not the page**, so 1 is the whole drawable area and that
+ * is where a stage on the paper opens. Which is also as far out as it goes — see
+ * `maxWidth` — so the resting view is the widest view there is, and the flipbook inside it
+ * is at exactly the size the layout gave it. You can go in from there and not out.
+ *
+ * It was the page's, when the surround was somewhere you had to pinch out to find. That
+ * made the sheet the whole of the drawing surface and the surround a place you could only
+ * reach by leaving the size you draw at, which is the wrong way round: the canvas is what
+ * you are drawing on and the page is a rectangle marked on it.
  */
 export function defaultViewport(page: PageSize, aspect: number, zoom = DEFAULT_ZOOM): Viewport {
-	const w = page.width / zoom
+	const canvas = bounds(page)
+	const w = canvas.width / zoom
 	const h = w / aspect
 
-	return clampViewport({ w, h, x: (page.width - w) / 2, y: (page.height - h) / 2 }, page, aspect)
+	return clampViewport(
+		{ w, h, x: canvas.x + (canvas.width - w) / 2, y: canvas.y + (canvas.height - h) / 2 },
+		page,
+		aspect,
+	)
+}
+
+/**
+ * The whole drawable canvas, as a window.
+ *
+ * What the view *is* when there is no stage — a desktop, where the stylesheet hides it —
+ * and what a stage on the paper opens at when there is one. Which is what lets the crop
+ * frame be drawn from one formula at both: with no stage the surface shows the whole
+ * canvas, so "the window" and "the canvas" are the same rectangle.
+ */
+export function canvasViewport(page: PageSize): Viewport {
+	const canvas = bounds(page)
+	return { x: canvas.x, y: canvas.y, w: canvas.width, h: canvas.height }
 }
 
 /**

@@ -54,18 +54,29 @@
  * underneath it is `visibility: hidden` while this is up, and a hidden element casts no
  * shadow; between them they are one sheet of paper, and only one of them is ever visible.
  *
- * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: over
- * the page bar at 10, under the cursor at 17 and under the trace photo's placing chrome at
- * 17 — which is what lets a photograph be placed on top of it in the one mode where the two
- * share a box.
+ * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: under
+ * the cursor at 17 and under the trace photo's placing chrome at 17, which is what lets a
+ * photograph be placed on top of it in the one mode where the two share a box. The page bar
+ * is *above* both, and that is not an accident — see `.book` on the create page.
+ *
+ * **The same box the live canvas has, which is the whole drawable area** — `CANVAS_SCALE`
+ * times the page, centred on it, overflowing the frame on all four sides. It was `inset: 0`
+ * and so page-shaped, which made the stage a hole you were locked to: pinching moved the
+ * drawing about inside a rectangle with a shadow round it, and the surround could only ever
+ * be seen through that rectangle. The surface is the canvas now, and `.crop` is the only
+ * thing that says where the flipbook ends.
+ *
+ * No shadow, no rounding and no clip, for the same reason `.open` drops them: they are the
+ * dressing of a sheet of paper, and this is not one.
  */
 .onPaper {
 	position: absolute;
 	z-index: 15;
-	inset: 0;
-	border-radius: var(--radius-card);
+	top: -50%;
+	left: -50%;
+	width: 200%;
+	height: 200%;
 	background: var(--white);
-	box-shadow: var(--shadow-card);
 	/* A stroke is never a scroll, and two fingers here are a pinch of ours rather than
 	   the browser's. */
 	touch-action: none;
@@ -147,38 +158,4 @@
 	.onPaper {
 		display: none;
 	}
-}
-
-/*
- * The crop frame: where the page is on a canvas that is bigger than it.
- *
- * A hairline and a shadow, and no fill at all — what is inside it is the drawing, and a
- * wash over the thing you are drawing on would be the one place this must not be. The
- * surround outside it is the same white: you draw on paper everywhere, and the line is
- * what says which of it gets saved.
- *
- * `outline` rather than `border`, so it is drawn *outside* the rectangle and the frame's
- * inside is exactly the page — a border would sit within the box and put half a pixel of
- * the drawing under the line at every zoom. The radius matches the sheet's, so at rest,
- * when the frame and the stage coincide, the two edges are the same edge.
- *
- * `pointer-events: none` because the whole surface is somewhere you draw. This is a mark
- * on the paper, not a control, and there is nothing to press.
- */
-.crop {
-	position: absolute;
-	z-index: 16;
-	outline: 1px solid rgba(0, 0, 0, 0.18);
-	border-radius: var(--radius-card);
-	pointer-events: none;
-
-	/*
-	 * The paper's own shadow, on the frame rather than on the window.
-	 *
-	 * At rest the two are the same rectangle and this is the shadow the sheet has always
-	 * had. Zoomed out it is what keeps the flipbook reading as a sheet of paper lying on a
-	 * larger surface, rather than as a rectangle ruled on it — which is the difference
-	 * between a crop mark you understand at a glance and one you have to be told about.
-	 */
-	box-shadow: var(--shadow-card);
 }

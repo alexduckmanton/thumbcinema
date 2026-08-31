@@ -64,11 +64,26 @@ Break one of these and something goes wrong somewhere else, usually silently.
   shape for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses and there is no UI.
   Both are 640 across on purpose — stroke widths, the ink cursor and the strip's pitch are
   calibrated against that width.
-- **`.sheet` is the page-shaped hole the canvas is seen through**, and the paper's white,
-  rounding and shadow live on it rather than on the canvas. The element is the whole 2×
-  extent — it has to be rendered, because the zoom stage shows a window of it by copying
-  pixels — so `200%`/`-50%` in `FlipbookCanvas.module.css` and `CANVAS_SCALE` have to
-  agree. Both pages that render a canvas need the wrapper; playback shares the scene.
+- **The canvas element is the whole 2× extent** — it has to be rendered, because the zoom
+  stage shows a window of it by copying pixels — so `200%`/`-50%` in
+  `FlipbookCanvas.module.css` and `CANVAS_SCALE` have to agree. `.paper` is the page-shaped
+  hole it is seen through on playback and in the boot shell. **The create page adds
+  `.open`, which is not a hole at all**: no clip, no shadow, no rounding, and the white
+  moves onto the canvas, so the drawing is not cropped while you are drawing it and the
+  only thing marking the flipbook's edge is `.crop`. `.paper` and not `.sheet` — that name
+  is taken by the shell's skeleton, and CSS Modules hash per file, so two blocks of one
+  name are one class.
+- **The drawing passes *under* the page bar, and `.fitted` is what does it.** The canvas
+  overflows its box on every side — under the rail, off the edges of the window and across
+  the bar — and the bar is a control, so it has to be on top. `.fitted` carries `z-index: 5`
+  and is a stacking context, which takes the canvas's own 15 and the trace photo's 16 down
+  with it. `.dragging` restates 15 for the length of a reorder, which is the one time the
+  sheet is meant to travel above the bar.
+- **You cannot zoom out past the whole canvas.** `maxWidth` is the extent and
+  `defaultViewport` opens there, so the resting view is the widest there is: pinching only
+  ever goes in and comes back to exactly the size the layout chose. `zoom` in
+  `zoomStage.ts` is against the canvas, not the page — which is why v11's `startingZoom` is
+  `2 * CANVAS_SCALE` to keep meaning "the page at 2×".
 - **The artwork is the authority on its own shape, and no viewBox means 640×360** (paper
   0.8 wrote none, so the whole archive is silent and all of it is the legacy page).
   `pageSizeFromSvg()` and `pageSize()` (`lib/thumbnail.js`) are the client and server

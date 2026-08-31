@@ -7,7 +7,7 @@ import { AimPad } from '../../flipbook/components/AimPad'
 import { InkCursor } from '../../flipbook/components/InkCursor'
 import { ToolPanel } from '../../flipbook/components/ToolPanel'
 import { ZoomStage, ZoomWindow } from '../../flipbook/components/ZoomStage'
-import { DEFAULT_PAGE_SIZE } from '../../flipbook/engine/constants'
+import { DEFAULT_PAGE_SIZE, type PageSize } from '../../flipbook/engine/constants'
 import { pageVars } from '../../flipbook/pageVars'
 import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
@@ -25,7 +25,7 @@ import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
 import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
 import { usePointerLayer } from '../../flipbook/usePointerLayer'
-import { useStage } from '../../flipbook/zoomStage'
+import { canvasViewport, useStage, type Viewport } from '../../flipbook/zoomStage'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
 import { SETTLE_MS } from '../../flipbook/engine/reorder'
@@ -128,7 +128,8 @@ export function CreatePage() {
 	const page = state?.page ?? DEFAULT_PAGE_SIZE
 
 	const onPaper = stageOnPaper(drawMode)
-	const staged = useStage().view !== null && onPaper
+	const stageView = useStage().view
+	const staged = stageView !== null && onPaper
 
 	const crash = useCrashRecovery(engine, asked)
 
@@ -388,6 +389,10 @@ export function CreatePage() {
 						ref={bookRef}
 						className={[
 							canvasStyles.book,
+							// `.fitted`, which is where the stacking context lives: the canvas
+							// overflows this box on every side and has to pass *under* the page
+							// bar. See the note on it.
+							canvasStyles.fitted,
 							reorder ? canvasStyles.dragging : '',
 							reorder?.settling ? canvasStyles.settling : '',
 						]
@@ -395,10 +400,11 @@ export function CreatePage() {
 							.join(' ')}
 						style={{ '--settle': `${SETTLE_MS}ms` } as React.CSSProperties}
 					>
-						{/* The sheet is the page-shaped hole the canvas is seen through: the
-						    element itself is the whole drawable canvas, twice the page in each
-						    direction, and only the middle of it is the flipbook. See `.sheet`. */}
-						<div className={canvasStyles.sheet}>
+						{/* `.open`, so the canvas is *not* cropped to the page while you are
+						    drawing on it: the element is the whole drawable area, twice the page
+						    in each direction, and it overflows this box on all four sides. What
+						    says where the flipbook ends is the crop outline below. See `.open`. */}
+						<div className={`${canvasStyles.paper} ${canvasStyles.open}`}>
 							<canvas
 								ref={canvasRef}
 								className={[
@@ -429,6 +435,24 @@ export function CreatePage() {
 								<Spinner label="" />
 							</div>
 						) : null}
+
+						{/*
+						 * The crop frame: the one thing on the page that says which ink survives
+						 * the save.
+						 *
+						 * Drawn here rather than by the stage, because the stage is not always
+						 * there — it is hidden above the phone breakpoint, and on a desktop the
+						 * canvas is shown directly. One formula covers both: with no stage the
+						 * surface *is* the whole canvas, so `canvasViewport` is the window and the
+						 * frame comes out at exactly this box.
+						 *
+						 * Positioned in percentages of `.book`, which is the page's own box, while
+						 * the surface is `CANVAS_SCALE` times it and centred — hence the `-50%`
+						 * and the `200%`, the same two numbers the canvas is laid out with. At
+						 * rest they cancel and the frame is `0%`/`100%`: exactly where the sheet
+						 * used to be, which is why the layout did not move.
+						 */}
+						<CropFrame view={stageView ?? canvasViewport(page)} page={page} />
 
 						{/* The photograph being traced over. Above the canvas and multiplied into
 					    it, which is what lets the ink stay as dark as it was drawn — see
@@ -598,6 +622,38 @@ export function CreatePage() {
 
 			{crash.crashed ? <Recovery saved={crash.saved} /> : null}
 		</>
+	)
+}
+
+/**
+ * The outline round the part of the canvas that will be saved.
+ *
+ * A DOM box rather than anything painted into the canvas, for the same reason the trace
+ * photo is a DOM layer: nothing that is not the drawing may ever be in a position to end up
+ * *in* the drawing. Stated in percentages, so it needs no measurement of its own and cannot
+ * fall out of step with the surface beside it — both are drawn from the same numbers on the
+ * same render.
+ *
+ * `-50%` and `200%` are `CANVAS_SCALE` written twice: the surface is that many times this
+ * box and centred on it, so a fraction of the *surface* becomes a percentage of the box by
+ * scaling and shifting. With the window at the whole canvas the two cancel exactly and the
+ * frame lands on `0%`/`100%` — which is why nothing about the layout moved.
+ */
+function CropFrame({ view, page }: { view: Viewport; page: PageSize }) {
+	const across = (value: number) => `${-50 + (200 * (value - view.x)) / view.w}%`
+	const down = (value: number) => `${-50 + (200 * (value - view.y)) / view.h}%`
+
+	return (
+		<div
+			className={canvasStyles.crop}
+			aria-hidden="true"
+			style={{
+				left: across(0),
+				top: down(0),
+				width: `${(200 * page.width) / view.w}%`,
+				height: `${(200 * page.height) / view.h}%`,
+			}}
+		/>
 	)
 }
 

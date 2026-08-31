@@ -78,15 +78,28 @@ the page centred in it, so a square page gets 1280×1280 and a legacy 16:9 remix
   being offset into a larger space. That is the decision everything else rests on: every
   coordinate in the artwork means what it has always meant, so a flipbook drawn on the
   extended canvas is byte-identical to one drawn before there was one.
-- **At rest the view is exactly the frame**, at every width and on every device, so nothing
-  about the layout changed because this exists. The sheet is 604px on a desktop and 302 on
-  a phone, the same numbers as before. The surround is somewhere you go, not somewhere you
-  start.
-- **You get there by pinching, and only by pinching.** There is no desktop gesture, which
-  means the surround is unreachable with a mouse and free on an iPad — v14 puts the zoom
-  stage on the paper at both widths and the breakpoint does not gate it. That is the
-  deliberate answer rather than an omission: the tool is touch-first, and a wheel gesture
-  nobody asked for is a wheel gesture that fights the page.
+- **The whole canvas is on screen at rest, and that is as far out as it goes.** `maxWidth`
+  is the extent and `defaultViewport` opens there, so the resting view is the widest view
+  there is — pinching only ever goes *in*, and comes back to exactly the size the layout
+  chose. There is nothing beyond the canvas to see, and a surface you could pull away from
+  would leave the flipbook smaller than the page it is for no gain. `zoom` in
+  `zoomStage.ts` is therefore against the canvas rather than the page, which is why v11's
+  `startingZoom` is `2 * CANVAS_SCALE` to go on meaning "the page at 2×".
+- **The frame is still 604px on a desktop and 302 on a phone**, the same numbers as before,
+  because the surface is `CANVAS_SCALE` times the frame and shows `CANVAS_SCALE` times the
+  page. The layout did not move; what changed is that there is now drawable canvas around
+  it instead of a hard edge.
+- **The drawing is not cropped while you are drawing it.** This was got wrong first: the
+  canvas was clipped to a page-shaped hole with the paper's shadow and rounding on it, and
+  the crop outline was drawn *inside* that. Two frames for one page, a drawing that stopped
+  at the wrong one of them, and a cursor that could not leave the hole. `.open` drops the
+  clip, the shadow and the rounding and moves the white onto the canvas; the outline is the
+  only thing that says where the flipbook ends.
+- **You pan and zoom by pinching, and only by pinching.** There is no desktop gesture. Note
+  that the zoom stage is `display: none` above the phone breakpoint, so a *desktop-sized*
+  window — an iPad in landscape included — gets no stage at all: the canvas is shown
+  directly, uncropped, and there is no way to zoom or pan it. Reaching iPad means gating
+  the stage on touch rather than on width, which is not done.
 - **`Scene.exportRoot()` pins the export to the page, and it is load-bearing.** paper
   exports the *view's* bounds by default, which is now the whole extent — and the result is
   wrong twice over, both quietly enough to reach production: the root states the extent's
@@ -115,23 +128,33 @@ the page centred in it, so a square page gets 1280×1280 and a legacy 16:9 remix
   did not appear — and only on a desktop, because a finger goes through `PointerLayer` and
   the stage's own mapping while a mouse goes through this. Touch went on working perfectly
   at every width while a pointer drew nothing at all.
-- **`.sheet` is the page-shaped hole the canvas is seen through.** The element is drawn at
-  the extent's size — the whole area has to be *rendered*, because the zoom stage shows a
-  window of it by copying pixels out — and the sheet clips it back to the page. Which is
-  why the paper's white, rounding and shadow moved onto the sheet: on the canvas they would
-  be around the surround and mostly off-screen. `overflow: hidden` also takes the surround
-  out of the hit test, so at rest a pointer can only ever land on the flipbook. It is a
-  wrapper rather than `overflow: hidden` on `.book` because the page handle hangs in the
-  air *above* the paper and is inside `.book` so it travels during a reorder — clipping
-  there would cut the tab off.
-- **The crop frame is a DOM box positioned from the viewport**, for the same reason the
-  trace photo is a DOM layer: nothing that is not the drawing may ever be in a position to
-  end up in the drawing. It is stated in percentages of the stage, so it needs no
-  measurement of its own and cannot fall out of step with the canvas beside it. At rest all
-  four come out 0% and 100% and it lies exactly on the sheet's edge, which is why nothing
-  looks different until somebody pinches. It carries the paper's shadow so that zoomed out
-  the flipbook reads as a sheet lying on a larger surface rather than as a rectangle ruled
-  on one.
+- **`.paper` is the page-shaped hole the canvas is seen through, and the create page does
+  not use it as one.** The element is drawn at the extent's size — the whole area has to be
+  *rendered*, because the zoom stage shows a window of it by copying pixels out — and on
+  playback and in the boot shell `.paper` clips it back to the page, keeping the white, the
+  rounding and the shadow. The create page adds `.open`, which throws all four away. It is a
+  wrapper rather than `overflow: hidden` on `.book` because the page handle hangs in the air
+  *above* the paper and is inside `.book` so it travels during a reorder — clipping there
+  would cut the tab off. Not `.sheet`: that name is the boot shell's skeleton, and CSS
+  Modules hash per file rather than per rule, so two blocks of one name are one class and
+  every skeleton would quietly have become a clipping box.
+- **The canvas passes under the page bar, and `.fitted` is what does it.** It overflows its
+  box on every side — under the rail, off the edges of the window, across the bar — and the
+  bar is a control, so a drawing sliding over the thing you scrub with is a control you
+  cannot find. `.fitted` carries `z-index: 5` and is a stacking context, which takes the
+  canvas's 15 and the trace photo's 16 down with it. `.dragging` restates 15 for the length
+  of a reorder, which is the one time the sheet is meant to travel above the bar.
+- **The crop frame is a DOM box drawn by the create page, not by the stage.** For the same
+  reason the trace photo is a DOM layer: nothing that is not the drawing may ever be in a
+  position to end up in the drawing. It is drawn by the *page* because the stage is not
+  always there — hidden above the phone breakpoint — and one formula covers both cases: with
+  no stage the surface is the whole canvas, so `canvasViewport` is the window. Stated in
+  percentages of `.book`, with `-50%` and `200%` doing the same job they do on the canvas,
+  so it needs no measurement and cannot fall out of step with the surface beside it. At rest
+  the two cancel and it lands on 0%/100%, exactly where the sheet used to be.
+- **A grey hairline and nothing else.** It had the paper's shadow for a while, which was
+  wrong: a shadow says "a sheet lying on a surface", and this is a mark *on* the surface.
+  There is no sheet.
 - **It cannot be moved and it cannot be pressed.** The frame is fixed in the artwork's own
   coordinates; what moves is the view.
 

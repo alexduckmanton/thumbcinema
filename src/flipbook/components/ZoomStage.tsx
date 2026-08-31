@@ -246,18 +246,6 @@ export function ZoomStage({
 				<canvas ref={canvas} className={styles.canvas} width={store.width} height={store.height} />
 			) : null}
 
-			{/*
-			 * The crop frame: where the page is, on a canvas that is bigger than it.
-			 *
-			 * A DOM box positioned from the viewport rather than anything painted into the
-			 * canvas above, for the same reason the trace photo is a DOM layer — nothing
-			 * that is not the drawing may ever be in a position to end up in the drawing.
-			 * It cannot be pressed and it cannot be moved: the frame is fixed in the
-			 * artwork's own coordinates and what moves is the view, so at rest it sits
-			 * exactly on the edge of this box and the page looks as it always has.
-			 */}
-			{view ? <CropFrame view={view} page={page.current} /> : null}
-
 			{/* The same ring and the same four shapes the paper draws, told how many
 			    project units across this box is so the ring is the size of the mark it is
 			    actually about to make. */}
@@ -265,35 +253,6 @@ export function ZoomStage({
 				<DrawnCursor at={cursor} tool={tool} span={view.w} />
 			) : null}
 		</div>
-	)
-}
-
-/**
- * The outline round the part of the canvas that will be saved.
- *
- * **The one thing on this page that says which ink survives.** The canvas is
- * `CANVAS_SCALE` times the page in each direction and the save keeps what is inside the
- * frame, so without a mark for it the surround would be indistinguishable from the
- * flipbook — and you would find out which was which when you opened what you had saved.
- *
- * Stated as percentages of the stage rather than in pixels, so it needs no measurement of
- * its own and cannot fall out of step with the canvas beside it: both are drawn from the
- * same four numbers on the same render. At rest the viewport *is* the page, so all four
- * come out 0% and 100% and the outline lies exactly on the sheet's own edge — which is
- * why nothing about the page looks different until somebody pinches.
- */
-function CropFrame({ view, page }: { view: Viewport; page: PageSize }) {
-	return (
-		<div
-			className={styles.crop}
-			aria-hidden="true"
-			style={{
-				left: `${((0 - view.x) / view.w) * 100}%`,
-				top: `${((0 - view.y) / view.h) * 100}%`,
-				width: `${(page.width / view.w) * 100}%`,
-				height: `${(page.height / view.h) * 100}%`,
-			}}
-		/>
 	)
 }
 

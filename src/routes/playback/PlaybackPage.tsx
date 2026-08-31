@@ -292,10 +292,10 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 				<div className="center">
 					<div className={canvasStyles.book}>
 						{/* The canvas is the whole drawable area — twice the page in each
-						    direction — and `.sheet` is the page-shaped hole it is seen through.
-						    Playback never draws, but it shares the scene with the create page and
-						    so shares its coordinate space. */}
-						<div className={canvasStyles.sheet}>
+						    direction — and `.paper` is the page-shaped hole it is seen through.
+						    Playback never draws, so it keeps the crop: a flipbook being watched
+						    is the flipbook, not the canvas it was made on. */}
+						<div className={canvasStyles.paper}>
 							<canvas ref={canvasRef} className={canvasStyles.canvas} />
 						</div>
 

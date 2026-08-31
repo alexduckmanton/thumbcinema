@@ -45,10 +45,31 @@
 	max-width: 100%;
 	max-height: 100%;
 	margin: 0;
+
+	/*
+	 * And a stacking context under the page bar, which is the whole point of the number.
+	 *
+	 * The canvas overflows this box on all four sides — it is the drawable area, twice the
+	 * page — so it runs under the rail, off the edges of the window and down across the page
+	 * bar. The bar has to be on top of it: it is a control, and a drawing sliding over the
+	 * thing you scrub with is a control you cannot find. 5 is below the bar's 10, and being
+	 * a context is what carries the canvas's own 15 and the trace photo's 16 down with it.
+	 *
+	 * `.dragging` restates 15 for the length of a reorder, which is the one time the sheet
+	 * really is meant to travel over the bar. See the note there.
+	 */
+	z-index: 5;
 }
 
 /*
- * The sheet: the page's own rectangle, and what clips the canvas down to it.
+ * The paper: the page's own rectangle, and what clips the canvas down to it — on the
+ * pages that want one, which is playback and the boot shell. The create page does not; see
+ * `.open` below.
+ *
+ * Not `.sheet`, which is taken: that is the boot shell's skeleton saying it has no canvas
+ * under it to borrow a shadow from. CSS Modules hash per file, not per rule, so two blocks
+ * of the same name are one class and every skeleton in the shell would have quietly become
+ * a clipping box.
  *
  * z-index 15 is load-bearing, and what it is load-bearing against is the trace photo and
  * its chrome, which stand at 16 and 17 inside this same box. It used to be the tray: the
@@ -74,7 +95,7 @@
  * hangs in the air *above* the paper and is inside `.book` so it travels with it during a
  * reorder. Clipping there would cut the tab off.
  */
-.sheet {
+.paper {
 	position: absolute;
 	z-index: 15;
 	inset: 0;
@@ -83,6 +104,60 @@
 	border-radius: var(--radius-card);
 	box-shadow: var(--shadow-card);
 	transition: background 0.4s ease-out, box-shadow 0.4s ease-out;
+}
+
+/*
+ * And the create page's, which is not a sheet at all.
+ *
+ * **The drawing is not cropped while you are drawing it.** A clip, a shadow and a rounded
+ * corner all say "this rectangle is the surface" — and on a page whose whole premise is
+ * that the surface is *larger* than the rectangle, they say the wrong thing. What you get
+ * is two frames for one page: a crop mark drawn inside a hole you are also locked to, and
+ * a drawing that stops at the wrong one of them. The only thing that says where the
+ * flipbook ends is `.crop`.
+ *
+ * So the white moves onto the canvas, which is the whole drawable area, and this box goes
+ * back to being nothing but a position. The canvas then overflows it on all four sides,
+ * deliberately: it runs under the rail, under the page bar and off the edges of the
+ * window, which is what an infinite canvas looks like in a box this size.
+ */
+.open {
+	overflow: visible;
+	background: none;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+/* The paper, now that the sheet has stopped being it: what you draw on is the whole
+   drawable area, so the whole drawable area is white. */
+.open .canvas {
+	background: var(--white);
+}
+
+/*
+ * The crop frame: where the flipbook is, on a canvas that is bigger than it.
+ *
+ * **A grey hairline and nothing else.** No fill, because what is inside it is the drawing
+ * and a wash over the thing you are drawing on is the one place this must not be; and no
+ * shadow, which it had for a while — a shadow says "a sheet lying on a surface", and this
+ * is a mark *on* the surface. There is no sheet any more. The line is the only thing on the
+ * page that says which ink survives the save, and it has to say it without pretending the
+ * canvas ends there.
+ *
+ * `outline` rather than `border`, so it is drawn *outside* the rectangle and the frame's
+ * inside is exactly the page — a border would sit within the box and put half a pixel of
+ * the drawing under the line at every zoom.
+ *
+ * `pointer-events: none` because the whole surface is somewhere you draw. This is a mark on
+ * the canvas, not a control, and there is nothing to press. It cannot be moved either: the
+ * frame is fixed in the artwork's own coordinates and what moves is the view.
+ */
+.crop {
+	position: absolute;
+	z-index: 16;
+	outline: 1px solid rgba(0, 0, 0, 0.22);
+	border-radius: var(--radius-card);
+	pointer-events: none;
 }
 
 /*
