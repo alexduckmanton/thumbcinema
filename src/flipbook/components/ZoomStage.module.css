@@ -66,8 +66,10 @@
  * be seen through that rectangle. The surface is the canvas now, and `.crop` is the only
  * thing that says where the flipbook ends.
  *
- * No shadow, no rounding and no clip, for the same reason `.open` drops them: they are the
- * dressing of a sheet of paper, and this is not one.
+ * No shadow, no rounding, no clip and **no white**, for the same reason `.open` drops them:
+ * they are the dressing of a sheet of paper, and this is not one. The paper is `.crop`,
+ * behind this, and it shows through — which is why `paint` clears the canvas rather than
+ * filling it. v11's band stage is a different box and keeps its own white; see `.stage`.
  */
 .onPaper {
 	position: absolute;
@@ -76,7 +78,6 @@
 	left: -50%;
 	width: 200%;
 	height: 200%;
-	background: var(--white);
 	/* A stroke is never a scroll, and two fingers here are a pinch of ours rather than
 	   the browser's. */
 	touch-action: none;

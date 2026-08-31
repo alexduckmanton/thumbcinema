@@ -277,10 +277,10 @@ function paint(
 	const context = stage.getContext('2d')
 	if (!context) return
 
-	// A flipbook is ink on paper, and paper draws onto a transparent canvas with the
-	// white coming from CSS underneath it — so the copy has to bring its own.
-	context.fillStyle = '#fff'
-	context.fillRect(0, 0, stage.width, stage.height)
+	// Cleared rather than filled with white. The white is CSS's — the crop frame's on the
+	// paper surface, `.stage`'s own on v11's band — and this canvas is over the top of it,
+	// so a fill here would paint out the sheet of paper it is standing on.
+	context.clearRect(0, 0, stage.width, stage.height)
 
 	// The source holds the whole drawable canvas, not the page — so its density is the
 	// canvas's, and its pixel (0,0) is `canvasOrigin` rather than the page's corner. The

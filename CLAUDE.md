@@ -69,8 +69,11 @@ Break one of these and something goes wrong somewhere else, usually silently.
   `FlipbookCanvas.module.css` and `CANVAS_SCALE` have to agree. `.paper` is the page-shaped
   hole it is seen through on playback and in the boot shell. **The create page adds
   `.open`, which is not a hole at all**: no clip, no shadow, no rounding, and the white
-  moves onto the canvas, so the drawing is not cropped while you are drawing it and the
-  only thing marking the flipbook's edge is `.crop`. `.paper` and not `.sheet` — that name
+  is dropped, so the drawing is not cropped while you are drawing it. **`.crop` is the sheet
+  of paper**: it carries the white, the rounding and the shadow, from behind the canvas
+  (14 against the canvas's 15), so ink inside the frame is ink on paper and ink outside it
+  is ink on the desk. `.canvas` must state its 15 — any number beats a positioned sibling's
+  `auto`, and without it the sheet's white covers the ink. `.paper` and not `.sheet` — that name
   is taken by the shell's skeleton, and CSS Modules hash per file, so two blocks of one
   name are one class.
 - **The drawing passes *under* the page bar, and `.fitted` is what does it.** The canvas

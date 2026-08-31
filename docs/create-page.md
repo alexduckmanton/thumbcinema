@@ -152,9 +152,22 @@ the page centred in it, so a square page gets 1280×1280 and a legacy 16:9 remix
   percentages of `.book`, with `-50%` and `200%` doing the same job they do on the canvas,
   so it needs no measurement and cannot fall out of step with the surface beside it. At rest
   the two cancel and it lands on 0%/100%, exactly where the sheet used to be.
-- **A grey hairline and nothing else.** It had the paper's shadow for a while, which was
-  wrong: a shadow says "a sheet lying on a surface", and this is a mark *on* the surface.
-  There is no sheet.
+- **The frame is the sheet of paper, and it took three goes to get there.** First the
+  canvas was clipped to it and dressed as paper, which locked the drawing inside it. Then
+  the white moved onto the canvas and the frame became a bare hairline — which uncropped the
+  drawing but made the whole drawable area one flat white field with a line ruled across it:
+  a canvas with a mark on it rather than a sheet you can draw off the edge of. Now the frame
+  carries the white, the rounding and the shadow, from *behind* the canvas — `z-index: 14`
+  against the canvas's 15 — so ink inside it is ink on paper and ink outside it is ink on
+  the desk.
+
+  `.canvas` has to state that 15 rather than rely on document order: `.crop` states a
+  number, and any number beats the `auto` of a positioned sibling. Leaving it off put the
+  sheet's white over the ink, and every stroke inside the frame vanished while the part
+  hanging off the edge stayed — which looks exactly like a clipping bug and is not one.
+- **`paint` clears the stage rather than filling it white**, for the same reason. The white
+  belongs to the frame underneath; a fill would paint out the paper the stage is standing
+  on. v11's band stage is a different box and keeps its own white, in `.stage`.
 - **It cannot be moved and it cannot be pressed.** The frame is fixed in the artwork's own
   coordinates; what moves is the view.
 

@@ -116,10 +116,16 @@
  * a drawing that stops at the wrong one of them. The only thing that says where the
  * flipbook ends is `.crop`.
  *
- * So the white moves onto the canvas, which is the whole drawable area, and this box goes
- * back to being nothing but a position. The canvas then overflows it on all four sides,
- * deliberately: it runs under the rail, under the page bar and off the edges of the
- * window, which is what an infinite canvas looks like in a box this size.
+ * So all four go, and this box becomes nothing but a position. The canvas then overflows
+ * it on every side, deliberately: it runs under the rail, under the page bar and off the
+ * edges of the window, which is what an infinite canvas looks like in a box this size.
+ *
+ * **And the white goes with them, rather than moving onto the canvas.** It moved there
+ * first, and that made the whole drawable area one flat white field with a line ruled
+ * across it — a canvas with a mark on it rather than a sheet of paper you can draw off the
+ * edge of. paper.js draws onto a transparent surface and the white has always come from
+ * CSS underneath it; here that CSS is `.crop`, which is behind the canvas. So the page's
+ * own grey is the desk, and the frame is the paper on it.
  */
 .open {
 	overflow: visible;
@@ -128,35 +134,32 @@
 	box-shadow: none;
 }
 
-/* The paper, now that the sheet has stopped being it: what you draw on is the whole
-   drawable area, so the whole drawable area is white. */
-.open .canvas {
-	background: var(--white);
-}
-
 /*
  * The crop frame: where the flipbook is, on a canvas that is bigger than it.
  *
- * **A grey hairline and nothing else.** No fill, because what is inside it is the drawing
- * and a wash over the thing you are drawing on is the one place this must not be; and no
- * shadow, which it had for a while — a shadow says "a sheet lying on a surface", and this
- * is a mark *on* the surface. There is no sheet any more. The line is the only thing on the
- * page that says which ink survives the save, and it has to say it without pretending the
- * canvas ends there.
+ * **It is the sheet of paper**, which is what it took three goes to arrive at. It carries
+ * the white, the rounding and the shadow the drawing used to have, and it does it from
+ * *behind* the canvas — `z-index: 14` against the canvas's 15 — so what you get is ink on
+ * paper inside the frame and ink on the desk outside it. A white fill over the drawing
+ * would be a wash over the thing you are drawing on; under it, it is the thing you are
+ * drawing on.
  *
- * `outline` rather than `border`, so it is drawn *outside* the rectangle and the frame's
- * inside is exactly the page — a border would sit within the box and put half a pixel of
- * the drawing under the line at every zoom.
+ * The hairline stays on top of the white and marks the edge, which is the one thing on this
+ * page that says which ink survives the save. `outline` rather than `border`, so it is
+ * drawn *outside* the rectangle and the frame's inside is exactly the page — a border would
+ * sit within the box and put half a pixel of the drawing under the line at every zoom.
  *
- * `pointer-events: none` because the whole surface is somewhere you draw. This is a mark on
- * the canvas, not a control, and there is nothing to press. It cannot be moved either: the
- * frame is fixed in the artwork's own coordinates and what moves is the view.
+ * `pointer-events: none` because the whole surface is somewhere you draw. This is paper,
+ * not a control, and there is nothing to press. It cannot be moved either: the frame is
+ * fixed in the artwork's own coordinates and what moves is the view.
  */
 .crop {
 	position: absolute;
-	z-index: 16;
+	z-index: 14;
+	background: var(--white);
 	outline: 1px solid rgba(0, 0, 0, 0.22);
 	border-radius: var(--radius-card);
+	box-shadow: var(--shadow-card);
 	pointer-events: none;
 }
 
@@ -175,6 +178,13 @@
  */
 .canvas {
 	position: absolute;
+	/*
+	 * Above the crop frame's 14, which is the paper it is drawn on. Explicit rather than
+	 * left to document order: `.crop` states a number, and any number beats the `auto` a
+	 * positioned sibling has — so dropping this put the sheet's white *over* the ink and
+	 * every stroke inside the frame vanished while the part hanging off the edge stayed.
+	 */
+	z-index: 15;
 	top: -50%;
 	left: -50%;
 	width: 200%;

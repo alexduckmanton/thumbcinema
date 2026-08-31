@@ -405,6 +405,29 @@ export function CreatePage() {
 						    in each direction, and it overflows this box on all four sides. What
 						    says where the flipbook ends is the crop outline below. See `.open`. */}
 						<div className={`${canvasStyles.paper} ${canvasStyles.open}`}>
+							{/*
+							 * The crop frame: the one thing on the page that says which ink survives
+							 * the save.
+							 *
+							 * Drawn here rather than by the stage, because the stage is not always
+							 * there — it is hidden above the phone breakpoint, and on a desktop the
+							 * canvas is shown directly. One formula covers both: with no stage the
+							 * surface *is* the whole canvas, so `canvasViewport` is the window and the
+							 * frame comes out at exactly this box.
+							 *
+							 * Positioned in percentages of this box, which is the page's own, while
+							 * the surface is `CANVAS_SCALE` times it and centred — hence the `-50%`
+							 * and the `200%`, the same two numbers the canvas is laid out with. At
+							 * rest they cancel and the frame is `0%`/`100%`.
+							 *
+							 * **Before the canvas, and underneath it.** The frame is the sheet of
+							 * paper: it carries the white, and the canvas above it is transparent, so
+							 * ink inside the frame is ink on paper and ink outside it is ink on the
+							 * desk. Under rather than over, because a white fill drawn over the
+							 * drawing would hide the drawing.
+							 */}
+							<CropFrame view={stageView ?? canvasViewport(page)} page={page} />
+
 							<canvas
 								ref={canvasRef}
 								className={[
@@ -435,24 +458,6 @@ export function CreatePage() {
 								<Spinner label="" />
 							</div>
 						) : null}
-
-						{/*
-						 * The crop frame: the one thing on the page that says which ink survives
-						 * the save.
-						 *
-						 * Drawn here rather than by the stage, because the stage is not always
-						 * there — it is hidden above the phone breakpoint, and on a desktop the
-						 * canvas is shown directly. One formula covers both: with no stage the
-						 * surface *is* the whole canvas, so `canvasViewport` is the window and the
-						 * frame comes out at exactly this box.
-						 *
-						 * Positioned in percentages of `.book`, which is the page's own box, while
-						 * the surface is `CANVAS_SCALE` times it and centred — hence the `-50%`
-						 * and the `200%`, the same two numbers the canvas is laid out with. At
-						 * rest they cancel and the frame is `0%`/`100%`: exactly where the sheet
-						 * used to be, which is why the layout did not move.
-						 */}
-						<CropFrame view={stageView ?? canvasViewport(page)} page={page} />
 
 						{/* The photograph being traced over. Above the canvas and multiplied into
 					    it, which is what lets the ink stay as dark as it was drawn — see
