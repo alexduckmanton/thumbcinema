@@ -8,6 +8,21 @@
  * toggles stand beside the title instead. See `.info` there.
  */
 
+/*
+ * Over a pinched drawing, which is otherwise lying across the whole row.
+ *
+ * v12 and v13 let the sheet be pinched out of its frame and it comes down over this,
+ * taking the tools with it — so while one is pinched the row lifts above the paper's 15
+ * and the drawing goes on growing underneath it. Under the page bar's own lift at 18,
+ * which keeps the three in the order they have at rest, and applied only while a sheet
+ * is pinched: a tray permanently above the canvas is two 304px pencils drawn straight
+ * across the drawing, which is what the numbers in this file are all about. See
+ * `ZoomStage.module.css`.
+ */
+.raised {
+	z-index: 16;
+}
+
 .tray {
 	position: relative;
 	display: flex;
@@ -291,10 +306,10 @@
 /*
  * The page actions don't fade when they're off.
  *
- * They are only ever unavailable for the 750ms a page takes to arrive or leave, and
- * a row of icons dipping to a third and back for three-quarters of a second reads as
- * a flash rather than as a state. Pressing one in that window does nothing, which is
- * the whole cost of not saying so.
+ * They are only ever unavailable while a page is being carried to another slot, and a
+ * row of icons dipping to a third and back for the length of a gesture reads as a flash
+ * rather than as a state. Pressing one then does nothing, which is the whole cost of
+ * not saying so.
  */
 .action:disabled {
 	cursor: default;

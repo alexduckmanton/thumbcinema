@@ -29,8 +29,9 @@ version rewrites that front end without changing what it does or how it looks.
 | **Gone** | WordPress, BuddyPress, accounts, likes, reports, profiles, drafts — and, now, jQuery, Backbone, Underscore, Modernizr and svg.js. |
 
 The rewrite is a port rather than a redesign: the drawing tool behaves as it did in
-2013, down to the way pages fly in and fall away. The 2013 code still runs, on the
-`time-capsule` branch, against the same database.
+2013, bar the create page, where adding and deleting a page is now instant rather than
+three-quarters of a second of flying paper, and a pinch makes the page itself bigger. The
+2013 code still runs, on the `time-capsule` branch, against the same database.
 
 It also carries the **585 flipbooks that survived** from 2012–2015. The database
 backup turned out to be a zero-byte file, so the artwork made it and the titles,

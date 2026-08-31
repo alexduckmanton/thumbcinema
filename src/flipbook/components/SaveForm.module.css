@@ -31,9 +31,11 @@
  * with the dialog covering the viewport and with it inset 16px clear of both edges.
  * Take the dialog away and the same wash tints both toolbars immediately.
  *
- * The other half of the fix is in `base.css`: the create page's lock makes `<body>`
- * itself a fixed, opaque, full-viewport element, and that outranks anything laid over
- * it. Both halves are needed — either one alone leaves the bands.
+ * The other half of the fix is in `base.css`, and it is a *removal*: the create page's
+ * lock used to make `<body>` itself a fixed, opaque, full-viewport element, which is
+ * precisely the kind of thing the sampler picks — so it had already chosen, and it never
+ * chose again however the wash was built. Both halves are needed; restoring either the
+ * fixed body or the `<dialog>` on its own puts the pale bands back.
  *
  * What the `<dialog>` was giving us is now hand-rolled in `SaveForm`, which is the cost
  * of this and worth stating: Esc, the focus trap, focus restored on close, and `inert`

@@ -13,7 +13,7 @@ export interface PageHandleProps {
 	pages: number
 	/** True while it is being carried, which is the one thing it says about itself. */
 	carrying: boolean
-	/** Nothing to reorder: one page, a flipbook still arriving, a page mid-animation. */
+	/** Nothing to reorder: one page, or a flipbook still arriving. */
 	disabled: boolean
 }
 

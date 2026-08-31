@@ -227,9 +227,11 @@ told to stand somewhere else for a moment.
   dragged through. `.dragging` restates 15. It is a class rather than a permanent
   `translate3d(0,0,0)` because a transform re-bases anything `position: fixed` inside it.
   (The save form used to be the other half of that argument. It is portalled to `<body>`
-  now, so nothing about `.book` reaches it either way.) The page thumbnails' own transform is under `.carrying` for exactly that
-  second reason: `freeze()` pins a thumbnail for a page animation by making it fixed, and
-  a transform on every `.page` would quietly re-base every one of those.
+  now, so nothing about `.book` reaches it either way.) The page thumbnails' own transform
+  is under `.carrying` for exactly that second reason: only the pages of a flipbook with
+  one in hand carry a transform at all, and a permanent `translate3d(0,0,0)` on every
+  `.page` is a rule with nothing to say for itself waiting to re-base something fixed
+  inside it.
 - **The tab is above the paper, not on it, and it costs the drawing no height.** The
   whole sheet is somewhere you draw, so a control lying on it would be a hole in the
   page; the gap between the header and the top of the paper is the column's own
@@ -245,8 +247,8 @@ told to stand somewhere else for a moment.
   layout with the least room to spare.
 - **The tools are held off, and by a different flag from the page actions.** `busy` is
   set for the length of the gesture, which is what holds the page buttons, undo and the
-  page bar — but drawing through a page *animation* has been allowed since 2013 and
-  `busy` covers those too. So `reordering` says the other thing: `pointer-events: none`
+  page bar — and it used to cover the page animations as well, which drawing through has
+  been allowed since 2013. So `reordering` says the other thing: `pointer-events: none`
   on the canvas, because paper binds `mousedown` to that element in its own constructor
   and no state inside the engine talks it out of that; and a refusal in
   `PointerLayer.engage`, which is the finger's half. `togglePlay` is guarded by hand,
@@ -418,9 +420,9 @@ and spent by the next ⌘Z. Four things about it are load-bearing:
 
 Also worth knowing:
 
-- **Page structure lands instantly.** Undoing a delete puts the page back on one frame
-  rather than replaying the 750ms throw. `animations.ts` is untouched — nothing calls
-  it from here.
+- **Page structure lands instantly**, which is now true of every path rather than of this
+  one alone: undoing a delete puts the page back on the frame it is asked for, exactly as
+  deleting it took it away on the frame the button was pressed.
 - **A restored page's thumbnail is drawn from `registerThumbnail`, not from a timer.**
   Its `<canvas>` doesn't exist until React renders it, and a background tab runs no
   animation frames at all — so waiting a frame or two works exactly while somebody is
@@ -536,38 +538,35 @@ can't.
   dropped it onto whichever page was showing, so pressing play moved a stroke from one
   frame to another. Measured with a stroke on page one of three: every frame read 444
   ink pixels and 184 blue, blank pages included.
-- **A page being deleted is still in `pages` while it falls.** So `pages.length` is
-  one too many for 750ms, and deleting the only page — which inserts the replacement
-  up front — makes it two. Ask `settledPageCount()` whether this is a flipbook yet;
-  the raw length flicks the play buttons on and fades the save button in and out.
+- **`pages.length` is the flipbook's length, and always was except during a delete.** A
+  page being deleted used to stay in the list for the 750ms it took to fall off the bottom
+  of the window, so the length was one too many throughout — two while the only page was
+  being replaced — and `settledPageCount()` and `PageState.leaving` existed to say what the
+  raw length couldn't. A delete happens between one frame and the next now and both are
+  gone.
 - **A page can't be added or removed in the same press that stops playback.** Playback
-  changes page every 83ms and a page animation runs for 750ms; doing both at once
-  leaves the strip in a heap. `beginPageChange()` stops playback and returns false, so
-  the press buys the pause and the next one does the work. It lives in the engine, so
-  the `n` and `d` shortcuts go through it as well as the buttons. The drawing tools
-  don't need it — they stop playback themselves, and nothing is animating when they do.
-  **And `selectTool` is not held either**, though it was: drawing through a page
-  animation has been allowed since 2013 and the scene is in its final shape before the
-  first frame of one moves, so refusing to say *what* you are drawing with was the odd
-  one out. It was worse than a no-op now that pressing a tool button also *uses* it —
-  the press was refused, the hold went ahead, and the previous tool did the work. Undo and `goToPage` stay held, which is a different question: those change what
-  is on the page the animation is carrying.
-- **The hidden thumbnail is not always the active page.** The strip hides whichever
-  page the canvas stands in front of — that is what `.covered` means — and during a
-  delete the arriving page is active from the first frame but takes 750ms to get
-  there. Keying that class off `activePage` hides it 4ms in and leaves it invisible
-  for its whole journey, so it reads as teleporting while every other page slides.
-  `state.arriving` holds the two apart; don't collapse them. It also steps the canvas
-  aside for the duration, because the canvas shows the arriving page immediately and
-  standing in the destination displaying the page still travelling towards it reads
-  as a static duplicate in front of the one that's moving.
-- **A page thumbnail can't be raised by its own z-index.** `.page` in the strip has
-  one, which makes it a stacking context, so a z-index on the `<canvas>` inside can
-  only order it against siblings it hasn't got — 2013's `deletePage` keyframes ask for
-  `z-index: 20` there and get nothing. Anything that has to come forward is lifted by
-  `freeze(el, { lift: true })`, which sets it on the wrapper instead. The page falling
-  away during a delete needs it: without it the first 300ms of the fall happen behind
-  the drawing canvas, which is the whole anticipation and the start of the plunge.
+  changes page every 83ms, and splicing a page into a flipbook that is running under the
+  canvas leaves the strip in a heap. `beginPageChange()` stops playback and returns false,
+  so the press buys the pause and the next one does the work. It lives in the engine, so
+  the `n` and `d` shortcuts go through it as well as the buttons. The drawing tools don't
+  need it — they stop playback themselves. **And `selectTool` is not held by `busy`
+  either**, though it was: that was the page animations, which drawing through had been
+  allowed since 2013, so refusing to say *what* you were drawing with was the odd one out —
+  and worse than a no-op now that pressing a tool button also *uses* it, the press being
+  refused while the hold went ahead and the previous tool did the work. Undo and `goToPage`
+  stay held, which is a different question: those change what is on a page being carried
+  somewhere else.
+- **The hidden thumbnail is the active page**, which is what `.covered` means: the canvas
+  stands in that slot and two copies of the same drawing there would be one flipbook and
+  its own shadow. It was not always so — a page sliding into that slot was active from the
+  first frame and took 750ms to arrive, so `state.arriving` held the two apart and stepped
+  the canvas aside for the journey. Both went with the animations.
+- **A page thumbnail can't be raised by its own z-index.** `.page` in the strip has one,
+  which makes it a stacking context, so a z-index on the `<canvas>` inside can only order
+  it against siblings it hasn't got — 2013's `deletePage` keyframes asked for `z-index: 20`
+  there and got nothing, and the page spent the first 300ms of its fall behind the drawing.
+  Worth keeping in mind for anything else in that row that has to come forward: it is the
+  wrapper that has to be lifted, not the canvas.
 - **Never size a canvas in a ref callback.** Assigning `width` clears the bitmap, and a
   ref runs at moments that have nothing to do with the size being wrong. Page thumbnails
   take their size from JSX attributes, so React writes it only when it has changed.
@@ -626,10 +625,11 @@ it's one of these. Each is deliberate:
   instead of mirroring.
 - **A stroke that ends off the canvas updates its thumbnail.** The old mouseup
   listener was on the canvas, so releasing outside it left a stale page.
-- **A page animation can't lock the tool up.** The page actions are held while one
-  plays, and a hidden document doesn't run animations at all — so `finished` never
-  settles and 2013 stays held until a reload. `play()` races it against a deadline.
-  (Drawing is *not* held: you can put a stroke down mid-animation, as you could then.)
+- **A page animation can't lock the tool up, because there are none.** 2013 held the page
+  actions for the length of each one, and a hidden document — a background tab, a
+  minimised window — runs no animations at all, so the flipbook stayed held until a
+  reload. Adding, duplicating and deleting a page are done between one frame and the next
+  here, and the only thing left that holds anything is a page being carried by a finger.
 - **Pages can be rearranged.** There was no way to at all: a frame drawn in the wrong
   place was redrawn somewhere else or the flipbook was rebuilt round it, and the page
   actions have only ever been able to add next to the page you are on. The tab above the

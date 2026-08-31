@@ -23,8 +23,9 @@ identical until you touch the glass, so "the one where you hold the tool" is a s
 say which is which. The numbers are stable handles that survive reordering the list and
 survive a different one winning; each entry keeps the name it went under while the testbed
 first ran (`was`), so a note written then still resolves, and a new candidate takes the
-next number rather than displacing anybody. The caption under the switch is permanently on
-and leads with the number, because a mode you can't name is a mode you can't report on.
+next number rather than displacing anybody. The number leads each entry in the picker's own
+list, because a mode you can't name is a mode you can't report on — there is no caption on
+the page any more, the switch itself being the one place a mode is named.
 They are grouped rather than ordered by history: **v1–v5 keep the finger as the pointer**,
 **v6–v10 stand the cursor away from the hand** and differ only in how the tool is told to
 start working, and **v11–v13 move the canvas instead of the cursor** — see below. v13 is
@@ -212,9 +213,9 @@ Things worth knowing before touching anything nearby:
   gesture stayed paper's for as long as the finger stayed down — the animation ended and
   it still didn't work, which is why it read as having to lift and start again. A **load**
   is still refused, but in `engage`, so the layer keeps the gesture and the cursor goes on
-  moving: a stroke laid on a page that is about to be replaced is a stroke thrown away. A
-  page animation is not that — the scene is in its final shape before the first frame of
-  it moves.
+  moving: a stroke laid on a page that is about to be replaced is a stroke thrown away.
+  Adding, duplicating and deleting a page are not that — they are done between one frame
+  and the next, and the animations that made them a state to be in are gone.
 - **The mouse is a different question and gets a different surface.** It has a visible
   cursor, sits a pixel wide and occludes nothing, so every part of the above is about a
   problem it doesn't have — it is watched on `.book` alone, it is absolute, and it picks
@@ -240,7 +241,18 @@ every list above. All three put the drawing under the finger at up to four times
 so the fingertip covers proportionally less of it — the answer photo editors and CAD tools
 reached for long before anybody tried a magnifier. They share `zoomStage.ts`, the section
 of `PointerLayer` that owns their gestures, and the paint loop in `ZoomStage`; what differs
-is whether there is an overview, and whether the space around the drawing does anything.
+is whether there is an overview, whether the space around the drawing does anything — and
+**what a pinch is actually holding**, which is the one thing the three do not agree about.
+
+**v11 pinches a window; v12 and v13 pinch the paper.** v11's stage is a second canvas of
+its own shape, so the only thing it can be showing is a rectangle on the page and a pinch
+makes that rectangle smaller: you zoom in by cropping. The two that stand *in the paper's
+own place* do the opposite and never crop at all — their window is the whole page and stays
+the whole page, and what a pinch changes is how big the sheet is drawn and where its corner
+sits. It grows out of its frame, over the pages either side of it in the strip, under the
+page bar and the tray, and off the edges of the window; letting go of the zoom drops it
+exactly home. `Viewport` is v11's state and `PageZoom` is theirs, both in `zoomStage.ts`
+and both unit-tested.
 
 ### v11: two canvases
 
@@ -351,16 +363,40 @@ own because v11 shares none of the machinery the other ten do.
   mark it is about to make.
 ### v12: one canvas, which is the page
 
-The same window with the overview taken away. One canvas, in the place the drawing has
-always been: **two fingers pinch and pan it, one finger draws in it.** Nothing else about
-the column changes — the strip, the page bar, the tray and the footer are at the pixel
-they are in every other mode, measured.
+The overview taken away, and the window with it. One canvas, in the place the drawing has
+always been: **two fingers pinch and pan the sheet, one finger draws on it.** At rest
+nothing else about the column changes — the strip, the page bar, the tray and the footer
+are at the pixel they are in every other mode, measured.
 
+- **A pinch makes the page bigger; it does not crop it.** The sheet grows out of its frame
+  and keeps growing, up to four times life size, which is the thing under your fingers
+  doing what it would do if you could pick it up. What that costs is the frame's tidy
+  edges: the drawing runs out over the neighbouring pages in the strip, under the page bar
+  and the tray, and off the window. It is a `transform` on the stage element and nothing
+  else moves — `PageZoom` is the three numbers (`scale`, and the sheet's top-left corner in
+  the frame's own pixels), `zoomPage` and `panPage` are what a pinch does to them, and
+  `onPage` is how a finger's position on the frame becomes a position on the paper again.
+- **The frame always has drawing in it.** The offsets clamp so the sheet, however far it
+  has been pinched and dragged, still covers the box the paper belongs in — so no
+  arrangement of a pinch and a pan shows a strip of nothing where the page used to be, and
+  at life size the offsets are pinned to zero, which is the sheet sitting exactly home.
+- **The page bar and the tray lift over a pinched sheet.** They are under the paper in the
+  stacking order by five and by fourteen, which is deliberate — the tray's tools are 304px
+  pictures whose barrels pass up behind whatever is above them — and a sheet at 4× covers
+  both outright, along with every press meant for them. So while one is pinched the two
+  come over the top and the drawing goes on growing underneath them, which is what a page
+  growing past its frame ought to do to the furniture around it. `.raised` in
+  `PageNav.module.css` and `Tray.module.css`; `CreatePage` is what knows there is a stage
+  at all, so it reads the scale and hands each of them the flag.
 - **It starts at the whole page, where v11 starts at 2×.** With no second view to find
   your bearings in, arriving already magnified would be arriving somewhere you didn't ask
   to be — so until you pinch, v12 *is* v2, and the first stroke of a session lands exactly
   where a finger touched. `startingZoom` is the difference and it is the mode's answer
   rather than a constant; `defaultViewport` takes it.
+- **A finger is measured against `.book` rather than against the stage.** The stage is the
+  element the pinch transforms, so its rectangle grows and slides with the gesture that is
+  measuring against it; `.book` is the same box at rest and never moves. `boxOf` is the one
+  place that is decided, and everything downstream of it goes through `onPage` first.
 - **The live canvas is still the drawing, and is hidden.** paper renders into it exactly
   as always — a hidden element still has a backing store, which is what the stage copies
   from and what the page strip photographs — so the artwork, the thumbnails, the history
@@ -377,22 +413,23 @@ they are in every other mode, measured.
   pinching and nothing ever corrected it. Opening the pinch before `engage` is also what
   means there is no dot to take back off the page afterwards.
 - **A trace photo is placed at 1×.** The stage and the placing layer are the same box up
-  here, and the placing layer's gestures are stated in the paper's own pixels — so a stage
-  showing a magnified window underneath it would have the photo moving at one rate and the
-  drawing at another. `suspended` stands the window back at the whole page for the length
-  of the placement and leaves the photograph to the DOM layer, which is what every other
-  mode does; the moment it settles the stage takes the photo back and the stored zoom
-  returns. The two are never both drawing it.
+  here, and the placing layer's gestures are stated in the paper's own pixels — so a sheet
+  standing at some other size underneath it would have the photo moving at one rate and the
+  drawing at another. `suspended` stands the sheet back in its frame for the length of the
+  placement and leaves the photograph to the DOM layer, which is what every other mode
+  does; the moment it settles the stage takes the photo back and the stored zoom returns.
+  The two are never both drawing it.
 - **Above the breakpoint it is v2**, by the same one condition v11 uses: the stylesheet
   hides the stage, the measurement comes back empty, `stageView()` is null and the live
   canvas is visible again.
 
-Measured rather than eyeballed: a mark drawn at 1× lands at project 70,70 for a touch at
-71,71; a pure two-finger drag of 30×18 screen pixels moves the drawing 8.38% and 8.96% of
-the paper where the fingers moved 8.38% and 8.94%, with the magnification unchanged to
-three figures; and a pinch out and back returns the mark to exactly the width it started
-at. A pinch that takes the fingers *through* each other ratchets against the zoom clamp —
-that is the clamp working, not a bug, and it is not a gesture a hand can make.
+Measured rather than eyeballed, in a 390×844 window with the page pinched to its ceiling:
+the sheet stands at `scale(4)` and fills the window, the page bar and the tray are still on
+top of it and still answer a press, a stroke drawn while it is pinched lands under the
+finger to the pixel, and pinching back in returns the sheet to `translate(0, 0) scale(1)`
+with the stroke a quarter of the size it was drawn — which is the same ink at life size. A
+pinch that takes the fingers *through* each other ratchets against the clamp: that is the
+clamp working, not a bug, and it is not a gesture a hand can make.
 
 ### v13: v12 on the drawing, v10 everywhere else
 
@@ -402,7 +439,11 @@ the two families stop being rivals: **draw directly where the drawing is now big
 draw directly on, and reach below it for the mark that has to land where your hand already
 is.** Nothing is visualised down there and nothing needs to be — the band is the empty part
 of the column, it is where a thumb already rests, and the only thing that moves when you
-touch it is the cursor up on the drawing.
+touch it is the cursor up on the drawing. **A pinched page takes some of it back**, the
+sheet growing down over the white as well as up over the strip: the band is whatever is
+left of the column that the paper is not standing on. That is the honest reading rather
+than a limitation — the empty part of the column is empty because the drawing is not there,
+and where the drawing now is, a finger draws.
 
 The point is that neither half answers the question on its own. Magnifying the page makes a
 mark big enough to place under a fingertip, which is most of the job and is no help at all
@@ -433,24 +474,29 @@ about how big the mark is. `aimsOffStage` is the mode's whole predicate, and
   is that neither half has to know the other exists.
 - **The cursor is kept in the page's own units, not in pixels.** v6–v10 stand theirs on a
   canvas showing the whole page, where the two are the same thing scaled; v13's stands on a
-  page being shown through a window that moves and resizes under it. In project units the
-  cursor stays on the part of the drawing it was put on when the window pans, and the zoom
-  decides how far a pixel of finger carries it — both of which are what a thing standing on
-  the page would do, and neither of which survives being stored as a position on the glass.
+  page that is being pinched and dragged about under it. In project units the cursor stays
+  on the part of the drawing it was put on when the sheet moves, and the scale decides how
+  far a pixel of finger carries it — both of which are what a thing standing on the page
+  would do, and neither of which survives being stored as a position on the glass.
   `stagePlace` is the inverse of `stagePoint` and is what puts it back on the glass to be
-  drawn; it is unit-tested as a round trip at every zoom.
+  drawn; it is unit-tested as a round trip at every zoom. It is drawn *inside* the element
+  the pinch transforms, which is why it is published in the stage's own unpinched pixels
+  and why the ring is the right size for the mark at every scale without arranging for it.
 - **Which is also the whole of why the two halves compose.** The cursor moves 1:1 with the
   finger *on the screen* at every magnification — measured at 1× and zoomed, in both
-  directions — because the window's scale cancels between the nudge and the drawing of it.
+  directions — because the sheet's scale cancels between the nudge and the drawing of it.
   In *artwork* units it therefore moves four times less at 4×, so the same comfortable drag
   places the mark four times as precisely. That falls out of holding the cursor in project
   units rather than being arranged for.
-- **It is clamped to the window rather than to the page.** Clamping to the page is more
-  faithful to "a thing standing on the drawing" and is worse to use: a cursor you cannot
-  see is one you have to go and find, and the only way to find it is to pan back. Being
-  nudged along by the edge of the window costs nothing by comparison — it was going to be
-  moved before it was next used anyway. `clampCursor` runs after a pinch and after the
-  stage is re-measured.
+- **It is clamped to what is on screen rather than to the page.** Clamping to the page is
+  more faithful to "a thing standing on the drawing" and is worse to use: a cursor you
+  cannot see is one you have to go and find, and the only way to find it is to pan back.
+  Being nudged along by the edge of what is showing costs nothing by comparison — it was
+  going to be moved before it was next used anyway. What "showing" means is measured rather
+  than reasoned about, the sheet now hanging out of its frame and mostly off the window
+  with it: `visiblePage` is the overlap between the paper's rectangle and the window's, in
+  project units, and `clampCursor` runs it after a pinch and after the stage is
+  re-measured.
 - **`onStageChanged` exists because the cursor has to be there before anything is
   touched.** The stage is measured a frame or two after the page mounts, and v13's cursor
   is published from `PointerLayer`'s store rather than the stage's — so without a

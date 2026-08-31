@@ -3,16 +3,23 @@ import { describe, expect, it } from 'vitest'
 import { LEGACY_PAGE_SIZE, SQUARE_PAGE_SIZE } from './engine/constants'
 import {
 	centreViewport,
+	clampPage,
 	clampViewport,
 	defaultViewport,
 	MAX_ZOOM,
 	maxWidth,
 	minWidth,
+	onPage,
+	type PageZoom,
+	panPage,
 	paperPoint,
 	panViewport,
+	RESTING_PAGE,
 	stagePlace,
 	stagePoint,
 	type Viewport,
+	visiblePage,
+	zoomPage,
 	zoomViewport,
 } from './zoomStage'
 
@@ -298,5 +305,133 @@ describe('a square page', () => {
 			x: SQUARE.width,
 			y: SQUARE.height,
 		})
+	})
+})
+
+/*
+ * The other kind of zoom: v12's and v13's, where a pinch makes the *paper* bigger rather
+ * than the window smaller. The frame below is a phone's drawing box — 358 across at the
+ * legacy page's shape — and every number in these is in that frame's own pixels.
+ */
+const FRAME = { width: 358, height: 358 / (PAGE.width / PAGE.height) }
+
+/** Where a point of the frame is once the sheet has been pinched, which is the inverse. */
+const onGlass = (zoom: PageZoom, x: number, y: number) => ({
+	x: x * zoom.scale + zoom.x,
+	y: y * zoom.scale + zoom.y,
+})
+
+describe('pinching the page itself', () => {
+	it('starts life size, in its frame', () => {
+		expect(RESTING_PAGE).toEqual({ scale: 1, x: 0, y: 0 })
+	})
+
+	it('keeps what is under the fingers under them', () => {
+		const at = { x: 120, y: 70 }
+		const before = onPage(RESTING_PAGE, at.x, at.y)
+		const after = onPage(zoomPage(RESTING_PAGE, FRAME, 2.5, at), at.x, at.y)
+
+		expect(after.x).toBeCloseTo(before.x, 6)
+		expect(after.y).toBeCloseTo(before.y, 6)
+	})
+
+	it('holds the anchor through a run of frames, which is how a pinch arrives', () => {
+		const at = { x: 200, y: 40 }
+		let sheet = RESTING_PAGE
+		for (let i = 0; i < 20; i++) sheet = zoomPage(sheet, FRAME, 1.05, at)
+
+		expect(sheet.scale).toBeCloseTo(1.05 ** 20 > MAX_ZOOM ? MAX_ZOOM : 1.05 ** 20, 6)
+		expect(onPage(sheet, at.x, at.y).x).toBeCloseTo(at.x, 6)
+		expect(onPage(sheet, at.x, at.y).y).toBeCloseTo(at.y, 6)
+	})
+
+	it('goes no further in than the window mode does, and never smaller than its frame', () => {
+		let sheet = RESTING_PAGE
+		for (let i = 0; i < 40; i++) sheet = zoomPage(sheet, FRAME, 1.2, { x: 0, y: 0 })
+		expect(sheet.scale).toBe(MAX_ZOOM)
+
+		expect(zoomPage(sheet, FRAME, 0.01, { x: 0, y: 0 }).scale).toBe(1)
+		expect(clampPage({ scale: 0.2, x: 0, y: 0 }, FRAME).scale).toBe(1)
+	})
+
+	/*
+	 * The one rule the offsets have: the frame always has drawing in it. A sheet bigger
+	 * than its frame can be moved about behind it — that is the pan — but never so far
+	 * that the frame shows a strip of nothing where the page used to be.
+	 */
+	it('never leaves the frame it belongs to', () => {
+		const covers = (sheet: PageZoom) =>
+			sheet.x <= 0.001 &&
+			sheet.y <= 0.001 &&
+			sheet.x + FRAME.width * sheet.scale >= FRAME.width - 0.001 &&
+			sheet.y + FRAME.height * sheet.scale >= FRAME.height - 0.001
+
+		for (const scale of [1, 1.5, 2, MAX_ZOOM]) {
+			for (const dx of [-2000, -100, 0, 100, 2000]) {
+				for (const dy of [-2000, -100, 0, 100, 2000]) {
+					expect(covers(panPage({ scale, x: 0, y: 0 }, dx, dy, FRAME))).toBe(true)
+				}
+			}
+		}
+	})
+
+	it('is home, exactly, at life size', () => {
+		expect(panPage(RESTING_PAGE, 80, -40, FRAME)).toEqual({ scale: 1, x: 0, y: 0 })
+	})
+
+	it('moves the page under a two-finger drag at the fingers’ own rate', () => {
+		const sheet = panPage({ scale: 2, x: -100, y: -60 }, 30, 18, FRAME)
+		expect(sheet.x).toBeCloseTo(-70, 6)
+		expect(sheet.y).toBeCloseTo(-42, 6)
+
+		// Which is to say: the mark that was under the fingers is 30×18 further along.
+		const was = onPage({ scale: 2, x: -100, y: -60 }, 150, 90)
+		expect(onGlass(sheet, was.x, was.y)).toEqual({ x: 180, y: 108 })
+	})
+
+	it('comes back to exactly where it started, out and back', () => {
+		const at = { x: 90, y: 50 }
+		let sheet = zoomPage(RESTING_PAGE, FRAME, 3, at)
+		sheet = zoomPage(sheet, FRAME, 1 / 3, at)
+
+		expect(sheet.scale).toBeCloseTo(1, 6)
+		expect(sheet.x).toBeCloseTo(0, 6)
+		expect(sheet.y).toBeCloseTo(0, 6)
+	})
+
+	it('reads a point of the frame as a point of the artwork, through both', () => {
+		const sheet = { scale: 2, x: -FRAME.width / 2, y: -FRAME.height / 2 }
+		const local = onPage(sheet, FRAME.width / 2, FRAME.height / 2)
+
+		// Halfway across a sheet twice life size, hung so that its middle is in the middle
+		// of the frame: the middle of the page.
+		expect(
+			stagePoint({ x: 0, y: 0, w: PAGE.width, h: PAGE.height }, local.x, local.y, FRAME),
+		).toEqual({ x: PAGE.width / 2, y: PAGE.height / 2 })
+	})
+})
+
+describe('how much of a pinched page is on screen', () => {
+	const SCREEN = { left: 0, top: 0, width: 390, height: 844 }
+
+	it('is all of it while the whole sheet is in the window', () => {
+		const view = visiblePage({ left: 16, top: 100, width: 358, height: 201 }, SCREEN, PAGE)
+		expect(view).toEqual({ x: 0, y: 0, w: PAGE.width, h: PAGE.height })
+	})
+
+	it('is the overlap once the sheet runs off the edges', () => {
+		// Twice life size and hung half a frame to the left: the left half of the page is
+		// off the screen, and the right half of it ends 32px short of the screen's own
+		// edge — so what is left to stand a cursor on is exactly that half.
+		const view = visiblePage({ left: -358, top: 0, width: 716, height: 402 }, SCREEN, PAGE)
+
+		expect(view.x).toBeCloseTo(PAGE.width / 2, 6)
+		expect(view.w).toBeCloseTo(PAGE.width / 2, 6)
+		expect(view.y).toBe(0)
+	})
+
+	it('is the whole page when none of it is showing at all', () => {
+		const view = visiblePage({ left: 2000, top: 0, width: 716, height: 402 }, SCREEN, PAGE)
+		expect(view).toEqual({ x: 0, y: 0, w: PAGE.width, h: PAGE.height })
 	})
 })

@@ -13,7 +13,6 @@ import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
-import { settledPageCount } from '../../flipbook/engine/pages'
 import { isZoomStageMode, stageOnPaper, startingZoom, useDrawMode } from '../../flipbook/drawModes'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
@@ -110,7 +109,22 @@ export function CreatePage() {
 	const page = state?.page ?? DEFAULT_PAGE_SIZE
 
 	const onPaper = stageOnPaper(drawMode)
-	const staged = useStage().view !== null && onPaper
+	const { view: stageView, zoom: sheet } = useStage()
+	const staged = stageView !== null && onPaper
+
+	/*
+	 * The drawing pinched out of its frame, which is the one state on this page where the
+	 * paper is lying over the furniture below it.
+	 *
+	 * The page bar and the tray lift above it while it is, so what grows underneath them
+	 * is the drawing and what stays pressable is the row of controls. Read here rather
+	 * than in either of them, because it is this page that knows there is a stage at all.
+	 *
+	 * Not while a trace photo is being placed: the stage stands the sheet back in its
+	 * frame for the length of that — see `suspended` — so there is nothing lying over
+	 * anything, and lifting the row would be a change nobody asked for mid-gesture.
+	 */
+	const pinched = staged && sheet.scale > 1 && !(state?.tracePlacing ?? false)
 
 	const crash = useCrashRecovery(engine, asked)
 
@@ -135,9 +149,9 @@ export function CreatePage() {
 	// not a moment to be adding pages behind it.
 	useKeyboardShortcuts(engine, { enabled: phase === 'drawing' && !traceMenu, tools: true })
 
-	// Not the raw length: a page on its way off the screen is still in the list, and
-	// counting it makes the save button fade in and straight back out again.
-	const pages = state ? settledPageCount(state.pages) : 1
+	// The flipbook's length, which is the raw one: a page is added and deleted between one
+	// frame and the next, so the list is never holding a page that has already left.
+	const pages = state?.pages.length ?? 1
 
 	/*
 	 * A remix that has been opened and not yet drawn on is not work, and warning about
@@ -322,11 +336,6 @@ export function CreatePage() {
 						pages={state.pages}
 						activePage={state.activePage}
 						playing={state.playback !== 'none'}
-						arriving={state.arriving}
-						// A page animation, and not the other thing `busy` covers: carrying a
-						// page has the row easing to the gesture's own timing, and the two
-						// rules would be arguing about the same property.
-						throwing={state.busy && !state.reordering}
 						canvasRef={canvasRef}
 						reorder={reorder}
 						shiftFor={shiftFor}
@@ -352,7 +361,6 @@ export function CreatePage() {
 							ref={canvasRef}
 							className={[
 								canvasStyles.canvas,
-								state?.arriving ? canvasStyles.handedOver : '',
 								// A page being carried is a page sliding about under the pointer,
 								// and paper listens for a mousedown on this element directly — so
 								// the press is taken off it here rather than refused inside. The
@@ -485,10 +493,15 @@ export function CreatePage() {
 							// fresh page too, and there is nothing to say about a flipbook of
 							// one page anyway.
 							waiting={state.loading}
+							// And over the drawing rather than under it while that has been
+							// pinched out of its frame and is lying across the bar.
+							raised={pinched}
 						/>
 					) : null}
 
-					{engine && state ? <CreateTray engine={engine} state={state} mode={drawMode} /> : null}
+					{engine && state ? (
+						<CreateTray engine={engine} state={state} mode={drawMode} raised={pinched} />
+					) : null}
 
 					{/* And v11's second canvas, in whatever the column has left. It is rendered
 					    on every layout and hides itself where there is no room, because "is

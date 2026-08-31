@@ -22,47 +22,24 @@
 }
 
 /*
- * The row moves instantly. Turning a page is a cut, not a slide.
+ * The row moves instantly. Turning a page is a cut, not a slide, and so is adding one
+ * and deleting one.
  *
  * It used to ease over 0.3s unconditionally, and the trouble with that was ordinary
- * page turns, where nothing is being thrown: half a second of the whole flipbook
- * sliding under the drawing every time you step a page, which reads as the pages being
- * dragged about rather than turned. That was already switched off under a finger on the
- * page bar, and the honest conclusion was that if it is wrong there it is wrong
- * everywhere.
+ * page turns: half a second of the whole flipbook sliding under the drawing every time
+ * you step a page, which reads as the pages being dragged about rather than turned. That
+ * was already switched off under a finger on the page bar, and the honest conclusion was
+ * that if it is wrong there it is wrong everywhere. Adding and deleting were the
+ * exception, easing in step with the thrown page's own keyframes; both the keyframes and
+ * the exception are gone, and a page arrives and leaves on one frame.
  *
- * Adding and deleting a page are the exception, and `.throwing` below is where the
- * 0.3s went.
+ * Carrying a page to another slot is the one movement of the row that is left, and it
+ * is a gesture rather than an animation — the flipbook is being moved by a finger, and
+ * it closes up round the page when the finger goes. See `.carrying`.
  */
 .strip {
 	position: absolute;
 	width: 99999px;
-}
-
-/*
- * Except while a page is being thrown, which is the one movement of the row that is
- * part of an animation rather than a page turn.
- *
- * Adding a page throws the page you were on into the next slot along and flies the new
- * one in on the canvas (`animations.ts`), and deleting one tumbles it off the bottom of
- * the window while its neighbour slides over. Both leave the *rest* of the flipbook a
- * slot out of place — every page ahead of the gap has to travel exactly as far as the
- * thrown one, and nothing is animating those individually. The row is what carries
- * them, so for the length of the throw it moves with it: same distance, same time, same
- * curve as the keyframes' own `ease-in-out`.
- *
- * `--throw` is `PAGE_TRAVEL_MS`, which is where a thrown page *arrives* rather than how
- * long its animation runs — the remaining 450ms of a page animation is it settling into
- * a slot it has already reached. Without this the pages either side of the drawing
- * jumped a whole page the instant the button was pressed, and on a short flipbook that
- * reads as the page before the one you are on simply vanishing.
- *
- * On the element only while an animation is in flight, for the reason `.carrying` is:
- * the frame that hands the flipbook back changes `left` by a step and takes the class
- * off in the same render, and a transition still there would ease that too.
- */
-.throwing {
-	transition: left var(--throw) ease-in-out;
 }
 
 /*
@@ -83,13 +60,11 @@
  * for a slot in the row, which is the same position by construction, and a transition
  * still on the element would be 300ms of easing that from nothing to nothing.
  *
- * The transform is here rather than on `.page` itself, and that is load-bearing rather
- * than tidy: a transform makes an element the containing block for `position: fixed`
- * descendants, and `freeze()` pins a thumbnail for a page animation by making it fixed
- * at the coordinates it currently occupies on screen. A permanent `translate3d(0,0,0)`
- * on every page would quietly re-base every one of those against the page it is inside.
- * Nothing is ever frozen while a page is in hand — the page actions are held throughout
- * — so the two can't overlap.
+ * The transform is here rather than on `.page` itself, so that only the pages of a
+ * flipbook with one in hand carry one at all: a transform makes an element the
+ * containing block for its `position: fixed` descendants, and a permanent
+ * `translate3d(0,0,0)` on every page in the strip is a rule with nothing to say for
+ * itself waiting to re-base something that hasn't been written yet.
  */
 .carrying .page {
 	transform: translate3d(var(--shift, 0px), 0, 0);
@@ -168,11 +143,9 @@
 }
 
 /*
- * The one the live canvas is standing in front of.
- *
- * Not necessarily the active page: while a page is sliding into that slot it is
- * already the active one but hasn't arrived, and hiding it early is the difference
- * between it sliding over and appearing to teleport.
+ * The one the live canvas is standing in front of, which is the active page: what is on
+ * screen in that slot is the drawing itself, and two copies of it there would be one
+ * flipbook and its own shadow.
  */
 .covered canvas {
 	opacity: 0;
@@ -201,11 +174,8 @@
 
 /* The gap still opens and the flipbook still closes up round the page — there is no
    reading the gesture without them — but neither is eased. `usePageReorder` hands the
-   flipbook back on the same frame, so nothing here is left mid-slide. And a thrown page
-   doesn't move at all under this: `play()` returns without animating anything, so a row
-   that still slid would be the only thing travelling. */
+   flipbook back on the same frame, so nothing here is left mid-slide. */
 @media (prefers-reduced-motion: reduce) {
-	.throwing,
 	.carrying,
 	.carrying .page,
 	.carrying.sliding,

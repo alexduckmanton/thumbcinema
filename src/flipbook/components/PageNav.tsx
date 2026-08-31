@@ -29,6 +29,16 @@ export interface PageNavProps {
 	 * running, which is when it eases onto each page instead.
 	 */
 	glide?: number | null
+	/**
+	 * True while the drawing has been pinched out of its frame and is lying over this.
+	 *
+	 * The bar is under the paper by a deliberate five in the stacking order — the tools'
+	 * long barrels pass behind both — and a sheet pinched to four times life size covers
+	 * it completely, along with every press meant for it. So while one is, the bar comes
+	 * over the top: the page carries on growing underneath it, which is what a page
+	 * growing past its frame ought to do to the furniture around it. See `.raised`.
+	 */
+	raised?: boolean
 }
 
 /**
@@ -72,6 +82,7 @@ export function PageNav({
 	playback,
 	waiting = false,
 	glide = null,
+	raised = false,
 }: PageNavProps) {
 	const track = useRef<HTMLDivElement | null>(null)
 	const handle = useRef<HTMLSpanElement | null>(null)
@@ -88,15 +99,14 @@ export function PageNav({
 
 	const playing = playback !== 'none'
 
-	// The active page can briefly be past the end of the settled count — a delete
-	// makes the arriving page active from the first frame and spends 750ms getting it
-	// there — and the handle mustn't shoot off the end of the bar on the way past.
+	// Belt and braces: the handle must never point past the end of the bar, whatever
+	// order a page count and an active index arrive in.
 	const current = Math.min(activePage, Math.max(0, pages - 1))
 
 	/** Never refused for being at an end: the last page's next is the first. */
 	const step = useCallback(
-		// Guarded because the wrap is a modulo, and a flipbook with no settled pages —
-		// every one of them mid-delete — would make it a NaN and hand that to the scene.
+		// Guarded because the wrap is a modulo, and a flipbook with no pages at all would
+		// make it a NaN and hand that to the scene.
 		(delta: number) => {
 			if (pages < 1) return
 
@@ -248,7 +258,12 @@ export function PageNav({
 			ref={track}
 			// The arrows go while it plays; see `.playing`. Both they and the handle go
 			// while there is nothing to point at; see `.waiting`.
-			className={[styles.track, playing ? styles.playing : '', waiting ? styles.waiting : '']
+			className={[
+				styles.track,
+				playing ? styles.playing : '',
+				waiting ? styles.waiting : '',
+				raised ? styles.raised : '',
+			]
 				.filter(Boolean)
 				.join(' ')}
 			role="slider"

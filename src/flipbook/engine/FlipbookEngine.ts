@@ -1,5 +1,4 @@
 import { Store } from '../../lib/store'
-import { DEFAULT_PAGE_STEP, freeze, play } from './animations'
 import { Clipboard } from './clipboard'
 import { DEFAULT_PAGE_SIZE, FPS, LEGACY_PAGE_SIZE, type PageSize, PENCIL_COLOR } from './constants'
 import {
@@ -11,7 +10,8 @@ import {
 	strokeWidthFor,
 } from './formats'
 import { History, type Op, type Step } from './history'
-import { type PageState, settledPageCount } from './pages'
+import type { PageState } from './pages'
+import { DEFAULT_PAGE_STEP } from './reorder'
 import { encodeThumbnail } from './png'
 import { type PaperCore, Scene } from './scene'
 import { CENTRED, type Placement, type TracePhoto, type TracePhotos, sameTrace } from './trace'
@@ -34,18 +34,6 @@ export type EngineMode = 'create' | 'playback'
 export interface FlipbookState {
 	pages: PageState[]
 	activePage: number
-
-	/**
-	 * True while a page thumbnail is sliding into the slot the drawing canvas stands
-	 * in, and hasn't got there yet.
-	 *
-	 * The strip hides whichever thumbnail is behind the canvas, and that is normally
-	 * the active page. During a delete the next page becomes active the instant you
-	 * click — so it was being hidden 4ms in and spending its whole 750ms journey
-	 * invisible, which read as it teleporting into place while every other page slid.
-	 * While this is set the strip hides nothing.
-	 */
-	arriving: boolean
 
 	/** Null on the playback page, which has no drawing tools at all. */
 	tool: ModalToolId | null
@@ -73,17 +61,25 @@ export interface FlipbookState {
 	/** 0–1 while a saved flipbook is being replayed into the tool. */
 	loadProgress: number
 
-	/** True while a page animation is playing. Input is ignored until it finishes. */
+	/**
+	 * True while the flipbook is not to be added to, deleted from or stepped through:
+	 * a page is being carried to another slot.
+	 *
+	 * It was the page animations' flag as well — 750ms of thrown thumbnails during which
+	 * every page action, undo and the page bar were held — and adding, duplicating and
+	 * deleting a page are instant now, so a reorder is the only thing left that takes
+	 * any time at all.
+	 */
 	busy: boolean
 
 	/**
 	 * True from the moment the page handle is taken hold of until the page has settled
 	 * into its new place.
 	 *
-	 * `busy` is already set throughout, which is what holds the page actions, undo and
-	 * the page bar. This says the *other* thing: the drawing is being carried about, so
-	 * nothing may be drawn on it. Separate because drawing through a page animation has
-	 * been allowed since 2013 and `busy` covers those too. See `PointerLayer.engage`.
+	 * `busy` is set alongside it, which is what holds the page actions, undo and the
+	 * page bar. This says the *other* thing: the drawing is being carried about, so
+	 * nothing may be drawn on it. The two stayed separate when the page animations went
+	 * — see `PointerLayer.engage`, which asks only this one.
 	 */
 	reordering: boolean
 
@@ -204,7 +200,6 @@ export class FlipbookEngine {
 			page: options.page ?? null,
 			pages: [{ id: this.nextPageId++, segments: 0 }],
 			activePage: 0,
-			arriving: false,
 			tool: options.mode === 'create' ? 'pencil' : null,
 			transformIndex: 0,
 			playback: 'none',
@@ -370,10 +365,10 @@ export class FlipbookEngine {
 	/**
 	 * How far it is from one page to the next, measured off the strip.
 	 *
-	 * Every animation that throws a page into the next slot travels exactly this far,
-	 * and the strip is a row of copies of the drawing — which is full size on a desktop
-	 * and about half that on a phone. So the number can't be a constant, and it is the
-	 * strip that knows it. See `PageStrip`, which measures and reports it.
+	 * The reorder gesture measures a drag in pages and needs it, and the strip is a row
+	 * of copies of the drawing — which is full size on a desktop and about half that on
+	 * a phone. So the number can't be a constant, and it is the strip that knows it. See
+	 * `PageStrip`, which measures and reports it.
 	 */
 	setPageStep(step: number): void {
 		if (step > 0) this.pitch = step
@@ -472,12 +467,12 @@ export class FlipbookEngine {
 	 * every press of a tool is also a press *of* it. The two halves of the fan are their
 	 * own controls now; see `setTransformMode` and `.transform` in `Tray.module.css`.
 	 *
-	 * **Not held while a page animates**, unlike the page actions and undo. Drawing
-	 * through those 750ms has been allowed since 2013 and the scene is in its final
-	 * shape before the first frame of it moves, so refusing to say *what* you are
-	 * drawing with was the odd one out — and worse than a no-op in the modes where
-	 * pressing a tool button also uses it: the press was refused, the hold went ahead,
-	 * and the previous tool did the work.
+	 * **Not held while the flipbook is busy**, unlike the page actions and undo. It was
+	 * the page animations this mattered for — drawing through those 750ms had been
+	 * allowed since 2013, so refusing to say *what* you were drawing with was the odd
+	 * one out — and it is worse than a no-op in the modes where pressing a tool button
+	 * also uses it: the press was refused, the hold went ahead, and the previous tool
+	 * did the work.
 	 */
 	selectTool(id: ModalToolId): void {
 		// Reaching for a tool is done with the photo: it settles, and the tool asked for
@@ -646,9 +641,9 @@ export class FlipbookEngine {
 	 *    held, so a pencil stroke drawn there would land in it rather than on the page.
 	 *    Pasting with a pencil in your hand and then being able to do nothing with what
 	 *    arrived is the worse of the two surprises.
-	 *  - **Held while the flipbook is busy or loading.** A page animation is 750ms in
-	 *    which the strip is mid-flight, and a load is replacing every page there is;
-	 *    dropping a drawing into either is dropping it somewhere nobody chose.
+	 *  - **Held while the flipbook is busy or loading.** A page is being carried to
+	 *    another slot, or a load is replacing every page there is; dropping a drawing
+	 *    into either is dropping it somewhere nobody chose.
 	 */
 	pasteClipboard(): void {
 		const { busy, loading } = this.store.snapshot
@@ -831,7 +826,7 @@ export class FlipbookEngine {
 				: step.trace.after
 			: this.store.snapshot.trace
 
-		this.store.set({ pages, activePage: landing, arriving: false, trace })
+		this.store.set({ pages, activePage: landing, trace })
 		this.captureActivePage()
 	}
 
@@ -893,9 +888,9 @@ export class FlipbookEngine {
 	 *    and undoing it eight times to get back to where you were is not undo. The step
 	 *    carries a `page` op per frame it made and the whole trace map either side of it,
 	 *    which between them are the entire operation.
-	 *  - **The pages are inserted instantly rather than thrown.** `addBlankPage` plays a
-	 *    750ms animation, and eight of those in a row is six seconds of the strip
-	 *    cartwheeling. This is the same instant insert `applyStep` uses to put a page back.
+	 *  - **The pages go in as one operation.** This is the same insert `applyStep` uses
+	 *    to put a page back, rather than eight trips through `addBlankPage` — which is
+	 *    eight history steps as well as eight settling flipbooks.
 	 *  - **Nothing lands in hand, where a single photo does.** "In hand" is an offer to
 	 *    place *this* one, and there is no sensible answer to which of eight that would be.
 	 *    They all land centred and fitted, and pressing the camera on any frame picks that
@@ -911,9 +906,9 @@ export class FlipbookEngine {
 			return
 		}
 
-		// A page mid-flight is no place to be splicing pages in. The picker is modal and
-		// takes seconds, so by the time a batch arrives nothing is animating; this is the
-		// guard rather than the expected case.
+		// A page in hand is no place to be splicing pages in. The picker is modal and takes
+		// seconds, so by the time a batch arrives nothing is being carried anywhere; this
+		// is the guard rather than the expected case.
 		if (this.store.snapshot.busy) return
 		this.pause()
 
@@ -1073,11 +1068,10 @@ export class FlipbookEngine {
 	 * Whether a page can be added or removed right now — and if playback is what's in
 	 * the way, stops it so the next press can go through.
 	 *
-	 * Playback swaps the visible page every 83ms and a page animation is 750ms of
-	 * pinned thumbnails and a canvas mid-flight; doing both at once left the strip in
-	 * a heap. Pausing and carrying on in one press was how that happened, so the press
-	 * buys the pause and nothing else. The tools don't need this — they stop playback
-	 * themselves and nothing is animating when they do.
+	 * Playback swaps the visible page every 83ms, and splicing a page into a flipbook
+	 * that is running under the canvas left the strip in a heap. Pausing and carrying on
+	 * in one press was how that happened, so the press buys the pause and nothing else.
+	 * The tools don't need this — they stop playback themselves.
 	 */
 	private beginPageChange(): boolean {
 		if (this.store.snapshot.busy) return false
@@ -1093,7 +1087,7 @@ export class FlipbookEngine {
 		return true
 	}
 
-	async addBlankPage(): Promise<void> {
+	addBlankPage(): void {
 		if (!this.beginPageChange()) return
 
 		// Put down before the page changes under it, not hidden and carried across:
@@ -1114,11 +1108,9 @@ export class FlipbookEngine {
 			back: source?.id ?? id,
 		})
 		this.refreshOnion()
-
-		await this.animateInsert(from, 'newPage')
 	}
 
-	async duplicatePage(): Promise<void> {
+	duplicatePage(): void {
 		if (!this.beginPageChange()) return
 
 		/*
@@ -1180,18 +1172,16 @@ export class FlipbookEngine {
 		// the page and the selection layer as one drawing, so a stroke in hand serialises
 		// exactly as it does lying down. Selecting has never been an edit.
 		if (carrying && held.length > 0) this.selection.hold(held)
-
-		await this.animateInsert(from, 'nudge')
 	}
 
-	async deletePage(): Promise<void> {
+	deletePage(): void {
 		if (!this.beginPageChange()) return
 
 		this.selection.clear()
 
-		// The thumbnail is about to stand in for the canvas, in the same place and at
-		// the same size, so any drift between the two would show as a jump the moment
-		// the canvas steps aside.
+		// The thumbnail takes the canvas's place in that slot on the very next frame, in
+		// the same place and at the same size, so any drift between the two would show as
+		// a jump.
 		this.captureActivePage()
 
 		const index = this.scene.activePage
@@ -1199,121 +1189,53 @@ export class FlipbookEngine {
 		const doomed = pages[index]
 		if (!doomed) return
 
-		// Read while it is still here. Everything below is 750ms of animation, and by
-		// the time the page is actually removed the drawing on it is the only part of
-		// this the history can't reconstruct.
+		// Read while the page is still here: the drawing on it is the only part of this
+		// the history can't reconstruct afterwards.
 		const ink = this.history.inkOf(index)
 		const traceBefore = this.store.snapshot.trace
 
-		// Marked from the moment it starts to fall. It has to stay in the list to be
-		// rendered on its way out, but it stops counting towards the flipbook now —
-		// otherwise deleting the only page leaves two in the list for 750ms and the
-		// play and save buttons blink on and off again.
-		const leaving = pages.map((page, i) => (i === index ? { ...page, leaving: true } : page))
-
-		// The strip is never empty: deleting the only page leaves a fresh one behind.
+		// The strip is never empty: deleting the only page leaves a fresh one behind, and
+		// the two travel together — through the store, and through the history below.
 		const replacing = pages.length === 1
-		const replacementId = this.nextPageId
+		const replacementId = replacing ? this.nextPageId++ : null
 
-		if (replacing) {
-			this.scene.insertBlankPage(0)
-			this.store.set({
-				pages: [...leaving, { id: this.nextPageId++, segments: 0 }],
-				activePage: 1,
-			})
-		} else {
-			this.store.set({ pages: leaving })
-		}
+		// Above the doomed page, so the replacement is index 1 until the page it replaces
+		// is taken out from under it a line later.
+		if (replacing) this.scene.insertBlankPage(index)
 
-		const canvas = this.thumbnails.get(doomed.id)
-		const atEnd = index === this.store.snapshot.pages.length - 1
-		const sibling = atEnd ? index - 1 : index + 1
-		const siblingId = this.store.snapshot.pages[sibling]?.id ?? doomed.id
-
-		this.setBusy(true)
-
-		/*
-		 * Focusing the sibling slides the whole strip one page along, and which pages
-		 * have to be held still through that is the whole of this.
-		 *
-		 * Deleting a page mid-book focuses the page after it, so the strip travels
-		 * left. The pages *before* the gap are already where they will end up, so they
-		 * are pinned; the pages after it are one step from where they end up, so they
-		 * are let go and ride the slide. Deleting the last page focuses backwards
-		 * instead, and then every page really does move along — so nothing is pinned.
-		 */
-		const pinned = atEnd ? [] : this.freezeRange(0, index)
-
-		// The page on its way out is pinned too, and never unpinned: it has to fall
-		// from where it is rather than from where the strip is heading, and it holds
-		// its last frame until it's removed outright a moment later. `lift` is what
-		// puts it in front of the drawing canvas, so the fall is visible from the
-		// first frame rather than from halfway down.
-		if (canvas) freeze(canvas, { lift: true })
+		// Deleting a page mid-book leaves you on the page after it, and deleting the last
+		// one leaves you on the page before. Replacing puts you on the replacement, which
+		// is the page that has just gone in above this one.
+		const atEnd = index === pages.length - 1
+		const sibling = replacing || !atEnd ? index + 1 : index - 1
 
 		this.scene.setActivePage(sibling)
-
-		// Not when the page is being replaced: there the canvas itself is what
-		// arrives, and its thumbnail should stay hidden underneath it as usual.
-		this.store.set({ activePage: sibling, arriving: !replacing })
-
-		const siblingCanvas = this.thumbnailFor(sibling)
-		const unpinSibling = siblingCanvas ? freeze(siblingCanvas) : null
-
-		/*
-		 * What takes its place.
-		 *
-		 * Deleting the last page in the book replaces it, and a page arriving is a
-		 * page arriving: it flies in on the canvas exactly as a blank one does. 2013
-		 * got this for free by animating every page that joined the collection,
-		 * including the one delete put there — without it the replacement simply
-		 * appeared, in front of the page still falling off the screen.
-		 */
-		const arriving = replacing
-			? play(this.scene.canvas, 'newPage')
-			: siblingCanvas
-				? play(siblingCanvas, atEnd ? 'focusPrevThumb' : 'focusNextThumb', { step: this.pageStep })
-				: Promise.resolve()
-
-		// The deleted page holds its last frame: it's about to be removed, and
-		// letting it snap back into view for one frame first would be a flicker.
-		if (canvas) await play(canvas, 'deletePage', { hold: true })
-		await arriving
-		unpinSibling?.()
-
 		this.scene.removePage(index)
 		this.thumbnails.delete(doomed.id)
 
 		// The page's trace photo goes with it, and comes back with it: the step below
 		// carries the map both ways round, so one press of undo restores the drawing and
 		// the photograph it was traced from together.
-		const trace = { ...this.store.snapshot.trace }
+		const trace = { ...traceBefore }
 		delete trace[doomed.id]
 
-		// The arriving page has landed exactly where the canvas is, so handing the
-		// slot back to it — which hides its thumbnail — can't be seen happening.
-		const remaining = this.store.snapshot.pages.filter((page) => page.id !== doomed.id)
+		const remaining = pages.filter((page) => page.id !== doomed.id)
+		if (replacementId !== null) remaining.push({ id: replacementId, segments: 0 })
+
 		this.store.set({
 			pages: remaining,
 			activePage: this.scene.activePage,
-			arriving: false,
 			trace,
 		})
 
-		for (const undo of pinned) undo()
-		this.setBusy(false)
-
 		/*
-		 * Recorded now the flipbook has settled, rather than on the way in, so that a
-		 * ⌘Z arriving mid-animation finds the step it expects — the one before this —
-		 * and not a half-applied delete. Both ops carry the index the page ended up at.
-		 *
 		 * Deleting the only page is two ops travelling together: the page leaves and a
 		 * blank one takes its place. Split into two steps, the first undo would leave a
-		 * flipbook with no pages in it at all.
+		 * flipbook with no pages in it at all. Both ops carry the index the page ended up
+		 * at, which is the one it was deleted from.
 		 */
 		const ops: Op[] = [{ kind: 'page', added: false, pageId: doomed.id, index, ink }]
-		if (replacing) {
+		if (replacementId !== null) {
 			ops.push({
 				kind: 'page',
 				added: true,
@@ -1324,7 +1246,7 @@ export class FlipbookEngine {
 		}
 		this.history.record({
 			ops,
-			forward: replacing ? replacementId : siblingId,
+			forward: replacementId ?? remaining[this.scene.activePage]?.id ?? doomed.id,
 			back: doomed.id,
 			trace: this.traceDelta(traceBefore),
 		})
@@ -1345,14 +1267,14 @@ export class FlipbookEngine {
 	 * copy of the drawing several strokes out of date is a page you would not recognise
 	 * as the one in your hand.
 	 *
-	 * Returns false if now is not the moment — a page animation in flight, a flipbook
-	 * still arriving, or a single page, which has nowhere to go. The caller does nothing
-	 * rather than starting a gesture that can't finish.
+	 * Returns false if now is not the moment — a flipbook still arriving, or a single
+	 * page, which has nowhere to go. The caller does nothing rather than starting a
+	 * gesture that can't finish.
 	 */
 	beginReorder(): boolean {
 		const { busy, loading, pages, playback } = this.store.snapshot
 		if (busy || loading || playback !== 'none') return false
-		if (settledPageCount(pages) < 2) return false
+		if (pages.length < 2) return false
 
 		this.settleTrace()
 		this.selection.clear()
@@ -2106,49 +2028,6 @@ export class FlipbookEngine {
 	private thumbnailFor(index: number): HTMLCanvasElement | null {
 		const page = this.store.snapshot.pages[index]
 		return page ? (this.thumbnails.get(page.id) ?? null) : null
-	}
-
-	/**
-	 * The page you were on is thrown left into the strip while the new canvas flies
-	 * in from the right.
-	 *
-	 * Everything that moves is pinned in place first. The strip itself slides — it
-	 * has a CSS transition on `left` — so without pinning, the outgoing thumbnail
-	 * would be carried along by the layout *and* animated, and travel twice as far
-	 * as it should. Unpinning at the end drops each one back into flow, which by
-	 * then is exactly where the animation left it.
-	 */
-	private async animateInsert(outgoing: number, incoming: 'newPage' | 'nudge'): Promise<void> {
-		this.setBusy(true)
-
-		const outgoingCanvas = this.thumbnailFor(outgoing)
-		const pinned = this.freezeRange(this.scene.activePage + 1, this.pageCount)
-		const unpinOutgoing = outgoingCanvas ? freeze(outgoingCanvas) : null
-
-		await Promise.all([
-			outgoingCanvas
-				? play(outgoingCanvas, 'newPageIcon', { step: this.pageStep })
-				: Promise.resolve(),
-			play(this.scene.canvas, incoming),
-		])
-
-		unpinOutgoing?.()
-		for (const undo of pinned) undo()
-		this.setBusy(false)
-	}
-
-	/** Pins a run of page thumbnails in place for the duration of an animation. */
-	private freezeRange(from: number, to: number): (() => void)[] {
-		const undos: (() => void)[] = []
-		for (let i = from; i < to; i++) {
-			const canvas = this.thumbnailFor(i)
-			if (canvas) undos.push(freeze(canvas))
-		}
-		return undos
-	}
-
-	private setBusy(busy: boolean): void {
-		this.store.set({ busy })
 	}
 
 	private refreshOnion(): void {

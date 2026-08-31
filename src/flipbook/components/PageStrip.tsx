@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { PAGE_TRAVEL_MS } from '../engine/animations'
-
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import type { PageState } from '../engine/pages'
 import { type Reorder, SETTLE_MS } from '../engine/reorder'
@@ -12,16 +10,6 @@ export interface PageStripProps {
 	pages: PageState[]
 	activePage: number
 	playing: boolean
-	/** True while a page is still on its way into the canvas's slot. */
-	arriving: boolean
-	/**
-	 * True for the length of a page animation, and what makes the row slide with it.
-	 *
-	 * Adding or deleting a page moves every page ahead of the gap along by a slot, and
-	 * the row is the only thing carrying those — the keyframes animate the page being
-	 * thrown and the one taking its place, and nothing else. See `.throwing`.
-	 */
-	throwing: boolean
 	/** The live canvas, which the strip aligns the active page underneath. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
 	/** Where a page is being carried, if one is. See `usePageReorder`. */
@@ -35,8 +23,6 @@ export function PageStrip({
 	pages,
 	activePage,
 	playing,
-	arriving,
-	throwing,
 	canvasRef,
 	reorder = null,
 	shiftFor,
@@ -97,8 +83,9 @@ export function PageStrip({
 	/** One page to the next: the drawing's width plus a gutter either side. */
 	const step = metrics.width + metrics.gutter * 2
 
-	// The engine throws pages from one slot to the next and needs to know how far that
-	// is. It can't be told at build time for the same reason it isn't measured there.
+	// The reorder gesture measures a drag in pages and so needs to know how far one slot
+	// is from the next. It can't be told at build time for the same reason it isn't
+	// measured there.
 	useEffect(() => {
 		engine.setPageStep(step)
 	}, [engine, step])
@@ -118,17 +105,12 @@ export function PageStrip({
 	const anchor = reorder ? reorder.anchor : activePage
 	const left = metrics.offset - metrics.gutter - anchor * step
 
-	// Which thumbnail the canvas is standing in front of, and so which one to hide.
-	// Nothing, while a page is still travelling into that slot.
-	const covered = arriving ? -1 : activePage
-
 	return (
 		<div className={styles.container} ref={container} aria-hidden="true">
 			<div
 				className={[
 					styles.strip,
 					playing ? styles.playing : '',
-					throwing ? styles.throwing : '',
 					reorder ? styles.carrying : '',
 					reorder?.slide ? styles.sliding : '',
 				]
@@ -145,9 +127,6 @@ export function PageStrip({
 						// How long one page of the run takes, which is also how long until the
 						// next one starts. See `.sliding`.
 						'--slide': `${reorder?.slide ?? 0}ms`,
-						// And how long a thrown page takes to reach the next slot, which is
-						// how long the row has to get there with it. See `.throwing`.
-						'--throw': `${PAGE_TRAVEL_MS}ms`,
 						// How wide a page is drawn. The stylesheet adds its own gutters to it
 						// and this file reads those back, so neither has to state the other's
 						// number. See `measure`.
@@ -165,7 +144,9 @@ export function PageStrip({
 					<div
 						key={page.id}
 						ref={index === 0 ? firstPage : null}
-						className={index === covered ? `${styles.page} ${styles.covered}` : styles.page}
+						// The canvas stands in front of the active page's thumbnail, so that one
+						// is hidden: what is on screen there is the drawing itself.
+						className={index === activePage ? `${styles.page} ${styles.covered}` : styles.page}
 						// How far out of its own slot this page has to stand to leave room for
 						// the one being carried. Zero, and unset, the rest of the time.
 						style={{ '--shift': `${shiftFor?.(index) ?? 0}px` } as React.CSSProperties}
@@ -196,8 +177,8 @@ export function PageStrip({
  * thumbnail is a copy of that canvas shown at exactly the same size, so a 640×360 one
  * holds a quarter of the pixels it is displayed with, and the pages either side of the
  * drawing came out visibly softer than the drawing between them. Which they must not
- * be: the strip is the same flipbook seen again, and a page animation hands the
- * canvas's own job to one of these for 750ms.
+ * be: the strip is the same flipbook seen again, and deleting a page hands the canvas's
+ * own slot straight to one of these.
  *
  * Capped at 2, because there is nothing above it worth another doubling of the memory:
  * a third of a device pixel is not something anyone can see, and the screens that

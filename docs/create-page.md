@@ -58,12 +58,10 @@ is now true at both widths and the differences are called out where they exist.
   **None of this makes the transform whole.** It is a 151px picture in a band that shows
   85, and the only levers left cost canvas: a taller row, or a shorter page bar.
 - **The page strip stays, scaled, and `PageNav` is added under it.** The strip was
-  hidden on a phone at first, and everything about that was wrong: the page animations
-  are two pages moving — one thrown out as another arrives — and half of each one was
-  being played on an element with no layout box, so adding a page showed the new one
-  arrive out of nowhere, duplicating showed only a bob, and deleting showed a blank
-  canvas, because `arriving` steps the drawing aside for a thumbnail that isn't there.
-  It is on both layouts now. A page is `--page-width` wide, which the component sets
+  hidden on a phone at first, and everything about that was wrong: a page change is the
+  flipbook rearranging itself, and with the row not rendered there was nothing on screen
+  saying so — the strip was also where half of the old page animations were played, on an
+  element with no layout box. It is on both layouts now. A page is `--page-width` wide, which the component sets
   from the live canvas, so the thumbnails are copies of the drawing at the size the
   drawing is currently drawn at. What that costs on a phone is the peek: the drawing
   takes all but 16px of the window, and the gutter is spent twice out of that, so 4px
@@ -71,10 +69,10 @@ is now true at both widths and the differences are called out where they exist.
   drawing.
 - **Nothing knows the pitch at build time any more.** It was `CANVAS_WIDTH +
   PAGE_MARGIN * 2`, a constant in three places; it is now measured — the component
-  reads the page's own padding back off the box, and hands the total to
-  `engine.setPageStep()`, which is what the keyframes that throw a page into the next
-  slot are built from. That is why `KEYFRAMES` is a table of functions rather than a
-  table of arrays, and why `PAGE_MARGIN` is gone from `constants.ts`.
+  reads the page's own padding back off the box and hands the total to
+  `engine.setPageStep()`, which is what the reorder gesture measures a drag in pages
+  against. `PAGE_MARGIN` is gone from `constants.ts`, and `DEFAULT_PAGE_STEP` in
+  `reorder.ts` is only the fallback until the strip has laid itself out and said.
 - **`PageNav` is one white bar under the drawing: two arrows, a scrubber, and play.**
   The handle follows the finger while it's held and settles onto the nearest page when
   it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows playback as
@@ -168,37 +166,37 @@ is now true at both widths and the differences are called out where they exist.
   out of the lap rather than on top of it is what bought the wraparound for everything —
   the cost is that during `play` the handle is never the page it is showing, which of a
   flipbook turning over twelve times a second it never usefully was.
-- **The strip doesn't ease at all. Turning a page is a cut.** It used to slide from page
-  to page over 0.3s, matched to the page animations' travel time — every keyframe set
-  that throws a page into the next slot arrives at offset 0.35–0.4 of its 750ms, and the
-  strip carries every page that *isn't* individually animated, so the two had to cover
-  the same ground in the same time. But it also eased on an ordinary page turn, where
-  nothing is being thrown, and half a second of the whole flipbook sliding under the
-  drawing every time you step a page reads as the pages being dragged about rather than
-  turned. It was already switched off under a finger on the page bar; if it was wrong
-  there it was wrong everywhere. Gone with the transition: `scrubbing` (create page →
-  `PageStrip`, and `PageNav`'s `onScrubbing`) and `useSnapOnRemoval`, both of which
-  existed only to switch it off.
-- **Except while a page is being thrown, which is `.throwing` and is where the 0.3s
-  went.** Add and delete animate — those are `animations.ts`, on the individual page,
-  and they are a throw rather than a step — but the keyframes only ever move two pages:
-  the one being thrown and the one taking its place. Everything *ahead of the gap* has
-  to travel exactly as far, and the row is the only thing carrying it. Switching the
-  transition off outright took that with it: on a three-page flipbook, adding a page
-  slid the page you were on into the next slot and teleported the one behind it clean
-  off the side of the window on the same frame, which reads as it vanishing rather than
-  leaving. So the row eases again for the length of a throw and at no other time —
-  `PAGE_TRAVEL_MS`, which is where a thrown page *arrives* (offset 0.4 of its 750ms)
-  rather than how long its animation runs, handed to the stylesheet as `--throw`. The
-  class is `state.busy && !state.reordering`: carrying a page eases the same property to
-  the gesture's own timing, and the two rules must never both be on. Measured at both
-  ends — the row now covers its 660px over ~300ms of `ease-in-out` where it used to be
-  there on the first frame, and the handover at the end of a delete still moves nothing.
-- **Frozen pages are what the slide is *for*, and they are the other half of it.** A
-  page that ends up where it started is pinned by `freeze()` so the row slides out from
-  under it; a page that is one slot from home is let go and rides the row. Which is
-  which is the whole of `freezeRange`'s two callers, and it only makes sense while the
-  row is something a page can ride.
+- **The strip doesn't ease at all. Turning a page is a cut, and so is adding one and
+  deleting one.** It used to slide from page to page over 0.3s, matched to the page
+  animations' travel time — every keyframe set that threw a page into the next slot
+  arrived at offset 0.35–0.4 of its 750ms, and the strip carried every page that *wasn't*
+  individually animated, so the two had to cover the same ground in the same time. But it
+  also eased on an ordinary page turn, where nothing was being thrown, and half a second
+  of the whole flipbook sliding under the drawing every time you step a page reads as the
+  pages being dragged about rather than turned. It was already switched off under a finger
+  on the page bar; if it was wrong there it was wrong everywhere. Gone with the
+  transition: `scrubbing` (create page → `PageStrip`, and `PageNav`'s `onScrubbing`) and
+  `useSnapOnRemoval`, both of which existed only to switch it off.
+- **And the page animations are gone altogether, which is what removed the exception.**
+  Adding, duplicating and deleting a page were 750ms of 2013's keyframes — the new canvas
+  spinning in from off to the right, the page you were on thrown left into the strip, the
+  deleted page tumbling off the bottom of the window — and the row eased for the length of
+  a throw (`.throwing`, `PAGE_TRAVEL_MS`) because everything ahead of the gap had to travel
+  exactly as far as the thrown page and nothing was animating those individually. A page
+  change is a cut now: the scene, the store and the strip are in their final shape on the
+  frame the button is pressed, and pressing it twice adds two pages rather than being
+  refused for three-quarters of a second. What went with the keyframes is the whole of the
+  machinery around them — `animations.ts` (`play`, `freeze`, `freezeRange`, `animateInsert`,
+  `PAGE_TRAVEL_MS`), the `.throwing` rule and its `--throw`, `FlipbookState.arriving` and
+  the `.handedOver` canvas it hid behind, `PageState.leaving` and `settledPageCount`, which
+  existed because a deleted page had to stay in the list for as long as it took to fall, and
+  `busy` for anything but a page in hand. `prefersReducedMotion` moved to `lib/device.ts`,
+  the reorder settle being the one thing left that asks.
+
+  **The one movement kept is carrying a page to another slot**, which is a gesture rather
+  than an animation: the flipbook is being moved by a finger and closes up round the page
+  when the finger goes, and neither half reads without the movement. See **Rearranging
+  pages**.
 - **Circleplay is gone, at every width and out of the codebase.** It scrubbed the
   flipbook by drawing circles with the pointer, and it was 2013's cleverest control —
   three consecutive pointer positions making a triangle whose winding gave the direction
@@ -400,8 +398,10 @@ is now true at both widths and the differences are called out where they exist.
   hidden` on both html and body is the ordinary one — the page has never had anything to
   scroll *to*, `--book-reserve` sees to that, but it did have the rubber band, and the
   whole drawing sliding an inch under your finger on a stroke that started near the
-  bottom edge. `position: fixed` on the body is the only thing that reliably stops iOS
-  scrolling the document anyway. `overscroll-behavior: none` is what takes
+  bottom edge. (`position: fixed` on the body was a fifth property here and is gone —
+  it was what iOS had already picked to tint its toolbars from, which is the whole of why
+  the save form's wash could not reach them. See **Naming a flipbook**.)
+  `overscroll-behavior: none` is what takes
   pull-to-refresh off Chrome on Android, which is not a scroll and survives all of the
   above — and a pull far enough to reload the tab is the worst thing that can happen to
   an unsaved flipbook. And `touch-action: none` overrides the body's `manipulation`,
@@ -413,6 +413,24 @@ is now true at both widths and the differences are called out where they exist.
   is an intersection down the ancestor chain that a descendant cannot give back. Nothing
   is lost by it: the form has put `inert` on `main` by then, so the page behind it is
   out of reach anyway, and `beforeunload` is already guarding the reload.
+
+  **A pinched page carries on behind iOS Safari's toolbar, and one line is what allows
+  it.** The lock's `overflow: hidden` has to clip somewhere, and where it clips is the
+  `<body>`'s box — `overflow` on the root propagates to the viewport and leaves the root
+  itself `visible`, so the two clips in play are the viewport's, at the initial containing
+  block, and the body's. Verified rather than reasoned, with the page pinched to 4×:
+  shrinking the body's box cuts the sheet off at it and shrinking the root's box does
+  nothing at all. The body's height is otherwise its content, `#root` at `100dvh` — and on
+  a page that cannot scroll nothing ever collapses the toolbar, so `dvh` is permanently
+  the viewport *with the toolbar out* and the sheet was cut off at precisely the top edge
+  of the URL bar. `html.locked body { min-height: 100lvh }` makes the clip the viewport
+  with the browser's UI retracted, which is exactly the strip the toolbar sits over, and
+  since Safari 26 that toolbar is translucent: what is behind it shows through. Everything
+  *laid out* stays on `100dvh` — the column, the paper's own size, the footer above
+  `env(safe-area-inset-bottom)` — so the only thing with anything to paint down there is a
+  sheet somebody has pinched out of its frame. It buys nothing for a *stroke* started in
+  that strip, which is iOS's: the bottom edge is where its own toolbar and home-indicator
+  gestures live, which is why the footer sits above the inset to begin with.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then
@@ -673,9 +691,9 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   many photos there are. A batch is one thing you did; undoing it eight times to get back
   where you were is not undo. The step carries a `page` op per frame it made and the whole
   trace map either side of it, which between them are the entire operation.
-- **The frames it makes are inserted instantly rather than thrown.** `addBlankPage` plays
-  a 750ms animation and eight of those in a row is six seconds of the strip cartwheeling;
-  this is the same instant insert `applyStep` uses to put a page back.
+- **The frames it makes go in as one operation**, which is the same insert `applyStep`
+  uses to put a page back rather than eight trips through `addBlankPage` — eight history
+  steps as well as eight flipbooks rearranging themselves.
 - **Nothing lands in hand, where a single photo does.** "In hand" is an offer to place
   *this* one, and there is no sensible answer to which of eight that would be — so they
   land centred and fitted, and pressing the camera on any frame picks that one up. You
@@ -697,11 +715,12 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   *blanking* canvases rather than by failing. Anything past 24 is dropped and said so in
   plain words rather than silently.
 
-**And v11 draws it a second time.** The picture stays a pair of DOM layers over the paper
-— nothing here goes near the artwork, and that is the decision the whole feature is built
-on — but the zoom stage is a canvas showing a window on the page, so it composites the same
-photograph itself from the same placement. Placing is still the paper's: you drag and pinch
-it up there, and the stage follows. See **v11** in
+**And the zoom stage draws it a second time.** The picture stays a pair of DOM layers over
+the paper — nothing here goes near the artwork, and that is the decision the whole feature
+is built on — but the stage is a canvas rather than a stack of elements, so it composites
+the same photograph itself from the same placement. Placing is still the paper's: you drag
+and pinch it up there, the stage stands its sheet back in its frame for the length of it,
+and the stored zoom comes back when the photo settles. See **v11** and **v12** in
 [`drawing-modes.md`](drawing-modes.md).
 
 **Two things about the picture itself.**
