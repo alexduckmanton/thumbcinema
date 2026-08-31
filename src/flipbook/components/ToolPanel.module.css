@@ -1,0 +1,296 @@
+/*
+ * The create page's controls, all of them, in one panel: a rail down the left-hand side,
+ * at every width.
+ *
+ * It lay down into a bar along the bottom on a phone for a while, and that was worse in
+ * two ways. A row of twelve tiles cannot fit across a 360px screen, so it had to scroll
+ * sideways — and a list that runs off the right-hand edge is a list nobody knows is
+ * there, where a column that runs past the bottom of the screen is one you scroll without
+ * being told to. And the flipbook is a column: a rail beside it shares its axis, where a
+ * bar under it cut across the one direction everything else on the page moves in.
+ *
+ * The order is what marks the page, what changes the page, what undoes it, and what it is
+ * traced from. Save is not in it — see the create page's stylesheet, which floats it.
+ *
+ * Every button is 40×40. That number is the whole reason the hand-drawn tool art could
+ * not come across — a pencil is a 304px picture anchored by its tip — and it is what
+ * makes the list legible as a list: one size, one shape, one face, and the only thing
+ * that differs down the column is the character.
+ */
+
+.panel {
+	/*
+	 * Out of the flow and down the left-hand side, because the drawing is centred in what is
+	 * left of the window and a rail in the column would be above it rather than beside it.
+	 *
+	 * `absolute` against the create page's `main`, which is the box that starts where the
+	 * header ends — so `top: 0` is flush against the header by construction rather than by
+	 * arithmetic. It was `--chrome-top`, a stated constant that was deliberately larger than
+	 * the header because it is the air the *drawing* keeps clear, and standing the rail on it
+	 * left 45px of nothing under the header on a desktop and a 16px overlap on a phone. The
+	 * rail is the header's own furniture and belongs against it; there is no number to get
+	 * right if the box it is inside already ends in the right place.
+	 */
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 30;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: var(--rail-width);
+	padding: var(--pad) 0 calc(var(--pad) + 8px);
+	transition: transform 0.4s ease-in, opacity 0.4s ease-in;
+
+	/* One number, and everything here is drawn off it. `--rail-width` is the create page's,
+	   because the drawing's own position is drawn off it too. */
+	--tile: 40px;
+	--pad: 12px;
+	--gap: 6px;
+}
+
+/* Off the left-hand edge, which is the direction this page's controls leave in. */
+.stowed {
+	transform: translateX(-100%);
+	opacity: 0;
+	pointer-events: none;
+}
+
+/*
+ * The list itself, which is what scrolls when there is not enough window for it.
+ *
+ * `min-height: 0` because this is a flex child that has to be allowed to be shorter
+ * than its content — without it the rail sizes to the list, pushes the save button off
+ * the bottom of the panel, and the overflow it was given never engages.
+ *
+ * `scrollbar-width: none` and the WebKit pseudo-element with it: a scrollbar 72px from
+ * the edge of the window, over a drawing tool, is a piece of furniture in the middle of
+ * the page. What says there is more to see is the same thing that says it on the page
+ * strip — you can see the next thing, partly.
+ */
+.rail {
+	display: flex;
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--gap);
+	scrollbar-width: none;
+
+	/*
+	 * The scroll, and the room a shadow needs to be inside it.
+	 *
+	 * `overflow: hidden auto` clips the *other* axis outright — that is what `hidden`
+	 * means, and there is no combination of values that scrolls one axis and lets the
+	 * other overflow visibly. So every tile in the rail had the left and right of its
+	 * shadow sliced off flush with the panel, which read as the buttons being cut out of
+	 * the page rather than lying on it.
+	 *
+	 * The fix is room rather than a different overflow: the padding is wider than the
+	 * shadow's blur and offset, and the negative margin gives that width back to the
+	 * layout so the rail is still the width of a tile plus the panel's own padding. The
+	 * top and bottom get the same treatment for the same reason — a tile against either
+	 * end of a scrolled list would otherwise lose the shadow on that side.
+	 */
+	padding: var(--bleed);
+	margin: calc(var(--bleed) * -1);
+	overflow: hidden auto;
+
+	--bleed: 8px;
+}
+
+.rail::-webkit-scrollbar {
+	display: none;
+}
+
+/*
+ * One group: the tools, the page actions, the edit actions, the camera.
+ *
+ * The rule between them is a border rather than an `<hr>` because it is a gap that has
+ * been given an edge, not a thing on the page: `:first-child` takes it off the top of
+ * the list, so the panel opens with a button rather than with a line.
+ */
+.group {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--gap);
+	padding-top: var(--gap);
+	border-top: 1px solid var(--line);
+}
+
+.group:first-child {
+	padding-top: 0;
+	border-top: none;
+}
+
+/*
+ * One control: a white tile with a single character on it.
+ *
+ * The same white and the same shadow as the paper and the page bar — everything on this
+ * page that you can press is lying on the grey, and lit the same way.
+ *
+ * `flex-shrink: 0` because the phone's copy is a row that scrolls: a bar too narrow for
+ * the list must run off the end of itself rather than squash twelve buttons into ovals.
+ */
+.button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--tile);
+	height: var(--tile);
+	padding: 0;
+
+	border: none;
+	border-radius: var(--radius-control);
+	background: var(--white);
+	color: var(--ink-strong);
+	cursor: pointer;
+	box-shadow: var(--shadow-card);
+
+	transition: opacity 0.15s linear, background 0.12s ease-out, color 0.12s ease-out,
+		transform 0.12s ease-out;
+}
+
+/*
+ * Nothing to undo, nothing to redo, nothing selected to copy, nothing copied to paste,
+ * and no page to change while one is arriving or leaving.
+ *
+ * Dimmed rather than hidden: which of these is available changes with every stroke and
+ * every tap on the drawing, and a button that comes and goes under a thumb resting near
+ * it is a button you press by accident. Kept at a legible weight — this says "not now",
+ * not "gone". It is also the whole of the instructions for copy and paste: the pair
+ * lights up in the order you have to press them.
+ */
+.button:disabled {
+	opacity: 0.3;
+	cursor: default;
+	box-shadow: none;
+}
+
+.button:not(:disabled):hover {
+	background: var(--page);
+}
+
+.button:not(:disabled):active {
+	transform: scale(0.94);
+}
+
+.button:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 3px;
+}
+
+/*
+ * The tool in hand, and the photo still in hand.
+ *
+ * The old tray said this by sliding the tool 50px down out of the row, which was the
+ * best thing about it and is the one piece of that idea a 40px tile in a rail cannot
+ * borrow — there is nowhere to slide to. So it takes the ink instead, which is what the
+ * camera disc already did for exactly this reason.
+ *
+ * After the hover rule rather than before it, and the second selector is not decoration:
+ * `.button:not(:disabled):hover` outweighs a bare class, so a lit tile under a mouse
+ * would otherwise go grey — which reads as the tool having been put down.
+ */
+.buttonOn,
+.buttonOn:not(:disabled):hover {
+	background: var(--ink-strong);
+	color: var(--white);
+}
+
+/*
+ * The glyph, set in Pecita like the wordmark and the save button under it.
+ *
+ * 24px because these are single characters in a face with a shallow x-height; at a UI
+ * size they read as punctuation. The 1px is the same correction the save label carries
+ * and for the same reason: Pecita's ascent and descent are lopsided against where the
+ * ink actually sits, so a centred box leaves the glyph high. Smaller than the label's
+ * 3px because a dingbat has no baseline to speak of — it is measured, not inherited.
+ */
+.glyph {
+	position: relative;
+	top: 1px;
+	font-family: 'Pecita', cursive;
+	font-size: 24px;
+	line-height: 1;
+}
+
+/*
+ * A phone: the same rail, narrower.
+ *
+ * 56 rather than 72 — a tile and 8px either side — because the drawing is as wide as the
+ * stage will give it and every pixel the rail takes is a pixel off the flipbook. On a
+ * 390px screen that leaves 334 of paper against the 358 the page had before there was a
+ * rail at this width at all, which is 7% and is what one place for every control costs.
+ *
+ * The rail scrolls here far more often than it does on a desktop: twelve tiles and their
+ * separators are about 590px, so a phone held upright has room for all of them and one
+ * held sideways has room for four. Save is not in the list — it floats — so nothing that
+ * scrolls out of view is a thing you cannot reach another way.
+ */
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
+	.panel {
+		padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+		--pad: 8px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.panel,
+	.button {
+		transition: none;
+	}
+}
+
+/*
+ * A desktop: the rail stands beside the drawing rather than at the edge of the window.
+ *
+ * Vertically centred on the stage — which is where the paper is, rather than where the
+ * window's middle happens to be — and 16px off the paper's left edge. On a wide screen a
+ * column pinned to the far left is a toolbar in a different postcode from the thing it
+ * works on; here the two read as one object.
+ *
+ * `max-height` with the centring, so a window too short for twelve tiles still scrolls the
+ * list rather than growing the rail off both ends of the screen at once.
+ */
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	/*
+	 * The aiming pad's switch, which exists only where the pad does.
+	 *
+	 * `usesAimPad` already keeps it off every mode that aims from somewhere else; this is
+	 * the other half of the same claim, because the pad is hidden by *its* stylesheet above
+	 * the phone breakpoint rather than by JavaScript. A button offering to hide something
+	 * that was never on screen is the kind of control that makes a page feel unfinished.
+	 */
+	.padOnly {
+		display: none;
+	}
+
+	/*
+	 * Beside the drawing rather than pinned to the edge of the window: on a wide screen a
+	 * column in the far corner is a toolbar in a different postcode from the thing it works
+	 * on. It still starts at the top, which is the header's bottom edge.
+	 *
+	 * It was vertically centred on the drawing for a while, which read as a big deliberate
+	 * gap under the header — 45px of it, with the same again below. The rail is part of the
+	 * header's furniture and belongs against it; centring made it a third thing floating in
+	 * the middle of the window.
+	 */
+	.panel {
+		bottom: auto;
+		left: calc((100vw - var(--book-width)) / 2 - var(--rail-gap) - var(--rail-width));
+		max-height: calc(100svh - 24px);
+		padding: var(--pad) 0;
+	}
+
+	/* Off to the left, past its own edge — the same direction it has always left in, now
+	   measured from wherever it is standing rather than from the window's edge. */
+	.stowed {
+		transform: translateX(calc(-100% - (100vw - var(--book-width)) / 2));
+		opacity: 0;
+		pointer-events: none;
+	}
+}

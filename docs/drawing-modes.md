@@ -1,21 +1,21 @@
 # Drawing with a finger
 
-The thirteen answers to "a finger is opaque", the admin-only switch between them, and
-v13 — the one the site ships. `src/flipbook/drawModes.ts`, `pointer.ts` and
+The fourteen answers to "a finger is opaque", the admin-only switch between them, and
+v14 — the one the site ships. `src/flipbook/drawModes.ts`, `pointer.ts` and
 `zoomStage.ts`.
 
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
-separate families and no consensus — so rather than pick one blind, thirteen of them are
-built behind an **admin-only** switch — the last disc in the phone's row of edit actions,
-wearing ⚿ — and drawn side by side: a
+separate families and no consensus — so rather than pick one blind, fourteen of them are
+built behind an **admin-only** switch — the last tile in the create page's rail, wearing ⚿
+— and drawn side by side: a
 follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
 over on half a second of stillness, four that move the cursor off the fingertip
 altogether, two that leave the finger where it is and magnify the drawing under it
-instead, and one that is both of those last two families at once depending on where you
+instead, and two that are both of those last two families at once depending on where you
 put your finger. `drawModes.ts` is the list and where each one comes from;
 `DrawModeSwitch` is the switch; `pointer.ts` is nearly all of the mechanism, and
-`zoomStage.ts` is the last three's own.
+`zoomStage.ts` is the last four's own.
 
 **They are numbered `v1` upwards rather than named, and the numbers are the point.**
 These differ from each other by a *rule* rather than by a picture, and half of them look
@@ -27,24 +27,26 @@ next number rather than displacing anybody. The caption under the switch is perm
 and leads with the number, because a mode you can't name is a mode you can't report on.
 They are grouped rather than ordered by history: **v1–v5 keep the finger as the pointer**,
 **v6–v10 stand the cursor away from the hand** and differ only in how the tool is told to
-start working, and **v11–v13 move the canvas instead of the cursor** — see below. v13 is
-the one that belongs to two groups at once, being v12 on the drawing and v10 off it.
+start working, and **v11–v14 move the canvas instead of the cursor** — see below. v13 and
+v14 belong to two groups at once, being v12 on the drawing and v10 off it; they differ only
+in where "off it" is.
 
-**v13 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
+**v14 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
 rather than "whichever is last in the list" — and since the switch is admin-only it is now
-the only thing that decides what anybody else gets. See **v13** below for the mode itself.
+the only thing that decides what anybody else gets. See **v14** below for the mode itself.
 
-**Phone only**, because the row it sits in is. Not a loss worth working around: thirteen
-answers to "a finger is opaque" is a question about fingers, and a desktop has a pointer.
-It used to float in the top-right corner of every layout — a corner three of these modes
-like to park a magnifier in. The glyph is U+26BF ⚿, checked against Pecita's cmap rather
+**At both widths now**, the rail being at both widths — it used to be phone-only because
+the row it sat in was, and before that it floated in the top-right corner of every layout,
+which is a corner three of these modes like to park a magnifier in. The rail is where it
+belongs: it is the least urgent thing on the page and a position you have to scroll a
+column to reach is exactly right for a control you should have to go looking for. The glyph is U+26BF ⚿, checked against Pecita's cmap rather
 than assumed: the face has the squared key and not U+1F512, and a key is the honest
 picture for a control you only see because you hold the token.
 
 **The switch is gated on the admin token**, the same shared secret the gallery's
 moderation toggles use and by the same one line (`isAdmin()`, `lib/admin.ts`). The other
-twelve modes are a question being asked rather than a setting: a picker offering a stranger
-thirteen ways to hold a pencil is a worse first thirty seconds than any of them is an
+fourteen modes are a question being asked rather than a setting: a picker offering a stranger
+fourteen ways to hold a pencil is a worse first thirty seconds than any of them is an
 improvement, and nothing on the page says a choice exists. The gate is in **two halves and
 both are needed** — `DrawModeSwitch` renders nothing, *and* `read` stops honouring what is
 in storage. Hiding the control alone would strand anybody who picked a mode while holding
@@ -66,13 +68,13 @@ cursor would jump under the hand and back — and it survives the gesture that m
 because a cursor you have carefully placed and then lost by lifting your finger is worse
 than no cursor. So the hand and the mark are never in the same place, which is the
 occlusion problem answered rather than worked around. What sets the tool *working* is a
-second contact: a second finger anywhere on the page, or a tool held down in the tray by
+second contact: a second finger anywhere on the page, or a tool held down in the panel by
 the other hand. Either finger steers, and the cursor follows the average of whichever
 contacts the browser reports as having moved.
 
 Things worth knowing before touching anything nearby:
 
-- **paper drives no touch here at all**, and in nine of the thirteen modes it drives none.
+- **paper drives no touch here at all**, and in nine of the fourteen modes it drives none.
   paper 0.12 is single-pointer by construction — it reads `targetTouches[0]`, has one drag
   in flight and no notion of a pointer id — so it cannot see a second contact, and it
   works at the *fingertip*, which in those six is neither the cursor nor anywhere on the
@@ -93,8 +95,8 @@ Things worth knowing before touching anything nearby:
   dragging down there aims exactly as dragging on the paper does. What keeps that from
   eating the rest of the page is `ownsTouch`: a touch that starts inside a `button`, `a`,
   `input`, `select`, `textarea` or `[role="slider"]` is left entirely alone, propagation
-  and all, which is every control on this page and is what lets the tray's own handlers
-  see a finger land on a tool while another one is aiming. A press on the tray is still
+  and all, which is every control on this page and is what lets the panel's own handlers
+  see a finger land on a tool while another one is aiming. A press on the panel is still
   *felt* — as the other hand, through `onToolPressed` — just not as a finger, or the same
   press would engage the tool twice and stay engaged when one of the two was released.
 
@@ -110,11 +112,11 @@ Things worth knowing before touching anything nearby:
   viewport-tall. When that `position: fixed` came off — for the iOS toolbar tinting, see
   the note in `base.css` — the body went back to `height: auto`, a percentage minimum
   against an auto height computes to nothing, and the column quietly stopped at its own
-  content. Nothing looked wrong: the drawing, the bar and the tray were all where they
+  content. Nothing looked wrong: the drawing, the bar and the rail were all where they
   had always been. What had gone was the empty half of the window under them, so a stroke
   started low simply never began. A viewport unit says what was meant without caring what
   the body is doing.
-- **Two holders, and either will do.** A held tray button and a second finger are both a
+- **Two holders, and either will do.** A held rail button and a second finger are both a
   mouse button, and which one is to hand depends on how the phone is being held rather
   than on which is better. So a gesture can have *two* at once, and a release has to ask
   whether the other one is still there: letting go of the pencil while two fingers are on
@@ -171,19 +173,19 @@ Things worth knowing before touching anything nearby:
   What that costs is nothing: pressing the hand still selects the stroke under the cursor
   exactly as it did, because that press means one thing again. `TAP_SLOP` and `TAP_TIME`
   went back to being the page tap's alone.
-- **A press on the tray is otherwise unconditional**, and settled on the way back up in
+- **A press on the panel is otherwise unconditional**, and settled on the way back up in
   one respect only: a press that did some work was the tool being used, and a press that
   did none was an ordinary tap and picks the tool up. It cannot be decided on the press,
   because at that moment there is no way to know whether a finger is about to land on the
-  page. `CreateTray` suppresses its own `onClick` for pointer-driven presses; keyboard
+  page. `ToolPanel` suppresses its own `onClick` for pointer-driven presses; keyboard
   activation still goes through it, told apart by `event.detail === 0`.
-- **The tray's three tools are driven by touch events, not by a click and not by a
+- **The rail's tools are driven by touch events, not by a click and not by a
   pointer event, and that is what makes changing tool mid-gesture possible at all.** A
   tap on a tool while a finger is already on the page is a *multi-touch* gesture, and a
   browser owes it neither a `click` nor a compatibility mouse event — those are for a
-  single-finger tap. So the tray was reachable only by putting the drawing hand down
+  single-finger tap. So the panel was reachable only by putting the drawing hand down
   first, which is the one thing this whole mechanism exists to avoid. Two further things
-  were working against it, both fixed rather than worked around: the tray inherited the
+  were working against it, both fixed rather than worked around: the panel inherited the
   body's `touch-action: manipulation`, so a second contact on it is a candidate pinch and
   a browser may hold the touch back while it decides (`none` now, the other half of what
   the canvas already says); and selecting a tool slides its button 20px down out from
@@ -194,7 +196,7 @@ Things worth knowing before touching anything nearby:
   and takes the long-press callout with it. The mouse keeps the pointer handlers, told
   apart by `pointerType`, and `setPointerCapture` for the same reason touch doesn't need
   it. Verified by withholding pointer events and synthesised clicks from touch
-  altogether: the tray goes on working, and before this it did nothing at all under those
+  altogether: the panel goes on working, and before this it did nothing at all under those
   conditions — no drawing, no switching.
 - **Changing tool part-way through a gesture puts the old one down first.** `engagePress`
   disengages before it selects, because a stroke left open while the tool underneath it
@@ -228,12 +230,11 @@ Things worth knowing before touching anything nearby:
   changeover you can't see and a mouse button is under your own hand.
 
 An intercepted gesture goes through the same `handlePointerDown`/`handlePointerUp` as
-an ordinary one, so it is one history step and updates its page and thumbnail the same
-way. It differs in one measurable respect: a stroke includes the point the gesture
+an ordinary one, so it is one history step and recounts its page the same way. It differs in one measurable respect: a stroke includes the point the gesture
 opened at, where a paper-driven one's first segment is the first `onMouseDrag` — about
 7px in.
 
-## v11, v12 and v13, which move the canvas instead of the cursor
+## v11 to v14, which move the canvas instead of the cursor
 
 The three modes whose answer is a **layout** rather than a gesture, and the odd ones out in
 every list above. All three put the drawing under the finger at up to four times life size,
@@ -261,9 +262,33 @@ own because v11 shares none of the machinery the other ten do.
   units — so it needs telling which page, since there are two shapes and the bounds differ. The outline, the magnified copy and where a finger lands in the
   artwork are three readings of those four, so there is one thing to be right about rather
   than three.
+- **A stage in the band is a window; a stage in the paper's place is a sheet of paper.**
+  Same four numbers, two readings of them, and the difference is the whole feel of the
+  thing. v11's band copies the rectangle into a box that never moves, so magnifying is
+  something the copy does and what you watch is the drawing swelling inside a hole. In
+  v12–v14 the stage *is* the drawing, and a hole is the wrong thing for it to be: there the
+  rectangle is written out as a CSS transform (`stageTransform`), the sheet itself scales
+  and slides — off under the page bar, the aiming pad and the rail, and past the edges of
+  the window — and `paint` copies the whole page 1:1 underneath it. Built the other way
+  first, and using it is what settled it: a drawing surface you are locked inside reads as
+  something being done *to* the picture rather than as picking it up.
+- **The transform moves the sheet and nothing else, which is why the gestures needed no
+  changes at all.** `.onPaper` is the host and stays exactly where it was — it is what
+  `measureStage` observes, what a touch is measured against, and where the cursor ring is
+  drawn — and `.sheet` inside it carries the transform, the white and the rounding. So
+  every number `PointerLayer` works in is still a fraction of a rectangle that hasn't
+  moved, and a finger out on the part of the sheet that hangs off the frame is handled by
+  the thing that already handled a finger sliding off an edge: `stagePoint` extrapolates
+  rather than clamping. `transform-origin: 0 0` and translations in percentages of that
+  resting box, so the transform needs no measurement of anything.
+- **The sheet always covers the frame, because `clampViewport` already says so.** You
+  cannot zoom out past the whole page and you cannot pan past its edges, so the paper is
+  never smaller than the box it rests in and there is never a gap beside it. Coming back
+  out lands on exactly the size the layout chose — the transform is the identity at rest,
+  which is also what makes this cost nothing when nobody pinches.
 - **The trace photograph is drawn into the stage, not laid over it.** On the paper the
   picture is a sibling of the canvas with `mix-blend-mode: multiply`, and it can be,
-  because the paper *is* the whole page and a layer can simply cover it. Down here the
+  because the paper *is* the whole page and a layer can simply cover it. In the band the
   stage is a window on the page, so the photo has to go through the placement and then
   through the window, with only the part inside it drawn — `paintTrace` does that with the
   same transform chain `.plate` states in CSS, in the page's own units, and clips to the
@@ -279,9 +304,8 @@ own because v11 shares none of the machinery the other ten do.
 - **The stage is a copy, not a second drawing.** One `drawImage` per frame out of the live
   canvas — the loupe's mechanism at a larger size — and a finger's position handed back
   through the same window the other way. So there is nothing here for the save path, the
-  history or the page strip to know about: a gesture that arrives from down there is one
-  history step and one thumbnail, and the artwork is still its own size whatever is on
-  screen.
+  history to know about: a gesture that arrives from down there is one history step, and
+  the artwork is still its own size whatever is on screen.
   Copying is also what keeps it honest, because what you see is the live canvas: the
   stroke in progress, the onion skin and a selected stroke's blue are all in it without
   this code knowing any of them exist. **What it costs is sharpness at the far end of the
@@ -289,7 +313,7 @@ own because v11 shares none of the machinery the other ten do.
   share a width) at the device's pixel ratio, so at 4× the copy magnifies about 2:1. On a phone that is a soft edge on a
   hand-drawn line.
 - **Its size is measured, and its shape falls out of the measurement.** The stage takes
-  what the column has left once the strip, the paper, the page bar and the tray have taken
+  what the stage has left once the paper and the page bar have taken
   theirs — nothing above it moves, and `--book-reserve` is the number it always was — so
   its aspect ratio is whatever the phone leaves it, and **the rectangle takes its shape
   from the stage rather than the other way round**. Which is why the rectangle is not
@@ -306,8 +330,8 @@ own because v11 shares none of the machinery the other ten do.
   The sheet is also the only thing that keeps paper.js out of a canvas that is no longer a
   drawing surface: paper binds `mousedown` to that element in its own constructor.
   `pointer-events: none` on the canvas was the first attempt and is wrong — it drops the
-  touch through to the *page thumbnails* standing behind the drawing, which are not in
-  `.book` and so are nobody's surface at all.
+  touch through to whatever is behind the drawing, which is not in `.book` and so is
+  nobody's surface at all.
 - **Pinch works on both canvases and reads in opposite senses, deliberately.** On the
   stage you are handling the drawing: fingers apart is a closer look, which is a smaller
   window. On the paper you are handling the rectangle: fingers apart makes the rectangle
@@ -336,13 +360,13 @@ own because v11 shares none of the machinery the other ten do.
   `MIN_STAGE_HEIGHT`, `stageView()` is null, and every branch in `PointerLayer` falls back
   to marking at the fingertip on the paper. One condition, read in one place, and no media
   query written out again in JavaScript.
-- **The column had to become a flex column, and only on the phone layout.** `.content` and
-  `.center` distribute height so the stage can take what is left; above the breakpoint
-  both go back to block flow, because a flex column doesn't collapse margins and the
-  tray's 15px bottom margin and the save button's 15px top margin are a single 15px gap in
-  flow and 30 in flex. Measured both ways round: with the stage up and without it, in
-  three modes and on both layouts, the paper, the page bar, the tray, the strip and the
-  footer are at the same pixel they were before any of this.
+- **The column is a flex column at both widths**, `.content` and `.stage` distributing
+  height so the second canvas can take what is left. Measured both ways round: with the
+  stage up and without it, in three modes and on both layouts, the paper, the page bar and
+  the rail are at the same pixel they were before any of this. It used to be phone-only,
+  because a flex column doesn't collapse margins and the old tray's bottom margin and the
+  save button's top margin were a single 15px gap in flow and 30 in flex. There is nothing left
+  in the column with a margin to collapse.
 - **The `PointerLayer` moved out of `InkCursor`.** Two components now draw a cursor — the
   paper's and the stage's — and neither can own the object that decides what a finger
   means. `usePointerLayer` builds it and the page hands it to both; `Cursor.surface` is
@@ -353,8 +377,8 @@ own because v11 shares none of the machinery the other ten do.
 
 The same window with the overview taken away. One canvas, in the place the drawing has
 always been: **two fingers pinch and pan it, one finger draws in it.** Nothing else about
-the column changes — the strip, the page bar, the tray and the footer are at the pixel
-they are in every other mode, measured.
+the layout changes — the page bar and the rail are at the pixel they are in every other
+mode, measured.
 
 - **It starts at the whole page, where v11 starts at 2×.** With no second view to find
   your bearings in, arriving already magnified would be arriving somewhere you didn't ask
@@ -363,8 +387,8 @@ they are in every other mode, measured.
   rather than a constant; `defaultViewport` takes it.
 - **The live canvas is still the drawing, and is hidden.** paper renders into it exactly
   as always — a hidden element still has a backing store, which is what the stage copies
-  from and what the page strip photographs — so the artwork, the thumbnails, the history
-  and the save know nothing about any of this. `visibility` rather than `opacity` for two
+  from and what the save photographs for its cover — so the artwork, the history and the
+  save know nothing about any of this. `visibility` rather than `opacity` for two
   reasons that are both the point: a hidden element is not a hit target, so paper's own
   `mousedown` on that canvas can never fire while something else drives the tools; and it
   casts no shadow, which is why the stage carries the paper's.
@@ -456,7 +480,7 @@ about how big the mark is. `aimsOffStage` is the mode's whole predicate, and
   is published from `PointerLayer`'s store rather than the stage's — so without a
   subscription there is no cursor at all until the first finger lands. It stands down while
   a gesture is in flight, that path clamping and publishing for itself.
-- **A held tray tool engages only the aiming gesture.** `holdsTool` is v8's, v10's and now
+- **A held rail tool engages only the aiming gesture.** `holdsTool` is v8's, v10's and now
   v13's, but a stroke on the stage is the finger's own from end to end: a tool button
   pressed part-way through one must neither claim to have started it nor end it on the way
   back up, which is exactly what the release branch would otherwise do, the stroke being
@@ -472,7 +496,65 @@ Measured on an iPhone 13: a drag in the band moves the cursor by exactly the fin
 delta and marks nothing; the cursor goes the instant a finger lands on the canvas and is
 still gone after the stroke, after the release and after a pinch, and comes back on the
 next touch in the band at the pixel it was parked on; it survives the lift; a second finger down there draws
-(916 px) and either finger steers; a held pencil in the tray with one aiming finger draws
+(916 px) and either finger steers; a held pencil in the panel with one aiming finger draws
 (2267 px); a stroke drawn entirely from the band lands 1816 px of ink; the transform tool
 marqueed from the band selects (1060 blue px) and a bare tap down there puts it down again;
 and on the stage a one-finger stroke and a two-finger pinch behave exactly as v12's.
+
+### v14: v13 with the aiming given a box of its own
+
+**What ships.** Everything about it is v13 — the same v12 on the drawing, the same standing
+cursor, the same second finger, the same held tool, the same `aimsOffStage` machinery —
+except where the aiming happens. v13 claims *everywhere that is not the paper or a
+control*; v14 claims one panel at the bottom of the screen and leaves the rest of the page
+alone.
+
+**The reason is that "everywhere else" stopped being empty.** v13's band was the white
+under the tools, which nothing on the page wanted, and reading every touch there as an
+aiming drag cost nothing at all. Then the create page's flipbook became a *column you
+scroll* — and the pages were suddenly most of what "everywhere else" was. Two gestures
+wanted the same drag and v13 answers "aim" every time, so under v13 the column could not be
+scrolled with a finger at all.
+
+That column is gone again (`docs/create-page.md` says why), and v14 stays. The claim it
+made turned out to be the better one on its own terms: an aiming surface you can *see*
+beats a rule about which parts of a white page are live, and the rule was only ever
+invisible because there was nothing else there. It is also the version that survives the
+next thing put in the white, which is what caught v13 out.
+
+**So the surface is drawn rather than inferred.** `AimPad` is a panel a shade darker than
+the page with a dotted texture on it — a trackpad, which is exactly what it is — and it is
+the only thing `PointerLayer` will open a field gesture on. What it costs is honest: the
+height of the pad, and having to reach for a particular place rather than wherever your
+thumb happens to be. What it buys is that every other part of the page means what it looks
+like it means, and that the aiming surface is something you can *see* — which "drag
+somewhere in the white" never was.
+
+- **`usesAimPad` is the whole predicate, and the hit test is `[data-aim-pad]`.** An
+  attribute rather than a registry or a ref: the pad is rendered by a component the layer
+  doesn't own, may not be on the page at all, and has nothing else to say to it.
+  `surfaceOf` returns `'field'` for a touch inside it and `null` for one outside, and a
+  `null` surface is a touch the layer never claims — so a control under it gets its press,
+  and empty page stays empty page.
+- **The pad is hidden above the phone breakpoint, and the layer needs no matching
+  condition.** A hidden element takes no touches, so up there no touch is ever aiming. The
+  mode is answering occlusion, which a mouse does not have — the same stand-down v11 and
+  v12 make.
+- **The rail can take the pad away, and the layer needs no condition for that either.** The
+  create page keeps the switch; `AimPad` is simply not rendered, `[data-aim-pad]` matches
+  nothing, and every touch outside the paper and the controls comes back `null` — so
+  nothing aims. That is v14 with its one input surface removed rather than v14 falling back
+  to v13, and it is deliberate: v13's answer was to read the whole white field, which is
+  the thing this mode exists to stop doing. What the button buys is the view of the bottom
+  of the window, and *only* that: the band the pad stood in stays reserved, because giving
+  it back to the drawing re-centres the paper. The button lights while the pad is up,
+  because losing cursor control is a trade worth naming.
+- **`html.locked` says `touch-action: none` again.** It had to give `pan-y` back for a
+  while, because `touch-action` is an intersection down the ancestor chain that a
+  descendant cannot give back — and while the flipbook was a scrolling column of
+  thumbnails, `none` meant a column a wheel could move and a finger could not. There is
+  nothing on this page to pan any more, so the stronger statement is back, and the save
+  form's `pannable` escape is the one thing that lifts it. See `base.css`.
+- **A short window gets a short pad**, 56px against a third of the screen. What a trackpad
+  needs is area and travel rather than height, the gesture is a delta rather than a
+  position, and held sideways the pad is 750px wide.

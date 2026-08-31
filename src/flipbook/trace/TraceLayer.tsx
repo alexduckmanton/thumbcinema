@@ -25,7 +25,7 @@ export interface TraceLayerProps {
  * It is a pair of DOM layers rather than anything in the paper.js scene, and that is the
  * single most load-bearing decision in the feature. A `Raster` in the project would be a
  * fourth thing under `SYSTEM_LAYERS`, would be written into `exportSVG()` and so into
- * every saved flipbook, would be photographed by `captureActivePage` into the page strip
+ * every saved flipbook, would be photographed by `exportForSave` into the saved
  * and by `exportForSave` into the cover, and would have to be taught to the undo history.
  * A reference you trace over is none of those things: it is scaffolding, it belongs to
  * the session rather than to the drawing, and the artwork must come out byte-identical
@@ -47,7 +47,8 @@ export interface TraceLayerProps {
  *  - **Nothing goes through React until the fingers come off.** The placement is written
  *    straight onto both layers as four custom properties — the same bargain the page
  *    reorder makes with `--drag`, and for the same reason: a pointer moves a hundred
- *    times a second and re-rendering a page strip for each one is not a thing to do.
+ *    times a second, and re-rendering the page around it for each one is not a thing to
+ *    do.
  */
 export function TraceLayer({ photo, page, placing, onPlaced, onAccept }: TraceLayerProps) {
 	const frame = useRef<HTMLDivElement | null>(null)

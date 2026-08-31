@@ -52,11 +52,12 @@ export const DEFAULT_ZOOM = 2
 /**
  * The largest window of this shape that fits on the page.
  *
- * The stage's aspect is *measured* rather than stated — it is whatever the leftover band
- * comes out as — so it is nearly always wider than the page itself, and the biggest
- * window is therefore the full width of the page and only part of its height. That is
- * not a limitation to work around: the paper above is the view that shows everything,
- * and this one is the view you draw in.
+ * The stage's aspect is *measured* rather than stated — it is whatever the surface comes
+ * out as — so the biggest window is whichever of the page's two dimensions binds first.
+ *
+ * **This is where a stage on the paper opens and it is as far out as it goes.** You cannot
+ * zoom out past the whole page: the resting view is the widest there is, so pinching only
+ * ever goes in and comes back to exactly the size the layout chose.
  */
 export function maxWidth(page: PageSize, aspect: number): number {
 	return Math.min(page.width, page.height * aspect)
@@ -87,7 +88,13 @@ export function clampViewport(view: Viewport, page: PageSize, aspect: number): V
 	}
 }
 
-/** The middle of the page at `zoom`, or as near to it as the limits allow. */
+/**
+ * The middle of the page at `zoom`, or as near to it as the limits allow.
+ *
+ * `zoom` 1 is the whole page, which is where a stage standing on the paper opens and is
+ * also as far out as it goes — see `maxWidth`. So the flipbook at rest is at exactly the
+ * size the layout gave it, and pinching only takes you in.
+ */
 export function defaultViewport(page: PageSize, aspect: number, zoom = DEFAULT_ZOOM): Viewport {
 	const w = page.width / zoom
 	const h = w / aspect
@@ -173,6 +180,45 @@ export function stagePlace(view: Viewport, at: Point, box: Box): Point {
 		x: view.w === 0 ? 0 : ((at.x - view.x) / view.w) * box.width,
 		y: view.h === 0 ? 0 : ((at.y - view.y) / view.h) * box.height,
 	}
+}
+
+/**
+ * The window, as a CSS transform of the sheet it is a window on.
+ *
+ * **This is what makes a stage standing in the paper's place a sheet of paper rather than
+ * a magnifying glass.** The other reading of a viewport — the one `paint` does for v11's
+ * band — is "copy this rectangle of the page into a box that never moves", and on a
+ * surface that *is* the drawing that reads as being locked inside a hole: the paper stays
+ * exactly where it was and its contents swell inside it. Written as a transform instead,
+ * the sheet itself grows and slides, off under the rail and the page bar and past the
+ * edges of the window, which is what taking hold of a piece of paper looks like.
+ *
+ * `transform-origin: 0 0`, and the translate is in percentages of the sheet's own resting
+ * box so this needs no measurement of anything: CSS resolves them against the border box,
+ * which is the box the viewport's fractions are already against. Read left to right as
+ * matrix multiplication — the scale applies first, then the translate, which is therefore
+ * *not* multiplied by it.
+ *
+ * The scale is uniform, which is exact only where the box has the page's aspect. It does:
+ * this is `.onPaper`, which is `inset: 0` inside a frame whose `aspect-ratio` is the
+ * page's. v11's band is any shape at all, and is why `paint` still has the other reading.
+ *
+ * Nothing here clamps. `clampViewport` has already refused every window that would show
+ * anything but page, so the sheet always covers the frame at least once over: you can go
+ * in and move about, and coming back out stops at exactly the size the layout chose.
+ */
+export function stageTransform(view: Viewport | null, page: PageSize): string {
+	if (!view || view.w === 0 || view.h === 0) return 'none'
+
+	const across = (-view.x / view.w) * 100
+	const down = (-view.y / view.h) * 100
+
+	return `translate(${across}%, ${down}%) scale(${page.width / view.w})`
+}
+
+/** The whole page as a window, which is what a sheet at rest is showing. */
+export function pageViewport(page: PageSize): Viewport {
+	return { x: 0, y: 0, w: page.width, h: page.height }
 }
 
 /** And a point on the paper, in its CSS pixels, the same way. The paper is the page. */

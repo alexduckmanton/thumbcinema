@@ -1,326 +1,262 @@
 /*
- * The create page's own layout: the column, the footer bar and the save button.
+ * The create page's layout: one windowful, held still, with a rail down the left of it.
  *
- * Written for a phone first and let out at 731px, because the phone is the layout
- * with something to solve. A desktop has more room than the tool needs and the shape
- * of it hasn't changed since 2013: strip, canvas, tray, save. The order is the same on
- * a phone — with a page bar between the canvas and the tray — and what gives is size:
- * the canvas is scaled to whatever is left after the rest of the column has been
- * counted, because a page that scrolls while you draw on it is a page that has taken
- * the stroke away from you.
+ * Four boxes and nothing else. A header carrying one button; a rail of 40×40 Pecita tiles
+ * pinned to the left; the drawing, taking whatever height is left; and the page bar under
+ * it. v14 adds a fifth over the bottom of the window — the aiming pad — which is furniture
+ * laid over the page rather than a box in it.
+ *
+ * **This page scrolled for a while and it doesn't any more.** The flipbook was a column of
+ * thumbnails you scrolled with the drawing pinned over the middle, and getting that to work
+ * took a scroll container, a mandatory snap container, a `position: sticky` wrapper to keep
+ * the chrome inside the scroller's chain, a snap offset measured in JavaScript because no
+ * stylesheet could state it, two rules stopping the scroll and the page number from
+ * answering each other, and one full-size canvas per page under a memory ceiling. The page
+ * bar does the same job in one control and 60px of height, and it can say where you are in
+ * a 200-page flipbook, which three visible thumbnails never could. What that cost is
+ * written down in `docs/create-page.md` rather than lost.
+ *
+ * So nothing here scrolls, and `html.locked` in `base.css` is what holds the document
+ * still. The drawing is sized to what is left after everything else has been counted —
+ * `--book-reserve` — because a page that scrolls while you draw on it is a page that has
+ * taken the stroke away from you.
  */
 
 .content {
 	position: relative;
 	width: 100%;
+
 	/*
-	 * A column, so that v11's second canvas can take what is left of it.
+	 * A column: the stage takes what the header, the bar and the pad's band leave, and v11's
+	 * second canvas takes what the stage leaves after that.
 	 *
-	 * Only one thing in here is in the flow — the strip is `position: absolute` — so this
-	 * changes nothing about where anything stands: `.center` doesn't grow, and the stage
-	 * that does is only rendered in the one mode that has one. Measured both ways round
-	 * rather than assumed: the paper is at the same pixel with the stage up as without it.
+	 * `html.locked main { flex: 1 }` in `base.css` is what stretches this to the bottom of
+	 * the window, which matters for more than tidiness: the empty white under the drawing is
+	 * the field a finger aims from in the modes that aim from below it.
 	 */
 	display: flex;
 	flex-direction: column;
-	/* And stretched to the bottom of the window while the tool is up, because the empty
-	   white under the tools is the field a finger aims from. That is `html.locked main`
-	   in base.css, which is also where it says why it isn't a `min-height` here. */
 	padding-top: 20px;
-	/* Air under the save button, and clear of the home indicator with it. */
-	padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
+	/*
+	 * The aiming pad's band, plus air. The pad is `position: fixed` and out of this column
+	 * entirely — it has to be, so the rail's switch can take it away without moving the
+	 * drawing — so the column has to keep the room clear itself. Without this the page bar
+	 * sat *underneath* the pad, which is a control hidden behind a surface you drag on.
+	 * `--chrome-bottom` already carries the safe-area inset.
+	 */
+	padding-bottom: calc(var(--chrome-bottom) + 12px);
+	/* The rail's lane, on the layout where the rail stands in one. */
+	padding-left: var(--stage-left);
 
 	/*
-	 * Everything on this page that isn't the drawing, which is what the canvas is sized
-	 * around: the page bar, the tray, the save button, this column's own padding, and a
-	 * little slack. Held sideways a phone is barely taller than that list, so the number
-	 * comes down and each of the parts it counts comes down with it.
+	 * How wide the sheet of paper is, and it is stated in viewport units rather than as a
+	 * `min(100%, …)`.
 	 *
-	 * It was 318 and the header was in it. The header is gone from this page — no
-	 * wordmark, no edit actions — and both numbers came down by the 58px that left,
-	 * measured rather than reasoned: with the old value the column ended 64px short of
-	 * the window and the drawing was that much smaller than the room it had. What is
-	 * left over now is 6px at every size checked, which is the "little slack".
+	 * Two things read it that are not in this box — the aiming pad, which has to come out
+	 * exactly 16px wider than the drawing, and the rail, which stands beside it on a desktop
+	 * — and both are positioned against the window. `100%` means something different to each
+	 * of them. Written out, it is the same number wherever it is read.
+	 *
+	 * `--page-aspect` is the flipbook's own width over its height, set from `pageVars` on
+	 * this element. It has to be a decimal rather than the `640 / 360` that `aspect-ratio`
+	 * takes: this is inside `calc()`, where a division needs a plain number on the right.
+	 * The fallback is the legacy page — every flipbook that doesn't say what shape it is, is
+	 * that shape — but the create page always says, and what it says is square.
 	 */
-	--book-reserve: 260px;
+	--stage-width: calc(100vw - var(--stage-left) - var(--stage-gutter) * 2);
+	--book-width: min(
+		var(--stage-width),
+		var(--book-max),
+		calc((100svh - var(--book-reserve)) * var(--page-aspect, 1.7778))
+	);
+	--book-max: 100vw;
+
+	/*
+	 * Everything in the window that is not the drawing: the header band, the page bar, the
+	 * aiming pad's band, this column's own padding, and a little slack.
+	 *
+	 * A square page is what makes this number worth getting right. At 640 across a square
+	 * sheet is 640 tall where a 16:9 one was 360, so the height term is what binds at almost
+	 * every size now rather than at almost none — an over-generous reserve used to cost
+	 * nothing and now costs a visibly smaller drawing.
+	 *
+	 * 316 is 76 of header (the wordmark is gone; what is left is Save and the row's padding,
+	 * taken at the taller of the two phone breakpoints), 20 of padding above, 56 of page bar,
+	 * and 164 below — the aiming pad's band and its air. Stated rather than composed from
+	 * those parts because the header's height is `SiteHeader`'s business and differs at
+	 * breakpoints this page does not have; the slack is a few pixels at the sizes it is
+	 * wrong at, and it is measured rather than guessed.
+	 */
+	--book-reserve: 316px;
+
+	/*
+	 * The rail's box, and how much room the layout keeps clear for it.
+	 *
+	 * Two numbers because they are two questions, and on a desktop they have different
+	 * answers. `--rail-width` is how wide the panel is. `--stage-left` is how far in from the
+	 * left the drawing starts — the rail's width on a phone, where it is a column down the
+	 * edge, and *zero* on a desktop, where the drawing is centred in the window and the rail
+	 * floats beside it. What keeps the two from colliding up there is `--stage-gutter`, which
+	 * takes the rail's lane out of the drawing's width on **both** sides so the paper stays
+	 * centred and the rail always has somewhere to be.
+	 *
+	 * `--rail-width` is stated here rather than in the panel's own stylesheet because two
+	 * things need it and only one of them is the panel: the drawing's own position is drawn
+	 * off it.
+	 */
+	--rail-width: 56px;
+	--stage-left: var(--rail-width);
+	--stage-gutter: 16px;
+
+	/*
+	 * The band at the bottom of the window the aiming pad stands in, and it stands whether
+	 * the pad is in it or not.
+	 *
+	 * That is not tidiness, it is the fix for a bug. The rail has a switch that takes the pad
+	 * away, and the first version of it gave the band back to the drawing — which re-centred
+	 * the paper, and at the time the whole column of thumbnails was pinned to where the paper
+	 * had been. Nothing told it otherwise. The pad is furniture laid over the page; switching
+	 * it off is a `display` change and nothing else.
+	 */
+	--chrome-bottom: calc(var(--pad-height) + var(--pad-air) + 12px);
+
+	/*
+	 * v14's aiming pad, which `AimPad` takes its size from.
+	 *
+	 * `svh` and not `dvh`. Nothing on this page may be measured in the dynamic viewport:
+	 * every box here is drawn off every other one — this number is a term in
+	 * `--chrome-bottom`, `--chrome-bottom` is a term in `--book-reserve`, and
+	 * `--book-reserve` is what the drawing is sized against — so a unit that changes when a
+	 * browser slides its own chrome in or out is a drawing that resizes under your hand.
+	 */
+	--pad-height: clamp(88px, 17svh, 132px);
+	--pad-air: calc(8px + env(safe-area-inset-bottom));
+
+	/* The page bar's band: the bar's own height plus the margin it stands on. Named because
+	   three things have to agree about it — the band below, `--book-reserve` above, and the
+	   boot shell, which draws the band empty. */
+	--nav-band: 56px;
 }
 
 /*
- * The column, when it has to hand the bottom of itself to something.
+ * The drawing, taking whatever the rest of the column leaves.
  *
- * Applied to the same element as the global `.center`, and only on this page: v11's
- * second canvas is sized by what the column has *left*, which needs both this box and the
- * one above it to be columns that can distribute height. Every other mode renders no
- * stage at all, and with nothing in here able to grow this is the block layout it was.
- *
- * The stage's own `flex: 1` is in `ZoomStage.module.css`, beside the rest of what makes
- * it a sheet of paper.
+ * `min-height: 0` because it is a flex child that is allowed to shrink: without it a
+ * too-tall sheet would push the page bar off the bottom of a window that has nowhere to
+ * scroll to, which is the one failure this layout cannot recover from.
  */
-.column {
+.stage {
 	display: flex;
 	min-height: 0;
 	flex: 1;
 	flex-direction: column;
-}
-
-/*
- * The footer bar, held against the bottom of the window: the edit actions at one end,
- * save at the other.
- *
- * On a phone the column ends wherever the tools happen to end and the rest of the
- * screen is air, so a control in the flow sits in the middle of nothing and moves
- * about as the drawing is resized. Down here it is where a thumb already is and it
- * doesn't move. It was the save button alone, floating in the middle; a bar is what
- * lets the other four stand next to it without any of them looking like an
- * afterthought.
- *
- * The padding is what keeps it on the flipbook's ruler rather than the window's: the
- * box runs the full width and is inset to the width of the drawing, so both ends of
- * it are the ends of the *paper*. Sideways that is the difference between the
- * right-hand edge of a 249px flipbook and the right-hand edge of an 844px screen,
- * which is nowhere near the thing it saves.
- *
- * The `max` is what makes that true upright as well. `--book-width` is a `min(100%, …)`
- * and this box is fixed, so its `100%` is the window where the column's is the column —
- * upright, where the width is what binds, the difference comes out as zero and the bar
- * ran to the edges of the screen with the paper inset by a gutter above it. Below that
- * gutter there is nothing to calculate: the drawing is as wide as the column gets.
- */
-.footer {
-	position: fixed;
-	right: 0;
-	/* Clear of the home indicator as well as of the edge. */
-	bottom: calc(8px + env(safe-area-inset-bottom));
-	left: 0;
-	z-index: 16;
-	display: flex;
-	/* The two ends of the paper, and nothing claiming the middle. */
 	align-items: center;
-	justify-content: space-between;
-	padding: 0 max(var(--column-gutter), calc((100% - var(--book-width)) / 2));
-}
-
-/*
- * Undo, redo, copy and paste, in the bottom left of the window: the other end of the
- * footer from save, which is the end a right hand isn't resting on.
- *
- * The only copy there is, and it exists only at this width: the desktop had a second
- * row of these up beside the wordmark and no longer does — a keyboard has ⌘Z, and the
- * room was worth more than the buttons once a square page made the window tight. It
- * leads with a fifth disc: the camera, which is the whole of the trace-photo feature's
- * front door and exists only at this width.
- *
- * 4px rather than the 8 the desktop's row uses, and the difference is arithmetic rather
- * than taste. The narrowest layout that gets this row at full size is a 360px Android
- * phone, whose column is the window less two 16px gutters — 328px, of which "Save" set
- * in Pecita at 30px inside 26px of padding either side measures 110. That leaves 218 for
- * the discs, and five 38px discs 4px apart are 206 of it: 12px clear of the save button,
- * against the 11 the four-disc row this replaces had.
- *
- * The 38 is why there is a whole media query for it below rather than a number here:
- * `.action` itself stays at 48, which is the size a disc wants to be and the size the
- * page bar's own controls are drawn at. No layout renders the base value — this row is
- * `display: none` above the breakpoint — so it is the shape of the rule rather than a
- * size anything sees.
- */
-.actions {
-	display: flex;
-	gap: 4px;
-}
-
-/*
- * And the same row with the drawing-mode switch on the end of it, which only an admin
- * has. Six discs and "Save" do not fit the arithmetic above — five at 38 leave 12px
- * clear of the save button on a 360px phone, and a sixth overruns it by 30 — so the
- * whole row comes down a size rather than the new disc being the odd one out.
- *
- * Scoped to the admin case so that what everybody else sees is untouched: 32 and 3
- * leave 11px clear at 360 and 41 at 390, against 12 and 42 for the five-disc row.
- */
-.actionsAdmin {
-	gap: 3px;
-}
-
-.actionsAdmin .action {
-	width: 32px;
-	height: 32px;
-}
-
-/*
- * One action: a white disc exactly as tall as the save button and as wide as it is tall.
- *
- * The same white and the same shadow as the page bar above it and the paper above
- * that — this is a control lying on the page, and the ones it sits in a row with are
- * the ones it should be lit like.
- *
- * `flex-shrink: 0` because a disc is round: in a window narrow enough for the row to
- * want the space, four squashed ovals is a worse answer than a row that reaches the
- * save button.
- */
-.action {
-	display: flex;
-	align-items: center;
+	/*
+	 * Centred, and the page bar is centred *with* it rather than left at the bottom of the
+	 * column. The two are one object: the bar says which page the drawing is showing, and a
+	 * bar that drifts away from the sheet as the window gets taller is a caption that has
+	 * come off its picture.
+	 */
 	justify-content: center;
+	padding: 0 var(--stage-gutter);
+}
+
+/*
+ * The page bar's band, under the drawing.
+ *
+ * It has a stated height, and that is what makes the boot shell exact: the shell draws this
+ * box empty — a bar is a control, and a grey pill that turns into a working one is two
+ * loading states where the page needs one — so the height has to be something the shell can
+ * state without having the bar. `PageNav` centres itself inside it.
+ */
+.navBand {
+	height: var(--nav-band);
 	flex-shrink: 0;
-	width: 48px;
-	height: 48px;
-	padding: 0;
-
-	border: none;
-	border-radius: var(--radius-pill);
-	background: var(--white);
-	color: var(--ink-strong);
-	cursor: pointer;
-	box-shadow: var(--shadow-card);
-
-	transition: opacity 0.15s linear, background 0.12s ease-out, transform 0.12s ease-out;
 }
 
+/* While the artwork is on the wire: nothing to press. */
+.sending {
+	pointer-events: none;
+}
 /*
- * Nothing to undo, nothing to redo, nothing selected to copy, nothing copied to paste.
+ * Save, at the right-hand end of the header.
  *
- * Dimmed rather than hidden: which of the four is available changes with every stroke
- * and every tap on the drawing, and a button that comes and goes under a thumb resting
- * near it is a button you press by accident. Kept at a legible weight — this says "not
- * now", not "gone". It is also the whole of the instructions for copy and paste: the
- * pair lights up in the order you have to press them.
+ * It is the gallery's create button seen from the other end — the two are the ends of one
+ * errand, one starts a flipbook and the other finishes it — so it is the same yellow at the
+ * same rounding with the same shades, which are tokens and cannot drift. Not the same
+ * component: that one collapses to a circle on scroll and is a link.
+ *
+ * It floated over the drawing until the column went full-bleed, at which point a button in
+ * the corner was a button over a page you were trying to look at. Up here it is out of the
+ * flipbook entirely, which is right for the one control on the page that is not about the
+ * drawing.
  */
-.action:disabled {
-	opacity: 0.3;
-	cursor: default;
-	box-shadow: none;
+.save {
+	transition: opacity 0.3s ease-in, transform 0.3s ease-in;
 }
 
-.action:not(:disabled):hover {
-	background: var(--page);
-	transform: translateY(-1px);
-}
-
-.action:not(:disabled):active {
-	transform: translateY(0) scale(0.94);
-}
-
-.action:focus-visible {
-	outline: 2px solid var(--blue);
-	outline-offset: 3px;
-}
-
-/*
- * The camera, while the photo it took is still in hand.
- *
- * The one disc in this row that is a state rather than a press, so it is the one that
- * needs to look pressed — and while it does, what it does is "done", which is a
- * different thing from what it does the rest of the time. The tray's tools say the same
- * thing by sliding down out of the row; there is nowhere for a disc pinned to the bottom
- * of the window to slide to, so it takes the ink instead.
- *
- * After the hover rule rather than before it, and the second selector is not decoration:
- * `.action:not(:disabled):hover` outweighs a bare class, so a lit disc under a mouse
- * would otherwise go grey — which reads as the state having been let go of.
- */
-.actionOn,
-.actionOn:not(:disabled):hover {
-	background: var(--ink-strong);
-	color: var(--white);
-}
-
-/*
- * The glyph, set in Pecita like the wordmark and the save button beside it.
- *
- * 26px because these are single characters in a face with a shallow x-height, and at
- * the save button's 30 they read as an ornament rather than an arrow. The 1px is the
- * same correction the save label carries and for the same reason: Pecita's ascent and
- * descent are lopsided against where the ink actually sits, so a centred box leaves
- * the glyph high. Smaller here than the label's 3px because a ring has no baseline to
- * speak of — it is measured, not inherited.
- */
-.actionGlyph {
-	position: relative;
-	top: 1px;
-	font-family: 'Pecita', cursive;
-	font-size: 26px;
-	line-height: 1;
-}
-
-/* One page isn't a flipbook. The button stays in the layout so nothing jumps when
-   the second page arrives — it just isn't offering anything yet. */
+/* One page isn't a flipbook. The button stays in the layout so nothing jumps when the
+   second page arrives — it just isn't offering anything yet. */
 .noSave {
 	opacity: 0;
 	pointer-events: none;
 }
 
-/*
- * Save, matched to the create button on the gallery.
- *
- * The two are the ends of the same errand — one starts a flipbook, the other
- * finishes it — so they are the same yellow at the same size with the same rounding,
- * and the shared shades are tokens so they can't drift. Not the same component: that
- * one collapses to a circle on scroll and is a link, and it floats over a grid of
- * flipbooks, which is what its shadow is for. This one floats over an empty page on
- * a phone and sits in the column on a desktop, and has nothing to be lifted off.
- *
- * Not `<Button>` either. That is the site's blue control and this overrides its
- * colour, size, radius, weight, face and hover — at which point sharing the base
- * costs more than it saves.
- */
+/* Naming the flipbook: it leaves upwards, the way the header would. */
+.saveGone {
+	transform: translateY(-140%);
+	opacity: 0;
+	pointer-events: none;
+}
+
 .saveButton {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	/* 48 rather than the create button's 64. That one is a floating target with the
-	   whole gallery behind it; this one sits in a 640px column under the tray and at
-	   64 it was the loudest thing on the page. Everything else about the two matches. */
-	min-width: 48px;
-	height: 48px;
-	padding: 0 26px;
+	min-width: 44px;
+	height: 44px;
+	padding: 0 22px;
 
 	border: none;
 	border-radius: var(--radius-pill);
 	background: var(--yellow);
 	color: var(--ink-strong);
 	cursor: pointer;
+	box-shadow: var(--shadow-card);
 
 	/*
-	 * Pecita, as on the wordmark — this is the button that turns the drawing into
-	 * something with a name, so it is signed in the same hand.
-	 *
-	 * 30px against the tray's 16px because Pecita runs small: it is a handwriting
-	 * face with a shallow x-height, and set at a UI size it reads as a caption rather
-	 * than a label. No letter-spacing, for the reason the wordmark gives.
+	 * Pecita, as on the wordmark it sits beside — this is the button that turns the drawing
+	 * into something with a name, so it is signed in the same hand. 26px against the panel's
+	 * 24px glyphs because Pecita runs small: it is a handwriting face with a shallow
+	 * x-height, and set at a UI size it reads as a caption rather than a label.
 	 */
 	font-family: 'Pecita', cursive;
-	font-size: 30px;
+	font-size: 26px;
 	line-height: 1;
 
 	transition: background 0.12s ease-out, transform 0.12s ease-out;
 }
 
 /*
- * Pecita does not centre itself, which is the same reason the create button nudges
- * its writing-hand glyph down 2px.
+ * Pecita does not centre itself, which is the same reason the create button nudges its
+ * writing-hand glyph.
  *
- * Flexbox centres the text's *box*, and the browser sizes that from the font's own
- * metrics — at 30px Pecita reports an ascent of 20 and a descent of 10, so the box
- * centre sits 5px above the baseline. The ink of the word doesn't: "Save" has no
- * descender, so it runs 16.5px up from the baseline and 0 below, putting its centre
- * 8.25px above. The letters therefore sit 3.25px high in a box that is itself
- * centred. Inter, for comparison, is out by 0.13px and needs nothing.
- *
- * 3px of that back, measured rather than guessed: 15.5px of air above the ink and
- * 16px below. Without it, 12.5 and 19 — visibly high. The correction is a property
- * of the face, not of the button, so it doesn't move if the height does.
+ * Flexbox centres the text's *box*, and the browser sizes that from the font's own metrics
+ * — so the box centre sits above the baseline while the ink of a word with no descender
+ * does not. "Save" therefore rides high in a box that is itself centred. The correction is
+ * a property of the face rather than of the button, so it doesn't move if the height does.
  */
 .saveLabel {
 	position: relative;
-	top: 3px;
+	top: 2px;
 }
 
-.saveButton:hover {
+.saveButton:not(:disabled):hover {
 	background: var(--yellow-hover);
 	transform: translateY(-1px);
 }
 
-.saveButton:active {
+.saveButton:not(:disabled):active {
 	background: var(--yellow-active);
 	transform: translateY(0) scale(0.96);
 }
@@ -331,195 +267,55 @@
 }
 
 /*
- * Naming the flipbook used to empty the page: this bar slid off the bottom of the
- * window on a phone and off the top on a desktop, and the tray's tools flew up out of
- * the row. That belonged to a save form that was a panel laid over the canvas — it had
- * to be left alone with the drawing, because it was standing on it.
- *
- * The form is a modal now. It washes the whole window and puts `inert` on `main`, which
- * is the whole of what the fly-away was buying: nothing under it can be pressed,
- * focused or read out. So the page just stays as it was, which is also the page you get
- * back if you cancel.
- */
-
-/*
- * The phone layout's discs, which are five where the desktop's are four.
- *
- * 48px is the size a disc wants to be and is the size the header's row up there still
- * is; down here the camera button made a five-across row out of a four-across one, and
- * 48 stopped fitting. The arithmetic is on `.actions` above: 38 is the largest size at
- * which five of them plus "Save" still clear each other by the width of a gutter inside
- * the 328px column a 360px phone gives, which is the narrowest layout this block holds.
- *
- * Stated as its own query rather than as the base value so the base stays the size a
- * disc wants to be and each layout says what it can afford, rather than 38 reading as the
- * size and 48 as the exception.
- */
-@media screen and (max-width: 730px), screen and (max-height: 560px) {
-	.action {
-		width: 38px;
-		height: 38px;
-	}
-
-	.actionGlyph {
-		font-size: 22px;
-	}
-}
-
-/*
- * A phone too narrow for five controls at that size either.
- *
- * Five 38px discs and the 88px save button want 294px, and a 320px screen gives the
- * column 288 of it — so the row runs into the button it is supposed to end short of, and
- * takes it off the right-hand edge of the screen with it. Nothing above 360px is affected, which is every phone still sold; what this is
- * for is the 320px ones that aren't. A 280px folding phone's cover screen still overruns,
- * and is left to: the paper there is 264px wide, which is past the point where any of
- * this is a drawing tool rather than a demonstration that it loads.
- *
- * The diet is the one the sideways layout also takes, and it is stated again rather than
- * shared because that block is about *height* and brings a smaller reserve and a
- * right-aligned bar with it, neither of which a tall narrow phone wants. Same numbers: 36px
- * discs and a 36px save button, which is 276 of the 288 there is.
- */
-@media screen and (max-width: 359px) {
-	.action {
-		width: 36px;
-		height: 36px;
-	}
-
-	.actionGlyph {
-		font-size: 20px;
-	}
-
-	/* The discs' height, still — see the note on the sideways rule. */
-	.saveButton {
-		height: 36px;
-		padding: 0 18px;
-		font-size: 24px;
-	}
-
-	.saveLabel {
-		top: 2px;
-	}
-}
-
-/*
  * A phone held sideways.
  *
- * The canvas is 16:9 and so is the screen, which ought to be the best this thing ever
- * looks — except that everything around it is now competing for 375 points of height
- * rather than 812. So the page puts itself on a diet: the page bar and the save button
- * lose a quarter of their depth and the reserve comes down to match. The header does
- * its own shrinking; see SiteHeader.
+ * The canvas is square now and the screen is 16:9, which is the worst case this layout has:
+ * everything around the drawing is competing for 375 points of height rather than 812. The
+ * pad comes down to a strip, the column's padding with it, and what is left is still a
+ * square sheet about 230px on a side.
  */
 @media screen and (max-height: 560px) {
 	.content {
 		padding-top: 8px;
-		/*
-		 * Down from 250. The pencil's width popover used to hang 93px below the tool and
-		 * lie down through the middle of this band, and the bottom of *that* box was what
-		 * the reserve had to clear. It isn't shown on a phone at all any more, so what is
-		 * left to count is the footer, and the footer is 40px here.
-		 */
-		--book-reserve: 154px;
-	}
-
-	/*
-	 * Everything over to the right, and only here.
-	 *
-	 * Held sideways there is no room to put the drawing above the controls, so the tray
-	 * comes up to meet the footer — and the left end of this band is where the pencil
-	 * is. Each tool is a 304px picture anchored by its tip, the picked-up one hangs
-	 * 60px lower than the rest, and the tip lands squarely on an undo button sitting at
-	 * the paper's left-hand edge. There is nothing under the page actions at the other
-	 * end, so that is where the whole bar goes.
-	 *
-	 * It fits, but only just, and the camera button is what made it tight: five 36px discs,
-	 * 4px apart, plus 10px and an 80px save button is 286px of the 290 the drawing is wide
-	 * on the shortest landscape phone there is. The gap between the two groups came down
-	 * from 12 to buy the last four pixels of that.
-	 *
-	 * This layout has always done something of the kind: the rule it replaces put the
-	 * save button on the right to keep it off the width popover, which used to lie down
-	 * across the middle here. Same band, same problem, and now one answer for every control
-	 * in the bar rather than a special case for one.
-	 */
-	.footer {
-		justify-content: flex-end;
-		gap: 10px;
-	}
-
-	.saveButton {
-		height: 36px;
-		padding: 0 18px;
-		font-size: 24px;
-	}
-
-	.saveLabel {
-		top: 2px;
-	}
-
-	/* The save button's height, still — they stand in a row and a disc taller than the
-	   thing beside it reads as the more important of the two. */
-	.action {
-		width: 36px;
-		height: 36px;
-	}
-
-	.actionGlyph {
-		font-size: 20px;
+		--pad-height: 56px;
+		--nav-band: 44px;
+		/* 54 of header, 8 above, 44 of bar, 88 below. */
+		--book-reserve: 194px;
 	}
 }
 
 /*
- * Desktop: a window with room for the page strip. See the note in base.css.
- *
- * Four things differ, and all four are about there being room: the save button goes
- * back into the column, where there is somewhere for it to be that isn't the bottom
- * edge of the window; the column has air under it; the button flies *up* with the
- * tools rather than down past them; and the four edit actions move from the bottom of
- * the window to the top of it, where there is a header with an empty right-hand side
- * and nothing under the drawing but the save button.
+ * A desktop: a wider lane for the rail, and no aiming pad at all — a mouse has a precise
+ * pointer and none of what the pad answers is a problem it has.
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.content {
-		padding-bottom: 0;
-	}
+		/*
+		 * The rail is not a column down the edge of the window up here. It stands beside the
+		 * drawing — 16px off its left edge — so the two read as one object rather than as a
+		 * toolbar and a document at opposite ends of a wide screen.
+		 *
+		 * Which means the flipbook is centred in the *window* (`--stage-left: 0`) and the
+		 * rail's lane is taken out of the drawing's width on both sides instead. That keeps
+		 * the paper centred and guarantees the rail has somewhere to be: at the narrowest
+		 * desktop this layout holds — 731px — the drawing comes out at 547 and the rail sits
+		 * 20px from the left edge, where without the symmetry it would have been at -26.
+		 */
+		--stage-left: 0px;
+		--rail-gap: 16px;
+		--stage-gutter: calc(20px + var(--rail-width) + var(--rail-gap));
 
-	/*
-	 * And the column goes back to block flow, because up here nothing needs it to hand
-	 * out height: v11's stage is a phone control and the stylesheet hides it at this
-	 * width. Not tidiness — a flex column doesn't collapse margins, and the tray's 15px
-	 * bottom margin and the save button's 15px top margin are a single 15px gap in flow
-	 * and 30 in flex. Measured: the footer sat 15px lower with this left on.
-	 */
-	.content,
-	.column {
-		display: block;
-	}
-
-	/* `static` undoes the four properties that pinned it, and the padding goes with
-	   them: this column is 640px and so is the drawing, so the inset is zero anyway —
-	   but only until the window is short enough for `--book-width` to be the height's
-	   answer rather than the width's, and by then the canvas has stopped shrinking.
-	   `block` with it, so the save button is centred by the column rather than pushed
-	   to one end of a flex row with nothing at the other. */
-	.footer {
-		position: static;
-		display: block;
-		padding: 0;
-		margin: 15px 0 50px;
-		text-align: center;
-	}
-
-	.actions {
-		display: none;
+		/* No pad up here, so the band it stands in goes with it. */
+		--chrome-bottom: 24px;
+		--book-max: 640px;
+		/* 84 of header, 20 above, 56 of bar, 36 below. */
+		--book-reserve: 196px;
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.saveButton,
-	.action {
+	.save,
+	.saveButton {
 		transition: none;
 	}
 }

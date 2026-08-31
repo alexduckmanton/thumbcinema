@@ -27,11 +27,35 @@
 }
 
 /*
- * z-index 15 is load-bearing on the desktop layout. The pencil and eraser in the tray
- * below are 304px-tall images anchored at their tips, so most of each one sits
- * *behind* the canvas; only the last few centimetres show below its bottom edge.
- * Selecting a tool slides it further down and more of it appears. Drop the canvas
- * below the tray's stacking order and two enormous pencils appear across the drawing.
+ * The create page's copy, which is centred in a stage rather than standing in a column.
+ *
+ * `--book-width` is a formula against the window and `--book-reserve` is a page's
+ * estimate of everything that isn't the drawing; between them they are close, and on the
+ * create page they are now standing inside a box whose height is *known* — the stage is
+ * what a flex layout had left. So the height is clamped as well as calculated: the
+ * formula picks the size, and this refuses to let a reserve that is a few pixels
+ * optimistic push the drawing over the page bar. The aspect ratio does the rest, taking
+ * the width back down with it.
+ *
+ * `margin: 0` because the stage centres it: auto margins on a box inside a flex
+ * container that is already centring both axes are a second opinion about the same
+ * thing, and on a box as wide as its container they resolve to zero anyway.
+ */
+.fitted {
+	max-width: 100%;
+	max-height: 100%;
+	margin: 0;
+}
+
+/*
+ * z-index 15 is load-bearing, and what it is load-bearing against is the trace photo and
+ * its chrome, which stand at 16 and 17 inside this same box.
+ *
+ * It used to be the tray: the pencil and eraser were 304px-tall images anchored at their
+ * tips, so most of each one sat *behind* the canvas and only the last few centimetres
+ * showed below its bottom edge. Those are gone — see `ToolPanel` — and so is the column of
+ * thumbnails that needed it next. What is left needing it is the photograph you trace
+ * over: drop the canvas below 16 and the reference is painted over the ink.
  */
 .canvas {
 	position: relative;
@@ -43,7 +67,7 @@
 	   from before the cards were rounded — and a flipbook you are drawing on with
 	   squarer corners than the same flipbook in the grid is the same object twice. */
 	border-radius: var(--radius-card);
-	/* The gallery card's shadow, not the strip's. A thumbnail in the strip is one of a
+	/* The gallery card's shadow. A thumbnail in a card is one of a
 	   stack of sheets and takes the flat drop that says so; this is the flipbook
 	   itself, and it is the same object the gallery is full of. */
 	box-shadow: var(--shadow-card);
@@ -59,81 +83,54 @@
 }
 
 /*
- * The sheet in hand: being carried to another place in the flipbook.
- *
- * The drawing follows the pointer, so `--drag` is written straight onto this element by
- * the gesture rather than coming through React — a hundred pointer moves a second, each
- * changing one number, is not a thing to re-render a page strip for. It carries the
- * handle above it, which is what makes the gesture read as picking the page up rather
- * than as scrubbing something.
- *
- * The z-index is what the transform costs. A transformed element is a stacking context
- * painted as one thing at its parent's level, so `.book` would drop below the page
- * thumbnails (9) and take the canvas's own 15 down with it — the drawing would slide
- * *behind* the flipbook it is being dragged through. 15 is the canvas's own number, so
- * the paper is lit and stacked exactly as it was, only somewhere else.
- *
- * Applied only while a page is in hand, and that matters twice over: the same stacking
- * context would put the save form and its wash under the footer bar, and a permanent
- * transform here would re-base anything `position: fixed` inside the sheet.
- */
-.dragging {
-	z-index: 15;
-	transform: translate3d(var(--drag, 0px), 0, 0);
-}
-
-/*
- * Let go of, and sliding home.
- *
- * The offset goes back to zero while the strip's row moves under it by exactly the same
- * distance in the other direction, so what is on screen is one flipbook settling rather
- * than a page and a book arriving separately. Same duration and same curve as the strip
- * — see `--settle` and the longer note in `PageStrip.module.css`.
- */
-.settling {
-	transition: transform var(--settle) cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-
-/* Picked up off the page: the gallery card's hover shadow, which is the one this site
-   already uses for "this is the thing you are holding". */
-.dragging .canvas {
-	box-shadow: var(--shadow-card-hover);
-}
-
-/*
- * The canvas standing aside while the strip does the work.
- *
- * It shows whichever page is active, and during a delete that becomes the arriving
- * page immediately — so it sat in the destination slot displaying the very page that
- * was still sliding towards it, statically, and (being z-index 15 against the strip's
- * 9) in front of it. Its thumbnail is an exact copy in the same place, so stepping
- * out and letting that land instead is invisible at both ends.
- *
- * No transition: the swap has to happen on one frame, in step with the strip
- * uncovering the thumbnail underneath.
- */
-.handedOver {
-	opacity: 0;
-}
-
-/*
- * The drawing, while it is being carried somewhere else in the flipbook.
+ * The drawing, while the engine is rewriting the order of the pages.
  *
  * paper.js binds `mousedown` to this element in its own constructor, which no amount of
  * state inside the engine can talk it out of — so the press is taken off the element.
- * A mark laid on a page that is halfway between two slots would land wherever the page
- * happened to be at the time.
+ * A mark laid while the pages are being resequenced would land on whichever page happened
+ * to be under it at the time.
  */
 .inert {
 	pointer-events: none;
 }
 
 /*
+ * The create page's frame, which everything inside it stays below.
+ *
+ * A stacking context, and 5 is chosen to be under the page bar's 10. Zoomed in, the sheet
+ * is bigger than this box and hangs off every side of it — across the bar, under the
+ * aiming pad at 14 and under the rail at 30 — and all three are controls, so all three
+ * have to be on top. Without a context here the sheet's own `z-index: 15` would beat every
+ * one of them and a pinch would bury the page bar under the drawing.
+ *
+ * On the frame rather than on the sheet, because a context has to contain the number it is
+ * arguing with: 5 here takes the stage's 15 and the trace photo's 16 and 17 down with it,
+ * and their order among themselves is untouched.
+ */
+.under {
+	z-index: 5;
+}
+
+/*
+ * The create page's sheet, which casts no shadow.
+ *
+ * Everywhere else a flipbook is one object among others — a card in the grid, a drawing
+ * on a page with a heading above it — and the drop shadow is what says it is a sheet
+ * lying on the site rather than a hole cut in it. On the create page it is the only thing
+ * on a white field, boxed in by the rail down one side and the page bar under it, and a
+ * shadow round it read as a second frame inside the first. The rounding stays: those are
+ * the flipbook's own corners and it has them in the gallery too.
+ */
+.flat {
+	box-shadow: none;
+}
+
+/*
  * Hidden while v12's zoomed stage is standing in front of it.
  *
  * paper goes on rendering into this canvas exactly as it always has — a hidden element
- * still has a backing store, which is what the stage copies from and what the page strip
- * photographs — so nothing about the drawing, the thumbnails or the save knows this
+ * still has a backing store, which is what the stage copies from and what the save
+ * photographs for its cover — so nothing about the drawing or the save knows this
  * happened. `visibility` rather than `opacity`, for two reasons that are both the point:
  * a hidden element is not a hit target, so paper's own `mousedown` on this canvas can
  * never fire while something else is driving the tools; and it casts no shadow, which is
@@ -194,12 +191,6 @@
 	.skeleton {
 		animation: none;
 	}
-
-	/* And the settle is instant, which the gesture already knows: `usePageReorder`
-	   waits nothing at all before handing the flipbook back. */
-	.settling {
-		transition: none;
-	}
 }
 
 /* The wash a save puts over the drawing. */
@@ -229,43 +220,20 @@
 }
 
 /*
- * Desktop: the frame is exactly the size of the artwork, and stays that size.
+ * The desktop rule that used to live here pinned the frame to a hard 640×360, and it is
+ * gone. The 640 it was protecting is not — it moved to `--book-width` in `base.css`, which
+ * is the right place for it and is why this rule could go.
  *
- * Not just for want of anything better to do with the room — in a window this size
- * the page strip is showing, and it lays out full-size copies of the canvas at a
- * fixed 660px pitch and positions the row by arithmetic. A canvas of any other size
- * and the thumbnails no longer line up with it. See the note in base.css about why
- * the height is half of this.
+ * Its first reason went years ago: the page strip laid out full-size copies of the canvas
+ * at a *fixed* 660px pitch and positioned the row by arithmetic, so a canvas of any other
+ * size and the thumbnails no longer lined up with it. There is no strip at all now.
+ *
+ * What the rule was still doing was overriding `--book-width` with `aspect-ratio: auto`
+ * beside it, so on a desktop window too short for the sheet the drawing did not shrink, it
+ * *squashed*: 640 wide against whatever height was left. `--book-width` is a `min()` with
+ * the window's height in it precisely so that cannot happen, and it was being quietly
+ * outvoted at the one width where it mattered. A cap belongs in the `min()`, not in a rule
+ * that argues with it — and it matters more now than it did, because a square page at 640
+ * wide is 640 tall and wants a 958px window on the create page.
  */
-@media screen and (min-width: 731px) and (min-height: 561px) {
-	.book {
-		/*
-		 * Still 640px whenever there is room for it, and still for the page strip's sake.
-		 * Two things changed when a second page shape arrived:
-		 *
-		 * The height is no longer stated beside it. Only the width is common to the two
-		 * shapes, so `aspect-ratio` above supplies the other half. 640 is not a
-		 * coincidence that might stop holding — `SQUARE_PAGE_SIZE` is 640 across
-		 * precisely so every page shape shares a width, which is what keeps the strip's
-		 * pitch and every stroke-width constant meaning what they meant.
-		 *
-		 * And the pin has a **height budget** now, which is the whole of what a taller
-		 * page costs this layout. A flat 640px was safe while the sheet was 360 tall: it
-		 * could not overflow a window that had already passed the 561px minimum this
-		 * breakpoint tests. A square sheet at 640px wide is 640px tall, and 640 plus the
-		 * create page's 318px of chrome wants a 958px window — so on anything shorter it
-		 * ran off the bottom of a page that deliberately has nowhere to scroll to. This
-		 * is `--book-width`'s own formula capped at 640 rather than at `100%`: the cap is
-		 * why the desktop rule exists at all, since `.center` has no max-width and its
-		 * `100%` is the whole window up here.
-		 *
-		 * A 16:9 flipbook is unaffected at any desktop size — 582px of height buys 1035px
-		 * of width, which the cap takes back to the 640 it has always been.
-		 *
-		 * Not `--page-width`: that name is taken, by the strip, for the width it has
-		 * actually measured this canvas at.
-		 */
-		width: min(640px, calc((100dvh - var(--book-reserve, 260px)) * var(--page-aspect, 1.7778)));
-		height: auto;
-	}
-}
+

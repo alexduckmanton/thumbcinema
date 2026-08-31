@@ -11,8 +11,14 @@ bottom; the stack, layout and commands are in `package.json`, the directory list
 - **`react`, `react-dom`, `paper` and `pg` are the only runtime dependencies.** No state
   library, no CSS framework, no router package, no icon library — keep it that way.
 - **The visual design is deliberately unchanged.** A port, not a redesign: anything that
-  looks different from the 2013 revival is a bug unless the comment beside it says so. The
-  create page is the one exception (`docs/create-page.md`).
+  looks different from the 2013 revival is a bug unless the comment beside it says so.
+  **The create page is the one exception and is now its own thing**: every control is a
+  40×40 Pecita glyph in a rail down the left at both widths, the page bar is the whole of
+  page navigation, the sheet casts no shadow (`.flat`), and in v14 a finger aims from a pad
+  at the bottom of the screen. The hand-drawn tool sprite went with it, and so did the
+  scrolling column of thumbnails, the tab above the paper that reordered pages, and a spell
+  when you could draw past the page's edge. `docs/create-page.md` says what all of that
+  cost.
 - **`time-capsule` is a branch still running the 2013 front end, and it is the reference**
   for any question about the old behaviour. It shares one database with `main`, which is
   the constraint behind every rule about the schema.
@@ -49,6 +55,23 @@ Break one of these and something goes wrong somewhere else, usually silently.
   shape for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses and there is no UI.
   Both are 640 across on purpose — stroke widths, the ink cursor and the strip's pitch are
   calibrated against that width.
+- **Pinching moves the sheet, it does not magnify a window.** The create page pinches to
+  zoom — `zoomStage.ts` and `ZoomStage`, phone widths only, because it exists for v14's
+  aiming pad and a mouse occludes nothing — and on a stage standing in the paper's place the
+  viewport is written out as a CSS transform of `.sheet` (`stageTransform`), so the paper
+  itself scales and slides under the page bar, the pad and the rail while `paint` copies the
+  whole page 1:1. v11's band still does the other reading, `drawImage` of the window into a
+  fixed box; both are the same four numbers. **`.onPaper`, the host, must not move** — it is
+  what `measureStage` observes and what every pointer coordinate is a fraction of — and
+  `.book` needs `.under` for its stacking context, or the sheet's 15 buries the page bar.
+  **You cannot zoom out past the whole page**: `maxWidth` is the page and `defaultViewport`
+  opens there, so the transform is the identity at rest and pinching only ever goes in.
+  There is no drawable surround and there was one for about a day; `docs/create-page.md`
+  says why it went and what it cost while it was there.
+- **Reordering pages has an engine but no control.** `FlipbookEngine.movePage`, its `move`
+  history op and `beginReorder`/`endReorder` are live and tested, and nothing in the UI calls
+  them — the tab above the paper went with the layout it belonged to. Whatever replaces it
+  calls `movePage`; don't rebuild the model.
 - **The artwork is the authority on its own shape, and no viewBox means 640×360** (paper
   0.8 wrote none, so the whole archive is silent and all of it is the legacy page).
   `pageSizeFromSvg()` and `pageSize()` (`lib/thumbnail.js`) are the client and server
@@ -135,13 +158,22 @@ immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visi
   playback the top 56%. Accepted rather than fixed; don't "solve" it by filtering that
   branch's gallery, and see `docs/architecture.md` for why. It also still turns phones away
   from `/create`, because the 2013 code did.
-- Every page in the strip is a canvas the size of the drawing at the device pixel ratio, so
-  the strip lives under a memory ceiling and `HIDPI_PAGE_LIMIT` drops it to 1:1 past 50
-  pages — and iOS enforces its per-tab canvas budget by *blanking* canvases rather than by
-  failing. A square page is 78% more pixels than a 16:9 one and that limit was set against
-  the smaller shape. `docs/create-page.md`.
-- Every trace photo taken is held until the tab closes, in that same budget: the undo stack
-  holds steps naming its object URL, so revoking early is a ⌘Z with a broken image in it.
+- Nothing on the create page scrolls, and everything on it is measured off everything else:
+  the aiming pad's height is a term in `--chrome-bottom`, `--chrome-bottom` is a term in
+  `--book-reserve`, and `--book-reserve` is what the drawing is sized against. So sizes
+  there are `100svh`, never `100dvh` — a unit that moves when a browser slides its own
+  chrome in or out is a drawing that resizes under your hand. A square page is what makes
+  those numbers worth getting right: at 640 across a square sheet is 640 tall where a 16:9
+  one was 360, so the height term binds nearly everywhere now. `docs/create-page.md`.
+- A finger only aims from the pad, and that is what v14 is. v13 read every touch that wasn't
+  on the paper or a control, which was free while the rest of the page was empty white. The
+  pad is found by `[data-aim-pad]`, is hidden above the phone breakpoint, and the rail has a
+  switch that puts it away — which changes nothing but the pad, the band it stands in being
+  reserved either way. `docs/drawing-modes.md`.
+- Every trace photo taken is held until the tab closes: the undo stack holds steps naming
+  its object URL, so revoking early is a ⌘Z with a broken image in it. iOS enforces its
+  per-tab canvas budget by *blanking* canvases rather than by failing, and with the page
+  strip gone these are the only thing left under it. `MAX_BATCH` is 24.
 - **The save form is a positioned `<div>`, not a `<dialog>`, and must not be "tidied up".**
   `showModal()` puts an element in the top layer; since Safari 26, iOS tints its own
   toolbars from the page and never samples the top layer, so the wash left a pale band
@@ -187,8 +219,8 @@ Open the one that covers what you're about to touch.
 
 - [`architecture.md`](docs/architecture.md) — how the pieces fit, why WordPress went away, why brotli beside gzip
 - [`drawing-tool.md`](docs/drawing-tool.md) — the paper.js engine: the 0.8 → 0.12 upgrade, loading, rearranging pages, undo, the clipboard, the invariants
-- [`drawing-modes.md`](docs/drawing-modes.md) — thirteen answers to "a finger is opaque", the admin-only switch, and v13, the one that ships
-- [`create-page.md`](docs/create-page.md) — the layout, the page bar, the tray, tracing over a photograph, naming a flipbook, and the playback page
+- [`drawing-modes.md`](docs/drawing-modes.md) — fourteen answers to "a finger is opaque", the admin-only switch, and v14, the one that ships
+- [`create-page.md`](docs/create-page.md) — the layout, the rail, the page bar, tracing over a photograph, naming a flipbook, and the playback page
 - [`gallery.md`](docs/gallery.md) — the grid, two card shapes in it, the hover preview that plays without paper.js, the play button
 - [`remixes.md`](docs/remixes.md) — editable copies, and how a lineage is stored in two columns
 - [`offline.md`](docs/offline.md) — drawing and saving with no connection: the queue, the service worker, what publishes when

@@ -4,6 +4,7 @@ import { navigate, useLocation } from '../router/Router'
 import { ViewToggle } from '../routes/gallery/ViewToggle'
 import { CreateButton } from './CreateButton'
 import { SiteHeader } from './SiteHeader'
+import { useLockedLayout } from './toolLayout'
 
 import { DEFAULT_PAGE_SIZE, LEGACY_PAGE_SIZE, type PageSize } from '../flipbook/engine/constants'
 import { pageVars } from '../flipbook/pageVars'
@@ -74,17 +75,10 @@ export function RouteShell({ route }: RouteShellProps) {
 				/>
 			)
 		case 'create':
-			// No header at all: no create button, because you are already here, and no
-			// wordmark either. `SiteHeader` drops the row rather than rendering an empty
-			// one, so the shell is a pulsing sheet and nothing else. Matches `CreatePage`.
-			return (
-				<BookShell
-					content={createStyles.content}
-					remixOf={null}
-					wordmark={false}
-					page={DEFAULT_PAGE_SIZE}
-				/>
-			)
+			// Its own shape rather than the playback page's: the drawing tool is a rail, a
+			// stage, a page bar and an aiming pad, and the sheet of paper does not stand in
+			// a column.
+			return <CreateShell />
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
 			// placeholder in the shape of an apology is worse than a beat of nothing.
@@ -97,7 +91,7 @@ export function RouteShell({ route }: RouteShellProps) {
 }
 
 /**
- * The create and playback pages: one sheet of paper, pulsing, in the same column.
+ * The playback page: one sheet of paper, pulsing, in the column it lands in.
  *
  * `content` is the page's own class rather than a copy of it — it carries the column's
  * padding and `--book-reserve`, which is what decides how big the sheet is. Typed as
@@ -111,11 +105,7 @@ function BookShell({
 	page,
 }: {
 	content: string | undefined
-	/**
-	 * The flipbook whose page this is standing in for, when the header should be
-	 * offering to remix it — or null for a page whose header has no create button at
-	 * all, which is the create page's own.
-	 */
+	/** The flipbook whose page this is standing in for, so the header can offer a remix. */
 	remixOf: string | null
 	/** False on the create page, which has no wordmark — see `SiteHeader`. */
 	wordmark: boolean
@@ -154,6 +144,79 @@ function BookShell({
 						    cast the shadow the page's own placeholder borrows. */}
 						<div className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`} aria-hidden="true" />
 					</div>
+				</div>
+			</main>
+
+			<Announcement />
+		</>
+	)
+}
+
+/**
+ * The drawing tool, before the drawing tool: the rail's space, and a sheet of paper
+ * pulsing in the middle of the stage.
+ *
+ * The header carries nothing at all. The page puts Save in it, and a save button offered
+ * before there is a flipbook to save would be a control that is up early rather than a page
+ * that is loading — which is the same reason the rail's lane and the aiming pad's band are
+ * drawn empty rather than filled with grey placeholders. A control is either working or not
+ * there.
+ *
+ * Every class here is the page's own, read off its stylesheet rather than copied, for the
+ * reason the note at the top of this file gives: a placeholder is only worth having if it is
+ * exactly the shape of the page, and `--book-reserve`, `--stage-left` and the stage's
+ * gutters all differ by layout. Which is also why there are no placeholder boxes
+ * left in here at all: everything is positioned off those properties now, so the sheet of
+ * paper lands on the same pixel with nothing else on the page — measured at both widths, and
+ * it is exact.
+ */
+function CreateShell() {
+	// The page's shape as well as the page's lock: without it `main` stops at its content,
+	// the stage has nothing to grow into, and the sheet of paper is drawn at the top of a
+	// window the page centres it in. The count inside the hook is what carries the class
+	// across the handover without a frame of it being off.
+	useLockedLayout()
+
+	return (
+		<>
+			{/*
+			 * No wordmark, and Save's *space* rather than Save.
+			 *
+			 * The page shows a disabled, invisible Save from its first frame — a flipbook of
+			 * one page is not one you can save, and the button stays in the layout so nothing
+			 * jumps when the second page arrives. This is that same box, and it has to be here:
+			 * `SiteHeader` drops the row altogether when it holds neither wordmark nor actions,
+			 * and a header 68px shorter than the page's is a sheet of paper 34px higher up.
+			 * Not a real button — there is nothing to press, and nothing to put in the tab
+			 * order — just the shape of one, and `.noSave` makes it invisible either way.
+			 */}
+			<SiteHeader width="narrow" wordmark={false}>
+				<div className={`${createStyles.save} ${createStyles.noSave}`} aria-hidden="true">
+					<span className={createStyles.saveButton}>
+						<span className={createStyles.saveLabel}>Save</span>
+					</span>
+				</div>
+			</SiteHeader>
+
+			<main
+				className={createStyles.content}
+				style={pageVars(DEFAULT_PAGE_SIZE) as React.CSSProperties}
+			>
+				{/* Square, because the create page opens a blank flipbook and a blank flipbook
+				    is square. A remix is the exception and costs one reflow at the handover.
+				    See `BookShell`, which makes the same guess from the other end. */}
+				<div className={createStyles.stage}>
+					<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
+						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to
+						    cast the shadow the page's own placeholder borrows. */}
+						<div className={`${canvasStyles.skeleton} ${canvasStyles.sheet}`} aria-hidden="true" />
+					</div>
+
+					{/* The page bar's band, drawn empty — and inside the stage, because the stage
+					    centres the two of them together and the sheet would stand in a different
+					    place without it. The bar is a control, and a grey pill that turns into a
+					    working one is two loading states where the page needs one. */}
+					<div className={createStyles.navBand} />
 				</div>
 			</main>
 

@@ -6,13 +6,7 @@ import styles from './PageNav.module.css'
 
 export interface PageNavProps {
 	engine: FlipbookEngine
-	/**
-	 * The page the bar points at, which is the page being drawn on except while one is
-	 * being carried somewhere else in the flipbook — there it is where that page would
-	 * land. Dragging the tab above the paper turns no pages, so without this the one
-	 * control that says where you are against the whole flipbook would sit still through
-	 * the whole gesture. See `.gliding`.
-	 */
+	/** The page the bar points at, which is the page being drawn on. */
 	activePage: number
 	/** Settled pages — the one falling out of a delete isn't one of them yet. */
 	pages: number
@@ -23,25 +17,20 @@ export interface PageNavProps {
 	 * crashed drawing being replayed. The bar stays; what it holds doesn't. See `.waiting`.
 	 */
 	waiting?: boolean
-	/**
-	 * How long the flipbook is currently taking to bring one page under a page being
-	 * carried, so the handle can travel at the same rate. Null whenever nothing is
-	 * running, which is when it eases onto each page instead.
-	 */
-	glide?: number | null
 }
 
 /**
  * Back a page, forward a page, and a scrubber for everything in between.
  *
- * On both layouts now. It was the phone's answer to a strip of thumbnails you can see
- * but not reach — the drawing takes nearly the whole window down there and all that
- * shows of the pages either side is a few millimetres — and it was hidden on a desktop
- * on the grounds that up here you can click straight onto a thumbnail. You can, and it
- * is still the fastest way to a particular page. What the strip cannot do is show a
- * flipbook *playing*: it is a row of pages that happens to change which one is behind
- * the canvas, and the handle running along the bar is the only thing on either page
- * that says how far through you are while it moves.
+ * **The whole of page navigation, at both widths.** It began as the phone's answer to a
+ * strip of thumbnails you could see but not reach — the drawing takes nearly the whole
+ * window down there — and was hidden on a desktop on the grounds that up there you could
+ * click straight onto a thumbnail. Two things settled it. A strip cannot show a flipbook
+ * *playing*: it is a row of pages that happens to change which one is behind the canvas,
+ * and the handle running along the bar is the only thing on either page that says how far
+ * through you are while it moves. And a strip cannot say where you are in a *long*
+ * flipbook: three visible thumbnails against a bar that holds two hundred pages. The strip
+ * is gone; see `docs/create-page.md`.
  *
  * The handle is on a page, not between pages: it follows the pointer while you're
  * holding it and settles onto the nearest of `pages` positions when you let go, the two
@@ -65,14 +54,7 @@ export interface PageNavProps {
  * the thing you let go of to have it moved for you. A press on the handle therefore
  * waits: it is a tap until it has travelled `TAP_SLOP`, and a drag from then on.
  */
-export function PageNav({
-	engine,
-	activePage,
-	pages,
-	playback,
-	waiting = false,
-	glide = null,
-}: PageNavProps) {
+export function PageNav({ engine, activePage, pages, playback, waiting = false }: PageNavProps) {
 	const track = useRef<HTMLDivElement | null>(null)
 	const handle = useRef<HTMLSpanElement | null>(null)
 
@@ -233,7 +215,6 @@ export function PageNav({
 	const moving = [
 		held === null && !playing && !snap ? styles.eased : '',
 		sweeping && !snap ? styles.stepped : '',
-		glide !== null ? styles.gliding : '',
 	]
 		.filter(Boolean)
 		.join(' ')
@@ -276,8 +257,6 @@ export function PageNav({
 					// The engine's own frame, so the handle can't fall out of step with the
 					// flipbook it is following.
 					'--frame': `${1000 / FPS}ms`,
-					// And the strip's own, for the same reason, while a page is being carried.
-					'--glide': `${glide ?? 0}ms`,
 				} as React.CSSProperties
 			}
 		>
@@ -444,9 +423,8 @@ interface Sweep {
  * scales never have to be converted between. Off a stop by a fraction of a pixel after
  * a few laps, which is a number nobody is reading.
  *
- * State worked out during render rather than in an effect, the same as the strip's
- * snap-on-removal: the engine publishes a page change and this is a fact about that
- * render, not something to go and do afterwards. `page` is what the last answer was
+ * State worked out during render rather than in an effect: the engine publishes a page
+ * change and this is a fact about that render, not something to go and do afterwards. `page` is what the last answer was
  * for, so a re-render that isn't a page turn — a resize, a tool change — doesn't
  * advance the sweep.
  */

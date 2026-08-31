@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SiteHeader } from '../../components/SiteHeader'
+import { useLockedLayout } from '../../components/toolLayout'
 import { Spinner } from '../../components/Spinner'
-import { CreateTray } from '../../flipbook/components/CreateTray'
-import { DrawModeSwitch } from '../../flipbook/components/DrawModeSwitch'
+import { AimPad } from '../../flipbook/components/AimPad'
 import { InkCursor } from '../../flipbook/components/InkCursor'
+import { ToolPanel } from '../../flipbook/components/ToolPanel'
 import { ZoomStage, ZoomWindow } from '../../flipbook/components/ZoomStage'
 import { DEFAULT_PAGE_SIZE } from '../../flipbook/engine/constants'
 import { pageVars } from '../../flipbook/pageVars'
-import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
-import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
-import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
+import type { FlipbookEngine } from '../../flipbook/engine/FlipbookEngine'
 import { settledPageCount } from '../../flipbook/engine/pages'
-import { isZoomStageMode, stageOnPaper, startingZoom, useDrawMode } from '../../flipbook/drawModes'
+import {
+	isZoomStageMode,
+	stageOnPaper,
+	startingZoom,
+	useDrawMode,
+	usesAimPad,
+} from '../../flipbook/drawModes'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
 import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
@@ -22,8 +27,6 @@ import { usePointerLayer } from '../../flipbook/usePointerLayer'
 import { useStage } from '../../flipbook/zoomStage'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
-import { SETTLE_MS } from '../../flipbook/engine/reorder'
-import { usePageReorder } from '../../flipbook/usePageReorder'
 import {
 	ApiError,
 	getFlipbook,
@@ -31,7 +34,6 @@ import {
 	isNetworkFailure,
 	saveFlipbook,
 } from '../../lib/api'
-import { isAdmin } from '../../lib/admin'
 import { isTouch } from '../../lib/device'
 import { refuseMultiTouch } from '../../lib/zoom'
 import { registerMessage, showMessage } from '../../lib/messages'
@@ -55,6 +57,19 @@ export function CreatePage() {
 	const [phase, setPhase] = useState<Phase>('drawing')
 	/** The trace photo's remove/replace/edit sheet, which is up or it isn't. */
 	const [traceMenu, setTraceMenu] = useState(false)
+
+	/*
+	 * Whether v14's aiming pad is on screen, which is a preference rather than a mode.
+	 *
+	 * The pad is where a finger aims from and is the only place it can — but it is also the
+	 * widest piece of furniture on a phone, and there is drawing you would rather have the
+	 * room to look at. Taking it away leaves v14 with nowhere to aim from, which is the
+	 * honest trade and is exactly what the button in the rail is for: off, the tools and the
+	 * paper still work and the cursor simply stays where it was.
+	 *
+	 * Not persisted. It is a thing you do to look at something, not a setting.
+	 */
+	const [pad, setPad] = useState(true)
 
 	// Which flipbook this is being drawn on top of, if any. Read off the URL rather
 	// than held in state, so a reload lands on the same flipbook rather than an empty
@@ -196,22 +211,6 @@ export function CreatePage() {
 		else setTraceMenu(true)
 	}, [photo, placing, camera, engine])
 
-	/*
-	 * The handle above the paper, and everything dragging it does.
-	 *
-	 * Off unless there is a flipbook to rearrange and a moment to do it in: one page has
-	 * nowhere to go, a flipbook still arriving is being written to a page at a time, and
-	 * while it is playing the strip isn't even on screen — and while a photo is in hand
-	 * the sheet is somewhere a finger is already dragging something else.
-	 */
-	const reorderable = pages > 1 && !state?.loading && !playing && !placing
-
-	const { reorder, bookRef, shiftFor, handleProps } = usePageReorder(engine, {
-		activePage: state?.activePage ?? 0,
-		pages,
-		enabled: reorderable,
-	})
-
 	const handleSave = useCallback(
 		async (values: SaveFormValues) => {
 			if (!engine) return
@@ -298,61 +297,83 @@ export function CreatePage() {
 	return (
 		<>
 			{/*
-			 * No wordmark and no actions, so this renders nothing but the message banner.
-			 * The create page is the one page that isn't somewhere you read: the wordmark
-			 * and the header's own padding were 110px of a window a square page needs, and
-			 * the four edit actions that used to sit up here are gone at this width — see
-			 * `EditActions`. The footer's copy of them is still there on a phone.
+			 * The header, pinned to the top, carrying nothing but Save.
+			 *
+			 * No wordmark: the create page is the one page that isn't somewhere you read, and
+			 * a 70px word plus a header's worth of padding is room a square page needs. What
+			 * is left is one button, and it is the right one to keep up here — it is the only
+			 * control on the page that isn't about the drawing.
+			 *
+			 * `position: fixed` on a wrapper rather than on `SiteHeader` itself, which is
+			 * shared with two pages that scroll normally.
 			 */}
-			<SiteHeader width="narrow" wordmark={false} />
+			<SiteHeader width="narrow" wordmark={false}>
+				<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
+					<button
+						type="button"
+						className={styles.saveButton}
+						onClick={() => setPhase('naming')}
+						disabled={pages < 2}
+					>
+						<span className={styles.saveLabel}>Save</span>
+					</button>
+				</div>
+			</SiteHeader>
 
 			{/*
-			 * Nothing here changes when the save form goes up, and that is deliberate: the
-			 * modal is a wash over the whole window now, and the page it covers is the page
-			 * you were just drawing on. The tools used to fly out of the tray and the footer
-			 * out of the bottom of the window, which was right while the form was a panel
-			 * laid over the canvas and had to be left alone with it. A modal needs none of
-			 * it — `SaveForm` puts `inert` on this element, so everything below is already
+			 * The page: a rail, a stage, a page bar and — in v14 — an aiming pad, in one
+			 * windowful that does not scroll.
+			 *
+			 * **It scrolled for a while and it doesn't any more.** The flipbook was a column
+			 * of thumbnails you scrolled with the drawing pinned over the middle of it, which
+			 * is a real way to build this and is written down in `docs/create-page.md` with
+			 * what it cost. What it cost was the whole page: a scroll container, a snap
+			 * container, a sticky wrapper to keep the chrome in the scroller's chain, a
+			 * measured snap offset, two rules stopping the scroll and the page number from
+			 * answering each other, and one canvas per page under a memory ceiling. The page
+			 * bar does the same job in one control and 60px of height.
+			 *
+			 * Nothing here changes when the save form goes up: it is a modal that paints its
+			 * own wash and puts `inert` on `#root`, so everything in here is already
 			 * unpressable, unfocusable and out of the accessibility tree while it is up.
 			 */}
 			<main className={styles.content} ref={field} style={pageVars(page) as React.CSSProperties}>
+				{/* Every control on the page, in a rail down the left at both widths. First in
+				    the document, which is also the tab order and is the right one: the tools
+				    come before the drawing. */}
 				{engine && state ? (
-					<PageStrip
+					<ToolPanel
 						engine={engine}
-						pages={state.pages}
-						activePage={state.activePage}
-						playing={state.playback !== 'none'}
-						arriving={state.arriving}
-						// A page animation, and not the other thing `busy` covers: carrying a
-						// page has the row easing to the gesture's own timing, and the two
-						// rules would be arguing about the same property.
-						throwing={state.busy && !state.reordering}
-						canvasRef={canvasRef}
-						reorder={reorder}
-						shiftFor={shiftFor}
+						state={state}
+						stowed={phase !== 'drawing'}
+						mode={drawMode}
+						drawing={phase === 'drawing'}
+						trace={{
+							label: traceLabel(photo !== null, placing),
+							on: placing,
+							enabled: !camera.busy,
+							onPress: pressTrace,
+						}}
+						// Only in the mode that has a pad. Every other mode aims from somewhere
+						// else, or from nowhere at all, and a switch for a thing that is not on
+						// the page is a control that does nothing.
+						pad={usesAimPad(drawMode) ? { on: pad, onToggle: () => setPad((up) => !up) } : null}
 					/>
 				) : null}
 
-				<div className={`center ${styles.column}`}>
-					{/* `--settle` is the one number the drag and the stylesheet have to agree
-					    about; it is stated in `usePageReorder` and handed down here so they
-					    can't drift. */}
-					<div
-						ref={bookRef}
-						className={[
-							canvasStyles.book,
-							reorder ? canvasStyles.dragging : '',
-							reorder?.settling ? canvasStyles.settling : '',
-						]
-							.filter(Boolean)
-							.join(' ')}
-						style={{ '--settle': `${SETTLE_MS}ms` } as React.CSSProperties}
-					>
+				<div className={styles.stage}>
+					{/* `.fitted` is the same clamp the boot shell's placeholder is laid out
+					    with, so the sheet doesn't move when the route lands on top of it, and
+					    `.under` is the stacking context a zoomed sheet passes beneath. */}
+					<div className={`${canvasStyles.book} ${canvasStyles.fitted} ${canvasStyles.under}`}>
 						<canvas
 							ref={canvasRef}
 							className={[
 								canvasStyles.canvas,
-								state?.arriving ? canvasStyles.handedOver : '',
+								// `.flat`: no shadow. On the create page the sheet stands inside a
+								// rail and a page bar rather than on its own, and a card's drop
+								// shadow round it read as a second frame inside the first.
+								canvasStyles.flat,
 								// A page being carried is a page sliding about under the pointer,
 								// and paper listens for a mousedown on this element directly — so
 								// the press is taken off it here rather than refused inside. The
@@ -367,9 +388,9 @@ export function CreatePage() {
 						/>
 
 						{/* Two ways a flipbook lands in the drawing tool and they are not the
-						    same event: one is your own work coming back after a crash, the
-						    other is somebody else's arriving to be drawn on. Same overlay,
-						    same spinner, different sentence. */}
+					    same event: one is your own work coming back after a crash, the
+					    other is somebody else's arriving to be drawn on. Same overlay,
+					    same spinner, different sentence. */}
 						{state?.loading ? (
 							<div className={canvasStyles.overlay}>
 								<h2>
@@ -380,15 +401,15 @@ export function CreatePage() {
 						) : null}
 
 						{/* The photograph being traced over. Above the canvas and multiplied into
-						    it, which is what lets the ink stay as dark as it was drawn — see
-						    `TraceLayer`. Never part of the artwork, and never photographed into a
-						    thumbnail: it is a DOM layer, and the canvas underneath is untouched. */}
+					    it, which is what lets the ink stay as dark as it was drawn — see
+					    `TraceLayer`. Never part of the artwork, and never photographed into a
+					    thumbnail: it is a DOM layer, and the canvas underneath is untouched. */}
 						{/* Except in v12 once a photo has settled, where the stage in front of
-						    this is drawing it into the zoomed view instead — a layer over the
-						    top would be the same photograph a second time, at the wrong size.
-						    While it is being *placed* the stage stands its window back at 1×
-						    and this does the work, because placing is stated in the paper's own
-						    pixels and both of them are the same box up there. */}
+					    this is drawing it into the zoomed view instead — a layer over the
+					    top would be the same photograph a second time, at the wrong size.
+					    While it is being *placed* the stage stands its window back at 1×
+					    and this does the work, because placing is stated in the paper's own
+					    pixels and both of them are the same box up there. */}
 						{showTrace && photo && engine && (!staged || placing) ? (
 							<TraceLayer
 								photo={photo}
@@ -400,7 +421,7 @@ export function CreatePage() {
 						) : null}
 
 						{/* v12's zoomed drawing surface, standing exactly where the canvas is.
-						    Inside `.book` and before the cursor, so the ring is drawn over it. */}
+					    Inside `.book` and before the cursor, so the ring is drawn over it. */}
 						{onPaper ? (
 							<ZoomStage
 								layer={layer}
@@ -416,36 +437,36 @@ export function CreatePage() {
 						) : null}
 
 						{/* The ring that says what the stroke will be, or the shape that says
-						    what the transform tool would grab. Inside `.book` because both are
-						    measured against the drawing rather than the window.
+					    what the transform tool would grab. Inside `.book` because both are
+					    measured against the drawing rather than the window.
 
-						    It draws nothing while a trace photo is in hand — there is no tool
-						    then, and no tool is no cursor. That used to matter a great deal,
-						    because this component also *built* `PointerLayer` and the layer is
-						    the only thing listening for a tool button being pressed: unmounting
-						    it made the three tools completely dead while a photo was being
-						    placed. The layer is `usePointerLayer`'s now, called above and outside
-						    every one of these conditions, so the tray goes on working whatever
-						    this renders. */}
+					    It draws nothing while a trace photo is in hand — there is no tool
+					    then, and no tool is no cursor. That used to matter a great deal,
+					    because this component also *built* `PointerLayer` and the layer is
+					    the only thing listening for a tool button being pressed: unmounting
+					    it made the three tools completely dead while a photo was being
+					    placed. The layer is `usePointerLayer`'s now, called above and outside
+					    every one of these conditions, so the tray goes on working whatever
+					    this renders. */}
 						{state ? (
 							<InkCursor layer={layer} canvasRef={canvasRef} tool={state.tool} mode={drawMode} />
 						) : null}
 
 						{/* v11's outline: which part of the page the stage below is showing.
-						    Inside `.book` because it is measured against the drawing, exactly
-						    as the cursor above it is.
+					    Inside `.book` because it is measured against the drawing, exactly
+					    as the cursor above it is.
 
-						    v11's alone. v12 has no overview — its stage *is* the paper — and the
-						    sheet this outline is drawn on covers the whole drawing, so leaving it
-						    up there would put a rectangle round the entire page and, far worse,
-						    take every press before the stage underneath could have it. */}
+					    v11's alone. v12 has no overview — its stage *is* the paper — and the
+					    sheet this outline is drawn on covers the whole drawing, so leaving it
+					    up there would put a rectangle round the entire page and, far worse,
+					    take every press before the stage underneath could have it. */}
 						{!onPaper ? <ZoomWindow page={page} /> : null}
 
 						{/* A modal: it paints its own wash over the whole window and is portalled
-						    out of here to `<body>`, so where it stands in this tree decides
-						    nothing about where it appears. It stays up while the save is in
-						    flight, with the spinner in its own button, which is why this is
-						    `!== 'drawing'` rather than `=== 'naming'`. */}
+					    out of here to `<body>`, so where it stands in this tree decides
+					    nothing about where it appears. It stays up while the save is in
+					    flight, with the spinner in its own button, which is why this is
+					    `!== 'drawing'` rather than `=== 'naming'`. */}
 						{phase !== 'drawing' ? (
 							<SaveForm
 								saving={phase === 'sending'}
@@ -453,99 +474,58 @@ export function CreatePage() {
 								onCancel={() => setPhase('drawing')}
 							/>
 						) : null}
-
-						{/* The tab on the top edge of the sheet. Inside `.book` because it is
-						    part of the page — it hangs above the paper, and it travels with it
-						    when the page is carried. */}
-						<PageHandle
-							handleProps={handleProps}
-							page={(state?.activePage ?? 0) + 1}
-							pages={pages}
-							carrying={reorder !== null}
-							disabled={!reorderable}
-						/>
 					</div>
 
-					{engine && state ? (
-						<PageNav
-							engine={engine}
-							// Where the page would land while one is being carried, rather than
-							// the page being drawn on — which doesn't change until the gesture
-							// ends, so the bar would sit still through the whole of it. It is
-							// the only thing on screen that says where you are against the
-							// *whole* flipbook, which is exactly what a long run needs.
-							activePage={reorder ? reorder.to : state.activePage}
-							pages={pages}
-							playback={state.playback}
-							// And it travels at the flipbook's own rate while the book is running
-							// underneath the page, rather than hopping onto each slot in turn.
-							glide={reorder?.slide ?? null}
-							// A crashed drawing being replayed arrives a page at a time exactly
-							// as a saved one does, so the bar waits the same way. Empty on a
-							// fresh page too, and there is nothing to say about a flipbook of
-							// one page anyway.
-							waiting={state.loading}
-						/>
-					) : null}
+					{/* The page bar: horizontal, under the drawing, and exactly as wide as it.
 
-					{engine && state ? <CreateTray engine={engine} state={state} mode={drawMode} /> : null}
-
-					{/* And v11's second canvas, in whatever the column has left. It is rendered
-					    on every layout and hides itself where there is no room, because "is
-					    there a stage" is then one measurement rather than a media query
-					    written out again in JavaScript. */}
-					{isZoomStageMode(drawMode) && !onPaper ? (
-						<ZoomStage
-							layer={layer}
-							engine={engine}
-							canvasRef={canvasRef}
-							tool={state?.tool ?? null}
-							// The same photo the paper is showing, under the same condition — so
-							// the two either both have it or neither does. It is drawn into the
-							// stage rather than laid over it: see `paintTrace`.
-							photo={showTrace ? photo : null}
-							placing={placing}
-							surface="band"
-							startZoom={startingZoom(drawMode)}
-						/>
-					) : null}
-
-					<div className={styles.footer}>
-						{/* The phone's copy, at the far end of the bar from save.
-
-						    The camera leads the row rather than closing it: it is the one disc
-						    here that isn't spending a stack, so it stands at the far corner where
-						    the four that are can stay adjacent — and as far from Save as the bar
-						    allows, those being the two presses least worth confusing. */}
-						<EditActions
-							engine={engine}
-							state={state}
-							className={isAdmin() ? `${styles.actions} ${styles.actionsAdmin}` : styles.actions}
-							leading={
-								<ActionButton
-									label={traceLabel(photo !== null, placing)}
-									glyph="⊙"
-									hint={traceLabel(photo !== null, placing)}
-									enabled={!camera.busy}
-									pressed={placing}
-									onPress={pressTrace}
-								/>
-							}
-							trailing={<DrawModeSwitch mode={drawMode} className={styles.action} />}
-						/>
-
-						<div className={pages > 1 ? styles.save : `${styles.save} ${styles.noSave}`}>
-							<button
-								type="button"
-								className={styles.saveButton}
-								onClick={() => setPhase('naming')}
-								disabled={pages < 2}
-							>
-								<span className={styles.saveLabel}>Save</span>
-							</button>
-						</div>
+					    It is the whole of page navigation now. It says where you are against the
+					    *entire* flipbook, which a column of thumbnails could only ever show three
+					    of — and it is one control rather than a canvas per page, which is what a
+					    200-page archive flipbook makes the difference between. */}
+					<div className={styles.navBand}>
+						{engine && state ? (
+							<PageNav
+								engine={engine}
+								activePage={state.activePage}
+								pages={pages}
+								playback={state.playback}
+								// A crashed drawing being replayed arrives a page at a time exactly
+								// as a saved one does, so the bar waits the same way. Empty on a
+								// fresh page too, and there is nothing to say about a flipbook of
+								// one page anyway.
+								waiting={state.loading}
+							/>
+						) : null}
 					</div>
 				</div>
+
+				{/* v14's aiming pad, at the bottom of the screen and hidden by its own
+				    stylesheet above the phone breakpoint — a mouse has a precise pointer and
+				    none of what it answers is a problem it has. It is the *only* place a finger
+				    aims from in v14. Out of the flow on purpose: the band it stands in is
+				    reserved whether it is in it or not, so the rail's switch takes the pad away
+				    without moving the drawing. */}
+				{usesAimPad(drawMode) && pad ? <AimPad /> : null}
+
+				{/* And v11's second canvas, in whatever the column has left. It is rendered on
+				    every layout and hides itself where there is no room, because "is there a
+				    stage" is then one measurement rather than a media query written out again
+				    in JavaScript. */}
+				{isZoomStageMode(drawMode) && !onPaper ? (
+					<ZoomStage
+						layer={layer}
+						engine={engine}
+						canvasRef={canvasRef}
+						tool={state?.tool ?? null}
+						// The same photo the paper is showing, under the same condition — so
+						// the two either both have it or neither does. It is drawn into the
+						// stage rather than laid over it: see `paintTrace`.
+						photo={showTrace ? photo : null}
+						placing={placing}
+						surface="band"
+						startZoom={startingZoom(drawMode)}
+					/>
+				) : null}
 			</main>
 
 			{traceMenu && photo ? (
@@ -659,145 +639,6 @@ function useRemixSource(engine: FlipbookEngine | null, id: string | null): boole
 }
 
 /**
- * The four edit actions, as a row, in whichever of the page's two corners this layout
- * keeps them: the bottom left on a phone, next to the wordmark on a desktop.
- *
- * Rendered in both places and hidden in one, which is the whole of how it moves. The
- * two corners are in different parts of the tree — one is the site header's actions
- * slot, the other is a bar pinned to the bottom of the window — and there is no
- * arrangement of CSS that carries one box between them. Two copies with `display: none`
- * on the wrong one costs a few elements and leaves exactly one row in the accessibility
- * tree at any width, which is the thing that actually matters.
- *
- * Why they are up there at all on a desktop, when 2013 offered none of the four and this
- * page's first version offered undo only on a phone: ⌘Z and ⌘C are genuinely what a hand
- * on a keyboard reaches for, but a fifty-step history and a clipboard that nothing on
- * the screen mentions are features people find out about by accident. The buttons say
- * they exist. They go at the top because the bottom of this column is the save button's,
- * and undo standing next to save is the pair of buttons you least want to confuse.
- *
- * Undo, redo, copy, paste, in that order at both widths: the two that spend the history
- * first, then the two that spend the clipboard. Copy is dim until something is selected
- * and paste until something has been copied, which between them are the whole of the
- * instructions.
- */
-function EditActions({
-	engine,
-	state,
-	className,
-	leading,
-	trailing,
-}: {
-	engine: FlipbookEngine | null
-	state: FlipbookState | null
-	className: string | undefined
-	/**
-	 * A disc standing in front of the four, which only the phone's copy has: the camera.
-	 *
-	 * A slot rather than a fifth entry in the list below, because it belongs to neither
-	 * of the pairs and only exists at one width — the desktop's copy is up beside the
-	 * wordmark, where there is no camera to reach and the row is exactly the four.
-	 */
-	leading?: React.ReactNode
-	/**
-	 * And one standing behind them: the drawing-mode switch, for an admin.
-	 *
-	 * The far end of the row from the camera, and the far end from Save as well — it is
-	 * scaffolding, and the one control here nobody should reach for by accident.
-	 */
-	trailing?: React.ReactNode
-}) {
-	return (
-		<div className={className}>
-			{leading}
-			<ActionButton
-				label="Undo"
-				glyph="↺"
-				hint="Undo (⌘Z)"
-				enabled={state?.canUndo ?? false}
-				onPress={() => engine?.undo()}
-			/>
-			<ActionButton
-				label="Redo"
-				glyph="↻"
-				hint="Redo (⇧⌘Z)"
-				enabled={state?.canRedo ?? false}
-				onPress={() => engine?.redo()}
-			/>
-			<ActionButton
-				label="Copy"
-				glyph="↥"
-				hint="Copy (⌘C)"
-				enabled={state?.canCopy ?? false}
-				onPress={() => engine?.copySelection()}
-			/>
-			<ActionButton
-				label="Paste"
-				glyph="↧"
-				hint="Paste (⌘V)"
-				enabled={state?.canPaste ?? false}
-				onPress={() => engine?.pasteClipboard()}
-			/>
-			{trailing}
-		</div>
-	)
-}
-
-/**
- * One edit action: a white disc the height of the save button, wearing a Pecita glyph.
- *
- * Written in the wordmark's hand rather than taken from the icon sheet, because the
- * sheet is drawings of *things* — a pencil, an eraser, a page — and none of these four
- * is a thing. ↺ ↻ ↥ ↧ are letters as far as this font is concerned, so they are set as
- * text: one face, one weight, and nothing to redraw at 2×.
- *
- * The two new ones are a compromise and worth saying so. Pecita's dingbat block is
- * hand-drawn pencils, nibs and a writing hand, and it has no scissors, no clipboard and
- * no pair of overlapping sheets — the glyphs every other application uses for this. What
- * it does have is a full set of arrows in the same weight as ↺ and ↻, and a bar under an
- * arrow reads as a surface: ↥ takes a copy up off the page, ↧ brings one back down onto
- * it. The four then look like one family rather than two borrowed from different sets.
- * The tooltip and the label carry the actual words.
- */
-function ActionButton({
-	label,
-	glyph,
-	hint,
-	enabled,
-	pressed,
-	onPress,
-}: {
-	label: string
-	glyph: string
-	hint: string
-	enabled: boolean
-	/**
-	 * Set on a disc that is a toggle rather than a one-shot — only the camera, which is
-	 * lit for as long as the photo it took is still in hand. The four beside it spend a
-	 * stack and are never in a state to be *in*, so they leave this alone and get no
-	 * `aria-pressed` at all rather than a permanent "false" claiming they are toggles.
-	 */
-	pressed?: boolean
-	onPress: () => void
-}) {
-	return (
-		<button
-			type="button"
-			className={pressed ? `${styles.action} ${styles.actionOn}` : styles.action}
-			title={hint}
-			disabled={!enabled}
-			aria-pressed={pressed}
-			onClick={onPress}
-		>
-			<span className={styles.actionGlyph} aria-hidden="true">
-				{glyph}
-			</span>
-			<span className="visuallyHidden">{label}</span>
-		</button>
-	)
-}
-
-/**
  * The document holds still while the drawing tool is up: no scroll, no bounce, no pull
  * to refresh, no pinch.
  *
@@ -820,11 +661,15 @@ function ActionButton({
  * behind a modal is the conflict the modal exists to avoid.
  */
 function useNoScrolling(enabled: boolean, { pannable = false } = {}): void {
+	// `locked` itself is the boot shell's too — it is the page's shape as well as its lock,
+	// and the shell has to draw the same shape — so it is held by a ref-counted hook in the
+	// entry bundle rather than added here. See `useLockedLayout`.
+	useLockedLayout()
+
 	useEffect(() => {
 		if (!enabled) return
 
 		const root = document.documentElement
-		root.classList.add('locked')
 		if (pannable) root.classList.add('pannable')
 
 		// And the one thing CSS can't say on iOS, where `touch-action` does not reach page
@@ -832,7 +677,7 @@ function useNoScrolling(enabled: boolean, { pannable = false } = {}): void {
 		const release = refuseMultiTouch()
 
 		return () => {
-			root.classList.remove('locked', 'pannable')
+			root.classList.remove('pannable')
 			release()
 		}
 	}, [enabled, pannable])

@@ -1,0 +1,108 @@
+/*
+ * v14's aiming pad.
+ *
+ * A panel at the bottom of the screen that you drag in to move the cursor around the
+ * drawing — the one part of the page, apart from the paper itself, that a finger means
+ * something on. Everywhere else scrolls the flipbook, which is the whole reason it exists.
+ *
+ * It is drawn as a surface rather than as a control: no border, no label, no state. What
+ * it has to say is "this is a thing you touch, and it is not the drawing", and the way it
+ * says it is by being a different material — a shade darker than the page it sits on, with
+ * a dotted texture that nothing else on the site has. A trackpad, in other words, which is
+ * exactly what it is.
+ *
+ * **Not quite opaque, and it blurs what is behind it.** There is nothing under it to speak
+ * of any more — it was laid over a scrolling column of page thumbnails, which is gone — but
+ * a pad you can see the page's own grey through still reads as a thing lying on the page
+ * rather than as a block cut out of it, and the blur is what keeps the bottom edge of the
+ * drawing soft where a short window brings the two together.
+ */
+
+.pad {
+	/*
+	 * Pinned to the bottom of the window, and `fixed` rather than in the column: the band it
+	 * stands in is reserved whether the pad is in it or not, so the rail's switch can take it
+	 * away without moving the drawing. It has to be that way round — see the note on
+	 * `--chrome-bottom` in the create page's stylesheet, which is a bug this already had.
+	 *
+	 * **16px wider than the drawing, and centred on it.** Not the same width, which is what
+	 * it was: matching exactly read as another page below the drawing rather than as a thing
+	 * lying on the page. 8px past either edge is enough to say it is in front. The centre is
+	 * the middle of the stage, which is the window less whatever the rail has taken off the
+	 * left of it.
+	 *
+	 * `z-index: 14` puts it over the page bar at 10 and still under the drawing at 15 — on a
+	 * short window the pad and the sheet overlap, and a pad drawn over the drawing would be a
+	 * wash across the thing you are aiming at.
+	 */
+	position: fixed;
+	bottom: var(--pad-air, 0);
+	left: calc(var(--stage-left, 0px) + (100vw - var(--stage-left, 0px)) / 2);
+	z-index: 14;
+	width: calc(var(--book-width) + 16px);
+	transform: translateX(-50%);
+	/*
+	 * The page's height, handed down rather than stated here.
+	 *
+	 * Two things read it and only one of them is the pad: `--chrome-bottom` is drawn off it,
+	 * and `--book-reserve` is drawn off that — which is how the band below the drawing gets
+	 * reserved before this file has arrived, and stays reserved when the pad is switched off.
+	 */
+	height: var(--pad-height, 120px);
+	border-radius: var(--radius-card);
+
+	/*
+	 * Two backgrounds, and the order matters: the dots are painted over the fill.
+	 *
+	 * A 10px grid of 1.5px dots — small enough that the panel reads as a texture rather
+	 * than as a pattern of anything, coarse enough to survive being drawn at 1×. The grey
+	 * is between `--page` and `--line`, so the pad is plainly a different surface from the
+	 * page without becoming a dark rectangle across the bottom of a drawing tool.
+	 */
+	background-color: rgba(231, 231, 231, 0.72);
+	background-image: radial-gradient(circle at 1px 1px, #c8c8c8 1.5px, transparent 1.5px);
+	background-size: 10px 10px;
+
+	/*
+	 * And the flipbook behind it is blurred rather than merely dimmed.
+	 *
+	 * The column runs under the pad, so without this the pages read as *content* down
+	 * there — edges, corners, whatever is drawn on them — competing with the dots for the
+	 * same square inch. Blurred, they are a suggestion that something carries on, which is
+	 * exactly what they are. The fill drops to 0.72 with it: at 0.88 there was nothing left
+	 * underneath for the blur to work on.
+	 *
+	 * 8px and not the 16 it started at. With the column of thumbnails gone what runs under
+	 * the pad is one drawing rather than a stack of them, and 16 made a smear of it — the
+	 * point is to say something carries on down there, not to erase it.
+	 *
+	 * Safari needs the prefix and has since it shipped the property; Chrome and Firefox
+	 * take the standard one. Where neither applies — an old browser, or a machine that has
+	 * turned it off — the fill alone is still a legible surface, which is the whole reason
+	 * it is a colour rather than nothing.
+	 */
+	-webkit-backdrop-filter: blur(8px);
+	backdrop-filter: blur(8px);
+
+	/*
+	 * A drag here is the gesture, and nothing else may read it. The same statement the
+	 * canvas and the page bar make, and here it is doing two jobs: the flipbook's column
+	 * scrolls on a vertical pan, and this is the one box inside it that must not.
+	 */
+	touch-action: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+/*
+ * A desktop has no use for it, and neither has any window wide enough for a mouse.
+ *
+ * The pad answers occlusion — a fingertip covering the thing it is aiming at — which a
+ * pointer a pixel wide does not have. `PointerLayer` needs no matching condition: a hidden
+ * element takes no touches, so above the breakpoint no touch is ever aiming.
+ */
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.pad {
+		display: none;
+	}
+}

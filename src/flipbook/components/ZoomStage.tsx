@@ -6,7 +6,15 @@ import { fittedSize, type TracePhoto } from '../engine/trace'
 import type { ModalToolId } from '../engine/tools/types'
 import type { PointerLayer } from '../pointer'
 import { useCursor } from '../usePointerLayer'
-import { clearStage, measureStage, setStageElement, useStage, type Viewport } from '../zoomStage'
+import {
+	clearStage,
+	measureStage,
+	pageViewport,
+	setStageElement,
+	stageTransform,
+	useStage,
+	type Viewport,
+} from '../zoomStage'
 import { DrawnCursor } from './InkCursor'
 import styles from './ZoomStage.module.css'
 
@@ -59,10 +67,9 @@ export interface ZoomStageProps {
  * **It is a copy, not a second drawing.** There is one paper.js project and one canvas it
  * renders into; this reads pixels out of that canvas with a single `drawImage` per frame,
  * the way the loupe already does, and hands a finger's position back through the same
- * window the other way. So there is nothing here for the save path, the history or the
- * page strip to know about — an intercepted gesture that arrives from down here is the
- * same gesture, one history step, one thumbnail, and the artwork is still 640×360
- * whatever this is showing.
+ * window the other way. So there is nothing here for the save path or the history to know
+ * about — an intercepted gesture that arrives from down here is the same gesture and one
+ * history step, and the artwork is still its own size whatever this is showing.
  *
  * Copying rather than re-rendering is also what keeps it honest: what you see is the live
  * canvas, so the stroke in progress, the onion skin and a selected stroke's blue are all
@@ -73,8 +80,8 @@ export interface ZoomStageProps {
  * you would call blurry.
  *
  * **The size is measured, not stated**, and that is what the whole mode is arranged
- * around. This takes the band the column has left over once the strip, the paper, the
- * page bar and the tray have taken theirs, so its shape is whatever the phone leaves it —
+ * around. This takes the band the column has left over once the paper and the page bar
+ * have taken theirs, so its shape is whatever the window leaves it —
  * and the outline on the paper takes its aspect ratio from here rather than the other way
  * round. Below `MIN_STAGE_HEIGHT`, or on a layout where the stylesheet hides this
  * outright, `measureStage` reports no stage at all and v11 falls back to v2.
@@ -102,9 +109,9 @@ export function ZoomStage({
 
 	/*
 	 * One observer for the life of the mode, and it is the only thing that says how big
-	 * the stage is. The content box rather than `getBoundingClientRect`, for the reason
-	 * the page strip gives: a rectangle reports whatever transform is mid-flight, and a
-	 * layout box doesn't.
+	 * the stage is. The content box rather than `getBoundingClientRect`: a rectangle reports
+	 * whatever transform is mid-flight, and a layout box doesn't — which matters because the
+	 * drawing above is transformed for the whole of a reorder.
 	 */
 	// Read at measuring time rather than closed over: the effect runs once and the mode
 	// can only change by unmounting this, but a value read through a ref cannot go stale.
@@ -196,12 +203,26 @@ export function ZoomStage({
 	const page = useRef<PageSize>(engine?.page ?? DEFAULT_PAGE_SIZE)
 	page.current = engine?.page ?? page.current
 
-	// Read by the frame loop rather than closed over, so a pinch — which changes this
-	// sixty times a second — doesn't tear down and rebuild the loop on every frame of
-	// itself. Same bargain `InkCursor` makes with the pointer.
+	/** v12/v13/v14: the stage stands in the paper's place, so the stage is the sheet. */
+	const onPaper = surface === 'paper'
+
+	/*
+	 * What `paint` copies, which is not the same question for the two surfaces.
+	 *
+	 * v11's band is a *window*: it copies the viewport's rectangle into a box that never
+	 * moves, and magnifying is what the copy itself does. A stage standing in the paper's
+	 * place copies the whole page, 1:1, and the zoom is a CSS transform of the sheet — see
+	 * `stageTransform` for why that is the difference between a piece of paper and a
+	 * magnifying glass. So up here this is always the whole page, and `suspended` — the
+	 * placing case, where the photo's gestures are stated in the paper's own pixels —
+	 * only has to stand the *transform* back at 1×.
+	 *
+	 * Read by the frame loop rather than closed over, so a pinch — which changes the view
+	 * sixty times a second — doesn't tear down and rebuild the loop on every frame of
+	 * itself. Same bargain `InkCursor` makes with the pointer.
+	 */
 	const showing = useRef(view)
-	showing.current =
-		suspended && view ? { x: 0, y: 0, w: page.current.width, h: page.current.height } : view
+	showing.current = view === null ? null : onPaper || suspended ? pageViewport(page.current) : view
 
 	const live = useRef(engine)
 	live.current = engine
@@ -242,9 +263,33 @@ export function ZoomStage({
 	}, [canvasRef, store.width, store.height])
 
 	return (
-		<div className={surface === 'paper' ? styles.onPaper : styles.stage} ref={host}>
+		<div className={onPaper ? styles.onPaper : styles.stage} ref={host}>
 			{view ? (
-				<canvas ref={canvas} className={styles.canvas} width={store.width} height={store.height} />
+				/*
+				 * The sheet, which is the only thing here that the zoom moves.
+				 *
+				 * The host stays exactly where it is and exactly the size it was — it is what
+				 * `measureStage` observes, what a touch is measured against, and where the
+				 * cursor below is drawn — and the paper inside it scales and slides. That
+				 * split is why a pinch needs nothing of `PointerLayer`: every number it works
+				 * in is still a fraction of the resting box, and `stagePoint` already
+				 * extrapolates past that box's edges for a finger that slides off one.
+				 */
+				<div
+					className={styles.sheet}
+					style={
+						onPaper
+							? { transform: stageTransform(suspended ? null : view, page.current) }
+							: undefined
+					}
+				>
+					<canvas
+						ref={canvas}
+						className={styles.canvas}
+						width={store.width}
+						height={store.height}
+					/>
+				</div>
 			) : null}
 
 			{/* The same ring and the same four shapes the paper draws, told how many

@@ -105,10 +105,9 @@ export const MAX_STEPS = 50
  * How much ink the history will hold, in characters of JSON, before it starts
  * dropping the oldest steps.
  *
- * Roughly 12 MB of string — a few times the largest flipbook the server will accept,
- * and small next to the megabytes *per page* the strip's thumbnails already cost. What
- * it protects against is fifty steps on a page dense enough that fifty copies of it
- * are worth noticing.
+ * Roughly 12 MB of string, which is a few times the largest flipbook the server will
+ * accept. What it protects against is fifty steps on a page dense enough that fifty copies
+ * of it are worth noticing.
  */
 export const BUDGET = 12_000_000
 

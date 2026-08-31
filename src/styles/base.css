@@ -383,6 +383,27 @@ label {
 	--book-width: min(100%, calc((100dvh - var(--book-reserve, 260px)) * var(--page-aspect, 1.7778)));
 }
 
+/*
+ * And a cap on a desktop, because this column has no max-width up there and its `100%` is
+ * the whole window.
+ *
+ * 640 is the number every page shape shares — `SQUARE_PAGE_SIZE` is 640 across precisely so
+ * that stays true, which is what keeps every stroke-width constant meaning what it meant.
+ * It is written into the `min()` rather than as a `width` on the sheet itself: a flat width
+ * beside an `aspect-ratio: auto` is what used to squash the drawing on a short window, and
+ * a cap that argues with this formula loses the height term that stops that happening. See
+ * `FlipbookCanvas.module.css`, where that rule was.
+ */
+@media screen and (min-width: 731px) and (min-height: 561px) {
+	.center {
+		--book-width: min(
+			640px,
+			100%,
+			calc((100dvh - var(--book-reserve, 260px)) * var(--page-aspect, 1.7778))
+		);
+	}
+}
+
 @media screen and (max-width: 460px) {
 	.center {
 		--column-gutter: 16px;

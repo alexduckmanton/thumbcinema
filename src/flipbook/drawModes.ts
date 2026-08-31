@@ -34,7 +34,7 @@ import { Store, useStore } from '../lib/store'
  *    finger like a brush with long bristles, which both smooths the line and leaves it
  *    somewhere you can see it.
  *
- *  - **v11 to v13 stand apart from both**, and are the only three that change the page
+ *  - **v11 to v14 stand apart from both**, and are the only ones that change the page
  *    rather than the gesture. The finger is still the pointer and the mark is still under
  *    the fingertip — that is v2 exactly — but the drawing is *bigger* than the fingertip,
  *    so the tip covers proportionally less of it. It is the answer photo editors and CAD
@@ -59,10 +59,19 @@ import { Store, useStore } from '../lib/store'
  *    exactly: one finger marks under the fingertip, two pinch and pan. Off it — the band
  *    of white under the tools, which is where a thumb already is and which nothing else
  *    on the page wants — it is v10: a finger nudges a cursor standing on the page, and a
- *    second finger down there, or a tool held in the tray, sets that cursor working. So
+ *    second finger down there, or a tool held in the panel, sets that cursor working. So
  *    the two families are not rivals in it. Draw directly where the drawing is big
  *    enough to draw directly on, and reach for the band when the mark has to land
  *    somewhere your hand would be covering.
+ *
+ *    **v14 is v13 with the aiming given a box of its own**, and it is what ships. v13
+ *    claimed *everywhere that isn't the drawing*, which was free while the rest of the
+ *    page was empty white — and stopped being free the moment the flipbook became a
+ *    column you scroll. A drag on the page has two things it could mean now, and v13
+ *    answers "aim" every time: the pages cannot be scrolled at all. So the aiming moved
+ *    into a panel at the bottom of the screen that says what it is, and everywhere else
+ *    went back to being the page. Nothing else about it differs from v13 — same cursor,
+ *    same second finger, same held tool, same v12 on the drawing.
  *
  *  - **v6–v10 give up on direct manipulation altogether**, and are the answer rather
  *    than a workaround: the cursor is a thing standing on the page, a finger anywhere
@@ -101,6 +110,7 @@ export type DrawMode =
 	| 'v11'
 	| 'v12'
 	| 'v13'
+	| 'v14'
 
 export interface DrawModeInfo {
 	id: DrawMode
@@ -189,12 +199,18 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
 		id: 'v13',
 		name: 'Pinch the page, aim from below',
 		was: 'zoomPageAim',
-		hint: 'v12 on the drawing: one finger marks, two pinch and pan. Below it, v10: drag anywhere in the white to nudge the cursor around the page, and put a second finger down there — or hold a tool in the tray — to set it working.',
+		hint: 'v12 on the drawing: one finger marks, two pinch and pan. Below it, v10: drag anywhere in the white to nudge the cursor around the page, and put a second finger down there — or hold a tool in the panel — to set it working. Nothing else on the page can be scrolled while this is on.',
+	},
+	{
+		id: 'v14',
+		name: 'Pinch the page, aim from the pad',
+		was: 'zoomPagePad',
+		hint: 'v13, with the aiming given a panel of its own at the bottom of the screen. Drag on the pad to nudge the cursor around the page, and put a second finger down there — or hold a tool in the panel — to set it working. Everywhere else scrolls the flipbook.',
 	},
 ]
 
 /**
- * v13, which is the one the tool ships with.
+ * v14, which is the one the tool ships with.
  *
  * The default matters more than it looks: it is what everybody on a phone gets, and what
  * every measurement of "is this any good" is taken against. It is stated here rather than
@@ -202,7 +218,7 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
  * the site does — and since the switch is now admin-only, it is the *only* thing that
  * decides what the site does for anybody else. See `read`.
  */
-export const DEFAULT_DRAW_MODE: DrawMode = 'v13'
+export const DEFAULT_DRAW_MODE: DrawMode = 'v14'
 
 /** What the switch and the caption call a mode: `v4 — Offset cursor`, and `(current)`. */
 export function label(info: DrawModeInfo): string {
@@ -255,7 +271,7 @@ export function drivesAllTools(mode: DrawMode): boolean {
 
 /** Whether a gesture is opened and closed by fingers other than the steering one. */
 export function isMultiTouchMode(mode: DrawMode): boolean {
-	return mode === 'v9' || mode === 'v10' || mode === 'v13'
+	return mode === 'v9' || mode === 'v10' || mode === 'v13' || mode === 'v14'
 }
 
 /**
@@ -271,7 +287,7 @@ export function isMultiTouchMode(mode: DrawMode): boolean {
  * here has to know what the media query says.
  */
 export function isZoomStageMode(mode: DrawMode): boolean {
-	return mode === 'v11' || mode === 'v12' || mode === 'v13'
+	return mode === 'v11' || mode === 'v12' || mode === 'v13' || mode === 'v14'
 }
 
 /**
@@ -288,10 +304,16 @@ export function isZoomStageMode(mode: DrawMode): boolean {
  * ask to be. Until you pinch, v12 *is* v2. See `DEFAULT_ZOOM` and `startingZoom`.
  */
 export function stageOnPaper(mode: DrawMode): boolean {
-	return mode === 'v12' || mode === 'v13'
+	return mode === 'v12' || mode === 'v13' || mode === 'v14'
 }
 
-/** How far in a mode's stage starts. v11 has the paper above it; v12 has nothing else. */
+/**
+ * How far in a mode's stage starts. v11 has the paper above it; v12 has nothing else.
+ *
+ * 1 is the whole page, which is where a stage standing on the paper opens — it *is* the
+ * drawing surface, and one that opened part-way in would be one you had to zoom out of
+ * before you could start. It is also as far out as it goes; see `maxWidth`.
+ */
 export function startingZoom(mode: DrawMode): number {
 	return stageOnPaper(mode) ? 1 : 2
 }
@@ -313,7 +335,30 @@ export function startingZoom(mode: DrawMode): number {
  * the paper.
  */
 export function aimsOffStage(mode: DrawMode): boolean {
-	return mode === 'v13'
+	return mode === 'v13' || mode === 'v14'
+}
+
+/**
+ * Whether the aiming happens in a box of its own rather than anywhere off the drawing.
+ *
+ * v14 alone, and it is the whole difference between the two. v13 reads every touch that
+ * isn't on the paper or on a control as an aiming drag, which was free while the rest of
+ * the create page was a band of empty white — and stopped being free when the flipbook
+ * became a column you scroll. Two gestures then wanted the same drag, and v13 always won:
+ * the pages could not be moved at all.
+ *
+ * So v14 draws the aiming surface instead of inferring it. What that costs is the height
+ * of the pad and the fact that you have to reach for a particular place; what it buys is
+ * that everywhere else on the page means what it looks like it means. A control you can
+ * see is also a control you can find, which "drag in the white" never was.
+ *
+ * The pad is found by `[data-aim-pad]` rather than by a registry, because it is a hit
+ * test and nothing else — see `surfaceOf`. Where the pad is not rendered at all, which is
+ * every window above the phone breakpoint, the answer is simply that no touch is ever
+ * aiming: a mouse has a precise pointer and none of this is a problem it has.
+ */
+export function usesAimPad(mode: DrawMode): boolean {
+	return mode === 'v14'
 }
 
 /**
@@ -329,7 +374,7 @@ export function aimsOffStage(mode: DrawMode): boolean {
  * the tool is whichever holder is left: see `releaseHold`.
  */
 export function holdsTool(mode: DrawMode): boolean {
-	return mode === 'v8' || mode === 'v10' || mode === 'v13'
+	return mode === 'v8' || mode === 'v10' || mode === 'v13' || mode === 'v14'
 }
 
 /**
@@ -379,7 +424,7 @@ function read(): DrawMode {
 	if (typeof localStorage === 'undefined') return DEFAULT_DRAW_MODE
 
 	/*
-	 * The other twelve belong to the switch, and the switch belongs to admin mode — so a
+	 * The other thirteen belong to the switch, and the switch belongs to admin mode — so a
 	 * browser that cannot see the switch gets what the site ships, whatever is in storage.
 	 *
 	 * Ignoring the stored choice rather than merely hiding the control is the point.
