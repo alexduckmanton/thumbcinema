@@ -142,15 +142,15 @@ export function CreatePage() {
 	// is the scroll conflict the modal exists to avoid. `pannable` is what lets a finger
 	// pan inside the form — the description field is 72px tall and a longer description
 	// than that has to be scrollable — while the document stays put. See `base.css`.
-	useNoScrolling(true, { pannable: phase !== 'drawing' })
+	useNoScrolling(true, { pannable: phase !== 'drawing', pinched })
 
 	// Shortcuts are off while the form is up, so typing a title doesn't switch tools —
 	// and off while the trace photo's sheet is up, which is a question being asked and
 	// not a moment to be adding pages behind it.
 	useKeyboardShortcuts(engine, { enabled: phase === 'drawing' && !traceMenu, tools: true })
 
-	// Not the raw length: a page on its way off the screen is still in the list, and
-	// counting it makes the save button fade in and straight back out again.
+	// The flipbook's length, which is the raw one: a page is added and deleted between one
+	// frame and the next, so the list is never holding a page that has already left.
 	const pages = state?.pages.length ?? 1
 
 	/*
@@ -832,23 +832,24 @@ function ActionButton({
  * panned. The document stays held still either way, which is the point: a page scrolling
  * behind a modal is the conflict the modal exists to avoid.
  */
-function useNoScrolling(enabled: boolean, { pannable = false } = {}): void {
+function useNoScrolling(enabled: boolean, { pannable = false, pinched = false } = {}): void {
 	useEffect(() => {
 		if (!enabled) return
 
 		const root = document.documentElement
 		root.classList.add('locked')
 		if (pannable) root.classList.add('pannable')
+		if (pinched) root.classList.add('pinched')
 
 		// And the one thing CSS can't say on iOS, where `touch-action` does not reach page
 		// zoom and cancelling the gesture events turns out not to be the whole answer.
 		const release = refuseMultiTouch()
 
 		return () => {
-			root.classList.remove('locked', 'pannable')
+			root.classList.remove('locked', 'pannable', 'pinched')
 			release()
 		}
-	}, [enabled, pannable])
+	}, [enabled, pannable, pinched])
 }
 
 const WARNING = "Whoa, you haven't saved your flipbook yet. Leave and you'll lose it."
