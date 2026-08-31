@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { LEGACY_PAGE_SIZE, SQUARE_PAGE_SIZE } from './constants'
 import { CENTRED, fittedSize, type TracePhoto, type TracePhotos, sameTrace } from './trace'
 
 const photo = (url: string, placement = CENTRED): TracePhoto => ({
@@ -56,17 +57,26 @@ describe('sameTrace', () => {
  */
 describe('fittedSize', () => {
 	it('fills the frame exactly when the photo is already 16:9', () => {
-		expect(fittedSize({ width: 1600, height: 900 })).toEqual({ width: 1, height: 1 })
+		expect(fittedSize({ width: 1600, height: 900 }, LEGACY_PAGE_SIZE)).toEqual({
+			width: 1,
+			height: 1,
+		})
 	})
 
 	it('is bound by the height when the photo is squarer than the frame', () => {
 		// 4:3 into 16:9: full height, and three quarters of the width.
-		expect(fittedSize({ width: 1200, height: 900 })).toEqual({ width: 0.75, height: 1 })
+		expect(fittedSize({ width: 1200, height: 900 }, LEGACY_PAGE_SIZE)).toEqual({
+			width: 0.75,
+			height: 1,
+		})
 	})
 
 	it('is bound by the width when the photo is wider than the frame', () => {
 		// 32:9 into 16:9: full width, and half the height.
-		expect(fittedSize({ width: 3200, height: 900 })).toEqual({ width: 1, height: 0.5 })
+		expect(fittedSize({ width: 3200, height: 900 }, LEGACY_PAGE_SIZE)).toEqual({
+			width: 1,
+			height: 0.5,
+		})
 	})
 
 	it('never overflows the frame, whatever shape the photo is', () => {
@@ -79,7 +89,7 @@ describe('fittedSize', () => {
 		]
 
 		for (const [width, height] of shapes) {
-			const fit = fittedSize({ width, height })
+			const fit = fittedSize({ width, height }, LEGACY_PAGE_SIZE)
 			expect(fit.width).toBeGreaterThan(0)
 			expect(fit.height).toBeGreaterThan(0)
 			expect(fit.width).toBeLessThanOrEqual(1)
@@ -90,7 +100,32 @@ describe('fittedSize', () => {
 	})
 
 	it('answers rather than dividing by a picture with no size', () => {
-		expect(fittedSize({ width: 0, height: 0 })).toEqual({ width: 1, height: 1 })
-		expect(fittedSize({ width: 100, height: 0 })).toEqual({ width: 1, height: 1 })
+		expect(fittedSize({ width: 0, height: 0 }, LEGACY_PAGE_SIZE)).toEqual({ width: 1, height: 1 })
+		expect(fittedSize({ width: 100, height: 0 }, LEGACY_PAGE_SIZE)).toEqual({ width: 1, height: 1 })
+	})
+})
+
+/*
+ * A photo is fitted to the paper it is laid on, and the paper is no longer one shape.
+ *
+ * The same photograph on the two pages is two different placements — which is the point:
+ * `fittedSize` is `object-fit: contain` done in numbers, and what it contains into is
+ * the flipbook's own frame.
+ */
+describe('fittedSize on a square page', () => {
+	it('fits a 16:9 photo to the width and leaves bars top and bottom', () => {
+		const fit = fittedSize({ width: 1600, height: 900 }, SQUARE_PAGE_SIZE)
+
+		expect(fit.width).toBe(1)
+		expect(fit.height).toBeCloseTo(9 / 16, 6)
+	})
+
+	it('fills a square page with a square photo, where the legacy page cannot', () => {
+		expect(fittedSize({ width: 1000, height: 1000 }, SQUARE_PAGE_SIZE)).toEqual({
+			width: 1,
+			height: 1,
+		})
+		// The same photo on a 16:9 page is bound by the height instead.
+		expect(fittedSize({ width: 1000, height: 1000 }, LEGACY_PAGE_SIZE).width).toBeCloseTo(9 / 16, 6)
 	})
 })

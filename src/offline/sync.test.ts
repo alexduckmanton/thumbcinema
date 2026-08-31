@@ -31,7 +31,6 @@ const SAVE = {
 	svg: '<svg></svg>',
 	thumbnailDataUrl: 'data:image/png;base64,AAA',
 	cover: 0,
-	nsfw: false,
 	remixOf: null,
 }
 
@@ -140,7 +139,6 @@ describe('startOfflineSync', () => {
 			svg: '<svg></svg>',
 			thumbnailDataUrl: '',
 			cover: 0,
-			nsfw: false,
 			remixOf: null,
 			createdAt: '2026-01-01',
 		} as never)

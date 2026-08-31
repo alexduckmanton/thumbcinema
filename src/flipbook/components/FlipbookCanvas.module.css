@@ -5,11 +5,13 @@
  * flipbook loads behind, the save form, the blue wash while a save is in flight — is
  * positioned against it.
  *
- * The frame is 640×360 *in project coordinates* and always will be: every flipbook
- * ever saved is that shape, and they all have to stay interchangeable. What it is
- * *shown* at is whatever the window can spare, which on a phone is around half size.
- * The engine pins the coordinate space so the two can disagree — see
- * `Scene.pinCoordinates`, which is also where the pointer arithmetic is corrected.
+ * The frame's shape *in project coordinates* is the flipbook's own and never changes
+ * for the life of it: 640×360 for anything drawn up to 2026, 640×640 since. `--page-ratio`
+ * is set by the page from the row and restated off the artwork; the fallback here is the
+ * legacy page, which is what every flipbook that doesn't say is. What the frame is
+ * *shown* at is whatever the window can spare, which on a phone is around half size. The
+ * engine pins the coordinate space so the two can disagree — see `Scene.pinCoordinates`,
+ * which is also where the pointer arithmetic is corrected.
  */
 
 .book {
@@ -19,7 +21,7 @@
 	   constraint rather than the width. The formula is in base.css, because the page
 	   scrubber under the canvas is sized off the same one. */
 	width: var(--book-width);
-	aspect-ratio: 640 / 360;
+	aspect-ratio: var(--page-ratio, 640 / 360);
 	margin: 0 auto;
 	line-height: 0;
 }
@@ -220,25 +222,6 @@
 	font-size: 20px;
 }
 
-/*
- * The wash the save form sits on.
- *
- * Separate from the form because the form is taller than the canvas and this isn't:
- * the blue is a lid over the drawing, and the buttons that hang below it belong to
- * the page.
- */
-.wash {
-	position: absolute;
-	inset: 0;
-	z-index: 16;
-	background: rgba(74, 125, 244, 0.9);
-}
-
-/* While the artwork is on the wire the wash stays and the spinner sits on it, so
-   there is no second layer of blue. */
-.sending {
-	background: none;
-}
 
 .missing {
 	padding: 64px 0;
@@ -256,8 +239,33 @@
  */
 @media screen and (min-width: 731px) and (min-height: 561px) {
 	.book {
-		width: 640px;
-		height: 360px;
-		aspect-ratio: auto;
+		/*
+		 * Still 640px whenever there is room for it, and still for the page strip's sake.
+		 * Two things changed when a second page shape arrived:
+		 *
+		 * The height is no longer stated beside it. Only the width is common to the two
+		 * shapes, so `aspect-ratio` above supplies the other half. 640 is not a
+		 * coincidence that might stop holding — `SQUARE_PAGE_SIZE` is 640 across
+		 * precisely so every page shape shares a width, which is what keeps the strip's
+		 * pitch and every stroke-width constant meaning what they meant.
+		 *
+		 * And the pin has a **height budget** now, which is the whole of what a taller
+		 * page costs this layout. A flat 640px was safe while the sheet was 360 tall: it
+		 * could not overflow a window that had already passed the 561px minimum this
+		 * breakpoint tests. A square sheet at 640px wide is 640px tall, and 640 plus the
+		 * create page's 318px of chrome wants a 958px window — so on anything shorter it
+		 * ran off the bottom of a page that deliberately has nowhere to scroll to. This
+		 * is `--book-width`'s own formula capped at 640 rather than at `100%`: the cap is
+		 * why the desktop rule exists at all, since `.center` has no max-width and its
+		 * `100%` is the whole window up here.
+		 *
+		 * A 16:9 flipbook is unaffected at any desktop size — 582px of height buys 1035px
+		 * of width, which the cap takes back to the 640 it has always been.
+		 *
+		 * Not `--page-width`: that name is taken, by the strip, for the width it has
+		 * actually measured this canvas at.
+		 */
+		width: min(640px, calc((100dvh - var(--book-reserve, 260px)) * var(--page-aspect, 1.7778)));
+		height: auto;
 	}
 }

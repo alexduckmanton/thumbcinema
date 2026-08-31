@@ -43,6 +43,42 @@ export interface FlipbookSummary {
 	 * tried the SVG first would put a 404 in front of every PNG in the grid.
 	 */
 	thumbnail_svg_url: string | null
+	/**
+	 * The shape of a page, in project units — what the grid lays the tile out as.
+	 *
+	 * Stored on the row rather than read off the artwork, because it is needed *before*
+	 * the artwork: a card is a tile in a grid long before anyone hovers it, and reading
+	 * the answer out of the file would mean downloading a megabyte of drawing per card
+	 * to size a rectangle. `readArtwork` reads the same answer off the `viewBox` for the
+	 * hover preview, which is the copy that draws.
+	 *
+	 * Optional, and the fallback is the legacy page — the rule the whole of this change
+	 * rests on. Absent from a `time-capsule` save, from any row the migration hasn't
+	 * reached, and from every response served in the window between this code going live
+	 * and somebody running it. Every one of those is 640×360, so the fallback is not a
+	 * guess. See `pageSizeOf`.
+	 */
+	width?: number | null
+	height?: number | null
+}
+
+/**
+ * A row's page size, or null when the row doesn't say.
+ *
+ * Null rather than the legacy page, so a caller that has a better answer to hand — the
+ * artwork's own `viewBox`, say — can tell "this row is silent" from "this row is 16:9".
+ * The callers that have nothing better fall back to `LEGACY_PAGE_SIZE` themselves.
+ */
+export function pageSizeOf(
+	row: Pick<FlipbookSummary, 'width' | 'height'> | null | undefined,
+): { width: number; height: number } | null {
+	if (!row) return null
+
+	const { width, height } = row
+	if (typeof width !== 'number' || typeof height !== 'number') return null
+	if (!(width > 0) || !(height > 0)) return null
+
+	return { width, height }
 }
 
 /** What a remix was made from: enough to draw the link back, and no more. */
@@ -231,7 +267,6 @@ export interface SavePayload {
 	 * keeps the two pictures of the same drawing.
 	 */
 	cover: number
-	nsfw: boolean
 	/**
 	 * The flipbook this was drawn on top of, when the tool was opened from one.
 	 *
@@ -262,7 +297,6 @@ export async function saveFlipbook(
 		// which matters because that endpoint is the contract both deployments post
 		// to. See docs/data-formats.md.
 		cover: String(payload.cover),
-		nsfw: payload.nsfw ? '1' : '0',
 	})
 
 	if (payload.remixOf) form.set('remix_of', payload.remixOf)

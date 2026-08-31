@@ -14,6 +14,7 @@
  * that is worth persisting: a fresh page load asks the server again from a clean slate.
  */
 
+import { pageSizeFromSvg } from '../flipbook/engine/formats'
 import type { FlipbookSummary, Flipbook, SavePayload } from '../lib/api'
 import { Store, useStore } from '../lib/store'
 import * as db from './db'
@@ -56,7 +57,6 @@ export interface PendingFlipbook {
 	svg: string
 	thumbnailDataUrl: string
 	cover: number
-	nsfw: boolean
 	/**
 	 * Kept, and still honoured on upload.
 	 *
@@ -138,7 +138,9 @@ export function pendingSummary(entry: PendingEntry): FlipbookSummary {
 		source: 'local',
 		format: 'svg',
 		featured: false,
-		nsfw: book.nsfw,
+		// Always false, and not a field on a queued book: the save form's checkbox is
+		// gone and flagging is an admin action on a published row.
+		nsfw: false,
 		created_at: book.createdAt,
 		data_url: artworkUrl(book),
 		thumbnail_url: book.thumbnailDataUrl,
@@ -146,6 +148,10 @@ export function pendingSummary(entry: PendingEntry): FlipbookSummary {
 		// nothing here can: that is `lib/thumbnail.js`, server side. The PNG beside it is
 		// what a card falls back to, and it is a picture of the same page.
 		thumbnail_svg_url: null,
+		// Read off the artwork rather than stored beside it: this is the same answer the
+		// server would write into the row on upload, from the same rule, so a queued card
+		// is the shape the published one will be. See `pageSizeFromSvg`.
+		...pageSizeFromSvg(book.svg),
 	}
 }
 
@@ -171,7 +177,6 @@ export function pendingPayload(book: PendingFlipbook): SavePayload {
 		svg: book.svg,
 		thumbnailDataUrl: book.thumbnailDataUrl,
 		cover: book.cover,
-		nsfw: book.nsfw,
 		remixOf: book.remixOf,
 	}
 }
@@ -228,7 +233,6 @@ export async function queueFlipbook(payload: SavePayload): Promise<PendingEntry>
 		svg: payload.svg,
 		thumbnailDataUrl: payload.thumbnailDataUrl,
 		cover: payload.cover,
-		nsfw: payload.nsfw,
 		remixOf: payload.remixOf ?? null,
 		createdAt: new Date().toISOString(),
 	}

@@ -163,20 +163,19 @@ body {
  * `useNoScrolling` — and nowhere else, because everything else on this site is a page
  * you read.
  *
- * Five properties, and each one is answering a different browser:
+ * Four properties, and each one is answering a different browser:
  *
  *  - `overflow: hidden` on both is the ordinary one. The create page is sized to the
  *    window by `--book-reserve`, so there was never anything to scroll to; what there
  *    was is the *rubber band*, which on a page that can't scroll still moves the whole
  *    drawing under your finger.
- *  - `position: fixed` on the body is the only thing that reliably stops iOS scrolling
- *    the document anyway. `overflow: hidden` alone is famously ignored there.
  *  - `overscroll-behavior: none` is what takes pull-to-refresh off Chrome on Android,
  *    which is not a scroll and so survives all of the above.
  *  - `touch-action: none` overrides the body's `manipulation` above, which permits a
  *    pinch — and a pinch is two contacts, which up here is a drawing gesture. The
  *    canvas has always said `none`; this is the same statement made about the rest of
- *    the page, now that the rest of the page is somewhere you can draw from.
+ *    the page, now that the rest of the page is somewhere you can draw from. It is the
+ *    the one of the four that `.pannable` turns off — see below.
  *
  * `preventPinchZoom()` in `lib/zoom.ts` is still needed alongside it: Safari's pinch
  * arrives as its own non-standard gesture events, which no CSS reaches.
@@ -185,12 +184,45 @@ html.locked,
 html.locked body {
 	overflow: hidden;
 	overscroll-behavior: none;
-	touch-action: none;
 }
 
-html.locked body {
-	position: fixed;
-	inset: 0;
+/*
+ * There was a fifth, and it is gone: `position: fixed` on the `<body>`.
+ *
+ * It was here as the belt to `overflow: hidden`'s braces — the received wisdom being that
+ * iOS ignores `overflow: hidden` on the body and only a fixed body really holds the
+ * document still. What it also did was make the `<body>` a full-viewport `position: fixed`
+ * element lying against both edges of the window, and that is precisely what iOS reads to
+ * tint its own toolbars (see the note in `SaveForm.module.css`). With it, the save
+ * dialog's wash could not reach the strip behind the URL bar however the wash was built —
+ * the body was what the sampler had already chosen, and it never chose again.
+ *
+ * Bisected on the iOS 26.2 simulator by making the save dialog byte-for-byte identical to
+ * the reference app's, which does tint both toolbars, and then putting our own decisions
+ * back one at a time. Everything else came back with no effect — the portal, `inert`, the
+ * focus handling, our card, our viewport meta, `viewport-fit=cover`. This one line was
+ * the whole of it, together with the dialog no longer being a `<dialog>`. Both are
+ * needed: restoring either one on its own puts the pale bands back.
+ *
+ * `touch-action: none` below is what holds the document still now, and it is the stronger
+ * statement of the two — nothing inside the page can be panned by a finger at all while
+ * it is on. Verified on the simulator: the create page still does not rubber-band.
+ */
+
+/*
+ * `touch-action: none` is the *drawing tool's* half of the lock, not the lock's, which
+ * is why it is a separate rule with a way out.
+ *
+ * It is an intersection down the ancestor chain and a descendant cannot give it back —
+ * so while it is on, nothing inside the page can be panned by a finger. That is right
+ * when the whole page is a surface you draw on, and wrong the moment a scrollable thing
+ * is put in front of it. `.pannable` is the save dialog saying so: the document is still
+ * held still by `overflow: hidden` and `overscroll-behavior` above, and the form in front
+ * of it can be touched — its fields selected, its text scrolled.
+ */
+html.locked:not(.pannable),
+html.locked:not(.pannable) body {
+	touch-action: none;
 }
 
 /*
@@ -211,7 +243,19 @@ html.locked body {
 html.locked #root {
 	display: flex;
 	flex-direction: column;
-	min-height: 100%;
+	/*
+	 * `100dvh`, and it was `100%`, which stopped meaning anything the moment the
+	 * `position: fixed` came off the `<body>` above. A percentage minimum resolves
+	 * against the parent's height, and an unfixed body is `height: auto` — so this
+	 * computed to nothing, `main` stopped at its content, and the empty band under the
+	 * tools was no longer part of the column.
+	 *
+	 * That band is not decoration: it is the field a finger aims from in the modes that
+	 * aim from below the drawing, so losing it is a dead strip across the bottom of the
+	 * page where a stroke simply doesn't start. The viewport unit says what was meant
+	 * either way and does not care what the body is doing.
+	 */
+	min-height: 100dvh;
 }
 
 html.locked main {
@@ -324,13 +368,19 @@ label {
 	 * so tall that what sits under it is pushed off the bottom of the window. Each
 	 * page says how much room the rest of it needs, in `--book-reserve`.
 	 *
+	 * `--page-aspect` is the flipbook's own width over its height, set by the page from
+	 * the same number that sizes the frame. It has to be a decimal rather than the
+	 * `640 / 360` that `aspect-ratio` takes: this is inside `calc()`, where a division
+	 * needs a plain number on the right. The fallback is the legacy page — every
+	 * flipbook that doesn't say what shape it is, is that shape.
+	 *
 	 * Declared here rather than on the canvas because the page scrubber has to be
 	 * exactly as wide as the drawing it scrubs, and they're siblings in this column —
 	 * so `100%` means the same thing to both, and both are resolved against it. It
 	 * can't go on `:root`: a `var()` inside a custom property is substituted where the
 	 * property is *declared*, and `--book-reserve` is set below that, on each page.
 	 */
-	--book-width: min(100%, calc((100dvh - var(--book-reserve, 260px)) * 16 / 9));
+	--book-width: min(100%, calc((100dvh - var(--book-reserve, 260px)) * var(--page-aspect, 1.7778)));
 }
 
 @media screen and (max-width: 460px) {

@@ -5,6 +5,9 @@ import { ViewToggle } from '../routes/gallery/ViewToggle'
 import { CreateButton } from './CreateButton'
 import { SiteHeader } from './SiteHeader'
 
+import { DEFAULT_PAGE_SIZE, LEGACY_PAGE_SIZE, type PageSize } from '../flipbook/engine/constants'
+import { pageVars } from '../flipbook/pageVars'
+
 import canvasStyles from '../flipbook/components/FlipbookCanvas.module.css'
 import createStyles from '../routes/create/CreatePage.module.css'
 import galleryStyles from '../routes/gallery/GalleryPage.module.css'
@@ -62,12 +65,26 @@ export function RouteShell({ route }: RouteShellProps) {
 			// metadata lands, but this one is up for the whole of the route chunk's
 			// download, which is why a refresh showed "New" for so much longer than a
 			// navigation from the gallery did.
-			return <BookShell content={playbackStyles.content} remixOf={route.id} history={false} />
+			return (
+				<BookShell
+					content={playbackStyles.content}
+					remixOf={route.id}
+					wordmark
+					page={LEGACY_PAGE_SIZE}
+				/>
+			)
 		case 'create':
-			// No create button in the header: you are already here. What is up there
-			// instead is the four edit actions, so the shell draws those. Matches
-			// `CreatePage`.
-			return <BookShell content={createStyles.content} remixOf={null} history />
+			// No header at all: no create button, because you are already here, and no
+			// wordmark either. `SiteHeader` drops the row rather than rendering an empty
+			// one, so the shell is a pulsing sheet and nothing else. Matches `CreatePage`.
+			return (
+				<BookShell
+					content={createStyles.content}
+					remixOf={null}
+					wordmark={false}
+					page={DEFAULT_PAGE_SIZE}
+				/>
+			)
 		default:
 			// Nothing to stand in for — the 404 is a heading and a line of text, and a
 			// placeholder in the shape of an apology is worse than a beat of nothing.
@@ -90,7 +107,8 @@ export function RouteShell({ route }: RouteShellProps) {
 function BookShell({
 	content,
 	remixOf,
-	history,
+	wordmark,
+	page,
 }: {
 	content: string | undefined
 	/**
@@ -99,40 +117,37 @@ function BookShell({
 	 * all, which is the create page's own.
 	 */
 	remixOf: string | null
-	history: boolean
+	/** False on the create page, which has no wordmark — see `SiteHeader`. */
+	wordmark: boolean
+	/**
+	 * What shape to draw the sheet, which this is the one thing here that has to guess.
+	 *
+	 * A shell stands in front of a route that hasn't downloaded yet, so there is nothing
+	 * to ask — and the two routes have different best guesses. The create page opens a
+	 * blank flipbook, and a blank flipbook is square; the playback page opens somebody
+	 * else's, and every flipbook that already exists is 640×360. Each is right in the
+	 * overwhelming majority and wrong in the same way when it isn't — a remix opened
+	 * square, a square flipbook played back — which costs one reflow at the handover on
+	 * a page that is still mostly placeholder.
+	 *
+	 * The alternative is holding the shell up on a metadata fetch, which is the download
+	 * this exists to cover.
+	 */
+	page: PageSize
 }) {
 	return (
 		<>
-			<SiteHeader width="narrow">
+			{/*
+			 * The create page has neither wordmark nor header actions, so its shell has
+			 * none either and `SiteHeader` drops the row altogether. The playback page
+			 * keeps both, and its Remix button is the whole reason this shell knows which
+			 * flipbook is coming.
+			 */}
+			<SiteHeader width="narrow" wordmark={wordmark}>
 				{remixOf ? <CreateButton remixOf={remixOf} /> : null}
-				{/*
-				 * The edit actions, as the create page has them on a desktop: four discs at
-				 * the right-hand end of the header, and there is nothing yet to undo, redo,
-				 * copy or paste — so they are drawn in the state they will actually land in.
-				 * Pictures of buttons: they are `disabled`, so they are out of the tab order
-				 * and take no presses, which is the whole difference between this and the
-				 * real row.
-				 *
-				 * The glyphs are repeated here rather than shared, because anything this
-				 * file imports lands in the entry bundle and `EditActions` lives inside the
-				 * create route's chunk — which is the download this shell exists to cover.
-				 * Four characters; if they change there, they change here.
-				 *
-				 * Hidden on a phone by `.actionsTop`, exactly as the page's own are, so the
-				 * shell is the right shape at both widths from one piece of markup.
-				 */}
-				{history ? (
-					<div className={createStyles.actionsTop} aria-hidden="true">
-						{['↺', '↻', '↥', '↧'].map((glyph) => (
-							<button key={glyph} type="button" className={createStyles.action} disabled>
-								<span className={createStyles.actionGlyph}>{glyph}</span>
-							</button>
-						))}
-					</div>
-				) : null}
 			</SiteHeader>
 
-			<main className={content}>
+			<main className={content} style={pageVars(page) as React.CSSProperties}>
 				<div className="center">
 					<div className={canvasStyles.book}>
 						{/* `.sheet` as well as `.skeleton`: there is no canvas under this one to

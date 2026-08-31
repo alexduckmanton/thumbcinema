@@ -19,6 +19,7 @@
  */
 
 import type { FlipbookFormat } from '../../lib/api'
+import { LEGACY_PAGE_SIZE, type PageSize } from '../engine/constants'
 import { type ArtworkReader, type PreviewPage, readArtwork } from './artwork'
 
 /**
@@ -49,6 +50,15 @@ export interface PreviewEntry {
 	readonly total: number
 	/** Built pages, in order, growing from the front. May be shorter than `total`. */
 	readonly pages: PreviewPage[]
+	/**
+	 * The shape of a page, off the artwork's own `viewBox`.
+	 *
+	 * The card's tile is already the right shape by the time this lands — the gallery
+	 * listing carries it — but the coordinates being drawn are in the file's space, so
+	 * what the canvas is scaled against comes from the file. The legacy page until the
+	 * artwork says otherwise, which is what a row with no `viewBox` means.
+	 */
+	readonly page: PageSize
 	readonly status: PreviewStatus
 }
 
@@ -56,6 +66,7 @@ type Listener = () => void
 
 interface Entry extends PreviewEntry {
 	total: number
+	page: PageSize
 	status: PreviewStatus
 	/** How many cards are currently holding this. See `retain`. */
 	holds: number
@@ -141,6 +152,7 @@ function open(source: PreviewSource): Entry {
 	const entry: Entry = {
 		id: source.id,
 		total: 0,
+		page: LEGACY_PAGE_SIZE,
 		pages: [],
 		status: 'loading',
 		holds: 0,
@@ -192,6 +204,7 @@ async function load(entry: Entry, source: PreviewSource): Promise<void> {
 
 		const reader = readArtwork(text, source.format)
 		entry.total = reader.total
+		entry.page = reader.page
 		notify(entry)
 
 		await decode(entry, reader)

@@ -6,13 +6,23 @@ import styles from './DrawModeSwitch.module.css'
 
 export interface DrawModeSwitchProps {
 	mode: DrawMode
+	/**
+	 * The disc's class, handed down rather than owned here.
+	 *
+	 * It stands in the create page's row of edit actions and is one of them to look at,
+	 * so it wears that page's `.action` — applied to this markup, which is what
+	 * `RouteShell` does with the same class and is not the cross-module *selector* the
+	 * rest of the tree avoids.
+	 */
+	className?: string
 }
 
 /** How long the rules of a freshly-picked mode stay on screen. */
 const HINT_DURATION = 5000
 
 /**
- * The switch between the drawing modes, in the top right of the window.
+ * The switch between the drawing modes: the last disc in the phone's row of edit
+ * actions, at the right-hand end.
  *
  * **Admin only.** The site ships `DEFAULT_DRAW_MODE` and nothing on the page says so:
  * the other twelve modes are a question being asked rather than a setting, and a picker
@@ -30,17 +40,22 @@ const HINT_DURATION = 5000
  * hit, and it costs nothing. It is laid over the disc at zero opacity, so what you see is
  * the button and what you press is the picker.
  *
- * Deliberately unlike everything else on the page. This is scaffolding — it is here to
- * answer a question about how a finger should draw — so it is stated in the plainest
- * terms available rather than drawn in the site's hand. Nothing about it should read as
- * part of the flipbook tool.
+ * **Phone only**, because the row it lives in is. That is not a loss worth working
+ * around: the thirteen modes are thirteen answers to "a finger is opaque", and a desktop
+ * has a pointer. It used to float in the top-right corner of every layout, which is a
+ * corner the drawing modes themselves like to put a magnifier in.
+ *
+ * ⚿ rather than three drawn bars, and it is checked rather than assumed: Pecita's cmap
+ * has U+26BF and not U+1F512, so the squared key is the lock this face actually ships.
+ * A glyph rather than CSS boxes now that it stands in a row of glyphs — ↺ ↻ ↥ ↧ — and
+ * has to look like one of them.
  *
  * **The caption is permanently on and leads with the version number**, which is most of
  * why the modes are numbered at all: they differ from each other by a rule rather than by
  * a picture, and half of them look identical until you touch the glass. Without a number
  * on screen, saying which one you were drawing with means describing it.
  */
-export function DrawModeSwitch({ mode }: DrawModeSwitchProps) {
+export function DrawModeSwitch({ mode, className }: DrawModeSwitchProps) {
 	const current = DRAW_MODES.find((entry) => entry.id === mode) ?? DRAW_MODES[0]
 	const [hinting, setHinting] = useState(false)
 
@@ -60,12 +75,10 @@ export function DrawModeSwitch({ mode }: DrawModeSwitchProps) {
 	if (!isAdmin()) return null
 
 	return (
-		<div className={styles.switcher}>
-			<div className={styles.button}>
-				<span className={styles.icon} aria-hidden="true">
-					<span />
-					<span />
-					<span />
+		<>
+			<div className={className ? `${styles.button} ${className}` : styles.button}>
+				<span className={styles.glyph} aria-hidden="true">
+					⚿
 				</span>
 
 				<select
@@ -86,11 +99,15 @@ export function DrawModeSwitch({ mode }: DrawModeSwitchProps) {
 			</div>
 
 			{/* Hidden from the accessibility tree: the select above already announces
-			    its own value, and a second copy of it is noise. */}
+			    its own value, and a second copy of it is noise.
+
+			    Fixed above the footer rather than beside the disc, because the disc is now
+			    in a row that has no room for a paragraph. Out of the flow entirely, so the
+			    row it is rendered from lays out as five discs and a button. */}
 			<div className={styles.caption} aria-hidden="true">
 				<span className={styles.label}>{current ? label(current) : null}</span>
 				{hinting ? <span className={styles.hint}>{current?.hint}</span> : null}
 			</div>
-		</div>
+		</>
 	)
 }

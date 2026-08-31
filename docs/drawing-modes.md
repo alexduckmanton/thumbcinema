@@ -7,8 +7,8 @@ v13 — the one the site ships. `src/flipbook/drawModes.ts`, `pointer.ts` and
 A finger is opaque, so the thing you are aiming at on a phone is under the thing you are
 aiming with. There is no settled industry answer to that — a survey turned up four
 separate families and no consensus — so rather than pick one blind, thirteen of them are
-built behind an **admin-only** switch in the corner of the create page and drawn with side
-by side: a
+built behind an **admin-only** switch — the last disc in the phone's row of edit actions,
+wearing ⚿ — and drawn side by side: a
 follower loupe, a corner loupe, a fixed offset, a trailing steady stroke, two that change
 over on half a second of stillness, four that move the cursor off the fingertip
 altogether, two that leave the finger where it is and magnify the drawing under it
@@ -33,6 +33,13 @@ the one that belongs to two groups at once, being v12 on the drawing and v10 off
 **v13 is the default and is what the site ships**, which is what `DEFAULT_DRAW_MODE` says
 rather than "whichever is last in the list" — and since the switch is admin-only it is now
 the only thing that decides what anybody else gets. See **v13** below for the mode itself.
+
+**Phone only**, because the row it sits in is. Not a loss worth working around: thirteen
+answers to "a finger is opaque" is a question about fingers, and a desktop has a pointer.
+It used to float in the top-right corner of every layout — a corner three of these modes
+like to park a magnifier in. The glyph is U+26BF ⚿, checked against Pecita's cmap rather
+than assumed: the face has the squared key and not U+1F512, and a key is the honest
+picture for a control you only see because you hold the token.
 
 **The switch is gated on the admin token**, the same shared secret the gallery's
 moderation toggles use and by the same one line (`isAdmin()`, `lib/admin.ts`). The other
@@ -97,6 +104,16 @@ Things worth knowing before touching anything nearby:
   column starts below it, so a column a windowful tall ends a header's worth past the
   bottom of the window — clipped, so invisible, and sixty-odd pixels of field that no
   finger can reach.
+
+  **The minimum is `100dvh` and has to be**, which is a lesson rather than a preference.
+  It was `100%`, resolved against a `<body>` that the lock made `position: fixed` and so
+  viewport-tall. When that `position: fixed` came off — for the iOS toolbar tinting, see
+  the note in `base.css` — the body went back to `height: auto`, a percentage minimum
+  against an auto height computes to nothing, and the column quietly stopped at its own
+  content. Nothing looked wrong: the drawing, the bar and the tray were all where they
+  had always been. What had gone was the empty half of the window under them, so a stroke
+  started low simply never began. A viewport unit says what was meant without caring what
+  the body is doing.
 - **Two holders, and either will do.** A held tray button and a second finger are both a
   mouse button, and which one is to hand depends on how the phone is being held rather
   than on which is better. So a gesture can have *two* at once, and a release has to ask
@@ -169,7 +186,7 @@ Things worth knowing before touching anything nearby:
   were working against it, both fixed rather than worked around: the tray inherited the
   body's `touch-action: manipulation`, so a second contact on it is a candidate pinch and
   a browser may hold the touch back while it decides (`none` now, the other half of what
-  the canvas already says); and selecting a tool slides its button 50px down out from
+  the canvas already says); and selecting a tool slides its button 20px down out from
   under the finger that pressed it, which a click — needing the press and the release on
   the same element — can lose. Touch events have neither problem: every finger fires
   them, and a touch's events all target the element it started on however far anything
@@ -240,8 +257,8 @@ anybody tried a magnifier.
 canvas and the outline; and the gestures are `PointerLayer`'s, kept in a section of their
 own because v11 shares none of the machinery the other ten do.
 
-- **The whole of the state is four numbers**: a rectangle on the 640×360 page, in the
-  page's own units. The outline, the magnified copy and where a finger lands in the
+- **The whole of the state is four numbers**: a rectangle on the page, in the page's own
+  units — so it needs telling which page, since there are two shapes and the bounds differ. The outline, the magnified copy and where a finger lands in the
   artwork are three readings of those four, so there is one thing to be right about rather
   than three.
 - **The trace photograph is drawn into the stage, not laid over it.** On the paper the
@@ -263,12 +280,13 @@ own because v11 shares none of the machinery the other ten do.
   canvas — the loupe's mechanism at a larger size — and a finger's position handed back
   through the same window the other way. So there is nothing here for the save path, the
   history or the page strip to know about: a gesture that arrives from down there is one
-  history step and one thumbnail, and the artwork is still 640×360 whatever is on screen.
+  history step and one thumbnail, and the artwork is still its own size whatever is on
+  screen.
   Copying is also what keeps it honest, because what you see is the live canvas: the
   stroke in progress, the onion skin and a selected stroke's blue are all in it without
   this code knowing any of them exist. **What it costs is sharpness at the far end of the
-  zoom** — the source is the paper's backing store, 640 units across at the device's pixel
-  ratio, so at 4× the copy magnifies about 2:1. On a phone that is a soft edge on a
+  zoom** — the source is the paper's backing store, 640 units across (both page shapes
+  share a width) at the device's pixel ratio, so at 4× the copy magnifies about 2:1. On a phone that is a soft edge on a
   hand-drawn line.
 - **Its size is measured, and its shape falls out of the measurement.** The stage takes
   what the column has left once the strip, the paper, the page bar and the tray have taken

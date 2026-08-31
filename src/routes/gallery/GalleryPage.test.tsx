@@ -75,7 +75,6 @@ function queue(title: string) {
 		svg: '<svg></svg>',
 		thumbnailDataUrl: 'data:image/png;base64,AAA',
 		cover: 0,
-		nsfw: false,
 		remixOf: null,
 	})
 }

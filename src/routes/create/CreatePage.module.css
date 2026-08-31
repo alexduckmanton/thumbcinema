@@ -1,6 +1,5 @@
 /*
- * The create page's own layout: the column, the save button, and what the whole page
- * does when a save starts.
+ * The create page's own layout: the column, the footer bar and the save button.
  *
  * Written for a phone first and let out at 731px, because the phone is the layout
  * with something to solve. A desktop has more room than the tool needs and the shape
@@ -32,12 +31,18 @@
 	padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
 
 	/*
-	 * Everything on this page that isn't the drawing, which is what the canvas is
-	 * sized around: header, the page bar, the tray, the save button, this column's own
-	 * padding, and a little slack. Held sideways a phone is barely taller than that
-	 * list, so the number comes down and each of the parts it counts comes down with it.
+	 * Everything on this page that isn't the drawing, which is what the canvas is sized
+	 * around: the page bar, the tray, the save button, this column's own padding, and a
+	 * little slack. Held sideways a phone is barely taller than that list, so the number
+	 * comes down and each of the parts it counts comes down with it.
+	 *
+	 * It was 318 and the header was in it. The header is gone from this page — no
+	 * wordmark, no edit actions — and both numbers came down by the 58px that left,
+	 * measured rather than reasoned: with the old value the column ended 64px short of
+	 * the window and the drawing was that much smaller than the room it had. What is
+	 * left over now is 6px at every size checked, which is the "little slack".
 	 */
-	--book-reserve: 318px;
+	--book-reserve: 260px;
 }
 
 /*
@@ -93,20 +98,17 @@
 	align-items: center;
 	justify-content: space-between;
 	padding: 0 max(var(--column-gutter), calc((100% - var(--book-width)) / 2));
-	/* `transform` rather than `top`, which a box pinned by `bottom` can't use without
-	   being stretched between the two. The desktop's fly-away uses it as well, so the
-	   two layouts differ by the direction and nothing else. */
-	transition: opacity 0.4s ease-in, transform 0.4s ease-in;
 }
 
 /*
  * Undo, redo, copy and paste, in the bottom left of the window: the other end of the
  * footer from save, which is the end a right hand isn't resting on.
  *
- * The row is in the markup twice and shown once — this is the phone's copy, and
- * `.actionsTop` below is the desktop's. See `EditActions` for why it is done that way
- * round. It leads with a fifth disc the desktop's hasn't got: the camera, which is the
- * whole of the trace-photo feature's front door and exists only at this width.
+ * The only copy there is, and it exists only at this width: the desktop had a second
+ * row of these up beside the wordmark and no longer does — a keyboard has ⌘Z, and the
+ * room was worth more than the buttons once a square page made the window tight. It
+ * leads with a fifth disc: the camera, which is the whole of the trace-photo feature's
+ * front door and exists only at this width.
  *
  * 4px rather than the 8 the desktop's row uses, and the difference is arithmetic rather
  * than taste. The narrowest layout that gets this row at full size is a 360px Android
@@ -115,18 +117,33 @@
  * the discs, and five 38px discs 4px apart are 206 of it: 12px clear of the save button,
  * against the 11 the four-disc row this replaces had.
  *
- * The 38 is why there is a whole media query for it below rather than a number here —
- * `.actionsTop` shares `.action` and stays at 48, having only four of them and a header
- * to itself.
+ * The 38 is why there is a whole media query for it below rather than a number here:
+ * `.action` itself stays at 48, which is the size a disc wants to be and the size the
+ * page bar's own controls are drawn at. No layout renders the base value — this row is
+ * `display: none` above the breakpoint — so it is the shape of the rule rather than a
+ * size anything sees.
  */
 .actions {
 	display: flex;
 	gap: 4px;
 }
 
-/* The desktop's copy, up in the header's actions. Off here, where the footer has it. */
-.actionsTop {
-	display: none;
+/*
+ * And the same row with the drawing-mode switch on the end of it, which only an admin
+ * has. Six discs and "Save" do not fit the arithmetic above — five at 38 leave 12px
+ * clear of the save button on a 360px phone, and a sixth overruns it by 30 — so the
+ * whole row comes down a size rather than the new disc being the odd one out.
+ *
+ * Scoped to the admin case so that what everybody else sees is untouched: 32 and 3
+ * leave 11px clear at 360 and 41 at 390, against 12 and 42 for the five-disc row.
+ */
+.actionsAdmin {
+	gap: 3px;
+}
+
+.actionsAdmin .action {
+	width: 32px;
+	height: 32px;
 }
 
 /*
@@ -314,22 +331,16 @@
 }
 
 /*
- * Naming the flipbook: the footer leaves the same way the tools do, which on a phone
- * is downwards and off the bottom of the window.
+ * Naming the flipbook used to empty the page: this bar slid off the bottom of the
+ * window on a phone and off the top on a desktop, and the tray's tools flew up out of
+ * the row. That belonged to a save form that was a panel laid over the canvas — it had
+ * to be left alone with the drawing, because it was standing on it.
+ *
+ * The form is a modal now. It washes the whole window and puts `inert` on `main`, which
+ * is the whole of what the fly-away was buying: nothing under it can be pressed,
+ * focused or read out. So the page just stays as it was, which is also the page you get
+ * back if you cancel.
  */
-.naming .footer {
-	transform: translateY(120px);
-	opacity: 0;
-	/* Gone as far as a press is concerned the moment it starts leaving, rather than
-	   after the 0.4s: it is transparent all the way down and a transparent bar held
-	   over the page is a dead strip across it. */
-	pointer-events: none;
-}
-
-/* While the artwork is on the wire: nothing to press, and the wash stays up. */
-.sending {
-	pointer-events: none;
-}
 
 /*
  * The phone layout's discs, which are five where the desktop's are four.
@@ -340,8 +351,9 @@
  * which five of them plus "Save" still clear each other by the width of a gutter inside
  * the 328px column a 360px phone gives, which is the narrowest layout this block holds.
  *
- * Stated as its own query rather than as the base value because `.action` is shared with
- * `.actionsTop`, which has four discs, a header to itself and no reason to shrink.
+ * Stated as its own query rather than as the base value so the base stays the size a
+ * disc wants to be and each layout says what it can afford, rather than 38 reading as the
+ * size and 48 as the exception.
  */
 @media screen and (max-width: 730px), screen and (max-height: 560px) {
 	.action {
@@ -409,7 +421,7 @@
 		 * the reserve had to clear. It isn't shown on a phone at all any more, so what is
 		 * left to count is the footer, and the footer is 40px here.
 		 */
-		--book-reserve: 212px;
+		--book-reserve: 154px;
 	}
 
 	/*
@@ -503,27 +515,9 @@
 	.actions {
 		display: none;
 	}
-
-	/*
-	 * Up beside the wordmark. The header is `narrow` on this page, so its right-hand
-	 * edge is the right-hand edge of the 640px column — which puts the right-hand disc
-	 * squarely above the corner of the paper rather than out at the edge of the window.
-	 *
-	 * Centred against a 70px wordmark by the header's own `align-items`, so nothing here
-	 * has to know how tall that is.
-	 */
-	.actionsTop {
-		display: flex;
-		gap: 8px;
-	}
-
-	.naming .footer {
-		transform: translateY(-200px);
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.footer,
 	.saveButton,
 	.action {
 		transition: none;

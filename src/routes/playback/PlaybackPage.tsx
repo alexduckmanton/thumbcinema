@@ -4,9 +4,11 @@ import { AdminToggles } from '../../components/AdminToggles'
 import { CreateButton } from '../../components/CreateButton'
 import { SiteHeader } from '../../components/SiteHeader'
 import { PageNav } from '../../flipbook/components/PageNav'
+import { pageVars } from '../../flipbook/pageVars'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
-import { getFlipbook, getFlipbookData, type Flipbook } from '../../lib/api'
+import { LEGACY_PAGE_SIZE } from '../../flipbook/engine/constants'
+import { getFlipbook, getFlipbookData, type Flipbook, pageSizeOf } from '../../lib/api'
 import { isTouch } from '../../lib/device'
 import {
 	discardPending,
@@ -111,6 +113,14 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 	const local = isPendingId(id)
 
 	const { print, container } = usePrint(engine)
+
+	/**
+	 * The shape of the page. The metadata carries it, so the frame is right from the
+	 * first paint; the store takes over once the artwork has restated it off the file.
+	 * The legacy page while neither has arrived, which is what every row without the
+	 * columns is.
+	 */
+	const page = state?.page ?? pageSizeOf(flipbook) ?? LEGACY_PAGE_SIZE
 
 	/*
 	 * Throwing a queued flipbook away, which is the one thing you can do to one besides
@@ -278,7 +288,7 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 				)}
 			</SiteHeader>
 
-			<main className={styles.content}>
+			<main className={styles.content} style={pageVars(page) as React.CSSProperties}>
 				<div className="center">
 					<div className={canvasStyles.book}>
 						<canvas ref={canvasRef} className={canvasStyles.canvas} />

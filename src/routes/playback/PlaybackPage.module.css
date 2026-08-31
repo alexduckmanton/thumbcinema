@@ -178,7 +178,13 @@
 
 /*
  * Three across the 640px column, one on a phone, and the card decides its own height
- * from its 16:9.
+ * from the shape of the flipbook on it.
+ *
+ * A lineage is the one list where mixed shapes are the *normal* case rather than the
+ * boundary one: a remix keeps the shape of what it was drawn from, so a family started
+ * before 2026 stays 16:9 for ever while one started after is square — but a family can
+ * hold both the moment somebody remixes across the change. `align-items: start` and the
+ * `grid-lanes` enhancement are the same reasoning as the gallery's; see `GalleryPage`.
  *
  * A smaller minimum than the gallery's 320, and knowingly: at ~197px a drawing is
  * small. It is the right trade here because the question this list answers is "how
@@ -195,7 +201,17 @@
 .remixGrid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+	/* Cards state their own height through `aspect-ratio`, and `stretch` would overrule
+	   it — two definite lengths, and the ratio loses. See the note in `GalleryPage`. */
+	align-items: start;
 	gap: 14px;
+}
+
+@supports (display: grid-lanes) {
+	.remixGrid {
+		display: grid-lanes;
+		flow-tolerance: 100px;
+	}
 }
 
 .remixesFoot {

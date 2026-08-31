@@ -68,11 +68,18 @@ a rasteriser and a GIF writer, in Node, with no dependency and no canvas.
 - **12fps, which GIF cannot state.** Delays are hundredths of a second and 1/12 is
   8.333 of them, so the frames alternate 8, 8, 9 — which averages it exactly, and a
   flipbook is a loop, so an error that cancels every three frames never accumulates.
-- **640×360, whatever the flipbook is.** Sizes measured across the archive's
-  distribution: 0.16 MB for a median flipbook, 0.81 MB at p90, 2.9 MB for the longest
-  there is. There is deliberately no cap and no downscaling — the numbers are
-  comfortable against a 100 GB/mo tier, and a flipbook served smaller than it was drawn
-  is the wrong kind of surprise.
+- **The size of the flipbook itself**, read off the artwork's own `viewBox` — 640×360
+  for anything up to 2026, 640×640 since, and 640×360 for any file that doesn't say
+  (which is the whole archive). Sizes measured across the archive's distribution at
+  640×360: 0.16 MB for a median flipbook, 0.81 MB at p90, 2.9 MB for the longest there
+  is; a square page is 78% more pixels, so scale accordingly. There is deliberately no
+  cap and no downscaling — the numbers are comfortable against a 100 GB/mo tier, and a
+  flipbook served smaller than it was drawn is the wrong kind of surprise.
+
+  This is the one surface where getting the size wrong fails *silently*: a square
+  flipbook rasterised into a 16:9 buffer keeps its top 360 rows and drops the rest, and
+  `/f/:id.gif` exists for other people's pages rather than for this one, so nobody here
+  would ever see it. `lib/gif.test.js` asserts the ink below y=360 survives.
 - **The GIF's own LZW is a flat `Int32Array`, not a Map.** Sixteen symbols means the
   whole dictionary is 65,536 slots and clearing between frames is a `fill(0)`; a
   200-page flipbook would otherwise build and discard millions of Map entries.

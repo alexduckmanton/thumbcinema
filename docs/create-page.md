@@ -1,7 +1,7 @@
 # The create page
 
-The layout, the page bar, the tray, tracing over a photograph, and the playback page
-that shares most of it. How a finger drives the tools is its own file:
+The layout, the page bar, the tray, tracing over a photograph, naming a flipbook, and
+the playback page that shares most of it. How a finger drives the tools is its own file:
 [`drawing-modes.md`](drawing-modes.md).
 
 The one place this is deliberately no longer a port. It started as the phone layout —
@@ -32,9 +32,31 @@ is now true at both widths and the differences are called out where they exist.
   scaled with it, so it came out of the top of the drawing and stood in the air above
   it; on a desktop the whole 304px run used to be behind 360px of canvas, until the page
   bar arrived 8px below the canvas and the two tools showed through the gap as a row of
-  coloured slivers. `clip-path: inset(-20px …)` on the list cuts them along the line the
-  page bar's bottom edge runs on, which is where the eye already reads them as going
-  under something.
+  coloured slivers. `clip-path: inset(-68px …)` on the list keeps them out of exactly
+  that gap — 68 is the bar's top edge — and **that is the whole of what the clip does.**
+
+  **What decides how much of a tool you see is the bar, not the clip.** The bar carries
+  `z-index: 10` and the tools carry 1, so it paints over them: what shows is the run
+  between the bar's bottom edge and wherever the tool's own `bottom` puts its tip. The
+  canvas covers the rest of the way up on its own. This is worth stating plainly because
+  it has already been got wrong once — the clip was moved from -20 to -44 to "stop the
+  tools reading as cropped", which cannot work and did nothing, since every value in that
+  range cuts a stretch the bar is already covering.
+
+  The two numbers that do move it are on `.tool`. It hangs 20px below the row rather than
+  10, which is free — the tray already carries 20px of padding under the list, so the tip
+  reaches the tray's own bottom edge and the row grows by nothing — and selecting one
+  slides it 20px rather than 50. The 50 is 2013's, from when the thing above this row was
+  360px of *paper*: a tool sliding down came out from under a sheet and the extra length
+  read as tool. Under a 48px floating pill it brought out a bare stretch of barrel, and
+  the selected tool looked worse than the unselected one, which is the wrong way round
+  for the one in your hand. The transform gets the same 20px where it had 11: it is the
+  tool whose picture reads worst when cut — a pencil's bottom 55px is a recognisable
+  point, a pocket knife's is a rounded red end that could be anything — so it was the one
+  revealing least on being picked up.
+
+  **None of this makes the transform whole.** It is a 151px picture in a band that shows
+  85, and the only levers left cost canvas: a taller row, or a shorter page bar.
 - **The page strip stays, scaled, and `PageNav` is added under it.** The strip was
   hidden on a phone at first, and everything about that was wrong: the page animations
   are two pages moving — one thrown out as another arrives — and half of each one was
@@ -200,19 +222,25 @@ is now true at both widths and the differences are called out where they exist.
   mark, but the pencil is one size now, so what it says is which of the two marking tools
   is in hand.
 - **On a phone the bottom of the window is a footer bar: the camera and four edit actions
-  at one end, save at the other.** It was the save button alone, floating in the middle;
-  a bar is what lets the other five stand next to it without any of them looking like an
-  afterthought. The camera leads the row — it is the one disc there that isn't spending a
-  stack, so it stands at the far corner where the four that are can stay adjacent, and as
-  far from Save as the bar allows, those being the two presses least worth confusing. See
-  **Tracing over a photograph** below, and its note on what a fifth disc did to the
-  arithmetic. Fixed 8px off the bottom, because the column ends wherever the tools
-  happen to end and the rest of a phone screen is air. `transform`, not `top`, does the
-  fly-away when the form goes up — a box pinned by `bottom` can't use `top` without
-  being stretched between the two — and the desktop's fly-away moved to `transform` with
-  it, so the two differ by the direction and nothing else.
-- **Undo, redo, copy and paste are on both layouts, in different corners, and are in the
-  markup twice.** Each is a white disc exactly as tall as the save button and as wide as
+  at one end, save at the other** — and, for an admin, the drawing-mode switch on the end
+  of the row. It was the save button alone, floating in the middle; a bar is what lets the
+  others stand next to it without any of them looking like an afterthought. The camera
+  leads the row — it is the one disc there that isn't spending a stack, so it stands at
+  the far corner where the four that are can stay adjacent, and as far from Save as the
+  bar allows, those being the two presses least worth confusing. The mode switch takes the
+  opposite end for the same reason in reverse: it is scaffolding, and the one control here
+  nobody should reach for by accident. See **Tracing over a photograph** below, and its
+  note on what a fifth disc did to the arithmetic. Fixed 8px off the bottom, because the
+  column ends wherever the tools happen to end and the rest of a phone screen is air.
+
+  **Nothing in this bar moves when the save form goes up, and that is a reversal.** The
+  row used to slide off the bottom of the window on a phone and off the top on a desktop,
+  and the tray's tools flew up out of their row to match — a 2013 keyframe kept through two
+  rewrites. It was right while the form was a panel laid over the canvas, because the form
+  was standing on the drawing. It is a modal now, and a modal puts `inert` on `main`, which
+  is the whole of what the fly-away bought. See **Naming a flipbook** below.
+- **Undo, redo, copy and paste are the phone's, and the phone's alone.** Each is a white
+  disc exactly as tall as the save button and as wide as
   it is tall, wearing a Pecita glyph — ↺ ↻ ↥ ↧, set as live text for the same reason the
   wordmark is: the icon sheet is drawings of *things*, and none of these four is a thing.
   Dimmed rather than hidden when there is nothing to spend, because which of them is
@@ -228,33 +256,36 @@ is now true at both widths and the differences are called out where they exist.
   which they would not in any face the rest of the site doesn't use. The tooltip and the
   accessible name carry the actual words.
 
-  On a phone they are the left-hand end of the footer, in that order — the two that spend
-  the history, then the two that spend the clipboard. On a desktop they are the header's
-  actions slot, beside the wordmark — which on this page is `narrow`, so its right-hand
-  edge is the right-hand edge of the 640px column and the discs land above the corner of
-  the paper. Undo and redo were phone-only at first, on the reasoning that ⌘Z is what a
-  hand on a keyboard reaches for. It is, and a fifty-step history that nothing on the
-  screen mentions is still a feature people find out about by accident — which is the
-  same argument for putting the clipboard up there too. They are at the *top* because the
-  bottom of that column is the save button's, and undo standing next to save is the pair
-  you least want to confuse.
+  They are the left-hand end of the footer, in that order — the two that spend the
+  history, then the two that spend the clipboard.
 
-  **Two copies with `display: none` on the wrong one**, rather than one box moved: the
-  two corners are in different parts of the tree — one is inside `<SiteHeader>`, the
-  other is a bar pinned to the bottom of the window — and no arrangement of CSS carries a
-  box between them. It costs a few elements and leaves exactly one row in the
-  accessibility tree at any width. The desktop copy is **disabled while the save form is
-  up**, because the footer's copy leaves with the footer and this one has nowhere to go —
-  a live undo button in the corner is otherwise the one control still able to change a
-  drawing that is under the wash. `RouteShell` draws a disabled row too, so nothing
-  appears in the header at the handover.
+  **There was a second copy of the row up beside the wordmark on a desktop, and it is
+  gone.** It went in with the argument that a fifty-step history nothing on screen
+  mentions is a feature people find out about by accident, which is true — but it was
+  a header's worth of a window that a square page needs, and a desktop is the one place
+  ⌘Z is already at hand. `useKeyboardShortcuts` is the whole of undo, redo, copy and
+  paste up there now. The wordmark went with it for the same reason; see below.
 
-  **The row is 6px apart on a phone and 8 on a desktop, and that is arithmetic.** Four
-  48px discs and the save button are 320px of the footer's 328 on the narrowest layout
-  that gets them at full size — a 360px Android phone. Below 360 they take the diet the
-  sideways layout already takes, 40px discs and a 40px save button, which is 264 of the
-  288 a 320px screen gives the column. A 280px folding cover screen still overruns by 16
-  and is left to: the paper there is 264px wide.
+  What that simplifies: the row is in the markup once, there is no `display: none` copy
+  to keep in step, and nothing has to be disabled while the save form is up — the form
+  puts `inert` on `main`, which takes the whole page out of reach in one attribute.
+
+- **The create page has no header at all.** No wordmark, no actions — `SiteHeader` drops
+  the row rather than rendering an empty one, so its 40px of padding goes too. It is the
+  one page that isn't somewhere you read, and the ~110px it was spending on a sign is
+  most of what a 640×640 page needed over a 640×360 one. The cost is the only link home,
+  which the drawing tool had to interrupt anyway: `guardNavigation()` asks before it lets
+  go of unsaved work, and the back button asks the same question.
+
+  `--book-reserve` came down with it — 318 to 260 on a desktop, 212 to 154 in a short
+  window — and those are measured rather than reasoned. With the old values the column
+  ended 64px short of the bottom of the window and the drawing was that much smaller than
+  the room it had. What is left over now is 6px at every size checked.
+
+  **The gaps and the sizes are arithmetic, and it is written out under **Tracing over a
+  photograph** below** — the camera made a five-across row out of a four-across one and
+  the numbers were redone for it, and the admin switch makes it six and takes the whole
+  row down another size. Both are `.actions` in `CreatePage.module.css`.
 - **The footer's ends are the paper's ends, and that needs a `max()`.** `--book-width`
   is a `min(100%, …)` and the bar is `position: fixed`, so its `100%` is the window
   where the column's is the column — upright, where the width binds, the difference
@@ -269,8 +300,9 @@ is now true at both widths and the differences are called out where they exist.
   sitting at the paper's left-hand edge. There is nothing under the page actions at the
   other end. The rule this replaces did the same thing for the save button alone, to
   keep it off the width popover — same band, same problem, one answer now instead of a
-  special case. `--book-reserve` is 212 in a short window rather than 250, because what
-  it used to be set from was the bottom of that popover and the popover is gone.
+  special case. `--book-reserve` is 154 in a short window: the popover it used to be set
+  from is gone, and the header went with it — see **The create page has no header at all**
+  above for both numbers.
 - **The bar comes up empty, and that is `.waiting`.** A saved flipbook arrives a page at
   a time, so until the second page lands it is a one-page flipbook — which puts the handle
   at the *right-hand* end, one page being the last page as much as the first. So the bar
@@ -305,8 +337,9 @@ is now true at both widths and the differences are called out where they exist.
   project units and turned into a percentage of `.book`, which is exactly the size the
   canvas is shown at. So it needs no measuring and no JavaScript scale. Two things to
   keep straight there: a percentage *height* resolves against the height of the box, and
-  this box is 16:9, so the same expression on both axes drew an ellipse nearly twice as
-  wide as it was tall (`aspect-ratio: 1` instead); and there is a 6px floor, because a
+  the box is not square, so the same expression on both axes drew an ellipse nearly twice
+  as wide as it was tall on a 16:9 page (`aspect-ratio: 1` instead — which is also what
+  keeps it a circle now that a page can be square); and there is a 6px floor, because a
   three-unit stroke on a phone is under two pixels across and a ring that small has
   stopped previewing anything and gone back to being a cursor.
 
@@ -378,8 +411,8 @@ is now true at both widths and the differences are called out where they exist.
   **It comes off while the save form is up**, which is the one time this page has fields
   in it — a long description in a small textarea has to be pannable, and `touch-action`
   is an intersection down the ancestor chain that a descendant cannot give back. Nothing
-  is lost by it: the drawing is behind the wash by then, and `beforeunload` is already
-  guarding the reload.
+  is lost by it: the form has put `inert` on `main` by then, so the page behind it is
+  out of reach anyway, and `beforeunload` is already guarding the reload.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then
@@ -392,15 +425,90 @@ is now true at both widths and the differences are called out where they exist.
   fine as the hardware allows: a steady 0.3px on a 3× screen is one device pixel per
   event.
 
+## Naming a flipbook
+
+A black wash over the window and a white card in the middle of it, asking for a title and
+an optional description. `SaveForm.tsx` and its stylesheet.
+
+**What it replaced was a blue panel laid over the canvas** — the one moment the chrome was
+loud — and the reason it went is the reason for most of what follows: the panel was
+positioned inside `.book` and sized against the drawing, so once a page could be square it
+covered a 16:9 lid's worth of a taller sheet and left two different blues stacked on each
+other. A modal belongs to the window, not to the artwork, and is measured against nothing.
+
+- **The "contains adult stuff" checkbox is gone.** A title is the only thing anybody has
+  to type. NSFW is set from admin mode now — see the note in `CLAUDE.md` — and the field
+  is still in the save contract because `time-capsule` still posts it.
+- **It is a positioned `<div>`, not a `<dialog>` opened with `showModal()`, and that is a
+  reversal worth stating.** The dialog gave us the backdrop, the inert page and the focus
+  trap for nothing, and those reasons still hold. What it also does is put the element in
+  the **top layer** — and since Safari 26, iOS tints the strip behind the status bar and
+  the strip behind the URL bar from the page, and **the top layer is never sampled**. So
+  the wash covered the drawing and left a pale band of `--page` above and below it.
+
+  That cost three attempts to establish, because each one moved the wash somewhere else
+  inside the dialog: the `::backdrop` first, then the dialog's own background, then a
+  separate wash div underneath a transparent dialog. The third is the interesting one —
+  the wash was by then exactly the kind of element the sampler looks for, and the toolbars
+  still didn't follow it. **An open modal dialog suppresses the sampling altogether**,
+  wherever the paint is and whatever it is painted in; verified on the iOS 26.2 simulator
+  against a reduced case, both with the dialog covering the viewport and with it inset
+  16px clear of both edges. Take the dialog away and the same wash tints both toolbars.
+
+  What is sampled is the background colour of `<body>`, or of a `position: fixed`/`sticky`
+  element lying against the edge of the viewport, which wins over the body. `<meta
+  name="theme-color">` is **not read at all** any more. So the overlay has to *be* such an
+  element, and the other half of the fix is in `base.css`: the create page's lock makes
+  `<body>` itself a fixed, opaque, full-viewport element. Both halves are needed — either
+  one alone leaves the bands.
+- **So four things the element used to do are hand-rolled**: Esc, the Tab trap, focus moved
+  in on open and put back on close, and `inert` on `#root`. That is about thirty lines to
+  replace an element that did it for nothing, and it buys a wash that reaches the edges of
+  the phone. `inert` goes on `#root` rather than on every sibling because the overlay is
+  portalled to `<body>` and so is that element's sibling; naming the one element the app
+  renders into is what keeps it from inerting the overlay itself.
+- **The order there is load-bearing.** `inert` blurs whatever it swallows, so focus has to
+  be placed *after* the attribute lands — which an `autoFocus` on the markup cannot do,
+  React applying that during commit.
+- **Focus lands on the overlay, not on the title field.** It has to land somewhere inside,
+  because that is what Esc and the Tab trap listen from and `inert` has just taken it off
+  whatever had it. Focusing the input instead raises the on-screen keyboard the moment the
+  form appears, which covers half the card and collapses Safari's own toolbar before you
+  have decided to type anything. Hence `tabIndex={-1}` on the overlay: focusable, not
+  tabbable, and not a text field.
+- **The keyboard is an inset, not a smaller overlay.** There is no CSS-only answer that
+  works where it needs to: `interactive-widget=resizes-content` is the declarative one and
+  WebKit has not shipped it, so on an iPhone `100dvh` is still the whole screen and a card
+  centred in it sits half behind the keyboard. `visualViewport` is what every engine
+  including iOS agrees on, and what `useKeyboardInset` publishes is the **inset** — the
+  overlay stays the full size of the window so the wash goes on reaching under the browser
+  chrome, and the keyboard is taken off the *card* as a margin. Sizing the overlay to the
+  visible height would have fixed the keyboard and put the pale bands back. `offsetTop` is
+  part of the sum, because iOS scrolls the layout viewport to bring a focused field up.
+- **The entrance is the Web Animations API, not a CSS animation, and that is not fussiness.**
+  An animating element gets a compositing layer of its own, which is exactly the kind of
+  thing the toolbar sampler is sensitive to. Both elements start at `opacity: 0` in the
+  stylesheet and `element.animate()` brings them up, with `fill: 'both'` holding the last
+  frame. Reduced motion is honoured in JavaScript rather than by a media query, because the
+  starting frame is now in CSS: with no animation to run, something still has to put the
+  two elements at their finished state or the form never appears at all.
+- **The page behind is left exactly as it was**, tools, page bar, handle and all. `inert`
+  is what makes that safe, and it is why none of the hiding the old panel needed is left.
+- **The document stays locked while the form is up, except for `touch-action`.** A page
+  scrolling behind a modal is the conflict the modal exists to avoid; but `touch-action:
+  none` is an intersection down the ancestor chain that a descendant cannot give back, and
+  a description longer than the 72px field has to be pannable. `.pannable` in `base.css` is
+  that one exception.
+
 ## Tracing over a photograph
 
-A sixth white disc at the left-hand end of the phone's footer takes a picture with the
+The white disc at the left-hand end of the phone's footer takes a picture with the
 camera and lays it over the paper at 30%, on the page you are on, to be drawn on top of.
 One finger drags it, two pinch to scale and turn it; tap the drawing to accept it, and
 press the disc again to move it, replace it or take it away. **Choose several and they are
 laid out one per frame**, making frames as they run off the end. **Phone layout only** —
-the disc is in `.actions`, which is `display: none` above the breakpoint, so the desktop's
-row beside the wordmark is the four it always was.
+the disc is in `.actions`, which is `display: none` above the breakpoint, and a desktop
+has no row of these at all.
 
 It is in two halves, and the split is the thing to understand first. **The picture is a
 pair of DOM layers over the canvas; the record of it belongs to the engine.**
@@ -532,8 +640,10 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
 - **The picture is sized in numbers rather than by `object-fit: contain`.** They come to
   the same rectangle, but only one of them is a rectangle anything else can be drawn
   around: `object-fit` letterboxes inside the element's box, so the box stays the frame and
-  there is nowhere to hang an outline but around the whole sheet. The frame is 16:9 at every
-  width, so the fit is two `min`s and needs nothing measured. It is `fittedSize` in
+  there is nowhere to hang an outline but around the whole sheet. The frame keeps its shape
+  at every width, so the fit is two `min`s and needs nothing measured — it takes the page's
+  shape as an argument, because there are two of those now and a photo is fitted to the
+  paper it is lying on. It is `fittedSize` in
   `engine/trace.ts` rather than an expression here, because **three things read it**: the
   picture, the dashed outline, and v11's magnified stage, which draws the same photograph
   into a canvas from the same numbers.
@@ -666,11 +776,16 @@ be respected rather than discovered.
 - **Every page in the strip is a canvas the size of the drawing**, on both layouts — the
   thumbnails are displayed smaller on a phone but they are not *drawn* smaller, because a
   page that has to stand behind the live canvas at full fidelity when you're on it can't
-  be. And "full fidelity" is the *device* pixel ratio, not 640×360: a thumbnail is a copy
-  of a canvas paper draws at 1280×720 on a retina screen and shows at exactly the same
-  size, so at 640×360 it was a soft copy of a sharp drawing, standing right beside it.
+  be. And "full fidelity" is the *device* pixel ratio, not the page size: a thumbnail is a
+  copy of a canvas paper draws at twice the size on a retina screen and shows at exactly
+  the same size, so at 1:1 it was a soft copy of a sharp drawing, standing right beside it.
   `THUMBNAIL_SCALE` in `PageStrip` is that ratio, capped at 2 — 3.6 MB a page rather than
-  0.9.
+  0.9 on a 16:9 page.
+
+  **A square page is 78% more pixels than a 16:9 one**, so the same cap costs 6.6 MB a
+  page rather than 3.6. The limit below is a page *count* and was set against the smaller
+  shape, which means it now buys correspondingly less headroom on the newer one. Worth
+  re-measuring on a long square flipbook before trusting the old number.
 - **Which is why the strip has a page limit, and it is the memory that sets it.** Four
   times the backing store is fine for a flipbook you drew by hand and is not fine for a
   200-page archive one, which the drawing tool could not open until Remix and now can:
@@ -691,9 +806,6 @@ be respected rather than discovered.
   `guardNavigation()`, and back is answered rather than blocked — a duplicate entry is
   pushed so the first press lands on the same URL and can be asked about. Cost: one
   extra entry, and a live forward button, while the flipbook is unsaved.
-- **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
-  drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
-  attached to the document, and none of it should follow you to the flipbook page.
 - **A successful save leaves the SPA** — `window.location.href`, not `navigate()`. The
   drawing tool has a paper scene, a megabyte of artwork and an unsaved-work guard
   attached to the document, and none of it should follow you to the flipbook page.

@@ -1,4 +1,4 @@
-import { CANVAS_HEIGHT, CANVAS_WIDTH, ONION_OPACITY } from './constants'
+import { DEFAULT_PAGE_SIZE, ONION_OPACITY, type PageSize } from './constants'
 
 /**
  * paper-core's exports: paper's scope object, minus PaperScript.
@@ -68,7 +68,13 @@ export class Scene {
 
 	private activeIndex = 0
 
-	/** How much smaller than 640×360 the canvas is being *shown* at. See `pinCoordinates`. */
+	/**
+	 * The size of a page, in project units — the coordinate space every number in the
+	 * artwork is in. Set at construction and changed only by `resize`.
+	 */
+	page: PageSize
+
+	/** How much smaller than `page` the canvas is being *shown* at. See `pinCoordinates`. */
 	private displayScale = 1
 	private readonly resizeObserver: ResizeObserver | null = null
 
@@ -86,10 +92,11 @@ export class Scene {
 	 */
 	touchOffsetY = 0
 
-	constructor(canvas: HTMLCanvasElement, paperCore: PaperCore) {
+	constructor(canvas: HTMLCanvasElement, paperCore: PaperCore, page: PageSize = DEFAULT_PAGE_SIZE) {
 		this.canvas = canvas
-		canvas.width = CANVAS_WIDTH
-		canvas.height = CANVAS_HEIGHT
+		this.page = page
+		canvas.width = page.width
+		canvas.height = page.height
 
 		// A scope of our own rather than the global singleton: two engines can exist
 		// briefly during a route change (and always do under React's StrictMode
@@ -118,14 +125,15 @@ export class Scene {
 	}
 
 	/**
-	 * Keeps the project 640×360 however small the canvas is drawn.
+	 * Keeps the project `page`-sized however small the canvas is drawn.
 	 *
 	 * paper takes the project's coordinate space from the *displayed* size of the
 	 * element — `DomElement.getSize`, which is its bounding rectangle — so a canvas
 	 * shown 350 CSS px wide on a phone gave a project 350 units wide, and every
-	 * stroke, every thumbnail and every saved SVG came out that shape. Every flipbook
-	 * ever made is 640×360 and they all have to stay interchangeable, so the view size
-	 * is stated rather than measured and the display size is left entirely to CSS.
+	 * stroke, every thumbnail and every saved SVG came out that shape. A flipbook's
+	 * shape has to be a property of the flipbook rather than of the screen it was drawn
+	 * on, so the view size is stated rather than measured and the display size is left
+	 * entirely to CSS.
 	 *
 	 * Two things follow from that, and both are dealt with here:
 	 *
@@ -148,7 +156,7 @@ export class Scene {
 	private pinCoordinates(): ResizeObserver | null {
 		const view = this.scope.view
 
-		view.viewSize = new this.scope.Size(CANVAS_WIDTH, CANVAS_HEIGHT)
+		view.viewSize = new this.scope.Size(this.page.width, this.page.height)
 		this.canvas.style.removeProperty('width')
 		this.canvas.style.removeProperty('height')
 
@@ -168,7 +176,7 @@ export class Scene {
 
 		// Read once up front as well as watched: this runs in a layout effect, so the
 		// canvas is already laid out, and the observer's first callback is a frame away.
-		if (this.canvas.offsetWidth > 0) this.displayScale = this.canvas.offsetWidth / CANVAS_WIDTH
+		if (this.canvas.offsetWidth > 0) this.displayScale = this.canvas.offsetWidth / this.page.width
 
 		if (typeof ResizeObserver === 'undefined') return null
 
@@ -177,11 +185,41 @@ export class Scene {
 		// whatever frame it is mid-flight in. A layout box doesn't move.
 		const observer = new ResizeObserver(([entry]) => {
 			const width = entry?.borderBoxSize?.[0]?.inlineSize ?? this.canvas.offsetWidth
-			if (width > 0) this.displayScale = width / CANVAS_WIDTH
+			if (width > 0) this.displayScale = width / this.page.width
 		})
 		observer.observe(this.canvas)
 
 		return observer
+	}
+
+	/**
+	 * Restates the coordinate space, for artwork that turns out to be another shape.
+	 *
+	 * The drawing tool opens before it knows what it is opening — the engine is built
+	 * the moment the canvas is in the DOM, and a remix's artwork is still on the wire
+	 * at that point. Rather than hold the whole page up on a fetch, the scene starts at
+	 * a default and is corrected here the instant the file says otherwise. See
+	 * `pageSizeFromSvg`, which is where that answer comes from.
+	 *
+	 * Only safe before anything has been imported, which is the only place it is called
+	 * from: `view.viewSize` re-resolves the project's coordinate space, and geometry
+	 * already placed in it would keep the numbers it was given and so move. Both
+	 * loaders clear the project first and resize before importing a single stroke.
+	 */
+	resize(page: PageSize): void {
+		if (page.width === this.page.width && page.height === this.page.height) return
+
+		this.page = page
+		this.canvas.width = page.width
+		this.canvas.height = page.height
+
+		this.scope.view.viewSize = new this.scope.Size(page.width, page.height)
+		// paper writes an inline width and height as it sizes the view on a hidpi
+		// screen, and those would beat the stylesheet exactly as they do on the way in.
+		this.canvas.style.removeProperty('width')
+		this.canvas.style.removeProperty('height')
+
+		if (this.canvas.offsetWidth > 0) this.displayScale = this.canvas.offsetWidth / page.width
 	}
 
 	get project(): paper.Project {

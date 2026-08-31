@@ -37,21 +37,25 @@
  */
 
 /*
- * Cut off at the tray's own top edge, on both layouts.
+ * Cut off at the page bar's top edge — which is a smaller job than it looks, and worth
+ * being exact about because it was got wrong once.
  *
- * This was the phone's, where the paper is 200px tall and the pencil is not scaled with
- * it, so the top of the pencil came out of the drawing and stood in the air above it. A
- * desktop never needed it while the canvas was the only thing above this row: the whole
- * 304px run is behind 360px of paper. The page bar changed that — it sits 8px below the
- * canvas, and the two tools showed through the gap as a row of coloured slivers.
+ * **The clip is not what decides how much of a tool you see.** The bar carries
+ * `z-index: 10` and these carry 1, so the bar paints over them: what shows is whatever
+ * hangs below the bar's *bottom* edge, and that is set by the `bottom` offsets below.
+ * All this does is keep them out of the 8px gap between the sheet of paper and the bar,
+ * which is the one strip of that run with nothing in front of it. The canvas covers the
+ * rest of the way up on its own.
  *
- * 20px, because that is the tray's top padding and the list starts at the bottom of it,
- * which puts the cut on the line the bar's own bottom edge runs along — where the eye
- * already reads the tools as going under something. The other three sides are pushed out
- * of the way: the fan of arrows on the transform tool opens sideways and below.
+ * 68px is that gap and no more: the list starts 20px below the tray's top edge, the
+ * bar's 48px ends on that edge, so -68 is exactly the bar's top. Anything larger cuts
+ * into a stretch that is already hidden and buys nothing; anything smaller was the
+ * original bug, where the two tools showed through the gap as a row of coloured
+ * slivers. The other three sides are pushed out of the way: the transform tool's fan
+ * opens sideways and below.
  */
 .tools {
-	clip-path: inset(-20px -500px -500px -500px);
+	clip-path: inset(-68px -500px -500px -500px);
 }
 
 .tools li {
@@ -63,7 +67,18 @@
 
 .tool {
 	position: absolute;
-	bottom: -10px;
+	/*
+	 * How far the tool hangs below the row, and **this is the number that decides how
+	 * much of it you can see** — the bar above covers everything higher, so what shows
+	 * is the run from the bar's bottom edge to here.
+	 *
+	 * -20 rather than the -10 it was, which is free: the tray carries 20px of padding
+	 * under this list, so the tip now reaches the tray's own bottom edge and the row
+	 * grows by nothing. It buys 10px on every tool, which the transform needed most —
+	 * a pencil's bottom 55px is a recognisable point, and a pocket knife's is a rounded
+	 * red end that could be anything.
+	 */
+	bottom: -20px;
 	z-index: 1;
 	display: block;
 	padding: 0;
@@ -89,8 +104,19 @@
 	outline-offset: 2px;
 }
 
+/*
+ * Selected: the tool slides down out from under the bar, by 20px.
+ *
+ * It was 50, which is 2013's number from when the thing above this row was the *paper*
+ * — 360px of it — so a tool sliding down came out from under a sheet and the extra
+ * length read as tool. What is above it now is the page bar, 48px of floating pill, and
+ * 50px of travel brought a bare stretch of barrel out below it: the selected tool
+ * looked worse than the unselected one, which is the wrong way round for the one that
+ * is in your hand. At 20 the coloured end is what moves, which is what the movement is
+ * for.
+ */
 .toolActive {
-	bottom: -60px;
+	bottom: -40px;
 }
 
 /*
@@ -119,8 +145,16 @@
 	cursor: default;
 }
 
+/*
+ * The same 20px of travel as the other two, and it was 11.
+ *
+ * The 11 went with a note that the movement people read here is the arrows opening
+ * rather than the icon sliding, which is true — but it also meant the one tool whose
+ * picture reads worst when it is cut was the one that revealed least on being picked
+ * up. The fan still does the talking; this just stops it being the odd one out.
+ */
 .transformActive {
-	bottom: -21px;
+	bottom: -40px;
 }
 
 /* The hand: the tool itself, and what gives the group its size — 2013 had that from
@@ -272,24 +306,12 @@
 }
 
 /*
- * Naming the flipbook: the tools fly up out of the tray and leave the form alone
- * with the drawing. The ease dips them down a few pixels before they go, which is
- * the anticipation the 2013 keyframes had.
+ * The tools used to fly up out of the tray while the flipbook was being named — a
+ * 2013 keyframe, kept through two rewrites — and they no longer do. That animation
+ * was there because the save form was a panel laid over the canvas and had to be
+ * left alone with the drawing. It is a modal now: it washes the whole window and puts
+ * `inert` on the page behind it, so there is nothing here to get out of the way of.
  */
-.stowed .group {
-	transform: translateY(-100px);
-	pointer-events: none;
-}
-
-.tray .group {
-	transition: transform 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045);
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.tray .group {
-		transition: none;
-	}
-}
 
 /* ---------------------------------------------------------------------------
  * Phones, and any window too small for the layout above.

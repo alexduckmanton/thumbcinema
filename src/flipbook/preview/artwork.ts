@@ -30,10 +30,12 @@
  */
 
 import type { FlipbookFormat } from '../../lib/api'
+import { LEGACY_PAGE_SIZE, type PageSize } from '../engine/constants'
 import {
 	DEFAULT_STROKE_WIDTH,
 	type ParsedPage,
 	type StrokeGeometry,
+	pageSizeFromSvg,
 	parseLegacyPages,
 	parseSvgPages,
 	strokeGeometry,
@@ -127,6 +129,15 @@ export function toPath2D(geometry: StrokeGeometry): Path2D {
 export interface ArtworkReader {
 	/** How many pages there are, known before any of them has been built. */
 	readonly total: number
+	/**
+	 * The shape of a page, off the file's own `viewBox`.
+	 *
+	 * Read here as well as stored on the row because this is the copy that cannot be
+	 * wrong: the card knows the shape from the gallery listing before the artwork
+	 * arrives, which is what sizes the tile, but what is actually drawn is scaled
+	 * against the space these coordinates are in. See `pageSizeFromSvg`.
+	 */
+	readonly page: PageSize
 	/** Yields one page per call, in order, until there are none left. */
 	readonly pages: Generator<PreviewPage>
 }
@@ -148,11 +159,13 @@ export interface ArtworkReader {
 export function readArtwork(text: string, format: FlipbookFormat): ArtworkReader {
 	if (format === 'legacy-json') {
 		const pages = parseLegacyPages(text)
-		return { total: pages.length, pages: buildLegacy(pages) }
+		// The 2012 format has no root element to carry a viewBox and predates any other
+		// shape, so it is the legacy page by construction rather than by fallback.
+		return { total: pages.length, page: LEGACY_PAGE_SIZE, pages: buildLegacy(pages) }
 	}
 
 	const pages = parseSvgPages(text)
-	return { total: pages.length, pages: buildSvg(pages) }
+	return { total: pages.length, page: pageSizeFromSvg(text), pages: buildSvg(pages) }
 }
 
 function* buildSvg(pages: ParsedPage[]): Generator<PreviewPage> {

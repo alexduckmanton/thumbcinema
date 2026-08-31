@@ -21,8 +21,8 @@ properties, element defaults, and two utility classes.
 
   730 is 2013's number and is the width the page strip needs. The height half is not
   an afterthought: a phone held sideways is 800 points wide and 375 tall, and a width
-  test alone hands it a 640×360 canvas and a page strip in a window that can hold
-  neither. There's a note in `base.css` saying so.
+  test alone hands it a full-size canvas and a page strip in a window that can hold
+  neither — which a square page only makes truer, being taller at the same width. There's a note in `base.css` saying so.
 - **Where a page has two layouts, the phone's is the base and the desktop's is the
   breakpoint** — the create page, the canvas. The shared files aren't, and say why: the
   tray and the page bar are near enough one layout at every width, and what their desktop
@@ -50,8 +50,8 @@ properties, element defaults, and two utility classes.
   and pressed states came out of a Sass mixin that darkened the base by fixed amounts,
   and those are the values that shipped.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash
-  the names, so `.naming .tools` across two files silently matches nothing. When the
-  save form goes up, the tray is told to stow itself.
+  the names, so `.playing .tools` across two files silently matches nothing. A component
+  that has to know what the page is doing is told in a prop and styles itself from it.
 - **The icons are the 2013 sprite** (`src/styles/icons.module.css`). Hand-drawn, in
   the same hand as everything else; an icon font would look like a different site.
   The retina sheet has double the spacing as well as double the art, so one set of
@@ -73,12 +73,15 @@ properties, element defaults, and two utility classes.
   for three seconds. If the preload goes, `block` has to go back to `swap`.
 - **No `letter-spacing` on the wordmark.** Pecita is a joining script; spacing it
   apart pulls the letters off each other's entry and exit strokes.
-- **Pecita signs the buttons that are about making a flipbook**: create on the gallery,
-  save on the create page, and the four edit actions beside it. All three are set at
-  30px, because Pecita runs small — a handwriting face with a shallow x-height, which at
-  a UI size reads as a caption rather than a label. The create button's label was Inter
-  at 16/500 until it was the last thing on that button not in the same hand as the
-  writing-hand dingbat next to it.
+- **Pecita signs everything about making a flipbook**: create on the gallery, save on the
+  create page, the edit actions beside it, the admin mode switch on the end of that row,
+  and the save form's heading. The two buttons are 30px and the heading is 40, because
+  Pecita runs small — a handwriting face with a shallow x-height, which at a UI size reads
+  as a caption rather than a label, so 40 sits about where a 30px sans heading does. The
+  glyphs are smaller again (26px, 22 on a phone) because they are single characters and at
+  the buttons' 30 they read as ornaments. The create button's label was Inter at 16/500
+  until it was the last thing on that button not in the same hand as the writing-hand
+  dingbat next to it.
 - **Pecita doesn't centre itself, and every one of those needs a measured offset.** Its
   ascent and descent are lopsided against where the letters actually sit, so centring the
   text box leaves the word high — at 30px it reports an ascent of 20 and a descent of 10,
@@ -103,22 +106,27 @@ coming, in the place it is coming to.
   the route's real header and the same placeholder that route uses — a pulsing sheet
   for create and playback, the twenty-card grid for the gallery — so the wait for a
   route's chunk looks like the wait for its contents, and nothing moves at the
-  handover. Verified rather than assumed: the frame of the click and the frame the page
-  lands both put `.book` at exactly `[105, 130, 640, 360]` on a desktop and
-  `[16, 84, 343, 193]` on a phone, on both pages. It lives in the **entry bundle**,
+  handover. Verified rather than assumed, and re-measured since the page went square: the
+  shell's sheet and the loaded page's both put `.book` at exactly `[320, 20, 640, 640]` on
+  a desktop and `[16, 20, 358, 358]` on a 390pt phone. Playback's shell states the legacy
+  page and lands the same way on the 16:9 flipbooks that are nearly all of them; see
+  **The skeletons guess square** in `gallery.md` for what it costs when the guess is
+  wrong. It lives in the **entry bundle**,
   which is the constraint that shapes it — it may not import anything a route is lazy
   about, or it would be waiting on the download it exists to cover. That is also why it
   applies the *pages'* own CSS modules rather than carrying copies: `--book-reserve` is
-  318px on create, 240px on playback and different again in a short window, and a
-  hand-written approximation would be the wrong size in three layouts and drift from
-  there. It is why the create shell also draws a disabled row of edit actions out of
-  `CreatePage.module.css` — those are in the header on a desktop, and a header that
-  gains four buttons at the handover is exactly the move this exists to prevent. Their
-  glyphs are repeated in that file rather than shared, because anything it imports lands
-  in the entry bundle and `EditActions` lives in the create route's chunk. Applying
-  another module's class to your own markup is not the cross-module *selector* the rest
-  of the tree avoids. Cost: those stylesheets move into the entry, so every route carries
-  ~4 kB gzipped for layouts it isn't.
+  260px on create, 240px on playback and 154 and 146 in a short window, and a hand-written
+  approximation would be the wrong size in four layouts and drift from there. Applying
+  another module's class to your own markup is not the cross-module *selector* the rest of
+  the tree avoids. It also takes each page's shape from `pageVars()`, which is why the two
+  shells differ: create guesses square and playback guesses 16:9. Cost: those stylesheets
+  move into the entry, so every route carries ~4 kB gzipped for layouts it isn't.
+
+  **It used to draw a disabled row of edit actions on the create shell too**, because
+  those four buttons stood in the header on a desktop and a header that gains four buttons
+  at the handover is exactly the move this exists to prevent. The desktop row is gone and
+  the create page has no header at all, so the shell is one pulsing sheet and nothing
+  else.
 
 - **A flipbook loads behind the gallery's placeholder, not behind a blue screen.** The
   playback page used to put a spinner on `rgba(74, 125, 244, 0.95)` over the canvas,
@@ -126,9 +134,12 @@ coming, in the place it is coming to.
   now `.skeleton` in `FlipbookCanvas.module.css`, the same white-fading-to-`--page`
   swing as a gallery card. The two are the same object at either end of a tap. It sits
   *over* the canvas rather than instead of it, because the canvas is live from the first
-  frame — page one is drawn into it while the placeholder is still up. The blue is still
-  what a save in flight puts over the drawing; that is `.overlay` and `.wash`, and only
-  the create page uses them now.
+  frame — page one is drawn into it while the placeholder is still up. The blue survives
+  as `.overlay` in that same file, used by the create page alone and for the other kind of
+  wait: a saved flipbook being replayed into the drawing tool, or your own coming back
+  after a crash. It is no longer what a save in flight looks like — that is the modal, with
+  the spinner in its own button — and `.wash`, which was the save's, has no users left in
+  that stylesheet.
 
 - **The placeholder is a white card fading out and back, not a grey one lighting up,
   and that is why it needs a shadow.** It was #e6e6e6 → white: a wide swing that

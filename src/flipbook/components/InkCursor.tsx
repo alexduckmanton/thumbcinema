@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import type { DrawMode } from '../drawModes'
-import { CANVAS_WIDTH, PENCIL_COLOR } from '../engine/constants'
+import { DEFAULT_PAGE_SIZE, PENCIL_COLOR } from '../engine/constants'
 import { ERASE_TOLERANCE } from '../engine/tools/eraser'
 import { DEFAULT_PENCIL_WIDTH } from '../engine/tools/pencil'
 import type { ModalToolId } from '../engine/tools/types'
@@ -134,11 +134,15 @@ export function InkCursor({ layer, canvasRef, tool, mode }: InkCursorProps) {
  * `span`: the ring is stated in project units and drawn as a fraction of the box it is
  * in, so a box showing 160 units of a 640-unit page draws the same stroke four times the
  * size, which is exactly what the zoomed drawing does with it.
+ *
+ * The default is a page's *width*, and both page shapes are 640 across — which is why
+ * `SQUARE_PAGE_SIZE` is 640×640 rather than 360×360. A page of some third width would
+ * have to pass `span` rather than take this.
  */
 export function DrawnCursor({
 	at,
 	tool,
-	span = CANVAS_WIDTH,
+	span = DEFAULT_PAGE_SIZE.width,
 }: {
 	at: Cursor
 	tool: ModalToolId | null
@@ -399,7 +403,9 @@ function paint(
 	// six pixels as the ring on the page, which is stated in the stylesheet: CSS can't
 	// hand a number to a canvas, so this is the one place the two have to agree by
 	// being written down twice.
-	const radius = ((ink * at.size) / CANVAS_WIDTH / 2) * ZOOM
+	//
+	// A page's width, and every page shape is 640 across — see the note on `span` above.
+	const radius = ((ink * at.size) / DEFAULT_PAGE_SIZE.width / 2) * ZOOM
 	context.beginPath()
 	context.arc(LOUPE / 2, LOUPE / 2, Math.max(radius, 3), 0, Math.PI * 2)
 	context.strokeStyle = PENCIL_COLOR

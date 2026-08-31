@@ -1,4 +1,4 @@
-import { CANVAS_HEIGHT, CANVAS_WIDTH, PENCIL_COLOR } from './constants'
+import { type PageSize, PENCIL_COLOR } from './constants'
 import type { Scene } from './scene'
 
 /**
@@ -39,10 +39,13 @@ export const PASTE_JITTER = 10
 export const PASTE_JITTER_MIN = 4
 
 /** Where the middle of a pasted drawing goes: the middle of the frame, thrown off it. */
-export function pasteCentre(random: () => number = Math.random): { x: number; y: number } {
+export function pasteCentre(
+	page: PageSize,
+	random: () => number = Math.random,
+): { x: number; y: number } {
 	return {
-		x: CANVAS_WIDTH / 2 + jitter(random),
-		y: CANVAS_HEIGHT / 2 + jitter(random),
+		x: page.width / 2 + jitter(random),
+		y: page.height / 2 + jitter(random),
 	}
 }
 
@@ -101,7 +104,7 @@ export class Clipboard {
 		for (const copy of copies) box = box ? box.unite(copy.bounds) : copy.bounds
 		if (!box) return copies
 
-		const target = pasteCentre(random)
+		const target = pasteCentre(this.scene.page, random)
 		const delta = new this.scene.scope.Point(target.x - box.center.x, target.y - box.center.y)
 		for (const copy of copies) copy.translate(delta)
 
