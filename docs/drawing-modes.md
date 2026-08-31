@@ -254,6 +254,13 @@ problem is that the drawing is two to four times life size, so the tip covers
 proportionally less of it. It is what photo editors and CAD tools reached for long before
 anybody tried a magnifier.
 
+The pad **starts off**, and the rail's switch is what fetches it. A drawing tool should open
+showing you the drawing, and a fingertip on the paper draws whether the pad is there or not —
+aiming from a pad is a thing you reach for once you have found your own finger in the way of
+the line you are placing. What it costs is that the band the pad stands in is reserved either
+way, so the page opens with a band of empty page above the bar; the band has to be reserved,
+because giving it back would resize the drawing every time the switch is used.
+
 `zoomStage.ts` is the window and the arithmetic on it, unit-tested; `ZoomStage` is the
 canvas and the outline; and the gestures are `PointerLayer`'s, kept in a section of their
 own because v11 shares none of the machinery the other ten do.

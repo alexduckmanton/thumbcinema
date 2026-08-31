@@ -14,7 +14,8 @@ bottom; the stack, layout and commands are in `package.json`, the directory list
   looks different from the 2013 revival is a bug unless the comment beside it says so.
   **The create page is the one exception and is now its own thing**: every control is a
   40×40 Pecita glyph in a rail down the left at both widths, the page bar is the whole of
-  page navigation, the sheet casts no shadow (`.flat`), and in v14 a finger aims from a pad
+  page navigation and sits on the bottom edge of the window on a phone, the sheet casts no
+  shadow (`.flat`), and in v14 a finger aims from a pad
   at the bottom of the screen. The hand-drawn tool sprite went with it, and so did the
   scrolling column of thumbnails, the tab above the paper that reordered pages, and a spell
   when you could draw past the page's edge. `docs/create-page.md` says what all of that
@@ -159,8 +160,9 @@ immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visi
   branch's gallery, and see `docs/architecture.md` for why. It also still turns phones away
   from `/create`, because the 2013 code did.
 - Nothing on the create page scrolls, and everything on it is measured off everything else:
-  the aiming pad's height is a term in `--chrome-bottom`, `--chrome-bottom` is a term in
-  `--book-reserve`, and `--book-reserve` is what the drawing is sized against. So sizes
+  the page bar's band and the aiming pad's height are both terms in `--chrome-bottom`,
+  `--chrome-bottom` is a term in `--book-reserve`, and `--book-reserve` is what the drawing
+  is sized against. So sizes
   there are `100svh`, never `100dvh` — a unit that moves when a browser slides its own
   chrome in or out is a drawing that resizes under your hand. A square page is what makes
   those numbers worth getting right: at 640 across a square sheet is 640 tall where a 16:9

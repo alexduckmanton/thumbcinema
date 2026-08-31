@@ -27,17 +27,22 @@
 	 *
 	 * **16px wider than the drawing, and centred on it.** Not the same width, which is what
 	 * it was: matching exactly read as another page below the drawing rather than as a thing
-	 * lying on the page. 8px past either edge is enough to say it is in front. The centre is
-	 * the middle of the stage, which is the window less whatever the rail has taken off the
-	 * left of it.
+	 * lying on the page. 8px past either edge is enough to say it is in front. `--stage-centre`
+	 * is where the drawing's middle is, stated once by the create page because the page bar is
+	 * centred on it too and neither of them is in the column that knows.
 	 *
-	 * `z-index: 14` puts it over the page bar at 10 and still under the drawing at 15 — on a
-	 * short window the pad and the sheet overlap, and a pad drawn over the drawing would be a
-	 * wash across the thing you are aiming at.
+	 * **Above the bar rather than below it**, which is the one thing about its position that
+	 * isn't obvious: the bar is on the window's own edge and this stands on top of it, because
+	 * a hand rests here for the length of a stroke and reaches past it for the bar between
+	 * strokes. `--pad-bottom` is the bar's band and the air over it, from the same file.
+	 *
+	 * `z-index: 14` puts it over the page bar at 12 and over the sheet, which is inside a
+	 * stacking context at 5 — on a short window the pad and the paper overlap, and a pad
+	 * *under* the drawing would be a pad you cannot see to aim on.
 	 */
 	position: fixed;
-	bottom: var(--pad-air, 0);
-	left: calc(var(--stage-left, 0px) + (100vw - var(--stage-left, 0px)) / 2);
+	bottom: var(--pad-bottom, 8px);
+	left: var(--stage-centre, 50vw);
 	z-index: 14;
 	width: calc(var(--book-width) + 16px);
 	transform: translateX(-50%);

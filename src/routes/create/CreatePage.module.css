@@ -63,7 +63,7 @@
 	 * The fallback is the legacy page — every flipbook that doesn't say what shape it is, is
 	 * that shape — but the create page always says, and what it says is square.
 	 */
-	--stage-width: calc(100vw - var(--stage-left) - var(--stage-gutter) * 2);
+	--stage-width: calc(100vw - var(--stage-left) - var(--stage-inset) - var(--stage-gutter));
 	--book-width: min(
 		var(--stage-width),
 		var(--book-max),
@@ -80,14 +80,15 @@
 	 * every size now rather than at almost none — an over-generous reserve used to cost
 	 * nothing and now costs a visibly smaller drawing.
 	 *
-	 * 316 is 76 of header (the wordmark is gone; what is left is Save and the row's padding,
-	 * taken at the taller of the two phone breakpoints), 20 of padding above, 56 of page bar,
-	 * and 164 below — the aiming pad's band and its air. Stated rather than composed from
-	 * those parts because the header's height is `SiteHeader`'s business and differs at
-	 * breakpoints this page does not have; the slack is a few pixels at the sizes it is
-	 * wrong at, and it is measured rather than guessed.
+	 * 312 is 76 of header (the wordmark is gone; what is left is Save and the row's padding,
+	 * taken at the taller of the two phone breakpoints), 20 of padding above, 12 of slack,
+	 * and 204 of `--chrome-bottom` — which since the page bar moved to the bottom of the
+	 * window is everything under the drawing: 8 of air, 56 of bar, 8 more, and a 132px pad.
+	 * Stated rather than composed from those parts because the header's height is
+	 * `SiteHeader`'s business and differs at breakpoints this page does not have; the slack
+	 * is a few pixels at the sizes it is wrong at, and it is measured rather than guessed.
 	 */
-	--book-reserve: 316px;
+	--book-reserve: 312px;
 
 	/*
 	 * The rail's box, and how much room the layout keeps clear for it.
@@ -106,7 +107,39 @@
 	 */
 	--rail-width: 56px;
 	--stage-left: var(--rail-width);
-	--stage-gutter: 16px;
+
+	/*
+	 * The air either side of the drawing, and it is two numbers because the two sides are
+	 * not the same question on a phone.
+	 *
+	 * `--stage-gutter` is the gap on the right, between the paper and the edge of the
+	 * window. `--stage-inset` is whatever is wanted on the *left* on top of `--stage-left`,
+	 * which has already stood the rail's lane out of the way — and on a phone that is
+	 * nothing at all, because the rail's own box ends in 8px of its own padding and that
+	 * padding is the gap. One number each way rather than one symmetric one, so the three
+	 * gaps a phone actually shows can be equal: 8px from the window to the first tile
+	 * (`ToolPanel` centres a 40px tile in its 56px box), 8px from the tile to the paper,
+	 * and 8px from the paper to the other edge of the window.
+	 *
+	 * They are the same number on a desktop, where the drawing is centred in the window and
+	 * symmetry is the whole point of them. See the media query.
+	 */
+	--stage-gutter: 8px;
+	--stage-inset: 0px;
+
+	/*
+	 * The middle of the drawing, in the window's own coordinates.
+	 *
+	 * Stated once here because two things outside this box are centred on it — the aiming
+	 * pad and the page bar, both `position: fixed` and therefore both centring against the
+	 * viewport rather than against anything in the column. It is the middle of the stage's
+	 * *content* box, which is where the paper sits whether it is as wide as the stage or
+	 * clamped narrower by the window's height.
+	 */
+	--stage-centre: calc(
+		var(--stage-left) + var(--stage-inset) + (100vw - var(--stage-left) - var(--stage-inset) -
+					var(--stage-gutter)) / 2
+	);
 
 	/*
 	 * The band at the bottom of the window the aiming pad stands in, and it stands whether
@@ -118,7 +151,16 @@
 	 * had been. Nothing told it otherwise. The pad is furniture laid over the page; switching
 	 * it off is a `display` change and nothing else.
 	 */
-	--chrome-bottom: calc(var(--pad-height) + var(--pad-air) + 12px);
+	--chrome-bottom: calc(
+		var(--pad-air) + var(--nav-band) + var(--pad-gap) + var(--pad-height)
+	);
+
+	/* Bottom-up, the three things under the drawing on a phone: the page bar on the window's
+	   own edge, air, then the pad. The bar is the outermost because it is the one you reach
+	   for between strokes and the pad is the one your hand is already on. */
+	--nav-bottom: var(--pad-air);
+	--pad-gap: 8px;
+	--pad-bottom: calc(var(--pad-air) + var(--nav-band) + var(--pad-gap));
 
 	/*
 	 * v14's aiming pad, which `AimPad` takes its size from.
@@ -158,11 +200,27 @@
 	 * come off its picture.
 	 */
 	justify-content: center;
-	padding: 0 var(--stage-gutter);
+	padding: 0 var(--stage-gutter) 0 var(--stage-inset);
 }
 
 /*
- * The page bar's band, under the drawing.
+ * The page bar's band, on the bottom edge of the window with the aiming pad above it.
+ *
+ * It was directly under the paper, centred with it as one object. What moved it down here is
+ * that a phone now has *two* things below the drawing and they are reached for differently:
+ * the pad is where your hand already is for the length of a stroke, and the bar is what you
+ * reach for between strokes. The one you visit is on the outside, where a thumb finds it
+ * without crossing the one you are resting on.
+ *
+ * `fixed`, like the pad and for the same reason — the band below the drawing is reserved by
+ * `--chrome-bottom` whether either of them is in it, so neither may be a box in the column
+ * that could move the paper by appearing or going away. Centred on the drawing rather than
+ * on the window: `--stage-centre` is the one statement of where that is, and the rail takes
+ * a lane off the left that a viewport-centred control would sit half in.
+ *
+ * `z-index: 12` is over the sheet and under the pad. The sheet is a stacking context at 5
+ * (`.under`) so a pinch slides the paper *beneath* this, and the pad at 14 wins where a
+ * short window brings the two together.
  *
  * It has a stated height, and that is what makes the boot shell exact: the shell draws this
  * box empty — a bar is a control, and a grey pill that turns into a working one is two
@@ -170,7 +228,13 @@
  * state without having the bar. `PageNav` centres itself inside it.
  */
 .navBand {
+	position: fixed;
+	bottom: var(--nav-bottom);
+	left: var(--stage-centre);
+	z-index: 12;
+	width: var(--book-width);
 	height: var(--nav-band);
+	transform: translateX(-50%);
 	flex-shrink: 0;
 }
 
@@ -279,8 +343,9 @@
 		padding-top: 8px;
 		--pad-height: 56px;
 		--nav-band: 44px;
-		/* 54 of header, 8 above, 44 of bar, 88 below. */
-		--book-reserve: 194px;
+		/* 54 of header, 8 above, 12 of slack, and 116 of `--chrome-bottom`: 8, a 44px bar,
+		   8 more, and a 56px pad. */
+		--book-reserve: 190px;
 	}
 }
 
@@ -304,12 +369,32 @@
 		--stage-left: 0px;
 		--rail-gap: 16px;
 		--stage-gutter: calc(20px + var(--rail-width) + var(--rail-gap));
+		/* Symmetric up here, which is what centres the paper in the window: the two sides
+		   are the same question once the rail has stopped being a lane down the edge. */
+		--stage-inset: var(--stage-gutter);
 
 		/* No pad up here, so the band it stands in goes with it. */
 		--chrome-bottom: 24px;
 		--book-max: 640px;
 		/* 84 of header, 20 above, 56 of bar, 36 below. */
 		--book-reserve: 196px;
+	}
+
+	/*
+	 * And the page bar goes back under the paper, because up here there is nothing between
+	 * them to be under.
+	 *
+	 * It went to the bottom of the window on a phone to put the aiming pad between it and
+	 * the drawing. There is no pad on a desktop, so the same move would leave the bar
+	 * stranded at the foot of a tall window — and the bar says which page the drawing is
+	 * showing, so a bar that drifts away from the sheet as the window grows is a caption
+	 * that has come off its picture. Back in the column, centred with the paper as one
+	 * object, which is where it has always been.
+	 */
+	.navBand {
+		position: static;
+		width: auto;
+		transform: none;
 	}
 }
 

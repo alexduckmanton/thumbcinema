@@ -61,15 +61,20 @@ export function CreatePage() {
 	/*
 	 * Whether v14's aiming pad is on screen, which is a preference rather than a mode.
 	 *
-	 * The pad is where a finger aims from and is the only place it can — but it is also the
-	 * widest piece of furniture on a phone, and there is drawing you would rather have the
-	 * room to look at. Taking it away leaves v14 with nowhere to aim from, which is the
-	 * honest trade and is exactly what the button in the rail is for: off, the tools and the
-	 * paper still work and the cursor simply stays where it was.
+	 * The pad is where a finger aims from when it is up — but it is also the widest piece of
+	 * furniture on a phone, and drawing on the paper with a fingertip works whether it is
+	 * there or not. So it starts **off**: a drawing tool should open showing you the drawing,
+	 * and aiming from a pad is a thing you reach for once you have found that your own finger
+	 * is in the way of the line you are trying to place. The button in the rail is what
+	 * fetches it.
+	 *
+	 * The band it stands in is reserved either way, which is deliberate and is a bug this
+	 * already had — see `--chrome-bottom`. So switching it on and off never resizes the
+	 * drawing, and starting off costs a band of empty page rather than a bigger sheet.
 	 *
 	 * Not persisted. It is a thing you do to look at something, not a setting.
 	 */
-	const [pad, setPad] = useState(true)
+	const [pad, setPad] = useState(false)
 
 	// Which flipbook this is being drawn on top of, if any. Read off the URL rather
 	// than held in state, so a reload lands on the same flipbook rather than an empty

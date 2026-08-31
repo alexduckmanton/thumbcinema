@@ -178,6 +178,26 @@ further, because `maxWidth` is the page and `defaultViewport` opens there.
   hole cut in it. Here it is the only thing on a white field, with the rail down one side
   and the page bar under it, and the shadow read as a second frame inside the first. The
   rounding stays — those are the flipbook's own corners and it has them in the grid too.
+- **The page bar is on the bottom edge of the window on a phone, with the aiming pad above
+  it**, and directly under the paper on a desktop, where there is no pad to be under. Two
+  things sit below the drawing on a phone and they are reached for differently: a hand rests
+  on the pad for the length of a stroke and reaches past it for the bar between strokes, so
+  the one you visit is on the outside where a thumb finds it without crossing the one you are
+  resting on. Both are `position: fixed` and neither is a box in the column — `--chrome-bottom`
+  reserves the band whether either is in it, which is what stops a control appearing or going
+  away from moving the paper. `--stage-centre` is the one statement of where the drawing's
+  middle is, because a fixed element centres against the viewport and the rail has taken a
+  lane off the left of it. On a desktop the bar goes back into the column: the bar says which
+  page the drawing is showing, and one stranded at the foot of a tall window is a caption
+  that has come off its picture.
+- **Three gaps on a phone and they are all 8px**: the window's edge to the first tile, the
+  tile to the paper, and the paper to the other edge. They were 8, 24 and 16, all for
+  defensible reasons and all different. What made them agree is `--stage-inset`, the air on
+  the *left* of the drawing beyond the rail's lane, which on a phone is zero — the rail's box
+  is 56px wide round a 40px tile, so it already ends in 8px of its own air and that air is
+  the gap. The desktop keeps its symmetric gutter, and had the same discrepancy in the other
+  direction: `--rail-gap: 16px` showed 24 until the panel's own air was taken out of the
+  rail's `left`.
 - **`PageNav` is one white bar under the drawing: two arrows, a scrubber, and play.**
   The handle follows the finger while it's held and settles onto the nearest page when
   it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows playback as

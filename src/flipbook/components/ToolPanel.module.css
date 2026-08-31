@@ -281,7 +281,18 @@
 	 */
 	.panel {
 		bottom: auto;
-		left: calc((100vw - var(--book-width)) / 2 - var(--rail-gap) - var(--rail-width));
+		/*
+		 * `--rail-gap` is the gap you can *see*, which is the tile's edge to the paper's and
+		 * not this box's edge to the paper's. The panel is `--rail-width` wide with a
+		 * `--tile`-wide column centred in it, so it carries half the difference as air on
+		 * each side — and standing the box itself `--rail-gap` off the drawing therefore
+		 * showed 24px where the number says 16. The same correction the phone layout makes
+		 * by letting that air *be* the gap; see `--stage-inset` on the create page.
+		 */
+		left: calc(
+			(100vw - var(--book-width)) / 2 - var(--rail-gap) - var(--rail-width) +
+				(var(--rail-width) - var(--tile)) / 2
+		);
 		max-height: calc(100svh - 24px);
 		padding: var(--pad) 0;
 	}
