@@ -218,33 +218,6 @@ html.locked body {
 }
 
 /*
- * And while the page is pinched, the sheet goes on under the *status* bar as well —
- * which it can only do by colour, because that strip is not page territory.
- *
- * The URL bar above is a real answer to a real clip: the toolbar is translucent, so
- * widening the body's box put drawing behind it. The status bar is nothing of the kind.
- * The web view starts below it, and since Safari 26 what fills it is a tint *sampled from
- * the page* — `theme-color` is not read at all any more, and what is read is the
- * `<body>`'s background, or a `position: fixed`/`sticky` element lying against the edge
- * of the viewport, which outranks it. That is the same sampler the save form's wash had
- * to be built around; the note in `SaveForm.module.css` is where it was worked out.
- *
- * So the body carries the paper's own white for as long as a sheet is pinched, and the
- * strip goes white with it: the drawing does not continue up there, but nothing says it
- * stops either. What it costs is the grey surround at the low end of the zoom, where the
- * sheet does not yet cover the window — the pages either side of it are white sheets on
- * white for that stretch, keeping only their shadows. At the top of the zoom there is no
- * surround left to be any colour.
- *
- * `.pinched` is `useNoScrolling`'s third class, from the same one place `.locked` and
- * `.pannable` are set, because the sampler reads the `<body>` and a component may not
- * reach out of its own module to style it.
- */
-html.locked.pinched body {
-	background: var(--white);
-}
-
-/*
  * There was a fifth, and it is gone: `position: fixed` on the `<body>`.
  *
  * It was here as the belt to `overflow: hidden`'s braces — the received wisdom being that

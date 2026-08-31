@@ -432,20 +432,6 @@ is now true at both widths and the differences are called out where they exist.
   that strip, which is iOS's: the bottom edge is where its own toolbar and home-indicator
   gestures live, which is why the footer sits above the inset to begin with.
 
-  **The status bar is a different question, and it can only be answered in colour.**
-  The URL bar above is a real clip with a real fix; the strip behind the status bar is not
-  page territory at all — the web view starts below it, and since Safari 26 what fills it
-  is a tint *sampled from the page*, with `theme-color` not read any more and the
-  `<body>`'s background, or a fixed element at the edge of the viewport, read instead.
-  (That is the same sampler the save form's wash had to be built around; see **Naming a
-  flipbook**.) So `html.locked.pinched body` carries the paper's own white for as long as
-  a sheet is pinched, and the strip goes white with it: the drawing does not continue up
-  there, but nothing says it stops either. `.pinched` is `useNoScrolling`'s third class,
-  set in the one place `.locked` and `.pannable` are. What it costs is the grey surround
-  at the low end of the zoom, where the sheet doesn't yet cover the window and the pages
-  either side of it are white sheets on white, keeping only their shadows; at the top of
-  the zoom there is no surround left to be any colour.
-
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then
   carries the whole distance at once — 10.7px against 0.3px for every event after it,
