@@ -16,7 +16,7 @@ export interface ZoomStageProps {
 	engine: FlipbookEngine | null
 	/** The drawing itself, which this is a magnified copy of. */
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
-	/** Null while a page animation holds the tools. */
+	/** Null where there are no tools at all, which is the playback page. */
 	tool: ModalToolId | null
 	/**
 	 * The photograph this page is being traced over, if there is one and the paper is

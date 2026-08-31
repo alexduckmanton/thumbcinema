@@ -44,8 +44,8 @@ export function CreateTray({ engine, state, mode }: CreateTrayProps) {
 	 */
 	const holdToUse = holdsTool(mode)
 
-	// Only while a page is actually arriving or leaving. Playing doesn't disable
-	// these — the press stops playback instead, and the next one goes through.
+	// Only while a page is in hand, being carried to another slot. Playing doesn't
+	// disable these — the press stops playback instead, and the next one goes through.
 	const canChangePages = !state.busy
 
 	const toolClass = (id: ModalToolId) =>

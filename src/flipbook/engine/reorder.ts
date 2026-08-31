@@ -53,6 +53,17 @@ export interface Reorder {
 export const SETTLE_MS = 300
 
 /**
+ * How far it is from one page to the next: a thumbnail's width plus its gutters.
+ *
+ * Only the fallback, and only until the strip has laid itself out and said. The strip is
+ * a row of copies of the drawing, and the drawing is whatever width the window could
+ * spare — 640 on a desktop, half that on a phone — so the real number is measured off
+ * `.page` and handed to the engine by `PageStrip.setPageStep`. It lived beside the page
+ * animations, which threw a page exactly this far; the gesture is what needs it now.
+ */
+export const DEFAULT_PAGE_STEP = 660
+
+/**
  * How long the page has to be held out to one side before the flipbook starts running
  * underneath it.
  *

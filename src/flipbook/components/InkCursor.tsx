@@ -13,7 +13,7 @@ import styles from './InkCursor.module.css'
 export interface InkCursorProps {
 	layer: PointerLayer | null
 	canvasRef: React.RefObject<HTMLCanvasElement | null>
-	/** Null while a page animation holds the tools. */
+	/** Null where there are no tools at all, which is the playback page. */
 	tool: ModalToolId | null
 	/** Which of the drawing modes is switched on. Two of them draw a magnifier. */
 	mode: DrawMode

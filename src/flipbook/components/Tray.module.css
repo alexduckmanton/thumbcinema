@@ -291,10 +291,10 @@
 /*
  * The page actions don't fade when they're off.
  *
- * They are only ever unavailable for the 750ms a page takes to arrive or leave, and
- * a row of icons dipping to a third and back for three-quarters of a second reads as
- * a flash rather than as a state. Pressing one in that window does nothing, which is
- * the whole cost of not saying so.
+ * They are only ever unavailable while a page is being carried to another slot, and a
+ * row of icons dipping to a third and back for the length of a gesture reads as a flash
+ * rather than as a state. Pressing one then does nothing, which is the whole cost of
+ * not saying so.
  */
 .action:disabled {
 	cursor: default;

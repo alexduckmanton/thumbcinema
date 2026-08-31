@@ -527,13 +527,13 @@ export class PointerLayer {
 	 * back to paper while a page animation or a load was in flight, and handing a gesture
 	 * to paper in a relative mode is wrong by construction: paper works at the
 	 * *fingertip*, and up there the fingertip is not the cursor and is not on the drawing
-	 * at all. Touching the canvas during the 750ms of a duplicate therefore dropped
+	 * at all. Touching the canvas during the 750ms a duplicate then took therefore dropped
 	 * whatever was selected — a transform mousedown arriving somewhere near your thumb —
 	 * and a marquee dragged from there was the few pixels the finger moved rather than the
 	 * distance the cursor covered. And because interception is decided once, at
 	 * `touchstart`, the gesture stayed paper's for as long as the finger was down: the
 	 * animation ended and it still didn't work, which is why it read as having to lift and
-	 * start again.
+	 * start again. The animations are gone, and the rule they taught is not.
 	 */
 	private intercepts(): boolean {
 		if (!this.relative && this.mode !== 'v5') return false
@@ -1677,9 +1677,8 @@ export class PointerLayer {
 
 		// A flipbook still arriving is being written to a page at a time, and a stroke
 		// laid on a page that is about to be replaced is a stroke thrown away. The cursor
-		// goes on moving; there is just nothing yet to work on. A page *animation* is not
-		// this — the scene is already in its final shape by the time anything moves, and
-		// drawing through one has been allowed since 2013.
+		// goes on moving; there is just nothing yet to work on. Adding, duplicating and
+		// deleting a page are not this — they are done between one frame and the next.
 		if (gesture.intercepted && this.engine.store.snapshot.loading) return
 
 		// And a page being carried to another slot is a page sliding about under the

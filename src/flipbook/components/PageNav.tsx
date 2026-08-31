@@ -88,15 +88,14 @@ export function PageNav({
 
 	const playing = playback !== 'none'
 
-	// The active page can briefly be past the end of the settled count — a delete
-	// makes the arriving page active from the first frame and spends 750ms getting it
-	// there — and the handle mustn't shoot off the end of the bar on the way past.
+	// Belt and braces: the handle must never point past the end of the bar, whatever
+	// order a page count and an active index arrive in.
 	const current = Math.min(activePage, Math.max(0, pages - 1))
 
 	/** Never refused for being at an end: the last page's next is the first. */
 	const step = useCallback(
-		// Guarded because the wrap is a modulo, and a flipbook with no settled pages —
-		// every one of them mid-delete — would make it a NaN and hand that to the scene.
+		// Guarded because the wrap is a modulo, and a flipbook with no pages at all would
+		// make it a NaN and hand that to the scene.
 		(delta: number) => {
 			if (pages < 1) return
 

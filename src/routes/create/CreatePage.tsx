@@ -13,7 +13,6 @@ import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
-import { settledPageCount } from '../../flipbook/engine/pages'
 import { isZoomStageMode, stageOnPaper, startingZoom, useDrawMode } from '../../flipbook/drawModes'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
@@ -137,7 +136,7 @@ export function CreatePage() {
 
 	// Not the raw length: a page on its way off the screen is still in the list, and
 	// counting it makes the save button fade in and straight back out again.
-	const pages = state ? settledPageCount(state.pages) : 1
+	const pages = state?.pages.length ?? 1
 
 	/*
 	 * A remix that has been opened and not yet drawn on is not work, and warning about
@@ -322,11 +321,6 @@ export function CreatePage() {
 						pages={state.pages}
 						activePage={state.activePage}
 						playing={state.playback !== 'none'}
-						arriving={state.arriving}
-						// A page animation, and not the other thing `busy` covers: carrying a
-						// page has the row easing to the gesture's own timing, and the two
-						// rules would be arguing about the same property.
-						throwing={state.busy && !state.reordering}
 						canvasRef={canvasRef}
 						reorder={reorder}
 						shiftFor={shiftFor}
@@ -352,7 +346,6 @@ export function CreatePage() {
 							ref={canvasRef}
 							className={[
 								canvasStyles.canvas,
-								state?.arriving ? canvasStyles.handedOver : '',
 								// A page being carried is a page sliding about under the pointer,
 								// and paper listens for a mousedown on this element directly — so
 								// the press is taken off it here rather than refused inside. The

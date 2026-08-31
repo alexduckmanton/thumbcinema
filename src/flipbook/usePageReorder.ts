@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { prefersReducedMotion } from './engine/animations'
+import { prefersReducedMotion } from '../lib/device'
 import type { FlipbookEngine } from './engine/FlipbookEngine'
 import {
 	clampDrag,

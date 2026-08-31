@@ -23,8 +23,9 @@ identical until you touch the glass, so "the one where you hold the tool" is a s
 say which is which. The numbers are stable handles that survive reordering the list and
 survive a different one winning; each entry keeps the name it went under while the testbed
 first ran (`was`), so a note written then still resolves, and a new candidate takes the
-next number rather than displacing anybody. The caption under the switch is permanently on
-and leads with the number, because a mode you can't name is a mode you can't report on.
+next number rather than displacing anybody. The number leads each entry in the picker's own
+list, because a mode you can't name is a mode you can't report on — there is no caption on
+the page any more, the switch itself being the one place a mode is named.
 They are grouped rather than ordered by history: **v1–v5 keep the finger as the pointer**,
 **v6–v10 stand the cursor away from the hand** and differ only in how the tool is told to
 start working, and **v11–v13 move the canvas instead of the cursor** — see below. v13 is

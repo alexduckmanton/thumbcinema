@@ -1,5 +1,6 @@
 /**
- * The one thing the site still asks about the device it's on: is this a touch screen.
+ * What the site asks about the device it is on, and about how its owner has set it up:
+ * is this a touch screen, and have they asked for less movement.
  *
  * It used to ask two. The 2013 server ran Mobile_Detect.php and set
  * `$GLOBALS['isMobile']`, and phones were turned away from /create outright — the
@@ -19,3 +20,18 @@ const maxTouchPoints = typeof navigator === 'undefined' ? 0 : (navigator.maxTouc
 
 export const isTouch: boolean =
 	(typeof window !== 'undefined' && 'ontouchstart' in window) || maxTouchPoints > 0
+
+/**
+ * Whether the reader has asked their system for less movement.
+ *
+ * Read on every call rather than once, unlike `isTouch`: this is a setting a person can
+ * change while a page is open, and the answer is only ever wanted at the moment
+ * something is about to move. The one thing left that asks is the reorder gesture's
+ * settle — see `usePageReorder`, and the matching media query in `PageStrip.module.css`,
+ * which is the same rule stated where the transition lives.
+ */
+export function prefersReducedMotion(): boolean {
+	return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+		? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+		: false
+}

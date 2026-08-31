@@ -108,7 +108,13 @@ export interface DrawModeInfo {
 	name: string
 	/** What it was called while the testbed first ran, so old notes still resolve. */
 	was: string
-	/** What to expect, for the moment a mode is picked and its rules aren't obvious. */
+	/**
+	 * The mode's rules in a sentence, which is the list's description column rather than
+	 * anything on screen: the caption that used to put this above the footer for five
+	 * seconds after a mode was picked is gone, along with the rest of that floating
+	 * paragraph. Kept because a mode differs from its neighbours by a rule and this is
+	 * where that rule is written down next to the code.
+	 */
 	hint: string
 }
 
@@ -204,7 +210,7 @@ export const DRAW_MODES: readonly DrawModeInfo[] = [
  */
 export const DEFAULT_DRAW_MODE: DrawMode = 'v13'
 
-/** What the switch and the caption call a mode: `v4 — Offset cursor`, and `(current)`. */
+/** What the switch calls a mode: `v4 — Offset cursor`, and `(current)` against the default. */
 export function label(info: DrawModeInfo): string {
 	return `${info.id} — ${info.name}${info.id === DEFAULT_DRAW_MODE ? ' (current)' : ''}`
 }

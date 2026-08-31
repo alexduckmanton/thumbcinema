@@ -180,9 +180,9 @@ export class Scene {
 
 		if (typeof ResizeObserver === 'undefined') return null
 
-		// The observer's own box rather than `getBoundingClientRect`: page animations
-		// put a transform on this canvas, and the rectangle would report the scale of
-		// whatever frame it is mid-flight in. A layout box doesn't move.
+		// The observer's own box rather than `getBoundingClientRect`: the paper carries a
+		// transform whenever it is pinched or carried to another slot, and the rectangle
+		// would report that scale. A layout box doesn't move.
 		const observer = new ResizeObserver(([entry]) => {
 			const width = entry?.borderBoxSize?.[0]?.inlineSize ?? this.canvas.offsetWidth
 			if (width > 0) this.displayScale = width / this.page.width

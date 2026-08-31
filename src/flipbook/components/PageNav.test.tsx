@@ -365,8 +365,8 @@ describe('PageNav', () => {
 	})
 
 	it('never points past the end, which a delete would', () => {
-		// The arriving page is active from the first frame and the page it replaces is
-		// still falling, so for 750ms the active index is past the settled count.
+		// Nothing produces this any more, and the guard is kept for the same reason it
+		// was written: an active index past the end puts the handle off the bar.
 		render(<PageNav engine={fakeEngine()} activePage={1} pages={1} playback="none" />)
 
 		expect(screen.getByRole('slider')).toHaveAttribute('aria-valuetext', 'Page 1 of 1')
