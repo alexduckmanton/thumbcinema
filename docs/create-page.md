@@ -715,11 +715,12 @@ pair of DOM layers over the canvas; the record of it belongs to the engine.**
   *blanking* canvases rather than by failing. Anything past 24 is dropped and said so in
   plain words rather than silently.
 
-**And v11 draws it a second time.** The picture stays a pair of DOM layers over the paper
-— nothing here goes near the artwork, and that is the decision the whole feature is built
-on — but the zoom stage is a canvas showing a window on the page, so it composites the same
-photograph itself from the same placement. Placing is still the paper's: you drag and pinch
-it up there, and the stage follows. See **v11** in
+**And the zoom stage draws it a second time.** The picture stays a pair of DOM layers over
+the paper — nothing here goes near the artwork, and that is the decision the whole feature
+is built on — but the stage is a canvas rather than a stack of elements, so it composites
+the same photograph itself from the same placement. Placing is still the paper's: you drag
+and pinch it up there, the stage stands its sheet back in its frame for the length of it,
+and the stored zoom comes back when the photo settles. See **v11** and **v12** in
 [`drawing-modes.md`](drawing-modes.md).
 
 **Two things about the picture itself.**

@@ -625,10 +625,11 @@ it's one of these. Each is deliberate:
   instead of mirroring.
 - **A stroke that ends off the canvas updates its thumbnail.** The old mouseup
   listener was on the canvas, so releasing outside it left a stale page.
-- **A page animation can't lock the tool up.** The page actions are held while one
-  plays, and a hidden document doesn't run animations at all — so `finished` never
-  settles and 2013 stays held until a reload. `play()` races it against a deadline.
-  (Drawing is *not* held: you can put a stroke down mid-animation, as you could then.)
+- **A page animation can't lock the tool up, because there are none.** 2013 held the page
+  actions for the length of each one, and a hidden document — a background tab, a
+  minimised window — runs no animations at all, so the flipbook stayed held until a
+  reload. Adding, duplicating and deleting a page are done between one frame and the next
+  here, and the only thing left that holds anything is a page being carried by a finger.
 - **Pages can be rearranged.** There was no way to at all: a frame drawn in the wrong
   place was redrawn somewhere else or the flipbook was rebuilt round it, and the page
   actions have only ever been able to add next to the page you are on. The tab above the

@@ -4,9 +4,8 @@ An online flipbook animation tool: draw a sketch, add a page, draw the next one,
 back. Built 2012–2015 on WordPress, revived in 2025 on a new back end; this is the rewrite
 of that front end — **same product, modern code.** Live at `thumbcinema.alexduckmanton.com`.
 
-**This file is the rules.** How each part works and why is in `docs/`, indexed at the
-bottom; the stack, layout and commands are in `package.json`, the directory listing and
-`docs/architecture.md`, so they aren't repeated here.
+**This file is the rules**; how each part works and why is in `docs/`, indexed at the
+bottom. The stack, layout and commands are in `package.json` and `docs/architecture.md`.
 
 - **`react`, `react-dom`, `paper` and `pg` are the only runtime dependencies.** No state
   library, no CSS framework, no router package, no icon library — keep it that way.
@@ -19,14 +18,12 @@ bottom; the stack, layout and commands are in `package.json`, the directory list
 
 ## Running it
 
-First run: `npm install`, copy `.env.example` to `.env` with your Neon string,
-`npm run db:migrate`, then `npm run dev` (:3000). Node 22.12+ — Rolldown imports
-`styleText` from `node:util`, and `scripts/with-node.js` re-executes under a version that
-will do, so no `nvm use` first. `npm run dev` mounts the real API router as Vite
-middleware, so dev and production route identically; it needs `DATABASE_URL` for the
-gallery and saving, and the drawing tool works without one. **`npm run check` is the
-gate** — typecheck, Biome, tests. There is no CI, and while Vercel typechecks as part of
-`npm run build`, a lint failure can still reach production.
+First run: `npm install`, `.env.example` → `.env` with your Neon string, `npm run
+db:migrate`, `npm run dev` (:3000). Node 22.12+; `scripts/with-node.js` re-executes under
+one that will do, so no `nvm use` first. `npm run dev` mounts the real API router as Vite
+middleware, so dev and production route identically; it wants `DATABASE_URL` for the
+gallery and saving, and the drawing tool works without one. **`npm run check` is the gate**
+— typecheck, Biome, tests. No CI, and Vercel only typechecks: a lint failure can ship.
 
 ## Rules
 
@@ -77,9 +74,8 @@ Break one of these and something goes wrong somewhere else, usually silently.
   by `useFlipbookEngine` rather than imported at the top of `scene.ts`. A plain `import`
   of anything large anywhere under a route silently puts it back into that route's
   preload set, and the chunk table won't say so. After touching imports, `npm run build`
-  and check two things: nothing paper in `GalleryPage-*.js`, and `useCardGesture-*.js`
-  still a chunk of its own. (Grepping the playback chunk for that name always matches — it
-  is in that chunk's preload list for `RemixList`, which is meant to carry it.)
+  and check two things: nothing paper in `GalleryPage-*.js`, and `useCardGesture-*.js` still
+  a chunk of its own. (The playback chunk always names it: that is its preload list.)
 - **One breakpoint, and it tests height as well as width**, written out in full in every
   file that switches layout. A phone held sideways is 800 points wide and 375 tall, and a
   width test alone hands it a full-size canvas and a page strip in a window that can hold
@@ -120,12 +116,12 @@ point — a flipbook saved in either version appears in both — and what it cos
 freedom, per **Rules** above. Both need the same `DATABASE_URL` and `ADMIN_TOKEN`, and an
 Ignored Build Step apiece so neither builds the other's branch.
 
-Featured is the home page's default; All is everything else that isn't NSFW. New saves
-default to both flags false and are promoted or flagged by hand — the save form's "adult
-stuff" checkbox is gone, so NSFW is set only from admin mode. It hides a flipbook from both
-tabs but leaves its own URL working, which is the moderation lever, saves being public
-immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visit
-`/?admin=<token>` once and it is kept in `localStorage`.
+Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visit `/?admin=<token>`
+once and it is kept in `localStorage`. It is the only way to feature a flipbook onto the
+home page's default tab, and the only way to flag one NSFW — hidden from both tabs, its
+own URL still working, which is the moderation lever for saves that go public immediately.
+New saves default to both flags false, and the save form's "adult stuff" checkbox is gone
+rather than mislaid. `docs/deployment.md`.
 
 - **Unset or under 16 characters and the admin API 404s entirely** — it fails closed, so a
   deploy that forgets it is safe rather than open.
@@ -149,8 +145,9 @@ immediately. Admin mode is one shared secret in `ADMIN_TOKEN`, no accounts: visi
   `showModal()` puts an element in the top layer; since Safari 26, iOS tints its own
   toolbars from the page and never samples the top layer, so the wash left a pale band
   above and below it. What *is* sampled is `<body>`'s background or a fixed element at the
-  viewport edge — hence `base.css`'s lock making `<body>` fixed and opaque. Both halves
-  needed; three attempts to establish. `docs/create-page.md`.
+  viewport edge, which is also why the lock's `position: fixed` on `<body>` had to go: it
+  was what the sampler had already chosen, and it never chose again. Both halves needed —
+  put either one back and the bands return. `docs/create-page.md`.
 - The save request is capped at ~4 MB by Vercel and form encoding inflates SVG, so the
   practical ceiling is roughly a 2.5 MB drawing; the server answers 413.
 - A background upload that rejects shows the crash screen: the create page listens on
