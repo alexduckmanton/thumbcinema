@@ -187,6 +187,37 @@ html.locked body {
 }
 
 /*
+ * And the box that `overflow` clips against is the *large* viewport, so a pinched page
+ * carries on behind iOS Safari's toolbar rather than being cut off at the top of it.
+ *
+ * **The body is the clip and the root is not**, which is the whole reason this rule
+ * exists on its own. `overflow` on the root element propagates to the viewport, and a
+ * root whose overflow has propagated is treated as `visible` for its own box — so the
+ * two clips in play are the viewport's, at the initial containing block, and the
+ * `<body>`'s, at whatever the body's box happens to be. Verified rather than reasoned:
+ * with the page pinched to 4×, shrinking the body's box cuts the sheet off at it and
+ * shrinking the root's box does nothing at all.
+ *
+ * The body's height is otherwise its content — `#root` at `100dvh` — and `dvh` on a page
+ * that cannot scroll is the viewport *with the toolbar out*, permanently, because nothing
+ * ever collapses it. So the sheet was being clipped at exactly the top edge of the URL
+ * bar. `lvh` is the viewport with the browser's UI retracted, which is precisely the strip
+ * the toolbar is sitting over, and since Safari 26 that toolbar is translucent: what is
+ * behind it shows through. Everything *laid out* stays on `100dvh` — the column, the
+ * paper's own size, the footer above `env(safe-area-inset-bottom)` — so the only thing
+ * with anything to paint down there is a sheet somebody has pinched out of its frame.
+ *
+ * Two things it does not buy. A stroke *started* in that strip is iOS's, not ours: the
+ * bottom edge is where its own toolbar and home-indicator gestures live, which is why the
+ * footer sits above the inset in the first place. And the toolbar tints itself from the
+ * page (see `SaveForm.module.css`), so a white sheet arriving behind it may change that
+ * tint as you pinch.
+ */
+html.locked body {
+	min-height: 100lvh;
+}
+
+/*
  * There was a fifth, and it is gone: `position: fixed` on the `<body>`.
  *
  * It was here as the belt to `overflow: hidden`'s braces — the received wisdom being that

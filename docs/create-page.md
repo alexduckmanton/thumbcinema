@@ -398,8 +398,10 @@ is now true at both widths and the differences are called out where they exist.
   hidden` on both html and body is the ordinary one — the page has never had anything to
   scroll *to*, `--book-reserve` sees to that, but it did have the rubber band, and the
   whole drawing sliding an inch under your finger on a stroke that started near the
-  bottom edge. `position: fixed` on the body is the only thing that reliably stops iOS
-  scrolling the document anyway. `overscroll-behavior: none` is what takes
+  bottom edge. (`position: fixed` on the body was a fifth property here and is gone —
+  it was what iOS had already picked to tint its toolbars from, which is the whole of why
+  the save form's wash could not reach them. See **Naming a flipbook**.)
+  `overscroll-behavior: none` is what takes
   pull-to-refresh off Chrome on Android, which is not a scroll and survives all of the
   above — and a pull far enough to reload the tab is the worst thing that can happen to
   an unsaved flipbook. And `touch-action: none` overrides the body's `manipulation`,
@@ -411,6 +413,24 @@ is now true at both widths and the differences are called out where they exist.
   is an intersection down the ancestor chain that a descendant cannot give back. Nothing
   is lost by it: the form has put `inert` on `main` by then, so the page behind it is
   out of reach anyway, and `beforeunload` is already guarding the reload.
+
+  **A pinched page carries on behind iOS Safari's toolbar, and one line is what allows
+  it.** The lock's `overflow: hidden` has to clip somewhere, and where it clips is the
+  `<body>`'s box — `overflow` on the root propagates to the viewport and leaves the root
+  itself `visible`, so the two clips in play are the viewport's, at the initial containing
+  block, and the body's. Verified rather than reasoned, with the page pinched to 4×:
+  shrinking the body's box cuts the sheet off at it and shrinking the root's box does
+  nothing at all. The body's height is otherwise its content, `#root` at `100dvh` — and on
+  a page that cannot scroll nothing ever collapses the toolbar, so `dvh` is permanently
+  the viewport *with the toolbar out* and the sheet was cut off at precisely the top edge
+  of the URL bar. `html.locked body { min-height: 100lvh }` makes the clip the viewport
+  with the browser's UI retracted, which is exactly the strip the toolbar sits over, and
+  since Safari 26 that toolbar is translucent: what is behind it shows through. Everything
+  *laid out* stays on `100dvh` — the column, the paper's own size, the footer above
+  `env(safe-area-inset-bottom)` — so the only thing with anything to paint down there is a
+  sheet somebody has pinched out of its frame. It buys nothing for a *stroke* started in
+  that strip, which is iOS's: the bottom edge is where its own toolbar and home-indicator
+  gestures live, which is why the footer sits above the inset to begin with.
 
   **The first `touchmove` of a slow drag on an iPhone is Safari's, and nothing here
   can hurry it.** It arrives only once the finger has travelled several pixels and then
