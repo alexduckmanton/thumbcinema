@@ -1,10 +1,4 @@
-import {
-	canvasExtent,
-	canvasOrigin,
-	DEFAULT_PAGE_SIZE,
-	ONION_OPACITY,
-	type PageSize,
-} from './constants'
+import { DEFAULT_PAGE_SIZE, ONION_OPACITY, type PageSize } from './constants'
 
 /**
  * paper-core's exports: paper's scope object, minus PaperScript.
@@ -101,13 +95,8 @@ export class Scene {
 	constructor(canvas: HTMLCanvasElement, paperCore: PaperCore, page: PageSize = DEFAULT_PAGE_SIZE) {
 		this.canvas = canvas
 		this.page = page
-
-		// The backing store is the *extent*, not the page: the whole drawable area has
-		// to be rendered, because the zoom stage shows a window of this canvas by
-		// copying pixels out of it and a surround that was never drawn would be blank.
-		const extent = canvasExtent(page)
-		canvas.width = extent.width
-		canvas.height = extent.height
+		canvas.width = page.width
+		canvas.height = page.height
 
 		// A scope of our own rather than the global singleton: two engines can exist
 		// briefly during a route change (and always do under React's StrictMode
@@ -163,18 +152,11 @@ export class Scene {
 	 * into the output, so a zoomed view would save the artwork at the phone's scale
 	 * *and* wrap it in an extra `<g>` — which would put every page in the archive one
 	 * group out. See `assertLeadingGroups`.
-	 *
-	 * **The view covers the whole extent and the page keeps its origin at (0,0).** The
-	 * surround is negative on both axes rather than the page being offset into a bigger
-	 * space, and that is the decision the export rests on: every coordinate in the
-	 * artwork means what it has always meant, so a flipbook drawn on an infinite canvas
-	 * is byte-identical to one drawn before there was one. `view.center` is what puts the
-	 * page in the middle of the canvas; `exportRoot` is what pins the export back to it.
 	 */
 	private pinCoordinates(): ResizeObserver | null {
 		const view = this.scope.view
 
-		this.stateViewSize()
+		view.viewSize = new this.scope.Size(this.page.width, this.page.height)
 		this.canvas.style.removeProperty('width')
 		this.canvas.style.removeProperty('height')
 
@@ -183,34 +165,18 @@ export class Scene {
 		// class and hands it a DOM one, and naming either of them here is a lie. The
 		// contextual type from the assignment is exactly what `toProject` accepts.
 		view.getEventPoint = (event) => {
-			/*
-			 * Scaled about the canvas's own origin, and the order is the whole of it.
-			 *
-			 * paper's answer already carries the view's translation — the surround puts the
-			 * canvas's top-left corner at `canvasOrigin`, which is negative — so a plain
-			 * divide would scale that offset along with the position and land every event a
-			 * few hundred units from where the pointer is. Taking the origin off first,
-			 * scaling, and putting it back applies the correction to the part that needs it.
-			 *
-			 * Caught by a stroke that simply did not appear. A mouse on a desktop draws
-			 * through this and a finger does not — touch goes through `PointerLayer` and the
-			 * stage's own mapping — so touch went on working perfectly at every width while
-			 * a pointer drew nothing at all.
-			 */
-			const origin = new this.scope.Point(canvasOrigin(this.page))
-			const point = toProject(event).subtract(origin).divide(this.displayScale).add(origin)
+			const point = toProject(event).divide(this.displayScale)
 			if (!this.touchOffsetY || !isTouchEvent(event)) return point
 
 			// The offset is stated in CSS pixels and applied in project units, so it has
 			// to be scaled the same way the point was: 40px is 40 units on a desktop and
-			// nearer 75 on a phone showing 640 of them in 343. A delta rather than a
-			// position, so the origin does not come into it.
+			// nearer 75 on a phone showing 640 of them in 343.
 			return point.subtract(new this.scope.Point(0, this.touchOffsetY / this.displayScale))
 		}
 
 		// Read once up front as well as watched: this runs in a layout effect, so the
 		// canvas is already laid out, and the observer's first callback is a frame away.
-		this.measureDisplayScale(this.canvas.offsetWidth)
+		if (this.canvas.offsetWidth > 0) this.displayScale = this.canvas.offsetWidth / this.page.width
 
 		if (typeof ResizeObserver === 'undefined') return null
 
@@ -218,35 +184,12 @@ export class Scene {
 		// put a transform on this canvas, and the rectangle would report the scale of
 		// whatever frame it is mid-flight in. A layout box doesn't move.
 		const observer = new ResizeObserver(([entry]) => {
-			this.measureDisplayScale(entry?.borderBoxSize?.[0]?.inlineSize ?? this.canvas.offsetWidth)
+			const width = entry?.borderBoxSize?.[0]?.inlineSize ?? this.canvas.offsetWidth
+			if (width > 0) this.displayScale = width / this.page.width
 		})
 		observer.observe(this.canvas)
 
 		return observer
-	}
-
-	/**
-	 * States the coordinate space: the extent, with the page in the middle of it.
-	 *
-	 * Both lines matter and they have to be in this order — `viewSize` re-resolves the
-	 * space and puts the centre back in the middle of it, so a centre set first would be
-	 * thrown away.
-	 */
-	private stateViewSize(): void {
-		const extent = canvasExtent(this.page)
-		this.scope.view.viewSize = new this.scope.Size(extent.width, extent.height)
-		this.scope.view.center = new this.scope.Point(this.page.width / 2, this.page.height / 2)
-	}
-
-	/**
-	 * How much smaller than the extent the canvas is being shown at.
-	 *
-	 * Against the extent rather than the page, because that is what the element holds:
-	 * the whole drawable area is rendered into it, so a pointer halfway across the
-	 * element is halfway across the *extent*.
-	 */
-	private measureDisplayScale(width: number): void {
-		if (width > 0) this.displayScale = width / canvasExtent(this.page).width
 	}
 
 	/**
@@ -267,120 +210,16 @@ export class Scene {
 		if (page.width === this.page.width && page.height === this.page.height) return
 
 		this.page = page
-		const extent = canvasExtent(page)
-		this.canvas.width = extent.width
-		this.canvas.height = extent.height
+		this.canvas.width = page.width
+		this.canvas.height = page.height
 
-		this.stateViewSize()
+		this.scope.view.viewSize = new this.scope.Size(page.width, page.height)
 		// paper writes an inline width and height as it sizes the view on a hidpi
 		// screen, and those would beat the stylesheet exactly as they do on the way in.
 		this.canvas.style.removeProperty('width')
 		this.canvas.style.removeProperty('height')
 
-		this.measureDisplayScale(this.canvas.offsetWidth)
-	}
-
-	/**
-	 * The artwork as an SVG root, pinned to the page rather than to the view.
-	 *
-	 * **The one place the extent must not reach**, and the only reason `exportSVG` is
-	 * wrapped at all. Left to itself paper exports the view's bounds — which is now the
-	 * whole 2× canvas — and the result is wrong in two ways at once, both silent enough
-	 * to reach production: the root states the extent's size, so every flipbook saved
-	 * would read back as a page twice its real shape, on its card, on its playback page
-	 * and in every remix of it for ever; and the non-identity view matrix makes paper wrap
-	 * the whole project in a single `<g>`, which collapses the layer-per-page structure
-	 * the format rests on. `assertLeadingGroups` catches the second. Nothing but this
-	 * catches the first.
-	 *
-	 * With explicit bounds the output is byte-identical to what it was before there was a
-	 * surround: the page's own viewBox, its own width and height, one group per layer and
-	 * no transform on any of them. Proved in `scene.test.ts` against a real project rather
-	 * than reasoned about, because the failure mode is a correct-looking file.
-	 *
-	 * It does *not* drop the surround — ink outside the page is still written, and clipped
-	 * only by the viewBox on the way back in. Removing it is the save path's job; see
-	 * `FlipbookEngine.exportForSave`, which does it for the file size rather than for the
-	 * shape.
-	 */
-	exportRoot(): SVGElement {
-		return this.project.exportSVG({
-			asString: false,
-			bounds: this.pageRect(),
-		}) as SVGElement
-	}
-
-	/** The page, as a paper rectangle in project units. Its origin is the artwork's. */
-	pageRect(): paper.Rectangle {
-		return new this.scope.Rectangle(0, 0, this.page.width, this.page.height)
-	}
-
-	/**
-	 * Where the page sits inside the canvas's backing store, in device pixels.
-	 *
-	 * For anything reading pixels *out* of the live canvas and wanting only the flipbook:
-	 * the cover PNG, and the zoom stage's fallback. The canvas holds the whole extent, so
-	 * the page is a rectangle in the middle of it — and the scale is measured off the
-	 * element rather than assumed, because paper multiplies the backing store by the
-	 * device pixel ratio and a hard 2 would be wrong on every screen that isn't retina.
-	 */
-	pageBox(): { x: number; y: number; width: number; height: number } {
-		const extent = canvasExtent(this.page)
-		const scale = this.canvas.width / extent.width
-
-		return {
-			x: ((extent.width - this.page.width) / 2) * scale,
-			y: ((extent.height - this.page.height) / 2) * scale,
-			width: this.page.width * scale,
-			height: this.page.height * scale,
-		}
-	}
-
-	/**
-	 * Runs `fn` with everything drawn entirely outside the page taken out of the project,
-	 * and puts it all back afterwards.
-	 *
-	 * The save path's, and the reason the surround costs the saved file nothing. Ink past
-	 * the frame is still *written* by `exportRoot` — the viewBox clips it on the way back
-	 * in, so it is invisible and it still travels — and the save request is capped at
-	 * about 2.5 MB of drawing. A canvas four times the area could quietly spend most of
-	 * that budget on strokes nobody will ever see.
-	 *
-	 * **Entirely outside, by `strokeBounds`.** A stroke that crosses the frame's edge
-	 * stays whole and is clipped by the viewBox, which is both simpler and truer than
-	 * cutting the path: the geometry that survives is the geometry that was drawn, and
-	 * every renderer that reads this file already clips to the root. `strokeBounds` rather
-	 * than `bounds` so a thick line just past the edge, whose ink laps over it, is kept.
-	 *
-	 * Nothing is painted in between. Every line of this runs in one go and the browser
-	 * paints at frame boundaries, which is the same reason `captureCover` can move the
-	 * active page and put it back without a flicker. Items go back at the index they came
-	 * from, restored deepest-last, so z-order within a page is exactly what it was.
-	 */
-	withoutOverspill<T>(fn: () => T): T {
-		const page = this.pageRect()
-		const taken: { layer: paper.Layer; index: number; item: paper.Item }[] = []
-
-		for (let i = SYSTEM_LAYERS; i < this.project.layers.length; i++) {
-			const layer = this.project.layers[i]
-			if (!layer) continue
-
-			for (const item of layer.children) {
-				if (item.strokeBounds.intersects(page)) continue
-				taken.push({ layer, index: item.index, item })
-			}
-		}
-
-		for (const { item } of taken) item.remove()
-
-		try {
-			return fn()
-		} finally {
-			// Ascending, so each insertion lands at the index it was read at: an item put
-			// back at 2 shifts everything above it, and the one that was at 5 is at 5 again
-			// only once every lower one is already there.
-			for (const { layer, index, item } of taken) layer.insertChild(index, item)
-		}
+		if (this.canvas.offsetWidth > 0) this.displayScale = this.canvas.offsetWidth / page.width
 	}
 
 	get project(): paper.Project {

@@ -14,9 +14,11 @@ bottom; the stack, layout and commands are in `package.json`, the directory list
   looks different from the 2013 revival is a bug unless the comment beside it says so.
   **The create page is the one exception and is now its own thing**: every control is a
   40×40 Pecita glyph in a rail down the left at both widths, the page bar is the whole of
-  page navigation, and in v14 a finger aims from a pad at the bottom of the screen. The
-  hand-drawn tool sprite went with it, and so did the scrolling column of thumbnails that
-  was there for a while. `docs/create-page.md` says what all of that cost.
+  page navigation, the sheet casts no shadow (`.flat`), and in v14 a finger aims from a pad
+  at the bottom of the screen. The hand-drawn tool sprite went with it, and so did the
+  scrolling column of thumbnails, the tab above the paper that reordered pages, and a spell
+  when you could draw past the page's edge. `docs/create-page.md` says what all of that
+  cost.
 - **`time-capsule` is a branch still running the 2013 front end, and it is the reference**
   for any question about the old behaviour. It shares one database with `main`, which is
   the constraint behind every rule about the schema.
@@ -48,45 +50,21 @@ Break one of these and something goes wrong somewhere else, usually silently.
   wide on a phone would otherwise give a 350-unit project — strokes, thumbnails and saved
   SVG all that shape. CSS owns the display size and `getEventPoint` divides by the current
   scale; not `view.zoom`, which folds itself into `exportSVG()`.
-- **The canvas is `CANVAS_SCALE` times the page and the page keeps its origin at (0,0).**
-  The create page is an infinite canvas with a crop frame on it: you can draw twice the
-  page in each direction, the page sits in the middle, and the surround is *negative* on
-  both axes. That last part is what keeps the saved file byte-identical to what it always
-  was — every coordinate in the artwork means what it meant. Three things follow and each
-  has bitten: `Scene.exportRoot()` must pin the export to the page (paper's default is the
-  view's bounds, which now states the extent's shape **and** collapses every layer into one
-  group); `withoutOverspill()` must actually delete ink outside the frame at save, because
-  the viewBox hides it and does not drop it; and `getEventPoint` scales about
-  `canvasOrigin` rather than about zero, or a mouse draws several hundred units from the
-  pointer. `docs/create-page.md`.
 - **Two page sizes, and there will only ever be two.** `LEGACY_PAGE_SIZE` 640×360 (2012 to
   2026, the whole archive) and `SQUARE_PAGE_SIZE` 640×640 (since). A flipbook keeps its
   shape for ever, so a remix of a 16:9 flipbook is 16:9; nobody chooses and there is no UI.
   Both are 640 across on purpose — stroke widths, the ink cursor and the strip's pitch are
   calibrated against that width.
-- **The canvas element is the whole 2× extent** — it has to be rendered, because the zoom
-  stage shows a window of it by copying pixels — so `200%`/`-50%` in
-  `FlipbookCanvas.module.css` and `CANVAS_SCALE` have to agree. `.paper` is the page-shaped
-  hole it is seen through on playback and in the boot shell. **The create page adds
-  `.open`, which is not a hole at all**: no clip, no shadow, no rounding, and the white
-  is dropped, so the drawing is not cropped while you are drawing it. **`.crop` is the sheet
-  of paper**: it carries the white, the rounding and the shadow, from behind the canvas
-  (14 against the canvas's 15), so ink inside the frame is ink on paper and ink outside it
-  is ink on the desk. `.canvas` must state its 15 — any number beats a positioned sibling's
-  `auto`, and without it the sheet's white covers the ink. `.paper` and not `.sheet` — that name
-  is taken by the shell's skeleton, and CSS Modules hash per file, so two blocks of one
-  name are one class.
-- **The drawing passes *under* the page bar, and `.fitted` is what does it.** The canvas
-  overflows its box on every side — under the rail, off the edges of the window and across
-  the bar — and the bar is a control, so it has to be on top. `.fitted` carries `z-index: 5`
-  and is a stacking context, which takes the canvas's own 15 and the trace photo's 16 down
-  with it. `.dragging` restates 15 for the length of a reorder, which is the one time the
-  sheet is meant to travel above the bar.
-- **You cannot zoom out past the whole canvas.** `maxWidth` is the extent and
-  `defaultViewport` opens there, so the resting view is the widest there is: pinching only
-  ever goes in and comes back to exactly the size the layout chose. `zoom` in
-  `zoomStage.ts` is against the canvas, not the page — which is why v11's `startingZoom` is
-  `2 * CANVAS_SCALE` to keep meaning "the page at 2×".
+- **You cannot zoom out past the whole page.** The create page pinches to zoom — `zoomStage.ts`
+  and `ZoomStage`, phone widths only, because it exists for v14's aiming pad and a mouse
+  occludes nothing. `maxWidth` is the page and `defaultViewport` opens there, so the resting
+  view is the widest there is: pinching only ever goes in and comes back to exactly the size
+  the layout chose. There is no drawable surround and there was one for about a day;
+  `docs/create-page.md` says why it went and what it cost while it was there.
+- **Reordering pages has an engine but no control.** `FlipbookEngine.movePage`, its `move`
+  history op and `beginReorder`/`endReorder` are live and tested, and nothing in the UI calls
+  them — the tab above the paper went with the layout it belonged to. Whatever replaces it
+  calls `movePage`; don't rebuild the model.
 - **The artwork is the authority on its own shape, and no viewBox means 640×360** (paper
   0.8 wrote none, so the whole archive is silent and all of it is the legacy page).
   `pageSizeFromSvg()` and `pageSize()` (`lib/thumbnail.js`) are the client and server

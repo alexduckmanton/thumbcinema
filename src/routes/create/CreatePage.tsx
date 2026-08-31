@@ -7,9 +7,8 @@ import { AimPad } from '../../flipbook/components/AimPad'
 import { InkCursor } from '../../flipbook/components/InkCursor'
 import { ToolPanel } from '../../flipbook/components/ToolPanel'
 import { ZoomStage, ZoomWindow } from '../../flipbook/components/ZoomStage'
-import { DEFAULT_PAGE_SIZE, type PageSize } from '../../flipbook/engine/constants'
+import { DEFAULT_PAGE_SIZE } from '../../flipbook/engine/constants'
 import { pageVars } from '../../flipbook/pageVars'
-import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
 import type { FlipbookEngine } from '../../flipbook/engine/FlipbookEngine'
@@ -25,11 +24,9 @@ import { TraceLayer } from '../../flipbook/trace/TraceLayer'
 import { TraceMenu } from '../../flipbook/trace/TraceMenu'
 import { useTracePhoto } from '../../flipbook/trace/useTracePhoto'
 import { usePointerLayer } from '../../flipbook/usePointerLayer'
-import { canvasViewport, useStage, type Viewport } from '../../flipbook/zoomStage'
+import { useStage } from '../../flipbook/zoomStage'
 import { useFlipbookEngine } from '../../flipbook/useFlipbookEngine'
 import { useKeyboardShortcuts } from '../../flipbook/useKeyboardShortcuts'
-import { SETTLE_MS } from '../../flipbook/engine/reorder'
-import { usePageReorder } from '../../flipbook/usePageReorder'
 import {
 	ApiError,
 	getFlipbook,
@@ -128,8 +125,7 @@ export function CreatePage() {
 	const page = state?.page ?? DEFAULT_PAGE_SIZE
 
 	const onPaper = stageOnPaper(drawMode)
-	const stageView = useStage().view
-	const staged = stageView !== null && onPaper
+	const staged = useStage().view !== null && onPaper
 
 	const crash = useCrashRecovery(engine, asked)
 
@@ -214,22 +210,6 @@ export function CreatePage() {
 		else if (placing) engine?.settleTrace()
 		else setTraceMenu(true)
 	}, [photo, placing, camera, engine])
-
-	/*
-	 * The handle above the paper, and everything dragging it does.
-	 *
-	 * Off unless there is a flipbook to rearrange and a moment to do it in: one page has
-	 * nowhere to go, a flipbook still arriving is being written to a page at a time, and
-	 * while it is playing the strip isn't even on screen — and while a photo is in hand
-	 * the sheet is somewhere a finger is already dragging something else.
-	 */
-	const reorderable = pages > 1 && !state?.loading && !playing && !placing
-
-	const { reorder, bookRef, handleProps } = usePageReorder(engine, {
-		activePage: state?.activePage ?? 0,
-		pages,
-		enabled: reorderable,
-	})
 
 	const handleSave = useCallback(
 		async (values: SaveFormValues) => {
@@ -382,69 +362,29 @@ export function CreatePage() {
 				) : null}
 
 				<div className={styles.stage}>
-					{/* `--settle` is the one number the drag and the stylesheet have to agree
-				    about; it is stated in `usePageReorder` and handed down here so they
-				    can't drift. */}
-					<div
-						ref={bookRef}
-						className={[
-							canvasStyles.book,
-							// `.fitted`, which is where the stacking context lives: the canvas
-							// overflows this box on every side and has to pass *under* the page
-							// bar. See the note on it.
-							canvasStyles.fitted,
-							reorder ? canvasStyles.dragging : '',
-							reorder?.settling ? canvasStyles.settling : '',
-						]
-							.filter(Boolean)
-							.join(' ')}
-						style={{ '--settle': `${SETTLE_MS}ms` } as React.CSSProperties}
-					>
-						{/* `.open`, so the canvas is *not* cropped to the page while you are
-						    drawing on it: the element is the whole drawable area, twice the page
-						    in each direction, and it overflows this box on all four sides. What
-						    says where the flipbook ends is the crop outline below. See `.open`. */}
-						<div className={`${canvasStyles.paper} ${canvasStyles.open}`}>
-							{/*
-							 * The crop frame: the one thing on the page that says which ink survives
-							 * the save.
-							 *
-							 * Drawn here rather than by the stage, because the stage is not always
-							 * there — it is hidden above the phone breakpoint, and on a desktop the
-							 * canvas is shown directly. One formula covers both: with no stage the
-							 * surface *is* the whole canvas, so `canvasViewport` is the window and the
-							 * frame comes out at exactly this box.
-							 *
-							 * Positioned in percentages of this box, which is the page's own, while
-							 * the surface is `CANVAS_SCALE` times it and centred — hence the `-50%`
-							 * and the `200%`, the same two numbers the canvas is laid out with. At
-							 * rest they cancel and the frame is `0%`/`100%`.
-							 *
-							 * **Before the canvas, and underneath it.** The frame is the sheet of
-							 * paper: it carries the white, and the canvas above it is transparent, so
-							 * ink inside the frame is ink on paper and ink outside it is ink on the
-							 * desk. Under rather than over, because a white fill drawn over the
-							 * drawing would hide the drawing.
-							 */}
-							<CropFrame view={stageView ?? canvasViewport(page)} page={page} />
-
-							<canvas
-								ref={canvasRef}
-								className={[
-									canvasStyles.canvas,
-									// A page being carried is a page sliding about under the pointer,
-									// and paper listens for a mousedown on this element directly — so
-									// the press is taken off it here rather than refused inside. The
-									// finger's half of that is in `PointerLayer.engage`.
-									state?.reordering ? canvasStyles.inert : '',
-									// And v12 stands its own canvas in front of this one, so paper
-									// goes on drawing here and nothing looks at it. See `.staged`.
-									staged ? canvasStyles.staged : '',
-								]
-									.filter(Boolean)
-									.join(' ')}
-							/>
-						</div>
+					{/* `.fitted` is the same clamp the boot shell's placeholder is laid out
+					    with, so the sheet doesn't move when the route lands on top of it. */}
+					<div className={`${canvasStyles.book} ${canvasStyles.fitted}`}>
+						<canvas
+							ref={canvasRef}
+							className={[
+								canvasStyles.canvas,
+								// `.flat`: no shadow. On the create page the sheet stands inside a
+								// rail and a page bar rather than on its own, and a card's drop
+								// shadow round it read as a second frame inside the first.
+								canvasStyles.flat,
+								// A page being carried is a page sliding about under the pointer,
+								// and paper listens for a mousedown on this element directly — so
+								// the press is taken off it here rather than refused inside. The
+								// finger's half of that is in `PointerLayer.engage`.
+								state?.reordering ? canvasStyles.inert : '',
+								// And v12 stands its own canvas in front of this one, so paper
+								// goes on drawing here and nothing looks at it. See `.staged`.
+								staged ? canvasStyles.staged : '',
+							]
+								.filter(Boolean)
+								.join(' ')}
+						/>
 
 						{/* Two ways a flipbook lands in the drawing tool and they are not the
 					    same event: one is your own work coming back after a crash, the
@@ -533,17 +473,6 @@ export function CreatePage() {
 								onCancel={() => setPhase('drawing')}
 							/>
 						) : null}
-
-						{/* The tab on the top edge of the sheet. Inside `.book` because it is
-					    part of the page — it hangs above the paper, and it travels with it
-					    when the page is carried. */}
-						<PageHandle
-							handleProps={handleProps}
-							page={(state?.activePage ?? 0) + 1}
-							pages={pages}
-							carrying={reorder !== null}
-							disabled={!reorderable}
-						/>
 					</div>
 
 					{/* The page bar: horizontal, under the drawing, and exactly as wide as it.
@@ -556,18 +485,9 @@ export function CreatePage() {
 						{engine && state ? (
 							<PageNav
 								engine={engine}
-								// Where the page would land while one is being carried, rather than
-								// the page being drawn on — which doesn't change until the gesture
-								// ends, so the bar would sit still through the whole of it. With the
-								// thumbnails gone this is the only thing on screen that says a
-								// reorder is going anywhere, which makes it load-bearing rather than
-								// a nicety.
-								activePage={reorder ? reorder.to : state.activePage}
+								activePage={state.activePage}
 								pages={pages}
 								playback={state.playback}
-								// And it travels at the flipbook's own rate while the book is running
-								// underneath the page, rather than hopping onto each slot in turn.
-								glide={reorder?.slide ?? null}
 								// A crashed drawing being replayed arrives a page at a time exactly
 								// as a saved one does, so the bar waits the same way. Empty on a
 								// fresh page too, and there is nothing to say about a flipbook of
@@ -627,38 +547,6 @@ export function CreatePage() {
 
 			{crash.crashed ? <Recovery saved={crash.saved} /> : null}
 		</>
-	)
-}
-
-/**
- * The outline round the part of the canvas that will be saved.
- *
- * A DOM box rather than anything painted into the canvas, for the same reason the trace
- * photo is a DOM layer: nothing that is not the drawing may ever be in a position to end up
- * *in* the drawing. Stated in percentages, so it needs no measurement of its own and cannot
- * fall out of step with the surface beside it — both are drawn from the same numbers on the
- * same render.
- *
- * `-50%` and `200%` are `CANVAS_SCALE` written twice: the surface is that many times this
- * box and centred on it, so a fraction of the *surface* becomes a percentage of the box by
- * scaling and shifting. With the window at the whole canvas the two cancel exactly and the
- * frame lands on `0%`/`100%` — which is why nothing about the layout moved.
- */
-function CropFrame({ view, page }: { view: Viewport; page: PageSize }) {
-	const across = (value: number) => `${-50 + (200 * (value - view.x)) / view.w}%`
-	const down = (value: number) => `${-50 + (200 * (value - view.y)) / view.h}%`
-
-	return (
-		<div
-			className={canvasStyles.crop}
-			aria-hidden="true"
-			style={{
-				left: across(0),
-				top: down(0),
-				width: `${(200 * page.width) / view.w}%`,
-				height: `${(200 * page.height) / view.h}%`,
-			}}
-		/>
 	)
 }
 

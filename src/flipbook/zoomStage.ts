@@ -1,5 +1,5 @@
 import { Store, useStore } from '../lib/store'
-import { canvasExtent, canvasOrigin, type PageSize } from './engine/constants'
+import type { PageSize } from './engine/constants'
 
 /**
  * The window on the page that the zoom stage is showing, in project units.
@@ -50,48 +50,26 @@ export const MAX_ZOOM = 4
 export const DEFAULT_ZOOM = 2
 
 /**
- * Everything you can reach, in project units — the drawable canvas, not the page.
- *
- * The page keeps its origin at (0,0) and the surround is negative on both axes, so this
- * starts at `canvasOrigin` and is `CANVAS_SCALE` times the page in each direction. Every
- * limit below is against this rather than against the page, which is the whole of what
- * makes the canvas larger than the flipbook: `clampViewport` is the one place that ever
- * said "not past the edge of the page", and it now says "not past the edge of the canvas".
- */
-function bounds(page: PageSize): { x: number; y: number; width: number; height: number } {
-	return { ...canvasOrigin(page), ...canvasExtent(page) }
-}
-
-/**
- * The largest window of this shape that fits on the canvas.
+ * The largest window of this shape that fits on the page.
  *
  * The stage's aspect is *measured* rather than stated — it is whatever the surface comes
- * out as — so the biggest window is whichever of the canvas's two dimensions binds first.
+ * out as — so the biggest window is whichever of the page's two dimensions binds first.
  *
- * **This is where a stage opens and it is as far out as it goes.** You cannot zoom out
- * past the whole canvas, which is what makes the resting view the widest one there is —
- * pinching only ever goes in, and comes back to exactly the size the layout chose. A
- * surface you could pull away from would leave the flipbook smaller than the page it is,
- * for no gain: there is nothing beyond the canvas to see.
+ * **This is where a stage on the paper opens and it is as far out as it goes.** You cannot
+ * zoom out past the whole page: the resting view is the widest there is, so pinching only
+ * ever goes in and comes back to exactly the size the layout chose.
  */
 export function maxWidth(page: PageSize, aspect: number): number {
-	const canvas = bounds(page)
-	return Math.min(canvas.width, canvas.height * aspect)
+	return Math.min(page.width, page.height * aspect)
 }
 
-/**
- * And the smallest, which is where `MAX_ZOOM` bites — or the largest, on a tall stage.
- *
- * Against the *page* rather than the canvas: how far in you can zoom is a question about
- * the ink — four times life size is where a 3-unit stroke is a line you can place with a
- * fingertip — and that answer does not change because there is more paper around it.
- */
+/** And the smallest, which is where `MAX_ZOOM` bites — or the largest, on a tall stage. */
 export function minWidth(page: PageSize, aspect: number): number {
 	return Math.min(maxWidth(page, aspect), page.width / MAX_ZOOM)
 }
 
 /**
- * Puts a window back inside the rules: the stage's shape, the zoom limits, and the canvas.
+ * Puts a window back inside the rules: the stage's shape, the zoom limits, and the page.
  *
  * The order matters and is the whole function. The width is clamped first because the
  * height is derived from it, then the height follows from the aspect, and only then is
@@ -101,52 +79,27 @@ export function minWidth(page: PageSize, aspect: number): number {
 export function clampViewport(view: Viewport, page: PageSize, aspect: number): Viewport {
 	const w = clamp(view.w, minWidth(page, aspect), maxWidth(page, aspect))
 	const h = w / aspect
-	const canvas = bounds(page)
 
 	return {
 		w,
 		h,
-		x: clamp(view.x, canvas.x, canvas.x + canvas.width - w),
-		y: clamp(view.y, canvas.y, canvas.y + canvas.height - h),
+		x: clamp(view.x, 0, page.width - w),
+		y: clamp(view.y, 0, page.height - h),
 	}
 }
 
 /**
- * The middle of the canvas at `zoom`, or as near to it as the limits allow.
+ * The middle of the page at `zoom`, or as near to it as the limits allow.
  *
- * **`zoom` is against the canvas, not the page**, so 1 is the whole drawable area and that
- * is where a stage on the paper opens. Which is also as far out as it goes — see
- * `maxWidth` — so the resting view is the widest view there is, and the flipbook inside it
- * is at exactly the size the layout gave it. You can go in from there and not out.
- *
- * It was the page's, when the surround was somewhere you had to pinch out to find. That
- * made the sheet the whole of the drawing surface and the surround a place you could only
- * reach by leaving the size you draw at, which is the wrong way round: the canvas is what
- * you are drawing on and the page is a rectangle marked on it.
+ * `zoom` 1 is the whole page, which is where a stage standing on the paper opens and is
+ * also as far out as it goes — see `maxWidth`. So the flipbook at rest is at exactly the
+ * size the layout gave it, and pinching only takes you in.
  */
 export function defaultViewport(page: PageSize, aspect: number, zoom = DEFAULT_ZOOM): Viewport {
-	const canvas = bounds(page)
-	const w = canvas.width / zoom
+	const w = page.width / zoom
 	const h = w / aspect
 
-	return clampViewport(
-		{ w, h, x: canvas.x + (canvas.width - w) / 2, y: canvas.y + (canvas.height - h) / 2 },
-		page,
-		aspect,
-	)
-}
-
-/**
- * The whole drawable canvas, as a window.
- *
- * What the view *is* when there is no stage — a desktop, where the stylesheet hides it —
- * and what a stage on the paper opens at when there is one. Which is what lets the crop
- * frame be drawn from one formula at both: with no stage the surface shows the whole
- * canvas, so "the window" and "the canvas" are the same rectangle.
- */
-export function canvasViewport(page: PageSize): Viewport {
-	const canvas = bounds(page)
-	return { x: canvas.x, y: canvas.y, w: canvas.width, h: canvas.height }
+	return clampViewport({ w, h, x: (page.width - w) / 2, y: (page.height - h) / 2 }, page, aspect)
 }
 
 /**
@@ -177,7 +130,7 @@ export function zoomViewport(
 	return clampViewport({ w, h, x: at.x - fx * w, y: at.y - fy * h }, page, aspect)
 }
 
-/** Moves the window by a delta in project units, and no further than the canvas. */
+/** Moves the window by a delta in project units, and no further than the page. */
 export function panViewport(
 	view: Viewport,
 	dx: number,

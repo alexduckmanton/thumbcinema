@@ -291,13 +291,7 @@ export function PlaybackPage({ id }: PlaybackPageProps) {
 			<main className={styles.content} style={pageVars(page) as React.CSSProperties}>
 				<div className="center">
 					<div className={canvasStyles.book}>
-						{/* The canvas is the whole drawable area — twice the page in each
-						    direction — and `.paper` is the page-shaped hole it is seen through.
-						    Playback never draws, so it keeps the crop: a flipbook being watched
-						    is the flipbook, not the canvas it was made on. */}
-						<div className={canvasStyles.paper}>
-							<canvas ref={canvasRef} className={canvasStyles.canvas} />
-						</div>
+						<canvas ref={canvasRef} className={canvasStyles.canvas} />
 
 						{/* The flipbook, before it is one. Nothing to say to a screen reader —
 						    it's a picture of an absence — so the announcement is text, in a

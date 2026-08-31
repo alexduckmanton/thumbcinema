@@ -45,150 +45,33 @@
 	max-width: 100%;
 	max-height: 100%;
 	margin: 0;
-
-	/*
-	 * And a stacking context under the page bar, which is the whole point of the number.
-	 *
-	 * The canvas overflows this box on all four sides — it is the drawable area, twice the
-	 * page — so it runs under the rail, off the edges of the window and down across the page
-	 * bar. The bar has to be on top of it: it is a control, and a drawing sliding over the
-	 * thing you scrub with is a control you cannot find. 5 is below the bar's 10, and being
-	 * a context is what carries the canvas's own 15 and the trace photo's 16 down with it.
-	 *
-	 * `.dragging` restates 15 for the length of a reorder, which is the one time the sheet
-	 * really is meant to travel over the bar. See the note there.
-	 */
-	z-index: 5;
 }
 
 /*
- * The paper: the page's own rectangle, and what clips the canvas down to it — on the
- * pages that want one, which is playback and the boot shell. The create page does not; see
- * `.open` below.
- *
- * Not `.sheet`, which is taken: that is the boot shell's skeleton saying it has no canvas
- * under it to borrow a shadow from. CSS Modules hash per file, not per rule, so two blocks
- * of the same name are one class and every skeleton in the shell would have quietly become
- * a clipping box.
- *
  * z-index 15 is load-bearing, and what it is load-bearing against is the trace photo and
- * its chrome, which stand at 16 and 17 inside this same box. It used to be the tray: the
- * pencil and eraser were 304px-tall images anchored at their tips, so most of each one sat
- * *behind* the canvas and only the last few centimetres showed below its bottom edge. Those
- * are gone — see `ToolPanel` — and so is the column of thumbnails that needed it next. What
- * is left needing it is the photograph you trace over: drop this below 16 and the reference
- * is painted over the ink.
+ * its chrome, which stand at 16 and 17 inside this same box.
  *
- * The canvas is bigger than the page now. The drawable area is `CANVAS_SCALE` times the
- * page in each direction with the page centred in it — see `canvasExtent` — and the whole
- * of that has to be *rendered*, because the zoom stage shows a window of it by copying
- * pixels out. So the element is drawn at the extent's size and this box is the page-shaped
- * hole it is seen through.
- *
- * Which is why the paper's own dressing lives here rather than on the canvas: the white,
- * the rounding and the shadow belong to the page, and on the canvas they would be around
- * the whole surround and mostly off-screen. `overflow: hidden` is what makes the box a
- * hole, and it also takes the surround out of the hit test, so a pointer can only ever
- * land on the flipbook at rest.
- *
- * A wrapper rather than `overflow: hidden` on `.book` itself, because the page handle
- * hangs in the air *above* the paper and is inside `.book` so it travels with it during a
- * reorder. Clipping there would cut the tab off.
- */
-.paper {
-	position: absolute;
-	z-index: 15;
-	inset: 0;
-	overflow: hidden;
-	background: var(--white);
-	border-radius: var(--radius-card);
-	box-shadow: var(--shadow-card);
-	transition: background 0.4s ease-out, box-shadow 0.4s ease-out;
-}
-
-/*
- * And the create page's, which is not a sheet at all.
- *
- * **The drawing is not cropped while you are drawing it.** A clip, a shadow and a rounded
- * corner all say "this rectangle is the surface" — and on a page whose whole premise is
- * that the surface is *larger* than the rectangle, they say the wrong thing. What you get
- * is two frames for one page: a crop mark drawn inside a hole you are also locked to, and
- * a drawing that stops at the wrong one of them. The only thing that says where the
- * flipbook ends is `.crop`.
- *
- * So all four go, and this box becomes nothing but a position. The canvas then overflows
- * it on every side, deliberately: it runs under the rail, under the page bar and off the
- * edges of the window, which is what an infinite canvas looks like in a box this size.
- *
- * **And the white goes with them, rather than moving onto the canvas.** It moved there
- * first, and that made the whole drawable area one flat white field with a line ruled
- * across it — a canvas with a mark on it rather than a sheet of paper you can draw off the
- * edge of. paper.js draws onto a transparent surface and the white has always come from
- * CSS underneath it; here that CSS is `.crop`, which is behind the canvas. So the page's
- * own grey is the desk, and the frame is the paper on it.
- */
-.open {
-	overflow: visible;
-	background: none;
-	border-radius: 0;
-	box-shadow: none;
-}
-
-/*
- * The crop frame: where the flipbook is, on a canvas that is bigger than it.
- *
- * **It is the sheet of paper**, which is what it took three goes to arrive at. It carries
- * the white, the rounding and the shadow the drawing used to have, and it does it from
- * *behind* the canvas — `z-index: 14` against the canvas's 15 — so what you get is ink on
- * paper inside the frame and ink on the desk outside it. A white fill over the drawing
- * would be a wash over the thing you are drawing on; under it, it is the thing you are
- * drawing on.
- *
- * The hairline stays on top of the white and marks the edge, which is the one thing on this
- * page that says which ink survives the save. `outline` rather than `border`, so it is
- * drawn *outside* the rectangle and the frame's inside is exactly the page — a border would
- * sit within the box and put half a pixel of the drawing under the line at every zoom.
- *
- * `pointer-events: none` because the whole surface is somewhere you draw. This is paper,
- * not a control, and there is nothing to press. It cannot be moved either: the frame is
- * fixed in the artwork's own coordinates and what moves is the view.
- */
-.crop {
-	position: absolute;
-	z-index: 14;
-	background: var(--white);
-	outline: 1px solid rgba(0, 0, 0, 0.22);
-	border-radius: var(--radius-card);
-	box-shadow: var(--shadow-card);
-	pointer-events: none;
-}
-
-/*
- * The canvas, drawn at the extent's size and centred on the sheet.
- *
- * `200%` and `-50%` are `CANVAS_SCALE` written in CSS: the element is that many times the
- * page's box and offset by half the difference, so the page's own portion of it lands
- * exactly on the sheet. The two have to agree — `canvasExtent` and this — and the number
- * is small enough and stated in few enough places that agreeing is cheaper than plumbing a
- * custom property through the two pages that render this.
- *
- * It also puts `displayScale` back where it was: the element is 2× the box and the extent
- * is 2× the page, so the ratio between them is the one it has always been and the pointer
- * arithmetic in `pinCoordinates` is unchanged by any of this.
+ * It used to be the tray: the pencil and eraser were 304px-tall images anchored at their
+ * tips, so most of each one sat *behind* the canvas and only the last few centimetres
+ * showed below its bottom edge. Those are gone — see `ToolPanel` — and so is the column of
+ * thumbnails that needed it next. What is left needing it is the photograph you trace
+ * over: drop the canvas below 16 and the reference is painted over the ink.
  */
 .canvas {
-	position: absolute;
-	/*
-	 * Above the crop frame's 14, which is the paper it is drawn on. Explicit rather than
-	 * left to document order: `.crop` states a number, and any number beats the `auto` a
-	 * positioned sibling has — so dropping this put the sheet's white *over* the ink and
-	 * every stroke inside the frame vanished while the part hanging off the edge stayed.
-	 */
+	position: relative;
 	z-index: 15;
-	top: -50%;
-	left: -50%;
-	width: 200%;
-	height: 200%;
+	width: 100%;
+	height: 100%;
+	background: var(--white);
+	/* The gallery card's corners, as well as its shadow. It was 2px — 2013's number,
+	   from before the cards were rounded — and a flipbook you are drawing on with
+	   squarer corners than the same flipbook in the grid is the same object twice. */
+	border-radius: var(--radius-card);
+	/* The gallery card's shadow. A thumbnail in a card is one of a
+	   stack of sheets and takes the flat drop that says so; this is the flipbook
+	   itself, and it is the same object the gallery is full of. */
+	box-shadow: var(--shadow-card);
+	transition: background 0.4s ease-out, box-shadow 0.4s ease-out;
 
 	/*
 	 * A drag here is a stroke, not a scroll, and a long press is a stroke that paused
@@ -200,58 +83,29 @@
 }
 
 /*
- * The sheet in hand: being carried to another place in the flipbook.
- *
- * Up and down, with the column it is being carried through. The drawing follows the
- * pointer, so `--drag` is written straight onto this element by the gesture rather than
- * coming through React — a hundred pointer moves a second, each
- * changing one number, is not a thing to re-render the page for. It carries the
- * handle above it, which is what makes the gesture read as picking the page up rather
- * than as scrubbing something.
- *
- * The z-index is what the transform costs. A transformed element is a stacking context
- * painted as one thing at its parent's level, so `.book` would drop below the page bar (10)
- * and take the canvas's own 15 down with it — the drawing would slide *behind* the bar it
- * is being dragged above. 15 is the canvas's own number, so the paper is lit and stacked
- * exactly as it was, only somewhere else.
- *
- * Applied only while a page is in hand, and that matters twice over: the same stacking
- * context would put the save form and its wash under the rail, and a permanent transform
- * here would re-base anything `position: fixed` inside the sheet.
- */
-.dragging {
-	z-index: 15;
-	transform: translate3d(0, var(--drag, 0px), 0);
-}
-
-/*
- * Let go of, and sliding home.
- *
- * The offset goes back to zero on the same frame the page bar's handle arrives at the slot
- * the page landed in, so what is on screen is one flipbook settling rather than a sheet and
- * a bar agreeing about it afterwards. `--settle` is stated in `usePageReorder` and handed
- * down, so the two cannot drift.
- */
-.settling {
-	transition: transform var(--settle) cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-
-/* Picked up off the page: the gallery card's hover shadow, which is the one this site
-   already uses for "this is the thing you are holding". */
-.dragging .canvas {
-	box-shadow: var(--shadow-card-hover);
-}
-
-/*
- * The drawing, while it is being carried somewhere else in the flipbook.
+ * The drawing, while the engine is rewriting the order of the pages.
  *
  * paper.js binds `mousedown` to this element in its own constructor, which no amount of
  * state inside the engine can talk it out of — so the press is taken off the element.
- * A mark laid on a page that is halfway between two slots would land wherever the page
- * happened to be at the time.
+ * A mark laid while the pages are being resequenced would land on whichever page happened
+ * to be under it at the time.
  */
 .inert {
 	pointer-events: none;
+}
+
+/*
+ * The create page's sheet, which casts no shadow.
+ *
+ * Everywhere else a flipbook is one object among others — a card in the grid, a drawing
+ * on a page with a heading above it — and the drop shadow is what says it is a sheet
+ * lying on the site rather than a hole cut in it. On the create page it is the only thing
+ * on a white field, boxed in by the rail down one side and the page bar under it, and a
+ * shadow round it read as a second frame inside the first. The rounding stays: those are
+ * the flipbook's own corners and it has them in the gallery too.
+ */
+.flat {
+	box-shadow: none;
 }
 
 /*
@@ -319,12 +173,6 @@
 @media (prefers-reduced-motion: reduce) {
 	.skeleton {
 		animation: none;
-	}
-
-	/* And the settle is instant, which the gesture already knows: `usePageReorder`
-	   waits nothing at all before handing the flipbook back. */
-	.settling {
-		transition: none;
 	}
 }
 

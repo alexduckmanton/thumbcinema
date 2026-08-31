@@ -1318,17 +1318,8 @@ export class FlipbookEngine {
 		return { svg: new XMLSerializer().serializeToString(svg), thumbnailDataUrl, cover }
 	}
 
-	/**
-	 * The artwork as it will be saved: the page's own root, and only the ink inside it.
-	 *
-	 * Two things the surround makes necessary, both of them in the two calls below.
-	 * `Scene.exportRoot` pins the root to the page rather than to the view — without it
-	 * the file would state the extent's shape and collapse into one group. And
-	 * `withoutOverspill` takes the ink outside the frame out first, because the viewBox
-	 * hides it but does not drop it, and the save is capped at about 2.5 MB.
-	 */
 	exportSvgElement(): SVGElement {
-		const svg = this.scene.withoutOverspill(() => this.scene.exportRoot())
+		const svg = this.scene.project.exportSVG({ asString: false }) as SVGElement
 		assertLeadingGroups(svg, this.pageCount)
 		return svg
 	}
@@ -1345,12 +1336,9 @@ export class FlipbookEngine {
 	 */
 	exportForRecovery(): string {
 		this.scene.activeLayer.remove()
-		// `exportRoot` and not the plain export, for the same reason the save uses it: a
-		// root stating the extent would come back through `pageSizeFromSvg` as a page
-		// twice the shape it is, and the restored flipbook would be the wrong flipbook.
-		// The surround is *kept* here — this is the session, not the artwork, and a crash
-		// should give back what was on the canvas rather than what would have been saved.
-		return new XMLSerializer().serializeToString(this.scene.exportRoot())
+		return new XMLSerializer().serializeToString(
+			this.scene.project.exportSVG({ asString: false }) as SVGElement,
+		)
 	}
 
 	/**
@@ -1383,23 +1371,7 @@ export class FlipbookEngine {
 			// A flipbook is ink on paper, and PNG has no paper unless you paint it.
 			context.fillStyle = '#fff'
 			context.fillRect(0, 0, this.scene.page.width, this.scene.page.height)
-
-			// The page's own rectangle out of the middle of the canvas, not the whole
-			// canvas: the live one holds the entire 2× extent, so copying all of it would
-			// squeeze the surround into the cover and shrink the flipbook to a quarter of
-			// the picture. `pageBox` is where the page is in the backing store.
-			const box = this.scene.pageBox()
-			context.drawImage(
-				this.scene.canvas,
-				box.x,
-				box.y,
-				box.width,
-				box.height,
-				0,
-				0,
-				this.scene.page.width,
-				this.scene.page.height,
-			)
+			context.drawImage(this.scene.canvas, 0, 0, this.scene.page.width, this.scene.page.height)
 		}
 
 		this.scene.setActivePage(original, { playing: true })

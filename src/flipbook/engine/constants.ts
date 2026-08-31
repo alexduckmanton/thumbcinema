@@ -35,43 +35,6 @@ export const SQUARE_PAGE_SIZE: PageSize = { width: 640, height: 640 }
 /** What a blank page in the drawing tool is. */
 export const DEFAULT_PAGE_SIZE = SQUARE_PAGE_SIZE
 
-/**
- * How much bigger than the page you can actually draw, in each direction.
- *
- * The create page is an infinite canvas with a crop frame on it: the sheet extends past
- * the page on all four sides, you pinch out to reach the surround, and what is inside the
- * frame at save time is the flipbook. 2 means the drawable area is twice the page's width
- * and twice its height, with the page centred in it — so a square page gets 1280×1280 and a
- * legacy 16:9 remix gets 1280×720, and neither shape needs a special case.
- *
- * **Stated in project units rather than derived from the window**, which is the whole
- * point: how much room there is to draw in is a property of the flipbook, exactly as its
- * shape is. A surround measured against the screen would give a phone and a desktop
- * different drawings from the same gestures.
- *
- * It costs backing store. The live canvas renders the whole extent, so at 2 it is four
- * times the pixels it was — 2560×2560 on a retina screen against 1280×1280 — which is one
- * canvas rather than one per page and is why the page strip going was worth having first.
- */
-export const CANVAS_SCALE = 2
-
-/**
- * The drawable area for a page of this shape, in project units.
- *
- * The page keeps its own origin at (0,0): the surround is *negative* on both axes, running
- * from `-(width / 2)` to `width * 1.5`. That is what lets the export stay byte-identical to
- * what it has always been — see `Scene.exportRoot`, which pins the exported root to the
- * page rectangle while the view covers all of this.
- */
-export function canvasExtent(page: PageSize): PageSize {
-	return { width: page.width * CANVAS_SCALE, height: page.height * CANVAS_SCALE }
-}
-
-/** Where the page's top-left corner sits inside the extent, in project units. */
-export function canvasOrigin(page: PageSize): { x: number; y: number } {
-	return { x: -(page.width * (CANVAS_SCALE - 1)) / 2, y: -(page.height * (CANVAS_SCALE - 1)) / 2 }
-}
-
 /*
  * The gap either side of a page thumbnail used to be here, as PAGE_MARGIN. It is in
  * PageStrip's stylesheet now and nowhere else: it differs by layout, and the strip

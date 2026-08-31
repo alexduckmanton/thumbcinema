@@ -162,202 +162,53 @@ load-bearing:
   set behind an early return is a flipbook that plays once and stops dead. That is
   what the `finally` in `replay()` is for.
 
-## Rearranging pages
+## Rearranging pages, and the gesture that used to do it
 
-A tab on the top edge of the paper, dragged left or right: the drawing goes with the
-pointer, the page bar's handle travels to the slot it would land in, and letting go slides
-the drawing home. Hold it out to one side and the rest of the flipbook comes past
-underneath. `usePageReorder` is the gesture, `engine/reorder.ts` is the arithmetic under
-it, `PageHandle` is the tab, and `Scene.movePage` is the two lines that actually do it.
-Both layouts and both kinds of pointer, and the keyboard as well.
+`Scene.movePage` is two lines: `insertAbove` the layer the page is going next to, and hand
+paper's active layer back. `FlipbookEngine.movePage` wraps it in a `move` history op — the
+one op that carries no ink, because reordering changes nothing about any page's drawing —
+and `beginReorder`/`endReorder` hold the tools for the length of it. All of that is still
+here and still tested.
 
-**The page bar is the only thing that says where the page is going.** There used to be a
-strip of full-size thumbnails either side of the drawing, laid out at a measured pitch, and
-this gesture was originally that row told to stand somewhere else for a moment. The strip is
-gone — `docs/create-page.md` says why — and the gesture is unchanged, which makes
-`activePage={reorder.to}` on `PageNav` load-bearing rather than a nicety.
+**What is gone is the control.** There was a tab on the top edge of the paper: drag it left
+or right and the drawing went with the pointer, hold it out to one side and the rest of the
+flipbook came past underneath, let go and the sheet slid home to a page bar that had already
+arrived. `usePageReorder`, `engine/reorder.ts` and `PageHandle` were the gesture, the
+arithmetic and the tab, and they are out of the tree.
 
-- **Nothing moves in the scene until the gesture ends.** The whole drag is the drawing
-  standing somewhere it doesn't belong; `FlipbookEngine.movePage` is called once, at
-  the landing. So a drag that wanders across the flipbook and comes back costs nothing —
-  no history step, and no frame in which the flipbook was in a shape nobody asked for.
-  It also means the *page* being dragged is never in an intermediate slot, which is what
-  would otherwise have to be undone one slot at a time.
-- **The handover at the end is a frame in which nothing moves, and that is the whole
-  design.** Throughout the gesture the destination is held on the slot the page came *out*
-  of, and the page is drawn away from it by a transform. At the release the destination
-  moves and the drawing's own offset goes back to zero, so what you watch is the sheet
-  sliding home to a bar that has already arrived. By the time `movePage` runs, everything
-  is already standing where the reordered flipbook puts it: the array is spliced and no
-  element moves. Worked through in `usePageReorder`.
-- **The transition only exists while a page is in hand.** `.settling` on the sheet, gone in
-  the same render as the commit — a transition still on the element at that frame would be
-  300ms of easing a transform away to nothing, on top of a layout change that already
-  happened. It is also how the page keeps its rule that turning a page is a cut: it eases
-  here and nowhere else.
-- **`--settle` is one number in one place.** The settle is two transitions — the drawing's
-  own and the page bar handle's — plus the `setTimeout` that waits for them, and they
-  compose into a single movement only for as long as all three agree. `SETTLE_MS` in
-  `engine/reorder.ts` is handed to the stylesheets as a custom property. Under `prefers-reduced-motion` the CSS drops the
-  transitions and the timeout is zero, so the landing is immediate rather than
-  half-eased.
-- **The offset does not go through React.** A pointer moves a hundred times a second and
-  each move changes one number, so `--drag` is written straight onto `.book`; React is
-  told only when the destination *slot* changes, which is a handful of times in a drag.
-  Same bargain the gallery's scrub makes. React never sets that property, so a re-render
-  can't clobber it — but the settle's `--drag: 0` has to be written from an effect, after
-  the render that adds `.settling`, or the class and the value land together and the
-  drawing snaps home instead of sliding.
-- **The transform on `.book` costs a `z-index`, and the class costs less than the
-  property would.** A transformed element is a stacking context painted as one thing at
-  its parent's level, so `.book` would drop below the page bar at 10 and take the canvas's
-  own 15 with it — the drawing would slide *behind* the bar it is being dragged above.
-  `.dragging` restates 15. It is a class rather than a permanent `translate3d(0,0,0)`
-  because a transform re-bases anything `position: fixed` inside it. (The save form used to
-  be the other half of that argument. It is portalled to `<body>` now, so nothing about
-  `.book` reaches it either way.)
-- **The tab is above the paper, not on it, and it costs the drawing no height.** The
-  whole sheet is somewhere you draw, so a control lying on it would be a hole in the
-  page; the gap between the header and the top of the paper is the column's own
-  padding-top and was empty. `--book-reserve` is unchanged at every width. What it costs
-  instead is a press area much bigger than the tab, grown by a pseudo-element *upwards*
-  into that empty band and sideways — deliberately not downwards, which is the drawing.
-- **It is `z-index: 101`, one past the header**, and that is not decoration. Held
-  sideways the air above the paper is 8px deep, and `<header>` runs the full width of the
-  window at 100: the top of the tab and most of the press area behind it are inside it. It
-  paints nothing on this page — the create page drops the wordmark row altogether and what
-  is left of the element is the message banner — but a box with no background is
-  hit-tested exactly like one with, so at 16 the target was five usable pixels deep on the
-  layout with the least room to spare.
-- **The tools are held off, and by a different flag from the page actions.** `busy` is
-  set for the length of the gesture, which is what holds the page buttons, undo and the
-  page bar — but drawing through a page *animation* has been allowed since 2013 and
-  `busy` covers those too. So `reordering` says the other thing: `pointer-events: none`
-  on the canvas, because paper binds `mousedown` to that element in its own constructor
-  and no state inside the engine talks it out of that; and a refusal in
-  `PointerLayer.engage`, which is the finger's half. `togglePlay` is guarded by hand,
-  being the one thing the page bar offers that `busy` doesn't already stop.
+It was built when the create page was a *column*: a strip of full-size thumbnails either
+side of the drawing, laid out at a measured pitch, and the drag was that row told to stand
+somewhere else for a moment. The strip went first (`docs/create-page.md` says why) and the
+gesture was kept, reading on the page bar's handle instead. Once the page bar was the whole
+of page navigation, a tab hanging in the air above the sheet was a control belonging to a
+layout that no longer existed — the one thing on the page that moved the drawing, in a
+layout where nothing else does.
+
+**There is no way to reorder pages from the UI today, and there is meant to be one again.**
+Whatever it is will call `FlipbookEngine.movePage`, which is why the engine's half stayed.
+`git log` has the gesture if any of it is worth having back; three things in it were dearly
+bought and would be again:
+
+- **Nothing moves in the scene until the gesture ends.** The whole drag was the drawing
+  standing somewhere it doesn't belong, and `movePage` was called once, at the landing. So a
+  drag that wandered across the flipbook and came back cost nothing — no history step, and
+  no frame in which the flipbook was in a shape nobody asked for.
+- **The handover at the end was a frame in which nothing moved.** The destination was held
+  on the slot the page came *out* of and the page was drawn away from it by a transform; at
+  the release the destination moved and the offset went to zero, so by the time `movePage`
+  ran the array spliced and no element moved.
 - **Moving a layer hands paper's active layer to a sibling.** `insertAbove` on a layer
   already in the project is a remove and a re-insert, and paper's `_remove` reassigns
-  `project._activeLayer` when the layer it points at goes. Nothing has changed about
-  which page is being drawn on, so `Scene.movePage` hands it straight back — without
-  that, the next stroke lands on whichever page happened to be next door.
+  `project._activeLayer` when the layer it points at goes. `Scene.movePage` hands it
+  straight back — without that, the next stroke lands on whichever page happened to be next
+  door. That one is not history: it is in the code now.
 - **The reference layer is read in the old numbering, and the two directions differ by
-  one.** `insertAbove` removes this layer *before* it reads the reference's index, so
-  what it inserts above is the reference's position in the gap-closed array — which is
-  exactly `splice` out, `splice` in. Dragging a page forwards passes over the page it is
-  displacing and dragging it back does not, which is the whole of `to < from ? to - 1 :
-  to`. Page zero goes above the last of the system layers, as `insertPageAt` does.
-- **The keyboard gets the arrow keys, on the tab rather than beside it**, and they run
-  the same settle with no drag behind them: the drawing never leaves the middle of the
-  column and what moves is the page it swaps with, travelling past the canvas from one
-  side to the other. Held down, the key's own repeat carries the page along a page at a
-  time, which is the keyboard's version of holding it out to one side. Propagation is
-  stopped as well as the default prevented — the document's own ←/→ page-turn would be
-  refused anyway, `busy` being set by then, but a control that depends on being refused
-  elsewhere breaks when the elsewhere changes.
-- **`pages` and `step` are read once, at the press.** The flipbook can't change shape
-  mid-gesture — everything that would change it is held — and a drag that recomputed its
-  own pitch would be a drag that jumps if the window is resized under it.
+  one.** `insertAbove` removes this layer *before* it reads the reference's index, so what
+  it inserts above is the reference's position in the gap-closed array — which is exactly
+  `splice` out, `splice` in. Dragging a page forwards passes over the page it is displacing
+  and dragging it back does not, which is the whole of `to < from ? to - 1 : to`. Page zero
+  goes above the last of the system layers, as `insertPageAt` does. Also in the code now.
 
-**Hold the page out to one side and the flipbook runs underneath it.** The drag itself is
-1:1 with the pointer, and the pitch on a phone is nearly the width of the window — so a
-gesture on its own can reach exactly one slot in either direction, which for a long
-flipbook is a lot of gestures. Holding is what reaches the rest of it: after a dwell the
-book starts coming past a page at a time, faster the further out it is held, with the page
-staying exactly where your hand is.
-
-- **The page bar follows the destination, and it is the only thing that can.** Dragging
-  the tab turns no pages, so `activePage` doesn't change until the gesture commits — and
-  a bar that sits still through the whole of it is a bar that says nothing at the one
-  moment it is most wanted. A long run carries the drawing clean off the side of the
-  window, and from then on the handle is the only thing on screen saying where the page
-  would land against the *whole* flipbook. So `CreatePage` hands `PageNav` the destination
-  rather than the page being drawn on, and while the book is running it hands the run's
-  own timing down as `--glide` too, so the handle travels with the pages instead of
-  hopping a slot behind them. It reads the same value back at the commit, so the handover
-  moves it by nothing.
-- **It is the anchor that moves, and that is the whole mechanism.** `Reorder.anchor` is
-  the slot the *flipbook* is standing on, which is not where the page is. A tick advances it
-  by one; `to` is measured from it, so the destination advances with it and the page goes on
-  being held out by exactly as much as it was. Nothing else in the gesture knows a run is
-  happening: `--drag` is untouched, so the page does not move at all, and the settle at the
-  end is the same settle. What you watch is the bar's handle walking a slot at a time under
-  a drawing that is standing still.
-- **The run is linear and lasts exactly as long as the gap until the next page.**
-  `--slide` is both numbers, so consecutive steps join into one continuous glide instead
-  of reading as a series of hops — the trick `PageNav`'s sweep already uses to turn twelve
-  frames a second into a moving handle. Measured at both ends of the throttle — a ten-page
-  run at full tilt and a three-page one at the slowest rate there is: no frame in which the
-  row went backwards, and none in which it stood still.
-- **`SLIDE_DWELL_MS` is what keeps a nudge a nudge.** Holding the page one slot over is
-  also how you move it exactly one place, and that is much the commoner thing to want, so
-  a gesture that goes out and comes straight back must never turn into a run.
-- **How far out the page is held is the throttle, and that is measured against the window
-  rather than the flipbook.** About a page a second where the run starts, five times that
-  held out at the edge of the screen. "Held out at the edge" is a statement about the
-  screen, and `slideReach` asks it as "how far through the travel you actually had", which
-  is the same question on both layouts and needs no breakpoint to ask it: `room` is the
-  distance from the press to the edge it is being dragged towards, taken once, at the
-  press.
-- **It was a ramp on elapsed time first, and distance is better because it goes both
-  ways.** A time ramp is a control you can only push: it winds up whether you meant it to
-  or not, and the only way to slow down is to let go and start again. Pull the page back
-  towards the middle of the column and this eases off under it — 174ms a page at the edge,
-  846ms back at 250px out — so stopping on the page you wanted is something you aim at
-  rather than something you catch.
-- **The curve is squared, and that is what makes the throttle legible at all.** A straight
-  line was the first version of it and it was very nearly indistinguishable from having no
-  throttle, for a reason that is obvious once measured: half a page out is where a hand
-  rests when it has just moved the page one slot, and on a straight line from the gate to
-  the window edge that is already a third open. The rate anybody actually *held* was
-  therefore never the slow one. Squared keeps the whole middle of the travel at nearly the
-  slow rate and spends the difference next to the edge, where there is a hard stop to aim
-  at. Measured on a 1200px window at 225 / 330 / 400 / 470 / 530 / 570 / 599px out: 1.16,
-  1.25, 1.44, 1.80, 2.50, 3.59, 5.8 pages a second — where the straight line gave 2.5 at
-  the one-slot-out mark that matters most.
-- **It is the *interval* that is interpolated, not the rate**, which bends the
-  pages-per-second curve the same way again and for the same reason.
-- **The rate is read once per page, as it sets off**, which is the one place this is
-  deliberately a beat behind the finger — up to `SLIDE_SLOW_MS` of it. Opening the
-  throttle takes effect on the page after the one in flight, because a rate changed
-  mid-page would mean either a glide that stalls short of the next slot or one that jumps
-  to catch up, and both are the hop the linear timing exists to avoid. Retiming the page
-  in flight instead was worked through and is worse: the row would have to be advanced
-  early, which drifts the gap away from the page being held.
-- **`SLIDE_FULL` caps the throttle's travel at a page and a half**, which is past the
-  window edge on every ordinary window and so does nothing at all on one. What it is for
-  is the ultrawide, where the edge is nearly two thousand pixels from the handle and a
-  throttle you have to drag a metre of desk to open is one nobody finds the top of.
-- **`SLIDE_FAST_MS` is a readability floor.** Six pages a second is quick but each page is
-  on screen long enough to be recognised, which is the point of running the flipbook past
-  you rather than jumping to an index. An unbounded ramp ends at a page every two frames,
-  which is a blur you have to stop and read afterwards.
-- **The run starts a third of a page out, where the swap needs half**, and the gap between
-  the two is a measurement rather than a taste. The handle starts in the middle of the
-  paper and the pitch on a phone is nearly the window, so a finger has about half a page
-  of travel before it runs out of glass: gating the run at half a page would mean it could
-  only be started by a swipe ending on the very edge of the screen. A third is a
-  comfortable swipe on both layouts — 134px of a 390px phone, tested — and it starts
-  *before* anything has swapped, so a hold can begin from a drag that hasn't moved a page
-  yet and walk it a slot at a time from there.
-- **The clamp has half a page of overhang, and half is exactly the right amount.** A run
-  ends with the anchor as far along as it can go while the page is still over a slot, and
-  `Math.round` leaves that up to half a step out — so without the slack the clamp would
-  tighten under a finger that hasn't moved and snatch the drawing sideways at the very end
-  of a run. Proved for every displacement in `reorder.test.ts` rather than checked at one.
-  What it buys as a side effect is that a page dragged past either end of the flipbook
-  hangs over nothing and slides home, which is a fair picture of there being nothing there.
-- **`--glide` stays set once a run has happened**, for the rest of the gesture. Taking the
-  timing off would take the bar handle's `transition` with it, and a transition removed
-  mid-flight does not stop — it finishes instantly, which is the last page of the run
-  snapping into place. Nothing moves the handle while the run is stopped, so a rule with
-  nothing to animate costs nothing; the settle replaces it in the same render that it wants
-  the other curve.
-- **Pulling back eases off and then stops it where it is, rather than unwinding it.** The
-  run has genuinely carried the page along, so bringing it back to the middle of the column
-  means "drop it here", not "undo the last four pages" — the anchor is where the page now
-  lives.
 
 ## Undo and redo
 
@@ -598,10 +449,11 @@ it's one of these. Each is deliberate:
   plays, and a hidden document doesn't run animations at all — so `finished` never
   settles and 2013 stays held until a reload. `play()` races it against a deadline.
   (Drawing is *not* held: you can put a stroke down mid-animation, as you could then.)
-- **Pages can be rearranged.** There was no way to at all: a frame drawn in the wrong
-  place was redrawn somewhere else or the flipbook was rebuilt round it, and the page
-  actions have only ever been able to add next to the page you are on. The tab above the
-  paper is new markup rather than a port of anything. See **Rearranging pages** above.
+- **The engine can rearrange pages, and 2013's could not at all**: a frame drawn in the
+  wrong place was redrawn somewhere else or the flipbook was rebuilt round it, and the page
+  actions have only ever been able to add next to the page you are on. There is no control
+  for it at the moment — the tab that was there went with the layout it belonged to. See
+  **Rearranging pages** above.
 - **The eraser's recursion is a loop**, with a bound.
 - **The pencil-width control is a real slider** to assistive technology, and works
   from the keyboard. The 2013 one was three divs. It is desktop-only now.

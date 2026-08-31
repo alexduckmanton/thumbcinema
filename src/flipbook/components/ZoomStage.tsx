@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { canvasExtent, canvasOrigin, DEFAULT_PAGE_SIZE, type PageSize } from '../engine/constants'
+import { DEFAULT_PAGE_SIZE, type PageSize } from '../engine/constants'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { fittedSize, type TracePhoto } from '../engine/trace'
 import type { ModalToolId } from '../engine/tools/types'
@@ -277,23 +277,17 @@ function paint(
 	const context = stage.getContext('2d')
 	if (!context) return
 
-	// Cleared rather than filled with white. The white is CSS's — the crop frame's on the
-	// paper surface, `.stage`'s own on v11's band — and this canvas is over the top of it,
-	// so a fill here would paint out the sheet of paper it is standing on.
-	context.clearRect(0, 0, stage.width, stage.height)
+	// A flipbook is ink on paper, and paper draws onto a transparent canvas with the
+	// white coming from CSS underneath it — so the copy has to bring its own.
+	context.fillStyle = '#fff'
+	context.fillRect(0, 0, stage.width, stage.height)
 
-	// The source holds the whole drawable canvas, not the page — so its density is the
-	// canvas's, and its pixel (0,0) is `canvasOrigin` rather than the page's corner. The
-	// page keeps the artwork's own origin, which puts the surround at negative
-	// coordinates; the subtraction here is the only place that has to know it.
-	const canvas = canvasExtent(page)
-	const origin = canvasOrigin(page)
-	const density = source.width / canvas.width
+	const density = source.width / page.width
 
 	context.drawImage(
 		source,
-		(view.x - origin.x) * density,
-		(view.y - origin.y) * density,
+		view.x * density,
+		view.y * density,
 		view.w * density,
 		view.h * density,
 		0,

@@ -63,113 +63,47 @@ What it took to hold up:
 
 The page bar does the same job in one control and 56px of height, and it can say where you
 are in a 200-page flipbook, which three visible thumbnails never could. `PageStrip` and its
-stylesheet are gone; the reorder gesture is unchanged and reads on the bar instead.
+stylesheet are gone, and so, a round later, is the reorder gesture that used to read on the
+strip and was left reading on the bar — see **The tab above the paper is gone too** below.
 
-### The canvas is bigger than the flipbook
+### The tab above the paper is gone too
 
-You can draw past the edge of the page, and what is inside the frame at save time is the
-flipbook. `CANVAS_SCALE` is 2: the drawable area is twice the page in each direction with
-the page centred in it, so a square page gets 1280×1280 and a legacy 16:9 remix 1280×720.
+The reorder gesture outlived the strip it was built for by one round. A tab on the top edge
+of the paper: drag it and the drawing went with the pointer, hold it out to one side and the
+flipbook came past underneath, let go and the sheet slid home. It was good, and it was a
+control belonging to a layout that isn't here — the one thing on the page that moved the
+drawing, hanging in the air above a sheet that now sits in a rail and a page bar and nothing
+else. `usePageReorder`, `engine/reorder.ts` and `PageHandle` are out of the tree, and with
+them the page bar's `--glide` and the sheet's `.dragging`/`.settling`.
 
-- **Stated in project units, never against the window.** How much room there is to draw in
-  is a property of the flipbook exactly as its shape is; a surround measured against the
-  screen would give a phone and a desktop different drawings from the same gestures.
-- **The page keeps its origin at (0,0) and the surround is negative**, rather than the page
-  being offset into a larger space. That is the decision everything else rests on: every
-  coordinate in the artwork means what it has always meant, so a flipbook drawn on the
-  extended canvas is byte-identical to one drawn before there was one.
-- **The whole canvas is on screen at rest, and that is as far out as it goes.** `maxWidth`
-  is the extent and `defaultViewport` opens there, so the resting view is the widest view
-  there is — pinching only ever goes *in*, and comes back to exactly the size the layout
-  chose. There is nothing beyond the canvas to see, and a surface you could pull away from
-  would leave the flipbook smaller than the page it is for no gain. `zoom` in
-  `zoomStage.ts` is therefore against the canvas rather than the page, which is why v11's
-  `startingZoom` is `2 * CANVAS_SCALE` to go on meaning "the page at 2×".
-- **The frame is still 604px on a desktop and 302 on a phone**, the same numbers as before,
-  because the surface is `CANVAS_SCALE` times the frame and shows `CANVAS_SCALE` times the
-  page. The layout did not move; what changed is that there is now drawable canvas around
-  it instead of a hard edge.
-- **The drawing is not cropped while you are drawing it.** This was got wrong first: the
-  canvas was clipped to a page-shaped hole with the paper's shadow and rounding on it, and
-  the crop outline was drawn *inside* that. Two frames for one page, a drawing that stopped
-  at the wrong one of them, and a cursor that could not leave the hole. `.open` drops the
-  clip, the shadow and the rounding and moves the white onto the canvas; the outline is the
-  only thing that says where the flipbook ends.
-- **You pan and zoom by pinching, and only by pinching.** There is no desktop gesture. Note
-  that the zoom stage is `display: none` above the phone breakpoint, so a *desktop-sized*
-  window — an iPad in landscape included — gets no stage at all: the canvas is shown
-  directly, uncropped, and there is no way to zoom or pan it. Reaching iPad means gating
-  the stage on touch rather than on width, which is not done.
-- **`Scene.exportRoot()` pins the export to the page, and it is load-bearing.** paper
-  exports the *view's* bounds by default, which is now the whole extent — and the result is
-  wrong twice over, both quietly enough to reach production: the root states the extent's
-  size, so every flipbook saved would read back as a page twice its shape on its card, its
-  playback page and every remix of it for ever; and the non-identity view matrix makes
-  paper wrap the whole project in a single `<g>`, collapsing the layer-per-page structure
-  the format rests on. `assertLeadingGroups` catches the second. Nothing but this catches
-  the first. Proved in `scene.test.ts` against a real project — including a case asserting
-  what the *raw* export gives, so dropping the `bounds` option fails loudly.
-- **The overspill is deleted at save rather than left to the viewBox.** The viewBox clips
-  it on the way back in, so it is invisible — and it still travels, and the save request is
-  capped at about 2.5 MB of drawing. A canvas four times the area could spend most of that
-  budget on strokes nobody will ever see. `Scene.withoutOverspill()` takes out anything
-  whose `strokeBounds` misses the page, exports, and puts it back at the index it came
-  from. A stroke that *crosses* the edge stays whole and is clipped on display: the
-  geometry that survives is the geometry that was drawn, and every renderer of this file
-  already clips to the root.
-- **Crash recovery keeps the surround.** It uses the same pinned root — a file stating the
-  extent would restore as the wrong page shape — but not `withoutOverspill`: that file is
-  the session rather than the artwork, and a crash should give back what was on the canvas
-  rather than what would have been saved. It does make the crash file bigger, and it lives
-  in localStorage's ~5 MB budget.
-- **`getEventPoint` scales about the canvas's origin, not about zero.** paper's answer
-  already carries the view's translation, so a plain divide scales that offset along with
-  the position and lands every event hundreds of units away. Caught by a stroke that simply
-  did not appear — and only on a desktop, because a finger goes through `PointerLayer` and
-  the stage's own mapping while a mouse goes through this. Touch went on working perfectly
-  at every width while a pointer drew nothing at all.
-- **`.paper` is the page-shaped hole the canvas is seen through, and the create page does
-  not use it as one.** The element is drawn at the extent's size — the whole area has to be
-  *rendered*, because the zoom stage shows a window of it by copying pixels out — and on
-  playback and in the boot shell `.paper` clips it back to the page, keeping the white, the
-  rounding and the shadow. The create page adds `.open`, which throws all four away. It is a
-  wrapper rather than `overflow: hidden` on `.book` because the page handle hangs in the air
-  *above* the paper and is inside `.book` so it travels during a reorder — clipping there
-  would cut the tab off. Not `.sheet`: that name is the boot shell's skeleton, and CSS
-  Modules hash per file rather than per rule, so two blocks of one name are one class and
-  every skeleton would quietly have become a clipping box.
-- **The canvas passes under the page bar, and `.fitted` is what does it.** It overflows its
-  box on every side — under the rail, off the edges of the window, across the bar — and the
-  bar is a control, so a drawing sliding over the thing you scrub with is a control you
-  cannot find. `.fitted` carries `z-index: 5` and is a stacking context, which takes the
-  canvas's 15 and the trace photo's 16 down with it. `.dragging` restates 15 for the length
-  of a reorder, which is the one time the sheet is meant to travel above the bar.
-- **The crop frame is a DOM box drawn by the create page, not by the stage.** For the same
-  reason the trace photo is a DOM layer: nothing that is not the drawing may ever be in a
-  position to end up in the drawing. It is drawn by the *page* because the stage is not
-  always there — hidden above the phone breakpoint — and one formula covers both cases: with
-  no stage the surface is the whole canvas, so `canvasViewport` is the window. Stated in
-  percentages of `.book`, with `-50%` and `200%` doing the same job they do on the canvas,
-  so it needs no measurement and cannot fall out of step with the surface beside it. At rest
-  the two cancel and it lands on 0%/100%, exactly where the sheet used to be.
-- **The frame is the sheet of paper, and it took three goes to get there.** First the
-  canvas was clipped to it and dressed as paper, which locked the drawing inside it. Then
-  the white moved onto the canvas and the frame became a bare hairline — which uncropped the
-  drawing but made the whole drawable area one flat white field with a line ruled across it:
-  a canvas with a mark on it rather than a sheet you can draw off the edge of. Now the frame
-  carries the white, the rounding and the shadow, from *behind* the canvas — `z-index: 14`
-  against the canvas's 15 — so ink inside it is ink on paper and ink outside it is ink on
-  the desk.
+**The engine's half stayed.** `FlipbookEngine.movePage`, its `move` history op and
+`beginReorder`/`endReorder` are untouched and still tested: reordering pages is a thing the
+flipbook can do, and what went is the one way there was of asking for it. There will be
+another. `docs/drawing-tool.md` says what the gesture knew that a new one would have to know
+too.
 
-  `.canvas` has to state that 15 rather than rely on document order: `.crop` states a
-  number, and any number beats the `auto` of a positioned sibling. Leaving it off put the
-  sheet's white over the ink, and every stroke inside the frame vanished while the part
-  hanging off the edge stayed — which looks exactly like a clipping bug and is not one.
-- **`paint` clears the stage rather than filling it white**, for the same reason. The white
-  belongs to the frame underneath; a fill would paint out the paper the stage is standing
-  on. v11's band stage is a different box and keeps its own white, in `.stage`.
-- **It cannot be moved and it cannot be pressed.** The frame is fixed in the artwork's own
-  coordinates; what moves is the view.
+### You could draw past the edge of the page, for about a day
+
+Also worth writing down, because it was asked for, built, used, and then didn't survive
+being used.
+
+The create page became an infinite canvas: the drawable area was `CANVAS_SCALE` times the
+page in each direction with the page centred in it, the surround ran to *negative*
+coordinates on both axes so the artwork's own numbers were untouched, and a crop frame said
+which ink the save would keep. Ink outside the frame was deleted at save (`withoutOverspill`),
+`Scene.exportRoot()` pinned the exported root to the page so a file couldn't state the
+extent's shape, and `getEventPoint` scaled about the canvas's origin rather than about zero.
+The whole thing worked.
+
+What it was like to draw on is why it went: the flipbook stopped having an edge. Every mark
+you made was as valid as every other and only a hairline said which ones counted, and the
+thing you were making — a 640-wide page that will be played back at 640 — read as a detail
+of something larger. Cropping to the sheet is what makes it a sheet.
+
+**Pinch to zoom survived it**, and was the good half all along: `zoomStage.ts`, `ZoomStage`
+and v14's aiming pad are unchanged. You can go in as far as `MAX_ZOOM` and come back out to
+exactly the size the layout chose and no further, because `maxWidth` is the page and
+`defaultViewport` opens there.
 
 ### The rail
 
@@ -234,20 +168,18 @@ the page centred in it, so a square page gets 1280×1280 and a legacy 16:9 remix
   page's is a sheet of paper 34px higher up at the handover.
 
 - **The canvas scales; the artwork does not.** See `Scene.pinCoordinates()` above.
-- **There is a tab on the top edge of the paper, and dragging it moves the page** to
-  another place in the flipbook — or holding it to one side runs the flipbook past
-  underneath. It is the only thing in the column that isn't 2013's,
-  and it is deliberately not *in* the column: it hangs in the empty band above the
-  drawing, so it changes no layout and `--book-reserve` is the same number it was. See
-  **Rearranging pages** above for the whole of it.
+- **The sheet casts no shadow here, and it does everywhere else.** `.flat` on the canvas.
+  A gallery card, a playback page, the boot shell: there the flipbook is one object among
+  others and the drop shadow is what says it is a sheet lying on the site rather than a
+  hole cut in it. Here it is the only thing on a white field, with the rail down one side
+  and the page bar under it, and the shadow read as a second frame inside the first. The
+  rounding stays — those are the flipbook's own corners and it has them in the grid too.
 - **`PageNav` is one white bar under the drawing: two arrows, a scrubber, and play.**
   The handle follows the finger while it's held and settles onto the nearest page when
   it's let go (`fractionAt` and `pageAt`, both unit tested), and it follows playback as
   well as leading it, because the engine publishes every page change including the
   twelve a second that `play` makes — which is also the one time the settle's
-  transition is turned off. **It also follows a page being carried somewhere else**, which
-  is the one thing it points at that isn't the page being drawn on: see `.gliding`, and
-  **Rearranging pages** for why. The two arrows stand *on* the bar rather than beside it,
+  transition is turned off. The two arrows stand *on* the bar rather than beside it,
   and stop their own presses reaching it, or each one is also a jump to the end it sits
   at; the handle is over both and covers one when it gets there, which is the right way
   round. They wrap rather than greying out at the ends, because playback loops, and

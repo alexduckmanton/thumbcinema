@@ -72,13 +72,17 @@
 	 * exactly what they are. The fill drops to 0.72 with it: at 0.88 there was nothing left
 	 * underneath for the blur to work on.
 	 *
+	 * 8px and not the 16 it started at. With the column of thumbnails gone what runs under
+	 * the pad is one drawing rather than a stack of them, and 16 made a smear of it — the
+	 * point is to say something carries on down there, not to erase it.
+	 *
 	 * Safari needs the prefix and has since it shipped the property; Chrome and Firefox
 	 * take the standard one. Where neither applies — an old browser, or a machine that has
 	 * turned it off — the fill alone is still a legible surface, which is the whole reason
 	 * it is a colour rather than nothing.
 	 */
-	-webkit-backdrop-filter: blur(16px);
-	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(8px);
+	backdrop-filter: blur(8px);
 
 	/*
 	 * A drag here is the gesture, and nothing else may read it. The same statement the

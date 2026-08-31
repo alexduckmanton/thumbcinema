@@ -292,35 +292,13 @@
 	transition: left var(--frame) linear;
 }
 
-/*
- * The handle travelling with the flipbook while a page is being carried through it.
- *
- * Dragging the tab above the paper doesn't turn a page, so nothing here moves on its own
- * — but where the page would *land* is the one thing the drag is about, and this bar is
- * the only thing on screen that says where that is against the whole flipbook. So it
- * follows the destination rather than the page being drawn on, and while the book is
- * running underneath the page it has to travel at the book's speed: `--glide` is the
- * same number the drag itself uses, so the handle and the drawing cover their ground
- * together instead of the handle hopping a page behind. Linear for the reason the sweep
- * above is linear — consecutive steps that each take exactly as long as the gap between
- * them read as one movement.
- *
- * Written after `.eased` so it wins on source order: the two say different things about
- * the same property and only one of them applies at a time. `.waiting .handle` still
- * beats both, being a descendant selector.
- */
-.gliding {
-	transition: left var(--glide) linear;
-}
-
 @media (prefers-reduced-motion: reduce) {
 	.eased {
 		transition: none;
 	}
 
-	/* `.stepped` and `.gliding` stay. Taking either off doesn't remove any motion — the
-	   handle covers the same ground either way — it only puts back the stepping they were
-	   added to smooth. */
+	/* `.stepped` stays. Taking it off doesn't remove any motion — the handle covers the
+	   same ground either way — it only puts back the stepping it was added to smooth. */
 }
 
 /* A short window, where every row is paying for its height. */

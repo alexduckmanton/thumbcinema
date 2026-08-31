@@ -54,30 +54,18 @@
  * underneath it is `visibility: hidden` while this is up, and a hidden element casts no
  * shadow; between them they are one sheet of paper, and only one of them is ever visible.
  *
- * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: under
- * the cursor at 17 and under the trace photo's placing chrome at 17, which is what lets a
- * photograph be placed on top of it in the one mode where the two share a box. The page bar
- * is *above* both, and that is not an accident — see `.book` on the create page.
- *
- * **The same box the live canvas has, which is the whole drawable area** — `CANVAS_SCALE`
- * times the page, centred on it, overflowing the frame on all four sides. It was `inset: 0`
- * and so page-shaped, which made the stage a hole you were locked to: pinching moved the
- * drawing about inside a rectangle with a shadow round it, and the surround could only ever
- * be seen through that rectangle. The surface is the canvas now, and `.crop` is the only
- * thing that says where the flipbook ends.
- *
- * No shadow, no rounding, no clip and **no white**, for the same reason `.open` drops them:
- * they are the dressing of a sheet of paper, and this is not one. The paper is `.crop`,
- * behind this, and it shows through — which is why `paint` clears the canvas rather than
- * filling it. v11's band stage is a different box and keeps its own white; see `.stage`.
+ * `z-index: 15` is the drawing's own, so this stands exactly where the canvas does: over
+ * the page bar at 10, under the cursor at 17 and under the trace photo's placing chrome at
+ * 17 — which is what lets a photograph be placed on top of it in the one mode where the two
+ * share a box.
  */
 .onPaper {
 	position: absolute;
 	z-index: 15;
-	top: -50%;
-	left: -50%;
-	width: 200%;
-	height: 200%;
+	inset: 0;
+	border-radius: var(--radius-card);
+	background: var(--white);
+	box-shadow: var(--shadow-card);
 	/* A stroke is never a scroll, and two fingers here are a pinch of ours rather than
 	   the browser's. */
 	touch-action: none;

@@ -1,4 +1,3 @@
-import { CANVAS_SCALE } from './engine/constants'
 import { isAdmin } from '../lib/admin'
 import { Store, useStore } from '../lib/store'
 
@@ -309,19 +308,14 @@ export function stageOnPaper(mode: DrawMode): boolean {
 }
 
 /**
- * How far in a mode's stage starts, against the *canvas* rather than the page.
+ * How far in a mode's stage starts. v11 has the paper above it; v12 has nothing else.
  *
- * 1 is the whole drawable area, which is where a stage standing on the paper opens: it is
- * the drawing surface, and a surface that opened part-way in would be one you had to zoom
- * out of before you could start — and there is nowhere to zoom out *to*, 1 being as far as
- * it goes.
- *
- * v11's stage is the band under the tools with the paper above it, so it opens at twice
- * life size and has to say so in the same units: `2 * CANVAS_SCALE` is the page at 2×,
- * which is the number it has always used.
+ * 1 is the whole page, which is where a stage standing on the paper opens — it *is* the
+ * drawing surface, and one that opened part-way in would be one you had to zoom out of
+ * before you could start. It is also as far out as it goes; see `maxWidth`.
  */
 export function startingZoom(mode: DrawMode): number {
-	return stageOnPaper(mode) ? 1 : 2 * CANVAS_SCALE
+	return stageOnPaper(mode) ? 1 : 2
 }
 
 /**
