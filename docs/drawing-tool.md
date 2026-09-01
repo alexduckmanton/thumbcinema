@@ -608,6 +608,20 @@ it's one of these. Each is deliberate:
   moved is a transform; one that grabbed a handle and didn't is a tap, told apart by
   `TAP_SLOP` rather than by whether drag events arrived, because a finger resting on
   glass sends a few of those without going anywhere.
+- **A tap leaves a dot.** 2013 dropped a stroke it couldn't make a line out of and so
+  did this, twice over: the pencil made its path on mouse-down and put the first point
+  in on the first *drag*, so a press that never moved ended holding a path with nothing
+  in it, and `end()` threw away anything shorter than two points. What that looked like
+  was the tool having missed you, and dots are most of the difference between a face and
+  a face with eyes. The down point goes in on the press now — which also starts every
+  stroke where the pointer actually went down, about 7px earlier than before on a phone
+  — and a path still holding only that one point when the gesture ends repeats it. A
+  zero-length line with a round cap is a circle a stroke-width across, in paper, in the
+  gallery's `Path2D` and in the GIF's own rasteriser alike; SVG and canvas both refuse
+  to stroke a lone `moveto`, which is why the point is repeated rather than left on its
+  own. paper writes it `M100,50v0`, nine bytes, and `resamplePolyline` already knew the
+  shape — a stroke with no length to sample along comes back as its two endpoints.
+
 - **Push is a tool, not a mode of one.** It used to refuse to switch on unless
   something was already selected — `init()` returned false and the transform button
   cycled straight back — so reaching it meant selecting with the other tool first, and

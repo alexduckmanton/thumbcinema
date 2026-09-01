@@ -52,7 +52,13 @@ export class PencilTool implements ModalTool {
 		this.tool = new scene.scope.Tool()
 
 		if (this.interactive) {
-			this.tool.onMouseDown = () => this.begin()
+			// The down point is put in here rather than waited for: paper's first
+			// `onMouseDrag` is the first *movement*, so a stroke that began on it started
+			// a pointer-event's travel away from where the pointer actually went down —
+			// about 7px on a phone at a normal drawing speed — and a press that never
+			// moved began nowhere at all. `FlipbookEngine.toolDown` has always done the
+			// same for the gestures paper doesn't see.
+			this.tool.onMouseDown = (event: paper.ToolEvent) => this.begin(event.point)
 			this.tool.onMouseDrag = (event: paper.ToolEvent) => this.extend(event.point)
 			this.tool.onMouseUp = () => this.end()
 		}
@@ -74,28 +80,56 @@ export class PencilTool implements ModalTool {
 
 	// --- drawing -------------------------------------------------------------
 
-	begin(): void {
+	/**
+	 * Starts a stroke, at `point` when there is one.
+	 *
+	 * There isn't when a 2012 flipbook is being replayed: that arrives as whole
+	 * strokes and is fed in through `extend`, a point at a time, with nowhere for a
+	 * down point to come from.
+	 */
+	begin(point?: paper.Point): void {
 		this.path = new this.scene.scope.Path()
 		this.path.strokeColor = new this.scene.scope.Color(PENCIL_COLOR)
 		this.path.strokeWidth = this.strokeWidth
 		this.path.strokeJoin = 'round'
 		this.path.strokeCap = 'round'
+
+		if (point) this.path.add(point)
 	}
 
 	extend(point: paper.Point): void {
 		this.path?.add(point)
 	}
 
-	/** A tap that never moved leaves a one-point path, which is nothing. Drop it. */
+	/**
+	 * A tap that never moved is a dot.
+	 *
+	 * A one-point path is nothing — SVG says a subpath that is only a `moveto` is not
+	 * stroked, and a canvas says the same — so the point is repeated, which makes a
+	 * zero-length line with a round cap, which is a circle a stroke-width across in
+	 * every renderer this drawing passes through: paper's, the gallery's `Path2D`
+	 * (`preview/render.ts`) and the GIF's own rasteriser (`lib/gif.js`). paper writes
+	 * it out as `M100,50v0`, nine bytes.
+	 *
+	 * It used to be dropped, which is the 2013 behaviour and was wrong there too: a
+	 * mark you made and watched not appear reads as the tool having missed you. Dots
+	 * are also most of the difference between a face and a face with eyes.
+	 *
+	 * `resamplePolyline` already knew about this shape — a stroke with no length to
+	 * sample along comes back as its two endpoints — so the dot survives `finish`
+	 * unchanged, and the eraser has always removed a two-point path whole.
+	 */
 	end(): void {
 		const path = this.path
 		this.path = null
 		if (!path) return
 
-		if (path.segments.length <= 1) {
+		if (path.segments.length === 0) {
 			path.remove()
 			return
 		}
+
+		if (path.segments.length === 1) path.add(path.segments[0]!.point.clone())
 
 		this.finish(path)
 	}
