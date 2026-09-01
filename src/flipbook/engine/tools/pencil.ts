@@ -16,6 +16,30 @@ import type { ModalTool } from './types'
  */
 export const DEFAULT_PENCIL_WIDTH = 3
 
+/**
+ * How long the dot a tap leaves actually is, and why it isn't nothing.
+ *
+ * A dot wants to be a subpath of zero length with a round cap, which is a circle a
+ * stroke-width across — and that is what SVG paints. **A canvas does not, in Safari.**
+ * Measured in WebKit 26 and Chromium 141 side by side, the same three shapes on both:
+ *
+ *                       canvas   SVG
+ *   `M20,30v0`          0 / 14   12 / 10     ← WebKit paints no pixels at all
+ *   `M60,30l0.01,0`    14 / 14   10 / 10
+ *   `M100,30l10,0`     54 / 54   50 / 50     ← a real line, as a control
+ *
+ * The canvas is not the fallback here, it is the tool: paper strokes to one, and so
+ * does the gallery's preview. So a dot written the tidy way is on the page, in the
+ * file and in the GIF, and invisible to everyone drawing on an iPhone — which is most
+ * of who draws on this.
+ *
+ * A hair of length is not a special case anywhere, needs nothing to know about it and
+ * paints the same disc in both engines. A hundredth of a unit is four decimal places
+ * inside what `getPathData` writes and three below anything a pinched page can show:
+ * at the 4x the stage reaches, a phone renders it 0.006 CSS pixels long.
+ */
+const DOT_LENGTH = 0.01
+
 export interface PencilOptions {
 	/**
 	 * Off for the pencil that redraws 2012 flipbooks on the playback page: it isn't a
@@ -104,20 +128,21 @@ export class PencilTool implements ModalTool {
 	/**
 	 * A tap that never moved is a dot.
 	 *
-	 * A one-point path is nothing — SVG says a subpath that is only a `moveto` is not
-	 * stroked, and a canvas says the same — so the point is repeated, which makes a
-	 * zero-length line with a round cap, which is a circle a stroke-width across in
-	 * every renderer this drawing passes through: paper's, the gallery's `Path2D`
-	 * (`preview/render.ts`) and the GIF's own rasteriser (`lib/gif.js`). paper writes
-	 * it out as `M100,50v0`, nine bytes.
+	 * A path of one point is nothing at all — neither SVG nor a canvas strokes a lone
+	 * `moveto` — so the point is laid down a second time, `DOT_LENGTH` away, and the
+	 * round caps at the two ends of that hair are the dot. See `DOT_LENGTH` for why it
+	 * is a hair rather than the same point twice, which is the tidier shape and is
+	 * invisible on an iPhone.
 	 *
 	 * It used to be dropped, which is the 2013 behaviour and was wrong there too: a
 	 * mark you made and watched not appear reads as the tool having missed you. Dots
 	 * are also most of the difference between a face and a face with eyes.
 	 *
-	 * `resamplePolyline` already knew about this shape — a stroke with no length to
-	 * sample along comes back as its two endpoints — so the dot survives `finish`
-	 * unchanged, and the eraser has always removed a two-point path whole.
+	 * Nothing downstream needed telling. `resamplePolyline` puts its samples on the
+	 * line it was given, and one step is the whole of this one, so `finish` hands back
+	 * the same two points; the eraser has always removed a two-point path whole; and
+	 * the GIF's rasteriser measures a segment by the distance to it, which for one this
+	 * short is a disc in every direction.
 	 */
 	end(): void {
 		const path = this.path
@@ -129,7 +154,9 @@ export class PencilTool implements ModalTool {
 			return
 		}
 
-		if (path.segments.length === 1) path.add(path.segments[0]!.point.clone())
+		if (path.segments.length === 1) {
+			path.add(path.segments[0]!.point.add(new this.scene.scope.Point(DOT_LENGTH, 0)))
+		}
 
 		this.finish(path)
 	}

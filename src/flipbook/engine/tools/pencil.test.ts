@@ -60,9 +60,25 @@ describe('a press that never moves', () => {
 		pencil.end()
 
 		expect(strokes(scene)).toHaveLength(1)
-		// A zero-length line with a round cap, which is how SVG and canvas both spell a
-		// dot: a subpath that is only a `moveto` is not stroked by either.
-		expect(strokes(scene)[0]?.pathData).toBe('M100,50v0')
+		// Two points a hair apart, whose round caps are the dot. Not the same point
+		// twice, which is the tidier shape and which Safari's canvas paints as nothing
+		// at all — see `DOT_LENGTH`.
+		expect(strokes(scene)[0]?.pathData).toBe('M100,50h0.01')
+	})
+
+	it('has a length, without which Safari paints no pixels at all', async () => {
+		const { pencil, scene } = await pencilOnAPage()
+
+		pencil.begin(at(scene, 100, 50))
+		pencil.end()
+
+		// Measured in WebKit: a canvas subpath of zero length with a round cap is not
+		// stroked, however the specification reads. The whole of the fix is that this
+		// number is not nought, and it is small enough that nothing can see it: a
+		// hundredth of a unit is 0.006 CSS pixels on a phone at the stage's deepest zoom.
+		const dot = strokes(scene)[0]
+		expect(dot?.length).toBeGreaterThan(0)
+		expect(dot?.length).toBeLessThan(0.1)
 	})
 
 	it('wears the pencil width, so a dot is as thick as a line', async () => {
@@ -86,7 +102,8 @@ describe('a press that never moves', () => {
 		pencil.extend(at(scene, 40, 40))
 		pencil.end()
 
-		expect(strokes(scene)[0]?.pathData).toBe('M40,40v0')
+		expect(strokes(scene)).toHaveLength(1)
+		expect(strokes(scene)[0]?.segments).toHaveLength(2)
 	})
 })
 
@@ -98,14 +115,14 @@ describe('a saved dot', () => {
 		pencil.end()
 
 		const svg = scene.project.exportSVG({ asString: true }) as string
-		expect(svg).toContain('d="M100,50v0"')
+		expect(svg).toContain('d="M100,50h0.01"')
 
 		// What `FlipbookEngine.buildStroke` does with it when the flipbook is opened
 		// again: two points in, two points out, and nothing along the way tempted to
 		// treat the shorter of the two as an empty path.
-		const reopened = scene.scope.PathItem.create('M100,50v0') as paper.Path
+		const reopened = scene.scope.PathItem.create('M100,50h0.01') as paper.Path
 		expect(reopened.segments).toHaveLength(2)
-		expect(reopened.pathData).toBe('M100,50v0')
+		expect(reopened.pathData).toBe('M100,50h0.01')
 	})
 })
 
