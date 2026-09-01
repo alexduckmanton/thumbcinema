@@ -1786,14 +1786,14 @@ export class FlipbookEngine {
 	private gestureLast: paper.Point | null = null
 
 	/**
-	 * Opens a gesture *at* `point`, which for the pencil paper's own path does not.
+	 * Opens a gesture *at* `point`.
 	 *
-	 * `PencilTool.begin` only makes the path; the first segment arrives on the first
-	 * `onMouseDrag`, so a paper-driven stroke starts a pointer-event's travel after
-	 * the place it was started from. Measured: about 7px on a phone at a normal
-	 * drawing speed. Here the down point is put in explicitly, because in these modes
-	 * it is not "where the finger landed" but "where the cursor was standing when it
-	 * was told to draw", and dropping it would move the start of the line.
+	 * The pencil is handed it rather than left to pick a start up off the first drag,
+	 * which matters more here than it does on paper's own path: in these modes the
+	 * down point is not "where the finger landed" but "where the cursor was standing
+	 * when it was told to draw", and dropping it would move the start of the line.
+	 * (`PencilTool` states its own down point now too, for the same reason and for the
+	 * dot a press that never moves leaves behind.)
 	 *
 	 * The other two tools are handed the event they would have had. They read only
 	 * `point`, `downPoint` and `lastPoint` off it — no modifiers, no hit target, no
@@ -1810,8 +1810,7 @@ export class FlipbookEngine {
 		this.gestureLast = point
 
 		if (tool === 'pencil') {
-			this.pencil.begin()
-			this.pencil.extend(point)
+			this.pencil.begin(point)
 		} else if (tool === 'eraser') {
 			this.eraser?.eraseAt(point)
 		} else {
@@ -1953,8 +1952,9 @@ export class FlipbookEngine {
 	 * without a line in it changing: it never took a snapshot, and it doesn't have to.
 	 *
 	 * What is *not* an edit goes through here too — a click that selects a stroke, a
-	 * marquee that catches nothing, a tap that leaves no path — and none of them
-	 * records a step. See `History.commit`, which compares the two ends.
+	 * marquee that catches nothing, an eraser that bit nothing — and none of them
+	 * records a step. See `History.commit`, which compares the two ends. (A pencil put
+	 * down and lifted without moving is no longer one of them: it leaves a dot.)
 	 */
 	private handlePointerDown = (): void => {
 		this.drawing = true

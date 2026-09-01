@@ -608,6 +608,33 @@ it's one of these. Each is deliberate:
   moved is a transform; one that grabbed a handle and didn't is a tap, told apart by
   `TAP_SLOP` rather than by whether drag events arrived, because a finger resting on
   glass sends a few of those without going anywhere.
+- **A tap leaves a dot.** 2013 dropped a stroke it couldn't make a line out of and so
+  did this, twice over: the pencil made its path on mouse-down and put the first point
+  in on the first *drag*, so a press that never moved ended holding a path with nothing
+  in it, and `end()` threw away anything shorter than two points. What that looked like
+  was the tool having missed you, and dots are most of the difference between a face and
+  a face with eyes. The down point goes in on the press now — which also starts every
+  stroke where the pointer actually went down, about 7px earlier than before on a phone
+  — and a path still holding only that one point when the gesture ends is given a second
+  one a hundredth of a unit away. The round caps at the two ends of that hair are the dot.
+
+  **It is a hair rather than the same point twice, and that is the whole of the fix.** A
+  dot wants to be a subpath of zero length with a round cap, which is a circle a
+  stroke-width across, and which is what the specification says and what SVG paints.
+  **Safari's canvas paints nothing at all.** Measured in WebKit 26 and Chromium 141 side
+  by side — `M20,30v0` on a canvas is 0 ink pixels in one and 14 in the other, where
+  `M60,30l0.01,0` is 14 in both — and the canvas is not a fallback here, it is the tool:
+  paper strokes to one, so the tidy dot was in the file, in the GIF and on the gallery
+  card, and invisible to everyone drawing on an iPhone. Shipped once that way and caught
+  on a real engine rather than by reading the specification, which agrees with Chromium.
+  A hundredth of a unit is four decimal places inside what `getPathData` writes and
+  0.006 CSS pixels at the deepest zoom the phone's stage reaches.
+
+  Nothing downstream needed telling. `resamplePolyline` puts its samples on the line it
+  was given and one step is the whole of this one, the eraser has always removed a
+  two-point path whole, and the GIF's rasteriser measures a segment by the distance to
+  it, which over a hair is a disc.
+
 - **Push is a tool, not a mode of one.** It used to refuse to switch on unless
   something was already selected — `init()` returned false and the transform button
   cycled straight back — so reaching it meant selecting with the other tool first, and

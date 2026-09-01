@@ -1343,13 +1343,17 @@ export class PointerLayer {
 	 * is always *ended* and only sometimes undone.
 	 *
 	 * And the undo is aimed at this gesture's own step rather than at whatever is on top of
-	 * the stack. **A two-finger tap records nothing at all** — `History.commit` refuses a
-	 * step for a gesture that left the page as it found it, which a pencil put down and
-	 * lifted without moving does — so an undo issued on the strength of `canUndo` spent
-	 * itself on the *previous* stroke, and tapping the stage with two fingers wiped the
-	 * last thing you drew. `recordedSteps` only ever goes up, so comparing it across the
-	 * tick answers "did this gesture leave a step" exactly, where `canUndo` answered a
-	 * different question that happened to be true.
+	 * the stack. **A two-finger tap can record nothing at all** — `History.commit` refuses
+	 * a step for a gesture that left the page as it found it, which an eraser that bit
+	 * nothing or a transform that grabbed nothing does — so an undo issued on the strength
+	 * of `canUndo` spent itself on the *previous* stroke, and tapping the stage with two
+	 * fingers wiped the last thing you drew. `recordedSteps` only ever goes up, so
+	 * comparing it across the tick answers "did this gesture leave a step" exactly, where
+	 * `canUndo` answered a different question that happened to be true. (The pencil was
+	 * the case that found this and is no longer one of them — put down and lifted without
+	 * moving it now leaves a dot, and a dot is a step — which is why the comparison stays:
+	 * the other two tools still record nothing, and it is what makes the undo below always
+	 * take back this gesture's mark and never the one before it.)
 	 *
 	 * Refusing the pinch until the hand comes off the glass was the other option and is
 	 * worse than both: it is a mode you cannot zoom while you are drawing in it.
