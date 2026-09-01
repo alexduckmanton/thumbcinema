@@ -268,6 +268,56 @@ is now true at both widths and the differences are called out where they exist.
   to keep in step, and nothing has to be disabled while the save form is up — the form
   puts `inert` on `main`, which takes the whole page out of reach in one attribute.
 
+- **Copy and delete also stand on the selection itself, and that is where they belong.**
+  Two white discs in a row above whatever the transform tool is holding — ↥ again, the
+  footer's own copy glyph, and ✕ — hung off the box's top edge and centred on it.
+  `SelectionOptions`, positioned against `.book` like the ink cursor and for the same
+  reason: it is the one element whose pixels and the drawing's units are a fixed ratio
+  apart.
+
+  What they answer is that neither action was anywhere near the thing it acts on. Copy
+  is a disc in the *far corner* of a phone and, since the desktop's row went, nothing at
+  all on a keyboard layout; delete has only ever been the Delete key, which is to say it
+  has never existed on a phone at all. A selection is something you have just dragged a
+  marquee round, so your hand is already on it — and the two things you most often want
+  next are another one of these and none of these.
+
+  - **The transform tool's, and only the transform tool's.** Push holds a selection too
+    and both actions would work on it, but push dresses one its own way — no box, blue
+    strokes, a grid of dots — and a row of buttons hanging off a selection nothing has
+    drawn a box round is a row of buttons pointing at nothing.
+  - **They are there only while the selection is still.** `handlePointerDown` takes the
+    box down and the end of the gesture publishes it again, so nothing hangs over the
+    drawing while you move, scale or rotate it and nothing chases a marquee across the
+    page — they reappear where the strokes came to rest. It is the same beat `canCopy`
+    already publishes on, and the same argument: a store write per pointer move is a
+    React render per pointer move. See `FlipbookState.selection`.
+  - **Above the selection, below it when there is no room above, and flush with the top
+    of the frame when there is room on neither.** The last is a drawing that reaches both
+    edges, and there the row lies on the artwork — because the alternative is a control
+    hanging off the paper, which up there is the page handle's air and down there is the
+    page bar's. A button standing on somebody else's button is worse than one standing on
+    a drawing it is about to copy.
+  - **It is the one thing here that measures the paper.** Everything else could be said
+    as a percentage of `.book`; "is there 42px above this" cannot, because it compares a
+    length with a fraction. One `ResizeObserver` on the field, and the answer is only
+    ever used to pick a side.
+  - **On a phone it follows the pinch.** v13 stands a stage where the canvas is and a
+    pinch scales and slides *that*, so the paper can be four times the size of the box
+    this is positioned in while `.book` has not moved — `sheet` is that transform, applied
+    to the selection's corners before anything else happens to them. Pinch the selection
+    right off the frame and the row goes with it rather than clamping to an edge and
+    pointing at nothing.
+  - **Delete goes red under the pointer and only there.** A red disc sitting permanently
+    on the drawing reads as something being *wrong* with the selection rather than as
+    something you can do to it. ✕ rather than the sheet's hand-drawn bin, which is already
+    Delete *page* in the tray two inches below: two identical bins meaning different
+    things is the one thing this must not be.
+  - **They are `<button>`s, which is the whole of why they are pressable.** `PointerLayer`
+    stands down on anything matching `CONTROLS`, so a tap here is a tap rather than the
+    start of a marquee. The field they sit in covers the drawing and is transparent to the
+    pointer; the discs put it back.
+
 - **The create page has no header at all.** No wordmark, no actions — `SiteHeader` drops
   the row rather than rendering an empty one, so its 40px of padding goes too. It is the
   one page that isn't somewhere you read, and the ~110px it was spending on a sign is

@@ -1,0 +1,136 @@
+/*
+ * Copy and delete, standing on the selection they act on.
+ *
+ * Positioned against `.book`, which is exactly the size the canvas is being shown at —
+ * the same box the ink cursor is measured in, and for the same reason: it is the only
+ * element on the page whose pixels and the drawing's units are a fixed ratio apart.
+ * `SelectionOptions` does the dividing, because the one decision here — above the
+ * selection or below it — is a comparison between a length and a fraction and cannot be
+ * made in a stylesheet. See `place`.
+ *
+ * `--disc` and `--gap` are written on the field by the component rather than here, so
+ * the size the row is drawn at and the size its arithmetic assumes cannot drift apart.
+ */
+
+/*
+ * The whole sheet, so there is something to measure and something to position against.
+ *
+ * Present for as long as the transform tool is in hand, empty most of that time. It must
+ * take no presses at all — it covers the drawing — so the field is transparent to the
+ * pointer and the discs put it back.
+ */
+.field {
+	position: absolute;
+	inset: 0;
+	z-index: 18;
+	pointer-events: none;
+}
+
+/*
+ * The row itself: two discs, centred on the selection.
+ *
+ * `translateX(-50%)` and no `translateY` — the component has already worked out where the
+ * top of the row goes, and a transform that moved it again would be the same decision
+ * made twice in two places.
+ *
+ * Above the ink cursor's 17, which is the one thing it can ever be under. The cursor is
+ * hidden while the pointer is over a control — `PointerLayer` stands down on a `button`
+ * — but it is hidden by not being updated, so what it does at the edge of a disc is stop
+ * where it was. A frozen crosshair on top of a button is worse than one behind it.
+ */
+.row {
+	position: absolute;
+	display: flex;
+	gap: var(--gap);
+	transform: translateX(-50%);
+	/* The field above is transparent to the pointer; this is where it comes back. */
+	pointer-events: auto;
+	/* It appears at the end of a gesture, where the strokes came to rest, rather than
+	   fading in from nothing: a control that arrives slowly is a control you press
+	   before it is there. The fade is only what stops it flicking on. */
+	animation: appear 0.12s ease-out;
+}
+
+@keyframes appear {
+	from {
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.row {
+		animation: none;
+	}
+}
+
+/*
+ * One disc, which is the footer's disc a size down.
+ *
+ * Smaller than the 38 the footer bar uses, and it should be: those sit in a row on the
+ * white below the drawing with a whole bar to themselves, and these are lying *on* the
+ * artwork. 32 is the size the admin row already comes down to and is still a comfortable
+ * target — bigger than that and two of them cover a phone's page corner to corner.
+ *
+ * Never disabled. The row only exists while something is selected, which is the whole of
+ * what either button needs, so there is no state for it to be dim in — unlike the
+ * footer's copy, which is standing there whether or not there is anything to spend.
+ */
+.disc {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--disc);
+	height: var(--disc);
+	padding: 0;
+
+	border: none;
+	border-radius: var(--radius-pill);
+	background: var(--white);
+	color: var(--ink-strong);
+	cursor: pointer;
+	box-shadow: var(--shadow-card);
+
+	transition: background 0.12s ease-out, color 0.12s ease-out, transform 0.12s ease-out;
+}
+
+.disc:hover {
+	background: var(--page);
+	transform: translateY(-1px);
+}
+
+.disc:active {
+	transform: translateY(0) scale(0.94);
+}
+
+.disc:focus-visible {
+	outline: 2px solid var(--blue);
+	outline-offset: 3px;
+}
+
+/*
+ * Delete, and the one colour on this page that is a warning.
+ *
+ * Only under the pointer, never at rest: a red disc sitting permanently on the drawing
+ * would read as something being wrong with the selection rather than as something you
+ * could do to it. The rule comes after `.disc:hover` because it has to beat it.
+ */
+.remove:hover {
+	background: var(--red);
+	color: var(--white);
+}
+
+/*
+ * The glyph, set in Pecita like the footer's four and the wordmark before them.
+ *
+ * 20px against the footer's 26, which is the same drop the disc takes. The 1px is the
+ * same correction every Pecita glyph on this site carries: the face's ascent and descent
+ * are lopsided against where the ink actually sits, so a centred box leaves it high.
+ */
+.glyph {
+	position: relative;
+	top: 1px;
+	font-family: 'Pecita', cursive;
+	font-size: 20px;
+	line-height: 1;
+}
