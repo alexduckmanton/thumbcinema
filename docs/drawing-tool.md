@@ -495,6 +495,11 @@ can't.
 - **Copy is dim until something is selected and paste until something has been copied**,
   which between them are the whole of the instructions: the pair lights up in the order
   you have to press it.
+- **Copy has a second button, standing on the selection.** The footer's disc is in the far
+  corner of a phone and does not exist at all on a desktop, so `SelectionOptions` puts the
+  same glyph — and delete beside it — above whatever the transform tool is holding, for as
+  long as it is holding it still. Same `copySelection()`, same one-step-of-nothing in the
+  history. See **The create page**, which is where the layout of it is written down.
 - **`canCopy` is published at the end of a gesture, not as the selection changes.** A
   marquee drag empties the selection and refills it on every pointer move — a store
   write there is a React render at pointer rate, re-rendering a strip of page canvases to

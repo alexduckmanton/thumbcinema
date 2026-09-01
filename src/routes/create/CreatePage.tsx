@@ -12,6 +12,7 @@ import { PageHandle } from '../../flipbook/components/PageHandle'
 import { PageNav } from '../../flipbook/components/PageNav'
 import { PageStrip } from '../../flipbook/components/PageStrip'
 import { SaveForm, type SaveFormValues } from '../../flipbook/components/SaveForm'
+import { SelectionOptions } from '../../flipbook/components/SelectionOptions'
 import type { FlipbookEngine, FlipbookState } from '../../flipbook/engine/FlipbookEngine'
 import { isZoomStageMode, stageOnPaper, startingZoom, useDrawMode } from '../../flipbook/drawModes'
 import { TraceLayer } from '../../flipbook/trace/TraceLayer'
@@ -437,6 +438,32 @@ export function CreatePage() {
 						    this renders. */}
 						{state ? (
 							<InkCursor layer={layer} canvasRef={canvasRef} tool={state.tool} mode={drawMode} />
+						) : null}
+
+						{/* Copy and delete, standing on whatever is selected. Inside `.book`
+						    for the same reason the cursor above it is: the box the engine
+						    publishes is in project units, and this is the one element whose
+						    pixels are a fixed ratio of them.
+
+						    The transform tool's and only the transform tool's. Push holds a
+						    selection too and both actions would work on it, but push dresses
+						    one its own way — no box, blue strokes, a grid of dots — and a row
+						    of buttons hanging off a selection nothing has drawn a box round is
+						    a row of buttons pointing at nothing.
+
+						    `sheet` is what keeps it on the drawing on a phone, where v13 stands
+						    a stage in the paper's place and a pinch moves *that* rather than
+						    this box. Not while a photograph is being placed, which covers the
+						    sheet with a field of its own and stands the zoom back at 1× for the
+						    length of it. */}
+						{state?.tool === 'transform' && state.transformIndex === 0 && !placing ? (
+							<SelectionOptions
+								selection={state.selection}
+								page={page}
+								sheet={sheet}
+								onCopy={() => engine?.copySelection()}
+								onDelete={() => engine?.deleteSelection()}
+							/>
 						) : null}
 
 						{/* v11's outline: which part of the page the stage below is showing.

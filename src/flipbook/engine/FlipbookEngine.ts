@@ -31,6 +31,28 @@ import type { ModalTool, ModalToolId } from './tools/types'
 export type PlaybackMode = 'none' | 'play'
 export type EngineMode = 'create' | 'playback'
 
+/**
+ * Where the selection is, in project units — 640 of them across the page.
+ *
+ * The axis-aligned box round everything held, which is the same box `Selection.reset`
+ * draws the dashes on until something is rotated: after a turn the dashed box is
+ * rotated with the strokes and this is the upright rectangle containing it. That is
+ * the right one to hang a control off — a toolbar that leaned would be a toolbar you
+ * had to read sideways — and it is why this is taken off `layer.bounds` rather than
+ * off the box path.
+ *
+ * Project units rather than pixels because the engine has no idea what size the canvas
+ * is being shown at and must not acquire one: it is the whole point of
+ * `Scene.pinCoordinates` that the two can disagree. Whoever draws with these divides
+ * by the page, which is a percentage of the box the drawing is in.
+ */
+export interface SelectionBox {
+	x: number
+	y: number
+	width: number
+	height: number
+}
+
 export interface FlipbookState {
 	pages: PageState[]
 	activePage: number
@@ -56,6 +78,19 @@ export interface FlipbookState {
 	 */
 	canCopy: boolean
 	canPaste: boolean
+
+	/**
+	 * The box round what is selected, or null when nothing is — and null again for the
+	 * length of every gesture.
+	 *
+	 * Published on the same beat as `canCopy` and for the same reason, which is that a
+	 * marquee drag rewrites the selection on every pointer move. What is different is
+	 * that this one is also actively *taken down* on the way in: a box published before
+	 * a drag is a box that stops describing the selection the moment it starts moving,
+	 * so `handlePointerDown` clears it and the end of the gesture publishes where
+	 * everything actually ended up. See `publishSelection`.
+	 */
+	selection: SelectionBox | null
 
 	loading: boolean
 	/** 0–1 while a saved flipbook is being replayed into the tool. */
@@ -207,6 +242,7 @@ export class FlipbookEngine {
 			canRedo: false,
 			canCopy: false,
 			canPaste: false,
+			selection: null,
 			loading: false,
 			loadProgress: 0,
 			busy: false,
@@ -692,7 +728,35 @@ export class FlipbookEngine {
 	 */
 	private publishSelection(): void {
 		if (this.drawing) return
-		this.store.set({ canCopy: !this.selection.isEmpty })
+		this.store.set({ canCopy: !this.selection.isEmpty, selection: this.selectionBox() })
+	}
+
+	/**
+	 * The box round the selection, and the same object as last time when it hasn't moved.
+	 *
+	 * `Store.set` compares with `Object.is`, so a fresh object every publish would be a
+	 * render every publish — and most publishes are a gesture that ended without moving
+	 * anything: a tap that missed, a marquee that caught the same two strokes again, a
+	 * page turn onto a page whose selection is where it was. Reusing the previous object
+	 * makes "nothing changed" nothing changed, which is what the rest of the store
+	 * already promises.
+	 */
+	private selectionBox(): SelectionBox | null {
+		if (this.selection.isEmpty) return null
+
+		const { x, y, width, height } = this.selection.layer.bounds
+		const previous = this.store.snapshot.selection
+		if (
+			previous &&
+			previous.x === x &&
+			previous.y === y &&
+			previous.width === width &&
+			previous.height === height
+		) {
+			return previous
+		}
+
+		return { x, y, width, height }
 	}
 
 	// --- undo ----------------------------------------------------------------
@@ -1959,6 +2023,13 @@ export class FlipbookEngine {
 	private handlePointerDown = (): void => {
 		this.drawing = true
 		this.pause()
+
+		// Anything hanging off the selection has to let go before it moves: this is the
+		// last moment the published box is still true, and `publishSelection` is held
+		// back for the rest of the gesture. A no-op — and so not a render — unless
+		// something was actually selected, which is the only time there is a box to
+		// take down. See `FlipbookState.selection`.
+		this.store.set({ selection: null })
 
 		const index = this.scene.activePage
 		const page = this.store.snapshot.pages[index]
