@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 
 import { Link } from '../router/Router'
-import { Messages } from './Messages'
 import styles from './SiteHeader.module.css'
 
 export interface SiteHeaderProps {
@@ -42,7 +41,9 @@ export function SiteHeader({
 			 * The row is dropped altogether when it would be empty, rather than rendered
 			 * empty. Its padding is 40px of air that exists to sit above a wordmark, and
 			 * on a page with neither wordmark nor actions that is 40px taken off the
-			 * drawing for nothing. `Messages` below is not in the row and is unaffected.
+			 * drawing for nothing. The header holds nothing else — messages used to drop
+			 * out of it and are a toast at the bottom of the window now — so on the
+			 * create page it renders empty and paints nothing.
 			 */}
 			{wordmark || children ? (
 				<div className={container}>
@@ -55,8 +56,6 @@ export function SiteHeader({
 					{children ? <div className={actions}>{children}</div> : null}
 				</div>
 			) : null}
-
-			<Messages />
 		</header>
 	)
 }

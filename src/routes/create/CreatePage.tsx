@@ -34,7 +34,7 @@ import {
 import { isAdmin } from '../../lib/admin'
 import { isTouch } from '../../lib/device'
 import { refuseMultiTouch } from '../../lib/zoom'
-import { registerMessage, showMessage } from '../../lib/messages'
+import { registerToast, showToast } from '../../lib/toast'
 import { queueFlipbook } from '../../offline/pending'
 import { hasServiceWorker } from '../../offline/register'
 import { guardNavigation, navigate, useLocation } from '../../router/Router'
@@ -258,11 +258,7 @@ export function CreatePage() {
 					location = await saveFlipbook(payload)
 
 					// Left for the page we're about to land on.
-					registerMessage({
-						copy: "Nice one! Your flipbook's saved. Give yourself a pat on the back.",
-						cta: "Don't mind if I do",
-						type: 'success',
-					})
+					registerToast({ copy: 'Flipbook saved.', type: 'info' })
 				} catch (error) {
 					// A request that never got an answer is a connection, not a refusal —
 					// so the flipbook goes in the queue and the page carries on as if it had
@@ -277,9 +273,8 @@ export function CreatePage() {
 					location = flipbookPath(entry.book.id)
 					queued = true
 
-					registerMessage({
-						copy: "You're offline. I'll publish the moment you're back.",
-						cta: 'Okay',
+					registerToast({
+						copy: "You're offline. This will publish when you're back.",
 						type: 'info',
 					})
 				}
@@ -299,12 +294,12 @@ export function CreatePage() {
 			} catch (error) {
 				setPhase('naming')
 
-				const message =
+				const copy =
 					error instanceof ApiError && error.status === 413
-						? 'That flipbook is too big to save. Try deleting a few pages.'
-						: "Oh no! Something went wrong and I couldn't save your flipbook. Try again."
+						? "That flipbook's too big to save. Try deleting a few pages."
+						: "Couldn't save your flipbook. Try again."
 
-				showMessage({ copy: message, cta: 'Dang', type: 'error' })
+				showToast({ copy, type: 'error' })
 			}
 		},
 		[engine, remixOf],
@@ -685,9 +680,8 @@ function useRemixSource(engine: FlipbookEngine | null, id: string | null): boole
 			})
 			.catch(() => {
 				if (controller.signal.aborted) return
-				showMessage({
-					copy: "I couldn't open that flipbook to remix. Here's a blank one instead.",
-					cta: 'Fair enough',
+				showToast({
+					copy: "Couldn't open that flipbook to remix. Here's a blank one instead.",
 					type: 'error',
 				})
 			})

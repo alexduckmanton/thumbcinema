@@ -70,6 +70,16 @@
 	--blue-playback: #2299ff;
 	--green: #d5ff71;
 	--red: #f54958;
+
+	/* The toast's two backgrounds, both under white text.
+
+	   The red is deliberately not `--red` above: white on #f54958 is 3.5:1, under the
+	   4.5:1 that a 15px sentence needs, and the toast is the one place the brand red
+	   would be carrying body text rather than filling a button under a label. Darkened
+	   to 4.8:1, which is the same red at a glance. It lives here rather than in the
+	   component so nobody reaches for the lighter one out of habit. */
+	--toast-info: #1c1c1c;
+	--toast-error: #d92d3c;
 	/* The yellow belongs to the pencil, and to the two buttons that start and finish a
 	   flipbook — the create button on the gallery and save on the create page. They
 	   are separate components (one floats, one doesn't) and have to look identical, so

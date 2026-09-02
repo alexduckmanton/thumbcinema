@@ -12,7 +12,7 @@
  */
 
 import { isNetworkFailure, saveFlipbook } from '../lib/api'
-import { showMessage } from '../lib/messages'
+import { showToast } from '../lib/toast'
 import {
 	discardPending,
 	loadPending,
@@ -128,12 +128,11 @@ export async function flushPending(): Promise<void> {
 
 	if (published === 0) return
 
-	showMessage({
+	showToast({
 		copy:
 			published === 1
-				? "You're back online and your flipbook's published."
-				: `You're back online and your ${published} flipbooks are published.`,
-		cta: 'Nice one',
-		type: 'success',
+				? "You're back online — your flipbook's published."
+				: `You're back online — your ${published} flipbooks are published.`,
+		type: 'info',
 	})
 }

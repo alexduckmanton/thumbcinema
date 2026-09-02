@@ -52,6 +52,22 @@ properties, element defaults, and two utility classes.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash
   the names, so `.playing .tools` across two files silently matches nothing. A component
   that has to know what the page is doing is told in a prop and styles itself from it.
+- **Messages are a toast at the bottom of the window, in two colours only.** `Toast`
+  is `position: fixed`, centred, at `z-index: 1100` — over the create page's tray and
+  page bar and over the save form, under the crash screen — and it is mounted once in
+  `App` rather than by a page, because the offline queue publishes on its own schedule
+  and says so from wherever the reader is. `info` is black, `error` is red, and there
+  is no third: the 2013 banner had `success` in green as well, and a colour code is a
+  lot to ask of a sentence that leaves after five seconds. Errors don't leave on their
+  own; info toasts do. Every toast dismisses with **"Got it"**, written in the
+  component and not at the call site, so the wording can't drift apart again. What
+  this replaced was a banner that took over the header and dropped in a word at a
+  time — charming the first time and in the way after that, because it moved the
+  page's own furniture to say something small.
+- **`--toast-error` is not `--red`.** White on the brand red is 3.5:1 and a 15px
+  sentence needs 4.5:1; the toast is the one place that red would be carrying body
+  text rather than filling a button under its own label, so it has a darkened copy at
+  4.8:1. Anything else that puts words on a coloured field needs the same sum done.
 - **The icons are the 2013 sprite** (`src/styles/icons.module.css`). Hand-drawn, in
   the same hand as everything else; an icon font would look like a different site.
   The retina sheet has double the spacing as well as double the art, so one set of

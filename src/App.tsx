@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo } from 'react'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { RouteShell } from './components/RouteShell'
+import { Toast } from './components/Toast'
 import { Link, useLocation } from './router/Router'
 import { matchRoute } from './router/routes'
 
@@ -28,19 +29,34 @@ export function App() {
 	const route = useMemo(() => matchRoute(pathname), [pathname])
 
 	return (
-		<ErrorBoundary fallback={<Broken />}>
-			{/* Keyed on the route, so switching pages mid-load swaps one placeholder for
-			    the other rather than leaving the old page's shape up. */}
-			<Suspense fallback={<RouteShell key={route.name} route={route} />}>
-				{route.name === 'gallery' ? <GalleryPage /> : null}
-				{route.name === 'create' ? <CreatePage /> : null}
-				{/* Keyed on the id so navigating between two flipbooks tears the engine
-				    down and builds a new one, rather than trying to reuse a paper scene
-				    that is halfway through loading someone else's artwork. */}
-				{route.name === 'playback' ? <PlaybackPage key={route.id} id={route.id} /> : null}
-				{route.name === 'notFound' ? <NotFoundPage /> : null}
-			</Suspense>
-		</ErrorBoundary>
+		<>
+			<ErrorBoundary fallback={<Broken />}>
+				{/* Keyed on the route, so switching pages mid-load swaps one placeholder for
+				    the other rather than leaving the old page's shape up. */}
+				<Suspense fallback={<RouteShell key={route.name} route={route} />}>
+					{route.name === 'gallery' ? <GalleryPage /> : null}
+					{route.name === 'create' ? <CreatePage /> : null}
+					{/* Keyed on the id so navigating between two flipbooks tears the engine
+					    down and builds a new one, rather than trying to reuse a paper scene
+					    that is halfway through loading someone else's artwork. */}
+					{route.name === 'playback' ? <PlaybackPage key={route.id} id={route.id} /> : null}
+					{route.name === 'notFound' ? <NotFoundPage /> : null}
+				</Suspense>
+			</ErrorBoundary>
+
+			{/*
+			 * Outside the boundary and outside Suspense, because it belongs to the tab
+			 * rather than to the page: the offline queue publishes on its own schedule
+			 * and says so from wherever the reader happens to be, including a route that
+			 * is still downloading or one that has fallen over. It is `position: fixed`,
+			 * so where it sits in the tree costs nothing.
+			 *
+			 * `lift` is the one thing it needs told about the page under it: the create
+			 * page pins a bar of controls to the bottom of the window, and a toast that
+			 * covers the save button is worst exactly when it is saying the save failed.
+			 */}
+			<Toast lift={route.name === 'create'} />
+		</>
 	)
 }
 
