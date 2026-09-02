@@ -24,7 +24,10 @@
 	/* Never wider than a comfortable line, never wider than the window. */
 	max-width: min(560px, calc(100vw - 32px));
 	padding: 13px 20px;
-	border-radius: var(--radius-control);
+	/* Not `--radius-control`, which is 10 and is for things you press. This is a
+	   floating slab a fair bit bigger than a button, and the same corner on it reads
+	   as barely rounded at all. */
+	border-radius: 16px;
 	box-shadow: rgba(0, 0, 0, 0.25) 0 4px 16px;
 	color: var(--white);
 	transform: translateX(-50%);
