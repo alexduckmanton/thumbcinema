@@ -123,3 +123,163 @@ describe('History', () => {
 		expect(changes).toBe(4)
 	})
 })
+
+/*
+ * The snapshot cache. See `History.cache`: `begin` runs inside the pointer-down
+ * handler, so it takes the string `commit` made rather than serialising the page again
+ * — and only for as long as nothing else can have changed the page.
+ *
+ * A scene of plain objects is enough here: `capture` clones each child into the
+ * staging layer and asks it for JSON, and the fake counts how often it is asked.
+ */
+interface FakeStroke {
+	id: number
+	ink: string
+	clone(): FakeStroke
+}
+
+function fakeScene(pages: string[][]) {
+	let serialised = 0
+	let nextId = 1
+
+	const stroke = (ink: string): FakeStroke => {
+		const id = nextId++
+		return { id, ink, clone: () => stroke(ink) }
+	}
+	const layer = (inks: string[]) => ({
+		children: inks.map(stroke),
+		removeChildren() {
+			this.children = []
+		},
+		addChild(child: FakeStroke) {
+			this.children.push(child)
+		},
+	})
+
+	const layers = pages.map(layer)
+	const staging = {
+		...layer([]),
+		exportJSON() {
+			serialised++
+			return JSON.stringify(this.children.map((child) => child.ink))
+		},
+		importJSON(json: string) {
+			this.children = (JSON.parse(json) as string[]).map(stroke)
+		},
+	}
+
+	const scene = {
+		pageLayer: (index: number) => layers[index],
+		get pageCount() {
+			return layers.length
+		},
+		selectionLayer: { children: [] as FakeStroke[] },
+		stagingLayer: staging,
+		scope: {
+			Color: class {
+				constructor(public value: string) {}
+			},
+		},
+	}
+
+	return {
+		scene: scene as unknown as Scene,
+		layers,
+		get serialised() {
+			return serialised
+		},
+		draw(page: number, ink: string) {
+			layers[page]?.addChild(stroke(ink))
+		},
+	}
+}
+
+describe('the snapshot cache', () => {
+	it('reads the page once per gesture, not twice', () => {
+		const fake = fakeScene([['a']])
+		const history = new History(fake.scene)
+
+		history.begin(0, 1)
+		fake.draw(0, 'b')
+		expect(history.commit(0)).toBe(true)
+		expect(fake.serialised).toBe(2)
+
+		// The second gesture opens on the page the first one closed on.
+		history.begin(0, 1)
+		expect(fake.serialised).toBe(2)
+		fake.draw(0, 'c')
+		expect(history.commit(0)).toBe(true)
+		expect(fake.serialised).toBe(3)
+	})
+
+	it('still records a gesture that opened on the cached page', () => {
+		const fake = fakeScene([['a']])
+		const history = new History(fake.scene)
+
+		history.begin(0, 1)
+		history.commit(0)
+		history.begin(0, 1)
+		fake.draw(0, 'b')
+
+		expect(history.commit(0)).toBe(true)
+		const op = history.takeUndo()?.ops[0]
+		expect(op && op.kind !== 'move' ? op.ink : null).toBe(JSON.stringify(['a']))
+	})
+
+	it('reads the page again after the selection changed it', () => {
+		const fake = fakeScene([['a']])
+		const history = new History(fake.scene)
+
+		history.begin(0, 1)
+		history.commit(0)
+		history.invalidate(0)
+
+		history.begin(0, 1)
+		expect(fake.serialised).toBe(3)
+	})
+
+	it('reads the page again after undo wrote it', () => {
+		const fake = fakeScene([['a']])
+		const history = new History(fake.scene)
+
+		history.begin(0, 1)
+		fake.draw(0, 'b')
+		history.commit(0)
+
+		const step = history.takeUndo()
+		const op = step?.ops[0]
+		if (op?.kind !== 'content') throw new Error('expected a content op')
+		history.swap(0, op.ink)
+		const before = fake.serialised
+
+		history.begin(0, 1)
+		expect(fake.serialised).toBe(before + 1)
+	})
+
+	it('forgets every page when the flipbook is replaced', () => {
+		const fake = fakeScene([['a']])
+		const history = new History(fake.scene)
+
+		history.begin(0, 1)
+		history.commit(0)
+		history.clear()
+
+		history.begin(0, 1)
+		expect(fake.serialised).toBe(3)
+	})
+
+	it('keeps one entry per page', () => {
+		const fake = fakeScene([['a'], ['b']])
+		const history = new History(fake.scene)
+
+		history.begin(0, 1)
+		history.commit(0)
+		history.begin(1, 2)
+		history.commit(1)
+		const before = fake.serialised
+
+		history.begin(0, 1)
+		history.begin(1, 2)
+		expect(fake.serialised).toBe(before)
+	})
+})

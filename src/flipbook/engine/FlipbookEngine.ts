@@ -229,7 +229,13 @@ export class FlipbookEngine {
 			for (const listener of this.grabListeners) listener()
 		}
 
-		this.selection.onChange = () => this.publishSelection()
+		this.selection.onChange = () => {
+			// Putting a selection down copies its strokes back onto the page as new
+			// items, which is a change to the page nothing else records. See
+			// `History.cache`.
+			this.history.invalidate(this.scene.activePage)
+			this.publishSelection()
+		}
 
 		this.store = new Store<FlipbookState>({
 			page: options.page ?? null,

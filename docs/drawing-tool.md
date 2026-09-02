@@ -411,6 +411,16 @@ and spent by the next ⌘Z. Four things about it are load-bearing:
   differently from not clicking on it and each click costs a step that undoes nothing
   visible. The same normalisation is why restoring a step *deselects*: what goes back
   on the page is a drawing, with nothing held.
+- **`begin` takes the string `commit` made rather than reading the page again.** It
+  runs inside the pointer-down handler, before the first ink sample, and `capture` on a
+  dense page is tens of milliseconds on a phone — paid at the start of every stroke.
+  The page at pointer-down is the page the last gesture ended on, which `commit` has just
+  serialised, so `History.cache` keeps that string per layer and `begin` reads it. It is
+  dropped wherever the page can have changed by any other route: `write` (undo and
+  redo), `clear` (a load), and `invalidate`, which the engine calls on every change to
+  the selection because putting one down copies its strokes back as new items and the
+  capture is ordered by id. `commit`, `swap` and `inkOf` always read fresh, so a stale
+  entry could only ever cost a phantom step, never hide a real one or put wrong ink back.
 - **Steps are keyed by page id, and a step knows where to leave you.** Inserting a page
   renumbers every index after it, so a history holding indices starts pointing at the
   wrong pages the moment it is any use. `forward` and `back` are page ids and differ
