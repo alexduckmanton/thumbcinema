@@ -340,13 +340,33 @@ p {
 	line-height: 1.333;
 }
 
+/*
+ * Links are underlined, always, and hovering one fades it rather than changing what
+ * it is.
+ *
+ * The underline used to arrive on hover, which meant a link in a paragraph was blue
+ * text and nothing else until you found it with a pointer — and on a phone you never
+ * do. It also left the hover with a job it shouldn't have: appearing. Now the link
+ * looks like a link at rest and the hover only says the pointer is on it.
+ *
+ * `opacity` rather than a second colour, because that is one rule for every link on
+ * the site — the blue ones, the grey one in the gallery's footer, the pale one on the
+ * crash screen's red — instead of a lightened pair per context.
+ *
+ * The anchors that are buttons or cards rather than text — the wordmark, the create
+ * button, the view toggle's two segments, a gallery card — turn both halves off next
+ * to where they already turn the underline off. Fading a whole flipbook to 80%
+ * because a pointer crossed it is not what this rule is for. `Button` needs none of
+ * that: it is a `<button>` and always has been.
+ */
 a {
 	color: var(--blue-dark);
-	text-decoration: none;
+	text-decoration: underline;
+	transition: opacity 0.12s linear;
 }
 
 a:hover {
-	text-decoration: underline;
+	opacity: 0.8;
 }
 
 a:visited {

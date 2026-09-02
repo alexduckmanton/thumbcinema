@@ -78,6 +78,8 @@
 .segment:hover {
 	color: var(--ink);
 	text-decoration: none;
+	/* A control, not a text link — see the note on `a` in `base.css`. */
+	opacity: 1;
 }
 
 /* Black on white. Blue is the create button's, and having the selected segment wear

@@ -223,11 +223,13 @@
 	background: none;
 	font: inherit;
 	color: var(--blue-dark);
+	text-decoration: underline;
 	cursor: pointer;
+	transition: opacity 0.12s linear;
 }
 
 .retry:hover {
-	text-decoration: underline;
+	opacity: 0.8;
 }
 
 /* Room for the create button to float over: without this the last row of cards sits
@@ -260,7 +262,6 @@
 	color: #8b8b8b;
 }
 
-.footer a:hover {
-	color: var(--blue);
-	text-decoration: none;
-}
+/* No colour change and no undoing the underline: the fade on `a:hover` is the hover
+   everywhere now, and this link is grey rather than blue only because it is a
+   footnote. */

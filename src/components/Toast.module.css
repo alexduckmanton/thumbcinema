@@ -59,8 +59,8 @@
 
 /*
  * A text button rather than a filled one: it is the only thing to press here, and a
- * second solid shape inside a solid shape reads as a dialog. The dotted underline is
- * the site's own link treatment, which is where this came from.
+ * second solid shape inside a solid shape reads as a dialog. Underlined and fading
+ * under the pointer, which is what every link on the site does — see `base.css`.
  */
 .dismiss {
 	flex: 0 0 auto;
@@ -69,17 +69,17 @@
 	margin: -6px 0;
 	padding: 6px 0;
 	border: none;
-	border-bottom: 1px dotted currentColor;
 	background: none;
 	font: inherit;
 	font-size: 15px;
 	color: var(--white);
+	text-decoration: underline;
 	cursor: pointer;
+	transition: opacity 0.12s linear;
 }
 
 .dismiss:hover {
-	border-bottom-style: solid;
-	text-decoration: none;
+	opacity: 0.8;
 }
 
 @keyframes riseIn {

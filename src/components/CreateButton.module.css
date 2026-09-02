@@ -126,6 +126,8 @@
 	box-shadow: rgba(0, 0, 0, 0.26) 0 6px 18px;
 	transform: translateY(-1px);
 	text-decoration: none;
+	/* A button that happens to be an anchor. It has a hover; it isn't a text link. */
+	opacity: 1;
 }
 
 .fab:active {
