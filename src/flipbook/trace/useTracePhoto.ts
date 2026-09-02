@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { showMessage } from '../../lib/messages'
+import { showToast } from '../../lib/toast'
 import type { FlipbookEngine } from '../engine/FlipbookEngine'
 import { CENTRED, type TracePhoto } from '../engine/trace'
 
@@ -116,18 +116,18 @@ export function useTracePhoto(engine: FlipbookEngine | null): TracePhotoControls
 		if (taken.length > 0) latest.current?.addTracePhotos(taken)
 
 		if (files.length > MAX_BATCH) {
-			showMessage({
+			// Informational, not an error: nothing failed, there was just a limit and it
+			// took what it could.
+			showToast({
 				copy: `That's a lot of photos — I've taken the first ${MAX_BATCH}.`,
-				cta: 'Fair enough',
-				type: 'error',
+				type: 'info',
 			})
 		} else if (failed > 0) {
-			showMessage({
+			showToast({
 				copy:
 					taken.length > 0
-						? "I couldn't read one of those pictures, so I've left it out."
-						: "I couldn't read that picture. Try taking it again.",
-				cta: 'Fair enough',
+						? "Couldn't read one of those pictures, so I've left it out."
+						: "Couldn't read that picture. Try taking it again.",
 				type: 'error',
 			})
 		}

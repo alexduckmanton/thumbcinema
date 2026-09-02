@@ -2,15 +2,15 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { App } from './App'
-import { takeRegisteredMessage } from './lib/messages'
+import { takeRegisteredToast } from './lib/toast'
 import { preventPinchZoom } from './lib/zoom'
 import { registerServiceWorker } from './offline/register'
 import { startOfflineSync } from './offline/sync'
 import './styles/base.css'
 
-// Anything a previous page left for this one — the "your flipbook's saved" banner
-// survives the navigation to the flipbook it just created.
-takeRegisteredMessage()
+// Anything a previous page left for this one — the "Flipbook saved" toast survives
+// the navigation to the flipbook it just created.
+takeRegisteredToast()
 
 // The half of the viewport tag iOS ignores. See lib/zoom.ts.
 preventPinchZoom()

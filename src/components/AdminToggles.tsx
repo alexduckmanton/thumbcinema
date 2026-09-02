@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { adminHeaders, isAdmin, signOut } from '../lib/admin'
 import { ApiError, setFlipbookFlags } from '../lib/api'
-import { showMessage } from '../lib/messages'
+import { showToast } from '../lib/toast'
 import icons from '../styles/icons.module.css'
 import styles from './AdminToggles.module.css'
 
@@ -49,13 +49,9 @@ export function AdminToggles({ id, flags, onChange, className }: AdminTogglesPro
 			// when the server has no token configured.
 			if (status === 401 || status === 404) {
 				signOut()
-				showMessage({
-					copy: "That admin token isn't working any more.",
-					cta: 'Fine',
-					type: 'error',
-				})
+				showToast({ copy: "That admin token isn't working any more.", type: 'error' })
 			} else {
-				showMessage({ copy: "Couldn't save that. Try again?", cta: 'Dang', type: 'error' })
+				showToast({ copy: "Couldn't save that. Try again.", type: 'error' })
 			}
 		} finally {
 			setBusy(null)

@@ -1,0 +1,192 @@
+/*
+ * The toast.
+ *
+ * Fixed to the bottom of the window and centred, above everything the pages put down
+ * there — the create page's tray and page bar, the save form's own layer. Under the
+ * crash screen alone, which is the one thing that outranks a message about a flipbook.
+ *
+ * Two colours, both carrying white text: black for anything that went to plan, red for
+ * anything that didn't. The 2013 banner had three and tinted the words as well as the
+ * background, which is a lot of reading for a sentence that is going away in five
+ * seconds.
+ */
+
+.toast {
+	position: fixed;
+	left: 50%;
+	/* `viewport-fit=cover` puts the page under the home indicator on iOS, and this is
+	   the edge it sits at. */
+	bottom: max(24px, env(safe-area-inset-bottom));
+	z-index: 1100;
+	display: flex;
+	align-items: baseline;
+	gap: 18px;
+	/*
+	 * Two columns: the sentence at one end, "Got it" at the other.
+	 *
+	 * The floor is what makes that true of a short message as well as a long one —
+	 * without it the box shrink-wraps and "Flipbook saved." puts the button hard up
+	 * against the full stop, which reads as a fourth word rather than as the thing to
+	 * press. The ceiling is a comfortable line length. Both give way to the window
+	 * first, so a narrow one gets a toast that fits it rather than one that overhangs.
+	 */
+	min-width: min(420px, calc(100vw - 32px));
+	max-width: min(560px, calc(100vw - 32px));
+	padding: 13px 20px;
+	/* Not `--radius-control`, which is 10 and is for things you press. This is a
+	   floating slab a fair bit bigger than a button, and the same corner on it reads
+	   as barely rounded at all. */
+	border-radius: 16px;
+	box-shadow: rgba(0, 0, 0, 0.25) 0 4px 16px;
+	color: var(--white);
+	transform: translateX(-50%);
+	animation: riseIn 0.22s ease-out 1 normal;
+}
+
+.info {
+	background: var(--toast-info);
+}
+
+.error {
+	background: var(--toast-error);
+}
+
+/*
+ * The store has already let go of this one; the component holds it on screen for the
+ * length of the animation. `forwards` matters — without it the toast snaps back to
+ * full opacity for the last frame before React unmounts it.
+ */
+.leaving {
+	animation: sinkOut 0.2s ease-in 1 normal forwards;
+}
+
+.copy {
+	/* Takes the room the button doesn't, which is what pushes the button to the end. */
+	flex: 1;
+	margin: 0;
+	font-size: 15px;
+	line-height: 1.4;
+}
+
+/*
+ * A text button rather than a filled one: it is the only thing to press here, and a
+ * second solid shape inside a solid shape reads as a dialog. Underlined and fading
+ * under the pointer, which is what every link on the site does — see `base.css`.
+ */
+.dismiss {
+	flex: 0 0 auto;
+	/* Vertical padding is tap target and nothing else — the negative margin takes it
+	   back out of the layout so the button still sits on the copy's first line. */
+	margin: -6px 0;
+	padding: 6px 0;
+	border: none;
+	background: none;
+	font: inherit;
+	font-size: 15px;
+	color: var(--white);
+	text-decoration: underline;
+	cursor: pointer;
+	transition: opacity 0.12s linear;
+}
+
+.dismiss:hover {
+	opacity: 0.8;
+}
+
+@keyframes riseIn {
+	from {
+		transform: translate(-50%, 16px);
+		opacity: 0;
+	}
+	to {
+		transform: translate(-50%, 0);
+		opacity: 1;
+	}
+}
+
+@keyframes sinkOut {
+	from {
+		transform: translate(-50%, 0);
+		opacity: 1;
+	}
+	to {
+		transform: translate(-50%, 8px);
+		opacity: 0;
+	}
+}
+
+/*
+ * Phones. Full width less a gutter, because a centred pill on a 360px screen is a
+ * couple of words per line.
+ */
+@media screen and (max-width: 730px), screen and (max-height: 560px) {
+	.toast {
+		left: 16px;
+		right: 16px;
+		max-width: none;
+		transform: none;
+		animation-name: riseInFlush;
+	}
+
+	/*
+	 * Above the create page's footer bar, and only here.
+	 *
+	 * That bar is `position: fixed` at these sizes and holds every control the page
+	 * has — trace, undo, redo, copy, paste and save, edge to edge — so a toast at the
+	 * usual offset covers all of it. It matters most in the case it is likeliest to
+	 * come up in: an error toast doesn't take itself away, and "Couldn't save your
+	 * flipbook. Try again." sitting on top of the save button is the whole of the
+	 * problem in one picture.
+	 *
+	 * 64 = the bar's own 8px offset, plus the 48px disc it is built from, plus 8 of
+	 * air. Above the breakpoint the footer is back in the flow and there is nothing
+	 * pinned down here to clear, so there is no desktop half to this rule.
+	 */
+	.lifted {
+		bottom: calc(64px + env(safe-area-inset-bottom));
+	}
+
+	.leaving {
+		animation-name: sinkOutFlush;
+	}
+}
+
+@keyframes riseInFlush {
+	from {
+		transform: translateY(16px);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes sinkOutFlush {
+	from {
+		transform: translateY(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateY(8px);
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.toast {
+		animation: none;
+	}
+
+	/* The fade still has to happen, or a dismissed toast hangs on screen for the
+	   200ms the component is waiting on an animation that isn't running. */
+	.leaving {
+		animation: fadeOut 0.2s linear 1 normal forwards;
+	}
+}
+
+@keyframes fadeOut {
+	to {
+		opacity: 0;
+	}
+}

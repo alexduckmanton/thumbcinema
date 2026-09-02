@@ -72,6 +72,8 @@
 .wordmark:hover {
 	color: #111;
 	text-decoration: none;
+	/* Not a text link: it has a hover of its own and doesn't want the fade as well. */
+	opacity: 1;
 }
 
 /* The right-hand group. `margin-left: auto` rather than justify-content on the row,

@@ -241,8 +241,8 @@ told to stand somewhere else for a moment.
 - **It is `z-index: 101`, one past the header**, and that is not decoration. Held
   sideways the air above the paper is 8px deep, and `<header>` runs the full width of the
   window at 100: the top of the tab and most of the press area behind it are inside it. It
-  paints nothing on this page — the create page drops the wordmark row altogether and what
-  is left of the element is the message banner — but a box with no background is
+  paints nothing on this page — the create page drops the wordmark row altogether and the
+  element is left empty — but a box with no background is
   hit-tested exactly like one with, so at 16 the target was five usable pixels deep on the
   layout with the least room to spare.
 - **The tools are held off, and by a different flag from the page actions.** `busy` is

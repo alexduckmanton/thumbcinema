@@ -278,8 +278,9 @@
 	font: inherit;
 	text-decoration: underline;
 	cursor: pointer;
+	transition: opacity 0.12s linear;
 }
 
 .discard:hover {
-	color: var(--ink);
+	opacity: 0.8;
 }

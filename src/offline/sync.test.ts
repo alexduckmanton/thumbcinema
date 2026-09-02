@@ -13,7 +13,7 @@ vi.mock('./db', () => ({
 	}),
 }))
 
-vi.mock('../lib/messages', () => ({ showMessage: vi.fn() }))
+vi.mock('../lib/toast', () => ({ showToast: vi.fn() }))
 
 vi.mock('../lib/api', async (importActual) => ({
 	...(await importActual<typeof import('../lib/api')>()),
@@ -21,7 +21,7 @@ vi.mock('../lib/api', async (importActual) => ({
 }))
 
 import { ApiError, saveFlipbook } from '../lib/api'
-import { showMessage } from '../lib/messages'
+import { showToast } from '../lib/toast'
 import { pendingEntries, queueFlipbook, resetPending } from './pending'
 import { flushPending, startOfflineSync } from './sync'
 
@@ -75,15 +75,15 @@ describe('flushPending', () => {
 
 		await flushPending()
 
-		expect(showMessage).toHaveBeenCalledTimes(1)
-		expect(vi.mocked(showMessage).mock.calls[0]?.[0].copy).toContain('2 flipbooks are published')
+		expect(showToast).toHaveBeenCalledTimes(1)
+		expect(vi.mocked(showToast).mock.calls[0]?.[0].copy).toContain('2 flipbooks are published')
 	})
 
 	it('stays quiet when there was nothing to publish', async () => {
 		await flushPending()
 
 		expect(saveFlipbook).not.toHaveBeenCalled()
-		expect(showMessage).not.toHaveBeenCalled()
+		expect(showToast).not.toHaveBeenCalled()
 	})
 
 	it('stops at the first connection failure and keeps the rest', async () => {

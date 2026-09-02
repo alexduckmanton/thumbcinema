@@ -68,6 +68,10 @@
 	inset: 0;
 	display: block;
 	background-color: var(--white);
+	/* An anchor wrapped around a drawing rather than around words. Both halves of the
+	   link convention are off: there is nothing here to underline, and the hover fade
+	   would take the flipbook down to 80% for crossing it with a pointer. */
+	text-decoration: none;
 
 	/*
 	 * No `touch-action` here, and no callout suppression either: under a finger this is
@@ -86,6 +90,11 @@
 	 */
 	-webkit-user-select: none;
 	user-select: none;
+}
+
+.card:hover {
+	text-decoration: none;
+	opacity: 1;
 }
 
 /*

@@ -59,7 +59,7 @@ Everything lives in `src/offline/`:
 ## What happens when
 
 **Saving with nothing to save to.** `handleSave` posts as normal, and on a network
-failure writes the payload whole to IndexedDB and goes to `/f/local-…` with a banner
+failure writes the payload whole to IndexedDB and goes to `/f/local-…` with a toast
 saying so. It leaves the page with `window.location.href`, like an ordinary save — except
 where there is no service worker to answer for the site, when a real load would be the
 browser's error page; there it navigates inside the app instead and carries the paper
@@ -75,7 +75,7 @@ you can do to a queued flipbook besides wait.
 boot as well, because a tab closed offline and opened online never sees the event. Oldest
 first, one at a time (they are megabyte uploads on a connection that has just come back),
 stopping at the first network failure since the second will fail for the same reason. One
-banner for the run.
+toast for the run.
 
 **Two tabs.** Both see `online`, and the queue is shared. `withLock` — the Web Locks API —
 serialises the flushes, and `stillQueued` re-asks storage inside the lock, so the second

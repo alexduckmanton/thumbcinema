@@ -46,12 +46,40 @@ properties, element defaults, and two utility classes.
   separate object sliding under the canvas. `--shadow-page` had no users left and is
   gone from `base.css`. The canvas's own radius was 2px, from before the gallery cards
   were rounded.
+- **Links are underlined at rest, and hovering one fades it to 80%.** The underline
+  used to arrive on hover, which left a link in a paragraph looking like nothing at all
+  until a pointer found it — and on a phone it never does. Opacity rather than a second
+  colour, so one rule covers the blue links, the grey footnote in the gallery's footer
+  and the pale one on the crash screen's red, and the hover has one job: saying the
+  pointer is here. The buttons and cards that happen to be anchors — the wordmark, the
+  create button, the view toggle, a gallery card — turn both halves off beside
+  where they already turn the underline off; they have hovers of their own, and fading a
+  whole flipbook because a pointer crossed it is not what the rule is for. The three
+  buttons that are really links — the toast's "Got it", the gallery's retry, the playback
+  page's discard — wear the same treatment by hand, being `<button>`s.
 - **Colours are the 2013 palette**, including the computed ones: the button's border
   and pressed states came out of a Sass mixin that darkened the base by fixed amounts,
   and those are the values that shipped.
 - **A component styles its own states.** No cross-module selectors — CSS Modules hash
   the names, so `.playing .tools` across two files silently matches nothing. A component
   that has to know what the page is doing is told in a prop and styles itself from it.
+- **Messages are a toast at the bottom of the window, in two colours only.** `Toast`
+  is `position: fixed`, centred, at `z-index: 1100` — over the create page's tray and
+  page bar and over the save form, under the crash screen — and it is mounted once in
+  `App` rather than by a page, because the offline queue publishes on its own schedule
+  and says so from wherever the reader is. `info` is black, `error` is red, and there
+  is no third: the 2013 banner had `success` in green as well, and a colour code is a
+  lot to ask of a sentence that leaves after five seconds. Errors don't leave on their
+  own; info toasts do. Every toast dismisses with **"Got it"**, written in the
+  component and not at the call site, so the wording can't drift apart again. Its
+  dismiss is a link, underlined, and fades under the pointer like every other one. What
+  this replaced was a banner that took over the header and dropped in a word at a
+  time — charming the first time and in the way after that, because it moved the
+  page's own furniture to say something small.
+- **`--toast-error` is not `--red`.** White on the brand red is 3.5:1 and a 15px
+  sentence needs 4.5:1; the toast is the one place that red would be carrying body
+  text rather than filling a button under its own label, so it has a darkened copy at
+  4.8:1. Anything else that puts words on a coloured field needs the same sum done.
 - **The icons are the 2013 sprite** (`src/styles/icons.module.css`). Hand-drawn, in
   the same hand as everything else; an icon font would look like a different site.
   The retina sheet has double the spacing as well as double the art, so one set of
