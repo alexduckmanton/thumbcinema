@@ -88,6 +88,56 @@ describe('resamplePolyline', () => {
 	})
 })
 
+describe('resamplePolyline, given something that is not a stroke', () => {
+	/*
+	 * A non-finite coordinate anywhere in the input made the path's length NaN or
+	 * infinite, and an infinite length is a sampling loop that never returns — on the
+	 * main thread, with nothing logged. The bad point is dropped and the rest resampled.
+	 */
+	it('drops a point that is not a number rather than looping on it', () => {
+		const out = resamplePolyline(
+			[
+				{ x: 0, y: 0 },
+				{ x: Number.POSITIVE_INFINITY, y: 0 },
+				{ x: 10, y: 0 },
+			],
+			5,
+		)
+		expect(out).toEqual([
+			{ x: 0, y: 0 },
+			{ x: 5, y: 0 },
+			{ x: 10, y: 0 },
+		])
+	})
+
+	it('drops NaN the same way', () => {
+		const out = resamplePolyline(
+			[
+				{ x: 0, y: 0 },
+				{ x: Number.NaN, y: 3 },
+				{ x: 10, y: 0 },
+			],
+			5,
+		)
+		expect(out).toHaveLength(3)
+		expect(out.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true)
+	})
+
+	it('keeps only the ends of a stroke too long to be one', () => {
+		const out = resamplePolyline(
+			[
+				{ x: 0, y: 0 },
+				{ x: 1e12, y: 0 },
+			],
+			5,
+		)
+		expect(out).toEqual([
+			{ x: 0, y: 0 },
+			{ x: 1e12, y: 0 },
+		])
+	})
+})
+
 describe('sweepAngle', () => {
 	const centre = { x: 0, y: 0 }
 

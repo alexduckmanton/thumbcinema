@@ -411,6 +411,16 @@ and spent by the next ⌘Z. Four things about it are load-bearing:
   differently from not clicking on it and each click costs a step that undoes nothing
   visible. The same normalisation is why restoring a step *deselects*: what goes back
   on the page is a drawing, with nothing held.
+- **`begin` takes the string `commit` made rather than reading the page again.** It
+  runs inside the pointer-down handler, before the first ink sample, and `capture` on a
+  dense page is tens of milliseconds on a phone — paid at the start of every stroke.
+  The page at pointer-down is the page the last gesture ended on, which `commit` has just
+  serialised, so `History.cache` keeps that string per layer and `begin` reads it. It is
+  dropped wherever the page can have changed by any other route: `write` (undo and
+  redo), `clear` (a load), and `invalidate`, which the engine calls on every change to
+  the selection because putting one down copies its strokes back as new items and the
+  capture is ordered by id. `commit`, `swap` and `inkOf` always read fresh, so a stale
+  entry could only ever cost a phantom step, never hide a real one or put wrong ink back.
 - **Steps are keyed by page id, and a step knows where to leave you.** Inserting a page
   renumbers every index after it, so a history holding indices starts pointing at the
   wrong pages the moment it is any use. `forward` and `back` are page ids and differ
@@ -534,6 +544,20 @@ can't.
   tips; most of each one sits *behind* the canvas and selecting a tool slides more of
   it into view. Drop either of the two out of that stacking order and enormous pencils
   appear across the drawing.
+- **The onion skin is a raster of the previous page, at the bottom of the guide layer.**
+  It was the previous page's layer left visible at 10% opacity, and that is the one
+  thing paper cannot draw cheaply: a Path composites with `globalAlpha`, but a Layer or
+  Group does not (`_canComposite` is false), so a translucent layer is drawn into an
+  offscreen canvas the size of its ink and copied back at alpha — every frame, for the
+  whole of every stroke. Measured at 600 strokes on the previous page: 97ms a frame
+  against 4ms for the same page opaque, nearly all of it the full-page copy, and the
+  offscreen canvas is a second 1920×1920 bitmap on a 3× phone inside the budget iOS
+  enforces by blanking. `Scene.showOnion` photographs the page once per page turn with
+  `rasterize` and shows the Raster instead; `generation` is what says the photo is
+  stale, and `clearGuides` is what stops `Selection.reset` wiping it along with the box.
+  Two things follow: `exportSvgElement` and `exportForRecovery` take it down first, or
+  the file gets an `<image>` holding a PNG of the whole previous page; and a page layer
+  is never visible unless it is the active page.
 - **A selected stroke is moved into the selection layer, not flagged.** The selection
   layer draws *below* the pages, which reads correctly only because the page fades to
   20% while anything is selected. **The layer is not a page, so anything left in it

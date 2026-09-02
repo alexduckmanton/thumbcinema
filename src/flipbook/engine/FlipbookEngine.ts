@@ -229,7 +229,13 @@ export class FlipbookEngine {
 			for (const listener of this.grabListeners) listener()
 		}
 
-		this.selection.onChange = () => this.publishSelection()
+		this.selection.onChange = () => {
+			// Putting a selection down copies its strokes back onto the page as new
+			// items, which is a change to the page nothing else records. See
+			// `History.cache`.
+			this.history.invalidate(this.scene.activePage)
+			this.publishSelection()
+		}
 
 		this.store = new Store<FlipbookState>({
 			page: options.page ?? null,
@@ -1538,10 +1544,21 @@ export class FlipbookEngine {
 		return { svg: new XMLSerializer().serializeToString(svg), thumbnailDataUrl, cover }
 	}
 
+	/**
+	 * The onion skin is taken down for the length of the export. It is a raster in the
+	 * guide layer — see `Scene.showOnion` — and `exportSVG` writes every layer, so left
+	 * up it would go into the file as an `<image>` carrying a base64 PNG of the whole
+	 * previous page.
+	 */
 	exportSvgElement(): SVGElement {
-		const svg = this.scene.project.exportSVG({ asString: false }) as SVGElement
-		assertLeadingGroups(svg, this.pageCount)
-		return svg
+		this.scene.hideOnion()
+		try {
+			const svg = this.scene.project.exportSVG({ asString: false }) as SVGElement
+			assertLeadingGroups(svg, this.pageCount)
+			return svg
+		} finally {
+			this.refreshOnion()
+		}
 	}
 
 	/**
@@ -1555,6 +1572,9 @@ export class FlipbookEngine {
 	 * and a throw inside the crash handler would take the recovery with it.
 	 */
 	exportForRecovery(): string {
+		// Same reason `exportSvgElement` does: a raster in the file would be megabytes of
+		// PNG, in a file that has a 5 MB localStorage budget to fit in.
+		this.scene.hideOnion()
 		this.scene.activeLayer.remove()
 		return new XMLSerializer().serializeToString(
 			this.scene.project.exportSVG({ asString: false }) as SVGElement,
@@ -1840,8 +1860,13 @@ export class FlipbookEngine {
 	 * is a reader — `drawImage` out of this canvas, once a frame — and was the one that
 	 * did it without asking.
 	 */
-	redraw(): void {
-		this.scene.redraw()
+	redraw(): boolean {
+		return this.scene.redraw()
+	}
+
+	/** How many times the canvas has been drawn. See `Scene.draws`, and `ZoomStage`. */
+	get draws(): number {
+		return this.scene.draws
 	}
 
 	/** Where the intercepted gesture started, was, and is. See `synthesise`. */

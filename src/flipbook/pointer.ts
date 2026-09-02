@@ -296,6 +296,11 @@ export class PointerLayer {
 		book.addEventListener('pointermove', this.onPointerMove)
 		book.addEventListener('pointerenter', this.onPointerMove)
 		book.addEventListener('pointerleave', this.onPointerLeave)
+		// Capture, ahead of the canvas's own listeners: this is what keeps paper's
+		// `mousedown` out of a stroke this layer is driving. See `onMouseDown`.
+		book.addEventListener('mousedown', this.onMouseDown, { capture: true })
+		// The samples a finger's `touchmove` didn't carry. See `onCoalescedTouchMove`.
+		field.addEventListener('pointermove', this.onCoalescedTouchMove, { capture: true })
 
 		// And the stage's own mouse, on the field because the stage is built by a
 		// component this one doesn't own and may not exist yet. Capture, so a press lands
@@ -363,6 +368,8 @@ export class PointerLayer {
 		this.book.removeEventListener('pointermove', this.onPointerMove)
 		this.book.removeEventListener('pointerenter', this.onPointerMove)
 		this.book.removeEventListener('pointerleave', this.onPointerLeave)
+		this.book.removeEventListener('mousedown', this.onMouseDown, options)
+		this.field.removeEventListener('pointermove', this.onCoalescedTouchMove, options)
 
 		this.field.removeEventListener('pointerdown', this.onStagePointerDown, options)
 		this.field.removeEventListener('pointermove', this.onStagePointerMove, options)
@@ -559,6 +566,8 @@ export class PointerLayer {
 	}
 
 	private onTouchStart = (event: TouchEvent): void => {
+		if (this.swallowsTouch(event)) return
+
 		const touch = event.changedTouches[0]
 		if (!touch) return
 		if (!this.ownsTouch(event.target)) return
@@ -628,6 +637,8 @@ export class PointerLayer {
 	}
 
 	private onTouchMove = (event: TouchEvent): void => {
+		if (this.swallowsTouch(event)) return
+
 		const zoom = this.zoom
 		if (zoom) {
 			this.zoomTouchMove(event, zoom)
@@ -775,6 +786,8 @@ export class PointerLayer {
 	 * gesture end.
 	 */
 	private onTouchEnd = (event: TouchEvent): void => {
+		if (this.swallowsTouch(event)) return
+
 		if (this.zoom) {
 			this.zoomTouchEnd(event)
 			return
@@ -973,6 +986,15 @@ export class PointerLayer {
 			const x = touched.clientX - box.left
 			const y = touched.clientY - box.top
 			gesture.travel += Math.hypot(x - gesture.x, y - gesture.y)
+
+			// The samples between the last touchmove and this one, if the pointer event
+			// ahead of it carried any. Fed before the point the touch itself carries, which
+			// is the last of them and is handled below as it always was.
+			if (this.surface === 'stage' && gesture.engaged) {
+				for (const sample of this.takeCoalesced(touched)) {
+					this.workStageAt(sample.x - box.left, sample.y - box.top, true)
+				}
+			}
 
 			if (this.surface === 'book') {
 				// The outline goes where the finger goes: a delta on the paper is a delta on
@@ -1299,14 +1321,19 @@ export class PointerLayer {
 
 	/** Puts the tool to work at the point on the page the finger is over on the stage. */
 	private workStage(gesture: Gesture): void {
+		this.workStageAt(gesture.inkX, gesture.inkY, gesture.engaged)
+	}
+
+	/** The same, at a point in the stage's own pixels rather than the gesture's. */
+	private workStageAt(x: number, y: number, engaged: boolean): void {
 		const view = stage().view
 		const zoom = this.zoom
 		if (!view || !zoom) return
 
-		const at = this.stagePointAt(gesture.inkX, gesture.inkY, zoom, view)
+		const at = this.stagePointAt(x, y, zoom, view)
 		const point = this.engine.inProject(at.x, at.y)
 
-		if (gesture.engaged) this.engine.toolDrag(point)
+		if (engaged) this.engine.toolDrag(point)
 		// A cursor moving with nothing down is a hover, which on the stage is what puts the
 		// transform tool's handles and push's dots under the fingertip before you commit.
 		else this.engine.toolHover(point)
@@ -1557,6 +1584,14 @@ export class PointerLayer {
 		const y = event.clientY - box.top
 		gesture.travel += Math.hypot(x - gesture.x, y - gesture.y)
 
+		// Every sample the pointer produced since the last event, for the two tools that
+		// mark. The last of them is this event's own point and is fed below.
+		if (this.surface === 'stage' && gesture.engaged && this.marks) {
+			for (const sample of samplesOf(event).slice(0, -1)) {
+				this.workStageAt(sample.x - box.left, sample.y - box.top, true)
+			}
+		}
+
 		if (this.surface === 'book') {
 			const view = stage().view
 			const page = this.engine.page
@@ -1800,9 +1835,11 @@ export class PointerLayer {
 		// The stroke starts wherever the *cursor* is standing in the relative modes,
 		// which is the one place it can start there: the finger's position means nothing,
 		// and a stroke that opened under the fingertip and then jumped to the ring would
-		// draw a line between the two.
-		gesture.inkX = this.relative ? this.cursorX : gesture.x
-		gesture.inkY = this.relative ? this.cursorY : gesture.y
+		// draw a line between the two. A mouse is absolute in every mode — see
+		// `publishMouse` — so its stroke starts under the arrow.
+		const absolute = gesture.id === POINTER_GESTURE || !this.relative
+		gesture.inkX = absolute ? gesture.x : this.cursorX
+		gesture.inkY = absolute ? gesture.y : this.cursorY
 		this.engine.toolDown(this.engine.toProject(gesture.inkX, gesture.inkY))
 	}
 
@@ -1860,35 +1897,246 @@ export class PointerLayer {
 	// --- mouse and pen -------------------------------------------------------
 
 	/*
-	 * Never intercepted, and never even considered: a mouse has a visible cursor, sits a
-	 * pixel wide and occludes nothing, so every one of these modes is about a problem it
-	 * doesn't have. What it takes from this file is the ring and the transform tool's four
-	 * shapes, both of which are drawn at the pointer exactly where paper is already
-	 * working.
+	 * Never one of the drawing modes: a mouse has a visible cursor, sits a pixel wide
+	 * and occludes nothing, so every one of those is about a problem it doesn't have.
+	 * What it takes from this file is the ring and the transform tool's four shapes,
+	 * both of which are drawn at the pointer exactly where the tool is working.
 	 *
-	 * Touch pointers are dropped on the floor here, because the touch listeners above
-	 * have already dealt with them. Both streams fire for the same finger.
+	 * **The two marking tools are driven from here rather than by paper, though**, and
+	 * the reason is the samples. paper listens for `mousemove` and reads one point per
+	 * event; a browser delivers one `mousemove` a frame and quietly drops the rest, so a
+	 * fast stroke from a 1000 Hz mouse or a 240 Hz pen arrives as sixty points a second
+	 * and its curves as chords. `pointermove` carries the dropped ones —
+	 * `getCoalescedEvents()`, which every engine has had since Safari 18.2 — so the
+	 * pencil and the eraser are fed every sample the hardware produced. The mechanism
+	 * is the one the finger already uses on the stage: paper is kept out of the gesture
+	 * and the tool is driven through `engine.toolDown`/`toolDrag`/`toolUp`. Keeping
+	 * paper out of a *mouse* gesture is one listener, `onMouseDown` below.
+	 *
+	 * The transform tool stays paper's on a desktop: it grabs rather than marks, so a
+	 * dropped sample costs it nothing, and its hover is paper's `onMouseMove`. Only
+	 * where there is no stage — with one, `onStagePointerDown` above is already the
+	 * pointer-driven path and takes the same samples.
+	 *
+	 * A pen is a pointer, not a finger. On an iPad it also produces touch events, and
+	 * those are swallowed for the length of a gesture this path is driving — see
+	 * `swallowsTouch`. Touch pointers are dropped on the floor here, because the touch
+	 * listeners above have already dealt with them. Both streams fire for the same
+	 * finger.
 	 */
 
 	private onPointerDown = (event: PointerEvent): void => {
 		if (event.pointerType === 'touch') return
 		this.held = true
 		this.over = true
+
+		if (this.interceptsPointer(event)) {
+			this.beginPointerStroke(event)
+			return
+		}
+
 		this.publishMouse(event)
 	}
 
 	private onPointerMove = (event: PointerEvent): void => {
 		if (event.pointerType === 'touch') return
 		this.over = true
+
+		const gesture = this.gesture
+		if (gesture?.id === POINTER_GESTURE) {
+			this.movePointerStroke(event, gesture)
+			return
+		}
+
 		this.publishMouse(event)
 	}
 
 	private onPointerUp = (event: PointerEvent): void => {
 		if (event.pointerType === 'touch') return
 		this.held = false
+
+		if (this.gesture?.id === POINTER_GESTURE) {
+			this.endPointerStroke()
+			return
+		}
+
 		if (this.over) this.publishMouse(event)
 		else this.publish()
 	}
+
+	/**
+	 * paper's own `mousedown` on the canvas, stopped for a stroke this layer is driving.
+	 *
+	 * paper binds it in the view's constructor and nothing inside the engine can talk it
+	 * out of it, so it is stopped in the capture phase on the canvas's parent — before
+	 * the target's listeners run — for exactly the gestures `onPointerDown` took. With
+	 * no `mousedown` paper never starts a drag, and its `mousemove` on the document goes
+	 * on delivering the hover the transform tool wants. The engine's own `mousedown`
+	 * listener on the canvas is stopped with it, and rightly: `toolDown` does that job
+	 * for a gesture that arrives this way.
+	 *
+	 * A pen's compatibility mouse events are prevented at `pointerdown` instead, which
+	 * is the one place the spec allows it; this catches a real mouse, for which there is
+	 * no such switch.
+	 */
+	private onMouseDown = (event: MouseEvent): void => {
+		if (this.gesture?.id === POINTER_GESTURE) event.stopPropagation()
+	}
+
+	/**
+	 * Whether a mouse or pen press is a stroke this layer drives, rather than paper's.
+	 *
+	 * The two marking tools, the main button, and no stage: with one, the stage's own
+	 * pointer path is already in charge. Not while a page is being carried or a flipbook
+	 * is arriving — `engage` refuses those too, but a press refused there would still
+	 * have taken the gesture from paper, and here paper draws nothing either way.
+	 */
+	private interceptsPointer(event: PointerEvent): boolean {
+		if (event.button !== 0 || this.zoom || this.gesture) return false
+		if (!this.marks) return false
+
+		const state = this.engine.store.snapshot
+		return !state.loading && !state.reordering
+	}
+
+	/** Whether the tool in hand is one of the two that mark. Those take every sample. */
+	private get marks(): boolean {
+		const tool = this.engine.store.snapshot.tool
+		return tool === 'pencil' || tool === 'eraser'
+	}
+
+	private beginPointerStroke(event: PointerEvent): void {
+		// A pen also produces touch events, and cancelling its `pointerdown` is what stops
+		// the browser synthesising mouse events out of them for paper to find. A real
+		// mouse has no such switch; `onMouseDown` is its half.
+		if (event.pointerType !== 'mouse') event.preventDefault()
+
+		// Moves and the release keep coming here however far the stroke runs off the
+		// paper — the same reason the engine listens for `mouseup` on the document.
+		try {
+			this.book.setPointerCapture(event.pointerId)
+		} catch {
+			// A pointer that has already gone, which the release will say.
+		}
+
+		this.source = 'mouse'
+		this.surface = 'book'
+		this.others.clear()
+
+		const box = this.canvas.getBoundingClientRect()
+		const x = event.clientX - box.left
+		const y = event.clientY - box.top
+		this.mouseX = x
+		this.mouseY = y
+		this.cursorX = x
+		this.cursorY = y
+
+		this.gesture = {
+			id: POINTER_GESTURE,
+			intercepted: true,
+			engaged: false,
+			everEngaged: false,
+			openedAt: performance.now(),
+			travel: 0,
+			x,
+			y,
+			inkX: x,
+			inkY: y,
+			anchorX: x,
+			anchorY: y,
+		}
+
+		this.engage()
+		this.publish(box)
+	}
+
+	private movePointerStroke(event: PointerEvent, gesture: Gesture): void {
+		const box = this.canvas.getBoundingClientRect()
+		const samples = samplesOf(event)
+
+		if (gesture.engaged) {
+			for (const sample of samples) {
+				this.engine.toolDrag(this.engine.toProject(sample.x - box.left, sample.y - box.top))
+			}
+		}
+
+		const last = samples[samples.length - 1] ?? { x: event.clientX, y: event.clientY }
+		const x = last.x - box.left
+		const y = last.y - box.top
+		gesture.travel += Math.hypot(x - gesture.x, y - gesture.y)
+		gesture.x = x
+		gesture.y = y
+		gesture.inkX = x
+		gesture.inkY = y
+		this.mouseX = x
+		this.mouseY = y
+		this.cursorX = x
+		this.cursorY = y
+
+		this.publish(box)
+	}
+
+	private endPointerStroke(): void {
+		this.disengage()
+		this.gesture = null
+		this.publish()
+	}
+
+	/**
+	 * A touch that belongs to a pointer-driven gesture, which is a pen's.
+	 *
+	 * A pen fires both streams for one contact. The pointer path took it at
+	 * `pointerdown`, which fires first, so by the time its touch events arrive there is
+	 * a gesture with a synthetic id in hand — and everything about the contact is
+	 * already being handled. Left alone, the touch path would read the pen's touchstart
+	 * as a second finger and open a pinch against it. Stopped as well as ignored, so
+	 * paper's own touch listeners never see it either.
+	 */
+	private swallowsTouch(event: TouchEvent): boolean {
+		const gesture = this.gesture
+		if (!gesture || gesture.id >= 0) return false
+
+		event.stopPropagation()
+		if (event.cancelable) event.preventDefault()
+		return true
+	}
+
+	/**
+	 * The samples a finger's `touchmove` doesn't carry.
+	 *
+	 * Touch events have no coalesced list; pointer events do, and a finger fires both,
+	 * `pointermove` first. So the pointer event's samples are put aside here and
+	 * `takeCoalesced` hands them to the `touchmove` that follows — matched by position,
+	 * because a `Touch.identifier` and a `pointerId` are not promised to agree, and the
+	 * last coalesced sample *is* the point the touch event carries. Only on the stage,
+	 * only while a marking tool is at work: the aiming band and the relative modes
+	 * measure deltas from the finger, and a stash of absolute positions is no use to
+	 * them.
+	 */
+	private onCoalescedTouchMove = (event: PointerEvent): void => {
+		if (event.pointerType !== 'touch') return
+
+		const gesture = this.gesture
+		if (!gesture?.engaged || this.surface !== 'stage' || !this.marks) {
+			this.coalesced = null
+			return
+		}
+
+		this.coalesced = { x: event.clientX, y: event.clientY, samples: samplesOf(event) }
+	}
+
+	/** Everything stashed for `touch` but its own point, or nothing. See above. */
+	private takeCoalesced(touch: Touch): Point[] {
+		const stash = this.coalesced
+		this.coalesced = null
+		if (!stash) return []
+		if (Math.abs(stash.x - touch.clientX) > 0.5 || Math.abs(stash.y - touch.clientY) > 0.5) {
+			return []
+		}
+		return stash.samples.slice(0, -1)
+	}
+
+	private coalesced: { x: number; y: number; samples: Point[] } | null = null
 
 	private onPointerLeave = (event: PointerEvent): void => {
 		if (event.pointerType === 'touch') return
@@ -2070,7 +2318,9 @@ export class PointerLayer {
 		const rect = box ?? this.canvas.getBoundingClientRect()
 		const gesture = this.gesture
 
-		if (this.source === 'mouse' && !gesture) {
+		// A mouse or a pen, resting or drawing: the ring is where the pointer is, and it
+		// is a picture of the pointer rather than a thing standing on the page.
+		if (this.source === 'mouse' && (!gesture || gesture.id === POINTER_GESTURE)) {
 			const shown = this.over || this.held
 			this.store.set({
 				cursor: shown
@@ -2084,7 +2334,7 @@ export class PointerLayer {
 							touching: false,
 							standing: false,
 							surface: 'book',
-							marking: this.held,
+							marking: gesture ? gesture.engaged : this.held,
 							affordance: this.engine.transformAffordance(),
 						}
 					: null,
@@ -2236,8 +2486,30 @@ interface Pinch {
  */
 const PINCH_GRACE = 250
 
-/** A gesture the mouse is driving. `Touch.identifier` is never negative. */
+/** A gesture the mouse is driving on the stage. `Touch.identifier` is never negative. */
 const MOUSE_GESTURE = -1
+
+/** A mouse or pen stroke on the paper itself, with no stage. See `onPointerDown`. */
+const POINTER_GESTURE = -2
+
+/**
+ * Every position a pointer event stands for, oldest first and ending on its own.
+ *
+ * `getCoalescedEvents()` is the samples the browser folded into this one event to
+ * keep to one dispatch a frame; the last of them is the event itself. Engines that
+ * don't have it, or a `pointermove` that coalesced nothing, give the one point.
+ */
+function samplesOf(event: PointerEvent): Point[] {
+	const coalesced = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : []
+	const source = coalesced.length > 0 ? coalesced : [event]
+	const points = source
+		.map((sample) => ({ x: sample.clientX, y: sample.clientY }))
+		// A sample that isn't a position is dropped rather than drawn: a non-finite
+		// coordinate fed to the pencil is a stroke of infinite length, and resampling one
+		// of those is a loop that never ends.
+		.filter((sample) => Number.isFinite(sample.x) && Number.isFinite(sample.y))
+	return points.length > 0 ? points : [{ x: event.clientX, y: event.clientY }]
+}
 
 function aspectOf(box: Box): number {
 	return box.height === 0 ? 1 : box.width / box.height

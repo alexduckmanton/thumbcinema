@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { LEGACY_PAGE_SIZE, SQUARE_PAGE_SIZE } from './constants'
+import { LEGACY_PAGE_SIZE, ONION_OPACITY, SQUARE_PAGE_SIZE } from './constants'
 import { assertLeadingGroups, LEADING_SYSTEM_GROUPS, pageSizeFromSvg } from './formats'
 import { Scene } from './scene'
 
@@ -100,5 +100,91 @@ describe('the exported root', () => {
 
 		scene.appendPage()
 		expect(() => assertLeadingGroups(exportRoot(scene), 2)).not.toThrow()
+	})
+})
+
+/*
+ * The onion skin, which is a raster of the previous page rather than that page's layer
+ * shown at 10% — see `Scene.showOnion` for the frame cost that decided it. What these
+ * check is the part that would go wrong silently: that the picture is taken once per
+ * page turn and not once per stroke, and that the selection's housekeeping in the same
+ * layer leaves it alone.
+ */
+describe('the onion skin', () => {
+	async function twoPages(): Promise<Scene> {
+		const scene = await sceneOn()
+		new scene.scope.Path.Line(new scene.scope.Point(10, 10), new scene.scope.Point(100, 100))
+		// A blank page after the drawn one, which is now the previous page.
+		scene.insertBlankPage(0)
+		return scene
+	}
+
+	function onionOf(scene: Scene): paper.Item | undefined {
+		return scene.guideLayer.children[0]
+	}
+
+	it('is a raster at the bottom of the guide layer, and the page stays hidden', async () => {
+		const scene = await twoPages()
+		scene.showOnion()
+
+		const onion = onionOf(scene)
+		expect(onion).toBeInstanceOf(scene.scope.Raster)
+		expect(onion?.opacity).toBe(ONION_OPACITY)
+		expect(scene.pageLayer(0).visible).toBe(false)
+		expect(scene.pageLayer(0).opacity).toBe(1)
+	})
+
+	it('is kept between a capture taking it down and putting it back', async () => {
+		const scene = await twoPages()
+		scene.showOnion()
+		const first = onionOf(scene)
+
+		scene.hideOnion()
+		expect(scene.guideLayer.children).toHaveLength(0)
+
+		scene.showOnion()
+		expect(onionOf(scene)?.id).toBe(first?.id)
+	})
+
+	it('is taken again after a page turn, when the previous page may have changed', async () => {
+		const scene = await twoPages()
+		scene.showOnion()
+		const first = onionOf(scene)
+
+		scene.setActivePage(0)
+		scene.setActivePage(1)
+		scene.showOnion()
+
+		expect(onionOf(scene)?.id).not.toBe(first?.id)
+		expect(onionOf(scene)).toBeInstanceOf(scene.scope.Raster)
+	})
+
+	it('survives the selection clearing its guides', async () => {
+		const scene = await twoPages()
+		scene.showOnion()
+		scene.guideLayer.activate()
+		new scene.scope.Path.Rectangle(new scene.scope.Point(0, 0), new scene.scope.Size(5, 5))
+		scene.activeLayer.activate()
+
+		scene.clearGuides()
+
+		expect(scene.guideLayer.children).toHaveLength(1)
+		expect(onionOf(scene)).toBeInstanceOf(scene.scope.Raster)
+	})
+
+	it('photographs nothing for an empty previous page', async () => {
+		const scene = await sceneOn()
+		scene.insertBlankPage(0)
+		scene.showOnion()
+
+		expect(scene.guideLayer.children).toHaveLength(0)
+	})
+
+	it('is off on page one', async () => {
+		const scene = await twoPages()
+		scene.setActivePage(0)
+		scene.showOnion()
+
+		expect(scene.guideLayer.children).toHaveLength(0)
 	})
 })

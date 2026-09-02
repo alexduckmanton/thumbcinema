@@ -227,6 +227,29 @@ Things worth knowing before touching anything nearby:
   kind, which is what a laptop with a touchscreen needs; and the grey/black `.waiting`
   and `.inking` states are the standing cursor's alone, because they are feedback for a
   changeover you can't see and a mouse button is under your own hand.
+- **The pencil and the eraser are fed every sample the pointer produced, and that is
+  why a mouse or pen stroke is driven from this layer rather than by paper.** paper
+  reads one point per `mousemove`, and a browser delivers one of those a frame — so a
+  fast stroke from a 1000 Hz mouse or a 240 Hz pen arrives at sixty points a second
+  with its curves as chords. `pointermove` carries the dropped ones as
+  `getCoalescedEvents()` (every engine since Safari 18.2), and `samplesOf` hands them to
+  `engine.toolDrag` one at a time. Three paths, one rule. On a desktop, with no stage,
+  `onPointerDown` takes a pencil or eraser press as a `POINTER_GESTURE` and `onMouseDown`
+  stops paper's own `mousedown` in the capture phase on `.book`; the transform tool stays
+  paper's up there, because it grabs rather than marks and its hover is paper's. On the
+  stage, `onStagePointerMove` — already the pointer path for a mouse or pen — feeds the
+  same samples through `workStageAt`. And for a finger, whose `touchmove` has no
+  coalesced list, `onCoalescedTouchMove` puts the `pointermove` that fires just ahead of
+  it aside and `zoomTouchMove` takes it back, matched by position because a
+  `Touch.identifier` and a `pointerId` are not promised to agree. The relative modes and
+  v13's aiming band take none of this: they measure deltas from the finger, and a list of
+  absolute positions is no use to a nudge. **A pen is a pointer, not a finger**: it fires
+  both streams for one contact, the pointer path takes it first, and `swallowsTouch`
+  stops its touch events for the length of the gesture — without which the touch path
+  read a pen's `touchstart` as a second finger and opened a pinch against it. Verified
+  in Chromium with a real mouse drag (paper's listener never fires, undo takes the stroke
+  back), a synthetic `pointermove` carrying five coalesced samples (all five inked), and a
+  finger on the phone stage; a real pen on an iPad has not been tried.
 
 An intercepted gesture goes through the same `handlePointerDown`/`handlePointerUp` as
 an ordinary one, so it is one history step and updates its page and thumbnail the same
@@ -288,9 +311,14 @@ own because v11 shares none of the machinery the other ten do.
   in the part of the picture the paper's own transform puts there. The blend is the same
   arithmetic too — `(1−α)·dst + α·blend(src, dst)` is what CSS and a canvas both do — so
   the ink stays as dark as it was drawn down here as well.
-- **The stage is a copy, not a second drawing.** One `drawImage` per frame out of the live
-  canvas — the loupe's mechanism at a larger size — and a finger's position handed back
-  through the same window the other way. So there is nothing here for the save path, the
+- **The stage is a copy, not a second drawing.** One `drawImage` out of the live
+  canvas on every frame that has something new in it — the loupe's mechanism at a larger
+  size — and a finger's position handed back through the same window the other way. The
+  loop runs every frame, because page turns, undo and playback all change the paper
+  without a finger on the stage; what it paints is gated on `engine.draws`, a count of
+  paper's own draws kept by `Scene.countDraws`, and on the window, the page and the
+  photograph. Idle, the copy of a 1920² backing store sixty times a second was the one
+  thing this page did with nothing happening. So there is nothing here for the save path, the
   history or the page strip to know about: a gesture that arrives from down there is one
   history step and one thumbnail, and the artwork is still its own size whatever is on
   screen.

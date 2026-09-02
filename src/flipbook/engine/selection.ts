@@ -220,7 +220,8 @@ export class Selection {
 		this.removeMarquee()
 
 		this.scene.guideLayer.activate()
-		this.scene.guideLayer.removeChildren()
+		// Not `removeChildren`: the onion skin lives at the bottom of this layer too.
+		this.scene.clearGuides()
 		this.bounds = null
 
 		if (!this.isEmpty) {

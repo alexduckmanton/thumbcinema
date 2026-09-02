@@ -16,6 +16,16 @@ export function distance(a: Vec2, b: Vec2): number {
 }
 
 /**
+ * The most points a resampled stroke may hold.
+ *
+ * A stroke that crosses a 640-unit page a hundred times is 12,800 samples at the
+ * pencil's spacing; a million is not a stroke, it is a coordinate that went wrong
+ * somewhere upstream, and the loop in `resamplePolyline` must not be the place that
+ * finds out.
+ */
+const MAX_SAMPLES = 1_000_000
+
+/**
  * Resamples a polyline to evenly spaced points.
  *
  * This is what `path.flatten(5)` did in paper.js 0.8, and it is *not* what
@@ -38,7 +48,12 @@ export function distance(a: Vec2, b: Vec2): number {
  * number of whole steps that fit, so the last sample lands on the final point
  * rather than short of it.
  */
-export function resamplePolyline(points: readonly Vec2[], spacing: number): Vec2[] {
+export function resamplePolyline(input: readonly Vec2[], spacing: number): Vec2[] {
+	// A point that isn't a number is not on the stroke. It cannot be placed, and one
+	// non-finite coordinate makes the length below NaN or infinite — and an infinite
+	// length is a loop that never ends, on the main thread, with nothing logged.
+	const points = input.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+
 	if (points.length < 2 || spacing <= 0) return points.map((p) => ({ x: p.x, y: p.y }))
 
 	// Cumulative arc length at each input point.
@@ -51,6 +66,12 @@ export function resamplePolyline(points: readonly Vec2[], spacing: number): Vec2
 
 	// A stroke that never moved (every point identical) has nowhere to sample along.
 	if (total === 0) return [{ ...points[0]! }, { ...points[points.length - 1]! }]
+
+	// Every input is finite, so this can only be reached by a stroke longer than the
+	// number of steps it would take can hold — which is not a stroke anybody drew.
+	if (!Number.isFinite(total) || total / spacing > MAX_SAMPLES) {
+		return [{ ...points[0]! }, { ...points[points.length - 1]! }]
+	}
 
 	const steps = Math.max(1, Math.ceil(total / spacing))
 	const step = total / steps

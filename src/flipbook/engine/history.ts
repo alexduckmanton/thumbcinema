@@ -124,6 +124,34 @@ export class History {
 	/** The page as it stood when the current gesture started. See `begin`. */
 	private pending: { pageId: number; ink: Ink } | null = null
 
+	/**
+	 * Each page's ink as it was last read, keyed by the layer it is the ink of.
+	 *
+	 * What it is for is `begin`, which runs inside the pointer-down handler — the first
+	 * thing that happens when a finger lands, and the thing the first ink sample waits
+	 * behind. `capture` clones every stroke on the page and serialises the lot, which
+	 * on a dense page is tens of milliseconds on a phone, paid at the start of every
+	 * stroke. But the page as it stands at pointer-down is, nearly always, the page as
+	 * it stood when the last gesture ended — and `commit` has just serialised exactly
+	 * that to compare it. So the string is kept, and `begin` takes it rather than
+	 * making it again.
+	 *
+	 * **Kept only where it is provably still the page.** An entry goes the moment the
+	 * layer's contents can have changed by any route other than a gesture this class
+	 * saw both ends of: `write` (undo and redo), `clear` (a load), and `invalidate`,
+	 * which the engine calls whenever the selection changes — because putting a
+	 * selection down *copies* the strokes back onto the page with new ids, and the
+	 * capture is ordered by id. `commit` never reads it: the after-image of a gesture
+	 * is always taken fresh, so a stale entry could cost a phantom step but never hide
+	 * a real one — and `swap` and `inkOf` read fresh too, because a step's ink is
+	 * something undo will put back on a page, and that must be the page as it is.
+	 *
+	 * A `WeakMap` on the layer rather than a `Map` on the page id: indices move as
+	 * pages come and go, ids are the store's and this class only sees them at `begin`,
+	 * and a layer that has left the project takes its entry with it.
+	 */
+	private cache = new WeakMap<paper.Layer, Ink>()
+
 	private listener: (() => void) | null = null
 
 	constructor(scene: Scene) {
@@ -169,7 +197,13 @@ export class History {
 	 * nothing visible before it reaches the thing you wanted back.
 	 */
 	begin(pageIndex: number, pageId: number): void {
-		this.pending = { pageId, ink: this.capture(pageIndex) }
+		const layer = this.scene.pageLayer(pageIndex)
+		let ink = this.cache.get(layer)
+		if (ink === undefined) {
+			ink = this.capture(pageIndex)
+			this.cache.set(layer, ink)
+		}
+		this.pending = { pageId, ink }
 	}
 
 	/**
@@ -185,7 +219,12 @@ export class History {
 		this.pending = null
 		if (!started) return false
 
-		if (this.capture(pageIndex) === started.ink) return false
+		// Fresh, never from the cache, and it becomes the cache: this is the page as the
+		// next gesture will find it. See `cache`.
+		const ended = this.capture(pageIndex)
+		this.cache.set(this.scene.pageLayer(pageIndex), ended)
+
+		if (ended === started.ink) return false
 
 		this.push({
 			ops: [{ kind: 'content', pageId: started.pageId, ink: started.ink }],
@@ -198,6 +237,18 @@ export class History {
 	/** Drops a gesture without recording it — the page went away underneath it. */
 	abandon(): void {
 		this.pending = null
+	}
+
+	/**
+	 * The page's ink may have changed by a route this class didn't see. See `cache`.
+	 *
+	 * The engine calls it on every change to the selection, which is the one way a
+	 * page's contents move about outside a gesture: a selection put down is copied back
+	 * onto the page as new items.
+	 */
+	invalidate(pageIndex: number): void {
+		if (pageIndex < 0 || pageIndex >= this.scene.pageCount) return
+		this.cache.delete(this.scene.pageLayer(pageIndex))
 	}
 
 	/** Records a step assembled by the caller: the page actions, which aren't gestures. */
@@ -277,6 +328,8 @@ export class History {
 		this.undoStack.length = 0
 		this.redoStack.length = 0
 		this.pending = null
+		// A load has just replaced every page there is, page one's layer included.
+		this.cache = new WeakMap()
 		this.listener?.()
 	}
 
@@ -382,6 +435,11 @@ export class History {
 		for (const child of [...staging.children]) layer.addChild(child)
 
 		staging.removeChildren()
+
+		// Dropped rather than set to `ink`: a round trip through paper's JSON is stable
+		// but not promised byte-identical on the first pass, and a cache that is merely
+		// nearly right is worse than none. The next gesture reads the page once.
+		this.cache.delete(layer)
 	}
 }
 

@@ -30,13 +30,13 @@ export type PaperCore = Pick<paper.PaperScope, Exclude<keyof paper.PaperScope, '
  *                  moved *into* it, and it sits below the pages — which reads
  *                  correctly only because the page fades to 20% whenever anything
  *                  is selected.
- *   1  guide       the marquee and the transform box.
+ *   1  guide       the marquee and the transform box — and, underneath both, the
+ *                  onion skin, which is a raster of the previous page. See `showOnion`.
  *   2  staging     never visible, and empty except for the instant a page is being
  *                  read into the undo history or written back out of it. It was the
  *                  one-step undo's snapshot; `History` keeps its steps as strings
  *                  instead, and borrows this to serialise through.
- *   3+ pages       one per page, in page order, exactly one of them visible (plus
- *                  the onion skin of the one before it).
+ *   3+ pages       one per page, in page order, exactly one of them visible.
  *
  * so page N is `project.layers[N + SYSTEM_LAYERS]`. Nothing else may be inserted
  * below the pages without moving that number.
@@ -63,8 +63,30 @@ export class Scene {
 
 	/** The page currently being drawn on. Always `project.layers[page + SYSTEM_LAYERS]`. */
 	activeLayer: paper.Layer
-	/** The page showing through at 10%, or null on page one. */
-	onionLayer: paper.Layer | null = null
+
+	/**
+	 * The onion skin: the page before this one, photographed. See `showOnion`.
+	 *
+	 * `source` is the page layer it is a picture of and `generation` is the flipbook it
+	 * was taken in — the two things that decide whether the picture is still true. The
+	 * raster is null for a source with nothing on it, which has nothing to photograph.
+	 */
+	private onion: { source: paper.Layer; raster: paper.Raster | null; generation: number } | null =
+		null
+	/** Whether the onion raster is currently in the guide layer. */
+	private onionShown = false
+
+	/**
+	 * Goes up on every page turn and every change to the flipbook's shape.
+	 *
+	 * What it is for is the one question `showOnion` has to answer without reading a
+	 * page's ink: is the picture it took of the previous page still the previous page?
+	 * Every way the ink on a page that isn't the active one can change — undo, a load, a
+	 * page put back or taken away — ends in a page turn or a structural change, so this
+	 * going up is the whole of the invalidation. The active page's own ink changes on
+	 * every stroke, and it is never the onion.
+	 */
+	private generation = 0
 
 	private activeIndex = 0
 
@@ -108,6 +130,7 @@ export class Scene {
 		this.scope.setup(canvas)
 
 		this.resizeObserver = this.pinCoordinates()
+		this.countDraws()
 
 		// `setup()` leaves the project with no layers at all — paper creates the first
 		// one lazily, the moment anything asks for the active layer. So this getter
@@ -209,6 +232,7 @@ export class Scene {
 	resize(page: PageSize): void {
 		if (page.width === this.page.width && page.height === this.page.height) return
 
+		this.clearOnion()
 		this.page = page
 		this.canvas.width = page.width
 		this.canvas.height = page.height
@@ -255,15 +279,46 @@ export class Scene {
 	}
 
 	/**
-	 * Brings the canvas up to date *now*.
+	 * Brings the canvas up to date *now*, and says whether that drew anything.
 	 *
 	 * paper redraws on its own on the next animation frame, so this is only needed
 	 * before something reads the pixels back — drawing the canvas into a page
 	 * thumbnail, or `toDataURL` for the saved thumbnail. `view.update()` is a no-op
 	 * when there's nothing pending, so calling it defensively costs nothing.
 	 */
-	redraw(): void {
-		this.view.update()
+	redraw(): boolean {
+		return this.view.update()
+	}
+
+	/**
+	 * How many times the canvas has been drawn, by anyone.
+	 *
+	 * For the readers that copy this canvas every frame — the zoom stage on a phone —
+	 * so they can copy it only on the frames it changed. It has to be a count and not
+	 * the answer `redraw` gives, because paper draws in a frame callback of its own that
+	 * may run before or after the reader's, and a reader that asked "did *my* update
+	 * draw?" would skip every frame paper had already painted. Counted where paper
+	 * draws, whoever asked it to.
+	 */
+	get draws(): number {
+		return this.drawn
+	}
+
+	private drawn = 0
+
+	/**
+	 * Wraps `view.update` to keep `draws` true. The same trick `pinCoordinates` plays
+	 * on `getEventPoint`: an own property on the view instance, which is what paper's
+	 * own frame loop calls as `that.update()`.
+	 */
+	private countDraws(): void {
+		const view = this.scope.view
+		const update = view.update.bind(view)
+		view.update = () => {
+			const drew = update()
+			if (drew) this.drawn++
+			return drew
+		}
 	}
 
 	// --- pages ---------------------------------------------------------------
@@ -289,6 +344,7 @@ export class Scene {
 	insertBlankPage(index: number): number {
 		const previous = this.pageLayer(index)
 
+		this.generation++
 		previous.visible = false
 
 		const layer = new this.scope.Layer()
@@ -312,6 +368,7 @@ export class Scene {
 	 * built — and is also why a flipbook no longer visibly draws itself as it loads.
 	 */
 	appendPage(): paper.Layer {
+		this.generation++
 		const layer = new this.scope.Layer()
 		layer.visible = false
 
@@ -333,6 +390,7 @@ export class Scene {
 	duplicatePage(index: number): number {
 		const current = this.pageLayer(index)
 
+		this.generation++
 		const copy = current.clone() as paper.Layer
 		copy.insertBelow(current)
 		copy.opacity = 1
@@ -356,6 +414,7 @@ export class Scene {
 	 * should be standing afterwards.
 	 */
 	insertPageAt(index: number): paper.Layer {
+		this.generation++
 		const layer = new this.scope.Layer()
 		layer.visible = false
 
@@ -372,6 +431,7 @@ export class Scene {
 	}
 
 	removePage(index: number): void {
+		this.generation++
 		this.pageLayer(index).remove()
 		if (this.activeIndex > index) this.activeIndex--
 	}
@@ -392,6 +452,7 @@ export class Scene {
 	movePage(from: number, to: number): void {
 		if (from === to) return
 
+		this.generation++
 		const layer = this.pageLayer(from)
 		const below = to === 0 ? this.stagingLayer : this.pageLayer(to < from ? to - 1 : to)
 
@@ -411,16 +472,17 @@ export class Scene {
 	/**
 	 * Shows page `index` and hides whatever was showing.
 	 *
-	 * The old layer is only hidden when it isn't also the onion skin — during
-	 * playback the onion is off and every page takes its turn, and hiding a layer
-	 * the onion still points at would leave a hole.
+	 * `playing` no longer changes what happens here — the onion skin is a picture in the
+	 * guide layer rather than a page layer left visible, so there is never a layer that
+	 * must not be hidden — but it is kept as the statement it makes at every call site:
+	 * this is a page change nobody is standing on, and a caller that says so is easier
+	 * to read than one that doesn't.
 	 */
-	setActivePage(index: number, options: { playing?: boolean } = {}): void {
+	setActivePage(index: number, _options: { playing?: boolean } = {}): void {
 		const next = this.pageLayer(index)
 
-		if (options.playing || this.activeLayer !== this.onionLayer) {
-			this.activeLayer.visible = false
-		}
+		this.generation++
+		this.activeLayer.visible = false
 
 		this.activeIndex = index
 		this.activeLayer = next
@@ -431,31 +493,109 @@ export class Scene {
 
 	// --- onion skin ----------------------------------------------------------
 
-	/** The previous page, ghosted underneath the current one. Off on page one. */
+	/**
+	 * The previous page, ghosted underneath the current one. Off on page one.
+	 *
+	 * **A raster of the page, not the page at 10% opacity — and that is the whole of
+	 * this section.** paper can composite a *path* with `globalAlpha`, but a Layer or a
+	 * Group cannot (`Item#_canComposite` is false for both), so a translucent layer is
+	 * drawn by paper into an offscreen canvas the size of its ink and copied back at
+	 * alpha — on every frame, for as long as it is visible, which while the onion is
+	 * showing is every frame of every stroke. Measured in the harness that found it: at
+	 * 600 strokes on the previous page, 97ms a frame against 4ms for the same page drawn
+	 * opaque, nearly all of it the full-page copy; and that offscreen canvas is a second
+	 * 1920×1920 bitmap on a 3× phone, held in paper's pool inside the same budget iOS
+	 * enforces by blanking canvases. A Raster composites directly. Taking the picture
+	 * costs one draw of the previous page, once per page turn, and drawing it costs one
+	 * `drawImage` a frame.
+	 *
+	 * The picture is kept between `hideOnion` and the next `showOnion` — a page
+	 * thumbnail is captured at the end of every stroke and takes the onion down to do it
+	 * — and taken again when the previous page can have changed, which `generation`
+	 * answers. It is photographed at the canvas's own pixel ratio, so it is the same
+	 * pixels the layer would have been drawn at.
+	 *
+	 * It lives at the *bottom* of the guide layer. That is the same place in the stack
+	 * the page layer was — above the selection, below the pages — and the box and the
+	 * marquee are added above it as they always were. `clearGuides` is what keeps the
+	 * selection's own housekeeping from taking it down with them.
+	 */
 	showOnion(): void {
 		const index = this.activeIndex
 		this.hideOnion()
 
 		if (index <= 0) {
-			this.onionLayer = null
+			this.disposeOnion()
 			return
 		}
 
-		this.onionLayer = this.pageLayer(index - 1)
-		this.onionLayer.opacity = ONION_OPACITY
-		this.onionLayer.visible = true
+		const source = this.pageLayer(index - 1)
+		if (!this.onion || this.onion.source !== source || this.onion.generation !== this.generation) {
+			this.disposeOnion()
+			this.onion = {
+				source,
+				raster: this.photograph(source),
+				generation: this.generation,
+			}
+		}
+
+		const raster = this.onion.raster
+		if (raster) {
+			this.guideLayer.insertChild(0, raster)
+			this.onionShown = true
+		}
 	}
 
 	hideOnion(): void {
-		if (!this.onionLayer || this.onionLayer === this.activeLayer) return
-
-		this.onionLayer.opacity = 1
-		this.onionLayer.visible = false
+		if (!this.onionShown) return
+		this.onion?.raster?.remove()
+		this.onionShown = false
 	}
 
 	clearOnion(): void {
 		this.hideOnion()
-		this.onionLayer = null
+		this.disposeOnion()
+	}
+
+	/**
+	 * Empties the guide layer of everything but the onion skin.
+	 *
+	 * What `Selection.reset` did with `removeChildren` before the onion moved in here:
+	 * the box, the marquee, and whatever the push tool left behind.
+	 */
+	clearGuides(): void {
+		const onion = this.onion?.raster
+		for (const child of [...this.guideLayer.children]) {
+			if (child !== onion) child.remove()
+		}
+	}
+
+	/**
+	 * A picture of `layer` at the canvas's own resolution, or null for an empty one.
+	 *
+	 * `rasterize` draws the item, and paper draws nothing that is hidden — so the page
+	 * is shown for the length of the call. Nothing paints in between: this runs in one
+	 * go, and paper only redraws at the next frame.
+	 */
+	private photograph(layer: paper.Layer): paper.Raster | null {
+		if (layer.children.length === 0) return null
+
+		const wasVisible = layer.visible
+		layer.visible = true
+		const raster = layer.rasterize({
+			resolution: 72 * this.scope.view.pixelRatio,
+			insert: false,
+		})
+		layer.visible = wasVisible
+
+		raster.opacity = ONION_OPACITY
+		return raster
+	}
+
+	private disposeOnion(): void {
+		this.onion?.raster?.remove()
+		this.onion = null
+		this.onionShown = false
 	}
 
 	/**
