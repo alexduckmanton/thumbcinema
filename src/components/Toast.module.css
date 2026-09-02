@@ -21,7 +21,16 @@
 	display: flex;
 	align-items: baseline;
 	gap: 18px;
-	/* Never wider than a comfortable line, never wider than the window. */
+	/*
+	 * Two columns: the sentence at one end, "Got it" at the other.
+	 *
+	 * The floor is what makes that true of a short message as well as a long one —
+	 * without it the box shrink-wraps and "Flipbook saved." puts the button hard up
+	 * against the full stop, which reads as a fourth word rather than as the thing to
+	 * press. The ceiling is a comfortable line length. Both give way to the window
+	 * first, so a narrow one gets a toast that fits it rather than one that overhangs.
+	 */
+	min-width: min(420px, calc(100vw - 32px));
 	max-width: min(560px, calc(100vw - 32px));
 	padding: 13px 20px;
 	/* Not `--radius-control`, which is 10 and is for things you press. This is a
@@ -52,6 +61,8 @@
 }
 
 .copy {
+	/* Takes the room the button doesn't, which is what pushes the button to the end. */
+	flex: 1;
 	margin: 0;
 	font-size: 15px;
 	line-height: 1.4;
