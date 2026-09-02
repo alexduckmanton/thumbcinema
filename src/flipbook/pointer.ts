@@ -2502,7 +2502,13 @@ const POINTER_GESTURE = -2
 function samplesOf(event: PointerEvent): Point[] {
 	const coalesced = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : []
 	const source = coalesced.length > 0 ? coalesced : [event]
-	return source.map((sample) => ({ x: sample.clientX, y: sample.clientY }))
+	const points = source
+		.map((sample) => ({ x: sample.clientX, y: sample.clientY }))
+		// A sample that isn't a position is dropped rather than drawn: a non-finite
+		// coordinate fed to the pencil is a stroke of infinite length, and resampling one
+		// of those is a loop that never ends.
+		.filter((sample) => Number.isFinite(sample.x) && Number.isFinite(sample.y))
+	return points.length > 0 ? points : [{ x: event.clientX, y: event.clientY }]
 }
 
 function aspectOf(box: Box): number {
