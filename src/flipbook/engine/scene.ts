@@ -130,6 +130,7 @@ export class Scene {
 		this.scope.setup(canvas)
 
 		this.resizeObserver = this.pinCoordinates()
+		this.countDraws()
 
 		// `setup()` leaves the project with no layers at all — paper creates the first
 		// one lazily, the moment anything asks for the active layer. So this getter
@@ -278,15 +279,46 @@ export class Scene {
 	}
 
 	/**
-	 * Brings the canvas up to date *now*.
+	 * Brings the canvas up to date *now*, and says whether that drew anything.
 	 *
 	 * paper redraws on its own on the next animation frame, so this is only needed
 	 * before something reads the pixels back — drawing the canvas into a page
 	 * thumbnail, or `toDataURL` for the saved thumbnail. `view.update()` is a no-op
 	 * when there's nothing pending, so calling it defensively costs nothing.
 	 */
-	redraw(): void {
-		this.view.update()
+	redraw(): boolean {
+		return this.view.update()
+	}
+
+	/**
+	 * How many times the canvas has been drawn, by anyone.
+	 *
+	 * For the readers that copy this canvas every frame — the zoom stage on a phone —
+	 * so they can copy it only on the frames it changed. It has to be a count and not
+	 * the answer `redraw` gives, because paper draws in a frame callback of its own that
+	 * may run before or after the reader's, and a reader that asked "did *my* update
+	 * draw?" would skip every frame paper had already painted. Counted where paper
+	 * draws, whoever asked it to.
+	 */
+	get draws(): number {
+		return this.drawn
+	}
+
+	private drawn = 0
+
+	/**
+	 * Wraps `view.update` to keep `draws` true. The same trick `pinCoordinates` plays
+	 * on `getEventPoint`: an own property on the view instance, which is what paper's
+	 * own frame loop calls as `that.update()`.
+	 */
+	private countDraws(): void {
+		const view = this.scope.view
+		const update = view.update.bind(view)
+		view.update = () => {
+			const drew = update()
+			if (drew) this.drawn++
+			return drew
+		}
 	}
 
 	// --- pages ---------------------------------------------------------------

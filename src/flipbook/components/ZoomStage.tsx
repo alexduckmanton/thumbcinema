@@ -239,27 +239,52 @@ export function ZoomStage({
 	trace.current = photo && !suspended ? { photo, placing } : null
 
 	/*
-	 * One frame of the copy, every frame.
+	 * The copy, on every frame that has something new in it.
 	 *
-	 * Unconditionally rather than while a finger is down, because most of what changes
-	 * down here is not the pointer: turning a page, undoing, and playback all redraw the
-	 * paper, and a stage that only repainted while it was being drawn on would sit
-	 * showing the page before last. It is one `drawImage` of a few hundred square pixels.
+	 * The loop runs every frame, and has to: most of what changes down here is not the
+	 * pointer — turning a page, undoing, and playback all redraw the paper — so a stage
+	 * that only repainted while it was being drawn on would sit showing the page before
+	 * last. What it doesn't do any more is *paint* every frame. The copy is a full read
+	 * of the paper's backing store, 1920² on a 3× phone, and at sixty a second with the
+	 * tool idle that is bandwidth and battery spent on drawing the same picture over
+	 * itself. So each frame asks whether anything it draws from has changed since the
+	 * last one it painted: the paper (by `engine.draws`, which counts paper's own draws
+	 * as well as the one asked for here — see `Scene.draws` for why it can't be the
+	 * answer `redraw` gives), the window, the page, the photograph and whether it has
+	 * finished loading. The first frame after the backing store is resized always
+	 * paints, because resizing emptied it.
 	 */
 	useEffect(() => {
 		if (store.width === 0 || store.height === 0) return
 
 		let frame = 0
+		let painted: Painted | null = null
+
 		const draw = () => {
+			const engine = live.current
+
 			// Bring the canvas up to date *first*: this is a reader of its pixels, and
 			// paper schedules its own redraw rather than doing it where the change was
 			// made. See `FlipbookEngine.redraw`.
-			live.current?.redraw()
+			engine?.redraw()
 
-			paint(canvas.current, canvasRef.current, showing.current, page.current, {
+			const now: Painted = {
+				draws: engine?.draws ?? 0,
+				view: showing.current,
+				page: page.current,
+				trace: trace.current,
 				picture: picture.current,
-				...trace.current,
-			})
+				ready: isReady(picture.current),
+			}
+
+			if (!painted || changed(painted, now)) {
+				paint(canvas.current, canvasRef.current, now.view, now.page, {
+					picture: now.picture,
+					...now.trace,
+				})
+				painted = now
+			}
+
 			frame = requestAnimationFrame(draw)
 		}
 		draw()
@@ -423,6 +448,32 @@ interface Trace {
 	picture?: HTMLImageElement | null
 	photo?: TracePhoto
 	placing?: boolean
+}
+
+/** Everything one frame of the stage was painted from. See the frame loop. */
+interface Painted {
+	draws: number
+	view: Viewport | null
+	page: PageSize
+	trace: { photo: TracePhoto; placing: boolean } | null
+	picture: HTMLImageElement | null
+	ready: boolean
+}
+
+function changed(before: Painted, after: Painted): boolean {
+	return (
+		before.draws !== after.draws ||
+		before.view !== after.view ||
+		before.page !== after.page ||
+		before.trace !== after.trace ||
+		before.picture !== after.picture ||
+		before.ready !== after.ready
+	)
+}
+
+/** Whether `paintTrace` would draw the picture: decoded, with pixels in it. */
+function isReady(picture: HTMLImageElement | null): boolean {
+	return Boolean(picture?.complete) && (picture?.naturalWidth ?? 0) > 0
 }
 
 /**

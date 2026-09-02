@@ -1860,8 +1860,13 @@ export class FlipbookEngine {
 	 * is a reader — `drawImage` out of this canvas, once a frame — and was the one that
 	 * did it without asking.
 	 */
-	redraw(): void {
-		this.scene.redraw()
+	redraw(): boolean {
+		return this.scene.redraw()
+	}
+
+	/** How many times the canvas has been drawn. See `Scene.draws`, and `ZoomStage`. */
+	get draws(): number {
+		return this.scene.draws
 	}
 
 	/** Where the intercepted gesture started, was, and is. See `synthesise`. */

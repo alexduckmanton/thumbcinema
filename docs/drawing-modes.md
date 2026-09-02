@@ -288,9 +288,14 @@ own because v11 shares none of the machinery the other ten do.
   in the part of the picture the paper's own transform puts there. The blend is the same
   arithmetic too — `(1−α)·dst + α·blend(src, dst)` is what CSS and a canvas both do — so
   the ink stays as dark as it was drawn down here as well.
-- **The stage is a copy, not a second drawing.** One `drawImage` per frame out of the live
-  canvas — the loupe's mechanism at a larger size — and a finger's position handed back
-  through the same window the other way. So there is nothing here for the save path, the
+- **The stage is a copy, not a second drawing.** One `drawImage` out of the live
+  canvas on every frame that has something new in it — the loupe's mechanism at a larger
+  size — and a finger's position handed back through the same window the other way. The
+  loop runs every frame, because page turns, undo and playback all change the paper
+  without a finger on the stage; what it paints is gated on `engine.draws`, a count of
+  paper's own draws kept by `Scene.countDraws`, and on the window, the page and the
+  photograph. Idle, the copy of a 1920² backing store sixty times a second was the one
+  thing this page did with nothing happening. So there is nothing here for the save path, the
   history or the page strip to know about: a gesture that arrives from down there is one
   history step and one thumbnail, and the artwork is still its own size whatever is on
   screen.
