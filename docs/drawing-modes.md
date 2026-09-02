@@ -227,6 +227,29 @@ Things worth knowing before touching anything nearby:
   kind, which is what a laptop with a touchscreen needs; and the grey/black `.waiting`
   and `.inking` states are the standing cursor's alone, because they are feedback for a
   changeover you can't see and a mouse button is under your own hand.
+- **The pencil and the eraser are fed every sample the pointer produced, and that is
+  why a mouse or pen stroke is driven from this layer rather than by paper.** paper
+  reads one point per `mousemove`, and a browser delivers one of those a frame — so a
+  fast stroke from a 1000 Hz mouse or a 240 Hz pen arrives at sixty points a second
+  with its curves as chords. `pointermove` carries the dropped ones as
+  `getCoalescedEvents()` (every engine since Safari 18.2), and `samplesOf` hands them to
+  `engine.toolDrag` one at a time. Three paths, one rule. On a desktop, with no stage,
+  `onPointerDown` takes a pencil or eraser press as a `POINTER_GESTURE` and `onMouseDown`
+  stops paper's own `mousedown` in the capture phase on `.book`; the transform tool stays
+  paper's up there, because it grabs rather than marks and its hover is paper's. On the
+  stage, `onStagePointerMove` — already the pointer path for a mouse or pen — feeds the
+  same samples through `workStageAt`. And for a finger, whose `touchmove` has no
+  coalesced list, `onCoalescedTouchMove` puts the `pointermove` that fires just ahead of
+  it aside and `zoomTouchMove` takes it back, matched by position because a
+  `Touch.identifier` and a `pointerId` are not promised to agree. The relative modes and
+  v13's aiming band take none of this: they measure deltas from the finger, and a list of
+  absolute positions is no use to a nudge. **A pen is a pointer, not a finger**: it fires
+  both streams for one contact, the pointer path takes it first, and `swallowsTouch`
+  stops its touch events for the length of the gesture — without which the touch path
+  read a pen's `touchstart` as a second finger and opened a pinch against it. Verified
+  in Chromium with a real mouse drag (paper's listener never fires, undo takes the stroke
+  back), a synthetic `pointermove` carrying five coalesced samples (all five inked), and a
+  finger on the phone stage; a real pen on an iPad has not been tried.
 
 An intercepted gesture goes through the same `handlePointerDown`/`handlePointerUp` as
 an ordinary one, so it is one history step and updates its page and thumbnail the same

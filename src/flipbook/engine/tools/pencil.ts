@@ -99,7 +99,11 @@ export class PencilTool implements ModalTool {
 	}
 
 	deactivate(): void {
-		// Nothing to tear down: paper deactivates the tool when another activates.
+		// A stroke still open is finished rather than left half-made on the page. A tool
+		// can be changed mid-gesture — a key, or a tray button held by the other hand —
+		// and the gesture's release then goes to the new tool, which knows nothing about
+		// this path. paper deactivates the tool itself when another activates.
+		this.end()
 	}
 
 	// --- drawing -------------------------------------------------------------
